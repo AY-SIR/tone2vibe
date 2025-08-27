@@ -19,12 +19,12 @@ export class EnhancedTextToSpeechService {
     try {
       console.log('Generating speech with enhanced service:', request);
 
-      const { data, error } = await supabase.functions.invoke('text-to-speech-enhanced', {
+      // Use existing generate-voice function instead of non-existent text-to-speech-enhanced
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text: request.text,
           voice_settings: request.voice_settings,
-          language: request.language || 'en-US',
-          user_id: userId
+          language: request.language || 'en-US'
         }
       });
 

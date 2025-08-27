@@ -84,11 +84,17 @@ export function LiveAudioPreview({
       // Get a short preview text (first 100 characters)
       const previewText = extractedText.substring(0, 100) + "...";
       
-      // Call the text-to-voice edge function with error handling
-      const { data, error } = await supabase.functions.invoke('text-to-voice', {
+      // Use existing generate-voice function for preview (no word deduction for samples)
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text: previewText,
-          voice: 'alloy' // Default voice for preview
+          voice_settings: {
+            voice: 'alloy',
+            speed: 1.0,
+            pitch: 0,
+            volume: 1.0
+          },
+          is_sample: true // Mark as sample to avoid word deduction
         }
       }).catch((err) => {
         console.warn('Network error calling edge function:', err);

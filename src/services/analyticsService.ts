@@ -323,19 +323,8 @@ export class AnalyticsService {
 
       console.log(`Tracking activity: ${activityType} for user ${userId}`, metadata);
       
-      // Track word usage using smart deduction if words are involved
-      if (metadata?.words && metadata.words > 0) {
-        console.log(`Deducting ${metadata.words} words for user ${userId}`);
-        
-        // Import WordService dynamically to avoid circular imports
-        const { WordService } = await import('./wordService');
-        const wordUpdateSuccess = await WordService.updateWordCount(userId, metadata.words);
-        
-        if (!wordUpdateSuccess) {
-          console.error('Failed to update word count during activity tracking');
-          return;
-        }
-      }
+      // Only track analytics - word deduction happens in generation process
+      console.log(`Tracking ${metadata?.words || 0} words usage for analytics only`);
       
       await this.recordAnalytics(userId, {
         language: metadata?.language || 'en-US',

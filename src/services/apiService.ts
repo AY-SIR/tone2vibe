@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 export interface VoiceSettings {
   voice?: string;
   speed?: number;
+  pitch?: number;
+  volume?: number;
   project_id?: string;
   real_time?: boolean;
 }
@@ -23,15 +25,16 @@ class APIService {
     try {
       console.log('Generating advanced speech:', { text: text.substring(0, 100), settings });
 
-      const { data, error } = await supabase.functions.invoke('text-to-speech-enhanced', {
+      // Use existing generate-voice function instead of non-existent text-to-speech-enhanced
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text,
           voice_settings: {
             voice: settings.voice || 'alloy',
-            speed: settings.speed || 1.0
-          },
-          project_id: settings.project_id,
-          real_time: settings.real_time || false
+            speed: settings.speed || 1.0,
+            pitch: settings.pitch || 0,
+            volume: settings.volume || 1.0
+          }
         }
       });
 
@@ -57,10 +60,16 @@ class APIService {
     try {
       console.log('Generating basic speech:', { text: text.substring(0, 100), voice });
 
-      const { data, error } = await supabase.functions.invoke('text-to-voice', {
+      // Use existing generate-voice function instead of non-existent text-to-voice
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text,
-          voice
+          voice_settings: {
+            voice: voice || 'alloy',
+            speed: 1.0,
+            pitch: 0,
+            volume: 1.0
+          }
         }
       });
 
@@ -86,11 +95,16 @@ class APIService {
     try {
       console.log('Starting realtime processing:', { text: text.substring(0, 100), settings });
 
-      const { data, error } = await supabase.functions.invoke('realtime-voice-processing', {
+      // Use existing generate-voice function for realtime processing
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text,
-          voice_settings: settings,
-          project_id: settings.project_id
+          voice_settings: {
+            voice: settings.voice || 'alloy',
+            speed: settings.speed || 1.0,
+            pitch: settings.pitch || 0,
+            volume: settings.volume || 1.0
+          }
         }
       });
 

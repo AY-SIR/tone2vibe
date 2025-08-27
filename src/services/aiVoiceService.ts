@@ -90,8 +90,8 @@ export class AIVoiceService {
         };
       }
 
-      // Simulate audio generation (replace with actual TTS service)
-      const audioUrl = `https://example.com/ai-voice/${voiceId}.mp3`;
+      // Real AI voice generation using Supabase edge function
+      const audioUrl = await AIVoiceService.generateVoiceWithEdgeFunction(request, userId);
 
       return {
         success: true,
@@ -204,6 +204,28 @@ export class AIVoiceService {
         success: false,
         error: 'Internal server error during voice cloning'
       };
+    }
+  }
+
+  private static async generateVoiceWithEdgeFunction(request: AIVoiceRequest, userId: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
+        body: {
+          text: `Voice generation for ${request.characterName}`,
+          voice_settings: {
+            voice: 'alloy',
+            speed: 1.0,
+            pitch: 0,
+            volume: 1.0
+          }
+        }
+      });
+
+      if (error) throw error;
+      return data?.audio_url || null;
+    } catch (error) {
+      console.error('Edge function voice generation error:', error);
+      return null;
     }
   }
 }

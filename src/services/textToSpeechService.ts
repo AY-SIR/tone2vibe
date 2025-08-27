@@ -25,7 +25,7 @@ export class TextToSpeechService {
     try {
       console.log('Generating speech with options:', { textLength: text.length, options });
       
-      // Use the generate-voice edge function which properly updates word balance
+      // Use the generate-voice edge function which properly deducts words
       const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text: text,
