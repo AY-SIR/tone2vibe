@@ -87,6 +87,11 @@ const ModernStepFour = ({
       return;
     }
 
+    // Prevent double clicks
+    if (isGenerating || isSampleGeneration) {
+      return;
+    }
+
     setIsSampleGeneration(true);
     setIsGenerating(true);
     onProcessingStart("Generating voice sample...");
@@ -117,7 +122,7 @@ const ModernStepFour = ({
             is_sample: true // Mark as sample in voice_settings
           },
           language: selectedLanguage,
-          is_sample: true // Flag to prevent history saving
+          is_sample: true // Flag to prevent history saving AND word deduction
         }
       });
 
@@ -137,7 +142,7 @@ const ModernStepFour = ({
         
         toast({
           title: "Sample generated!",
-          description: "Listen to the sample and approve or adjust settings.",
+          description: "Listen to the sample and approve or adjust settings. No words deducted for samples.",
         });
       }
     } catch (error) {
@@ -186,6 +191,11 @@ const ModernStepFour = ({
       return;
     }
 
+    // Prevent double clicks
+    if (isGenerating) {
+      return;
+    }
+
     // Check word balance using new system
     if (profile) {
       const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
@@ -216,27 +226,42 @@ const ModernStepFour = ({
     }, 500);
 
     try {
-      // Generate full speech with analytics and history saving
-      const result = await TextToSpeechService.generateSpeech(extractedText, {
-        language: selectedLanguage,
-        quality: profile?.plan === 'premium' ? 'premium' : 'standard',
-        speed: speed[0],
-        pitch: pitch[0],
-        emotion: emotion,
-        accent: accent,
-        style: voiceStyle
+      // Generate full speech directly with edge function - ONLY ONE CALL
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
+        body: {
+          text: extractedText,
+          voice_settings: {
+            voice: 'alloy',
+            speed: speed[0],
+            pitch: pitch[0],
+            emotion: emotion,
+            accent: accent,
+            style: voiceStyle
+          },
+          language: selectedLanguage
+        }
       });
 
-      if (result && result.audioUrl) {
+      if (error) {
+        throw new Error(error.message || 'Failed to generate audio');
+      }
+
+      if (data && data.audioContent) {
         clearInterval(progressInterval);
         setProgress(100);
         
-        setGeneratedAudio(result.audioUrl);
-        onAudioGenerated(result.audioUrl);
+        // Convert base64 to blob URL
+        const audioBlob = new Blob([
+          new Uint8Array(atob(data.audioContent).split('').map(c => c.charCodeAt(0)))
+        ], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        setGeneratedAudio(audioUrl);
+        onAudioGenerated(audioUrl);
         
         toast({
-          title: "Full audio generated successfully!",
-          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio with analytics .`,
+          title: "Audio generated successfully!",
+          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio. Words deducted: ${data.wordsUsed || wordCount}`,
         });
 
         // Auto-advance after a short delay
@@ -244,7 +269,7 @@ const ModernStepFour = ({
           onNext();
         }, 1500);
       } else {
-        throw new Error("Failed to generate audio");
+        throw new Error("No audio content received");
       }
     } catch (error) {
       console.error('Audio generation failed:', error);
@@ -254,7 +279,7 @@ const ModernStepFour = ({
       let friendlyMessage = "Something went wrong while creating your audio. Please try again.";
       
       if (error instanceof Error) {
-        if (error.message.includes('word balance') || error.message.includes('words left')) {
+        if (error.message.includes('word balance') || error.message.includes('words left') || error.message.includes('Insufficient')) {
           friendlyMessage = "You don't have enough words left. Please buy more words or upgrade your plan.";
         } else if (error.message.includes('authentication') || error.message.includes('sign in')) {
           friendlyMessage = "Please sign in to generate audio.";

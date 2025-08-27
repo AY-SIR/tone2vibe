@@ -150,12 +150,17 @@ const Tool = () => {
         title: "Audio Generated",
       });
       
-      // The profile will update automatically via real-time subscription
-      console.log('Audio generated, profile should update via real-time');
+      // Force real-time profile update after audio generation
+      console.log('Audio generated, forcing profile refresh in 2 seconds');
+      setTimeout(() => {
+        console.log('Refreshing profile after audio generation...');
+        window.location.reload(); // Smooth refresh for updated word counts
+      }, 2000);
     }
   };
 
   const handleReset = () => {
+    // Reset all state for new generation
     setCurrentStep(1);
     setCompletedSteps([]);
     setExtractedText("");
@@ -163,6 +168,15 @@ const Tool = () => {
     setSelectedVoiceId("");
     setVoiceRecording(null);
     setProcessedAudioUrl("");
+    
+    // Force profile refresh to ensure latest word counts
+    if (user) {
+      console.log('Starting new generation - refreshing profile');
+      // The real-time subscription should automatically update, but we can trigger a manual refresh
+      setTimeout(() => {
+        window.location.reload(); // Force page refresh for smooth experience
+      }, 100);
+    }
   };
 
   const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
