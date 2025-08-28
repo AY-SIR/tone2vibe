@@ -15,33 +15,64 @@ const PaymentSuccess = () => {
   const { toast } = useToast();
   const [isVerifying, setIsVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
+  const [successTitle, setSuccessTitle] = useState("Payment Successful!");
+  const [successDescription, setSuccessDescription] = useState("");
 
   const sessionId = searchParams.get("session_id");
   const plan = searchParams.get("plan");
+  const type = searchParams.get("type");
+  const count = searchParams.get("count");
 
   useEffect(() => {
     const verifyPayment = async () => {
-      if (!sessionId || !plan) {
+      if (!sessionId) {
         navigate("/payment");
         return;
       }
 
       try {
-        const { data, error } = await supabase.functions.invoke("verify-stripe-payment", {
-          body: { sessionId, plan }
-        });
-
-        if (error) throw error;
-
-        if (data.success) {
-          setVerified(true);
-          await refreshProfile();
-          toast({
-            title: "Payment Successful!",
-            description: `Your ${plan} plan has been activated.`,
+        if (type === 'words') {
+          const { data, error } = await supabase.functions.invoke("verify-word-purchase", {
+            body: { sessionId }
           });
+
+          if (error) throw error;
+
+          if (data.success) {
+            setVerified(true);
+            setSuccessTitle("Words Added!");
+            const added = count ? Number(count).toLocaleString() : undefined;
+            setSuccessDescription(added ? `${added} words have been added to your account.` : `Your purchased words have been added to your account.`);
+            await refreshProfile();
+            toast({
+              title: "Words Added",
+              description: added ? `${added} words credited to your balance.` : `Words credited to your balance.`,
+            });
+          } else {
+            throw new Error(data.error || 'Verification failed');
+          }
+        } else if (plan) {
+          const { data, error } = await supabase.functions.invoke("verify-stripe-payment", {
+            body: { sessionId, plan }
+          });
+
+          if (error) throw error;
+
+          if (data.success) {
+            setVerified(true);
+            setSuccessTitle("Payment Successful!");
+            setSuccessDescription(`Your ${plan} plan has been activated.`);
+            await refreshProfile();
+            toast({
+              title: "Payment Successful!",
+              description: `Your ${plan} plan has been activated.`,
+            });
+          } else {
+            throw new Error(data.message || 'Verification failed');
+          }
         } else {
-          throw new Error(data.message);
+          navigate("/payment");
+          return;
         }
       } catch (error) {
         console.error("Payment verification failed:", error);
@@ -56,7 +87,7 @@ const PaymentSuccess = () => {
     };
 
     verifyPayment();
-  }, [sessionId, plan, navigate, refreshProfile, toast]);
+  }, [sessionId, plan, type, count, navigate, refreshProfile, toast]);
 
   if (isVerifying) {
     return (
@@ -77,14 +108,14 @@ const PaymentSuccess = () => {
         <CardHeader className="text-center">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           <CardTitle className="text-2xl">
-            {verified ? "Payment Successful!" : "Payment Issue"}
+            {verified ? successTitle : "Payment Issue"}
           </CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
           {verified ? (
             <>
               <p className="text-muted-foreground">
-                Your {plan} plan has been activated successfully. You now have access to all premium features!
+                {successDescription}
               </p>
               <div className="space-y-2">
                 <Button onClick={() => navigate("/tool")} className="w-full">

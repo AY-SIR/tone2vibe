@@ -98,13 +98,10 @@ export function WordPurchase() {
 
     try {
       // Create Stripe payment session for word purchase
-      const { data, error } = await supabase.functions.invoke('create-stripe-payment', {
+      const { data, error } = await supabase.functions.invoke('purchase-words', {
         body: {
-          type: 'word_purchase',
-          words: wordsAmount,
-          amount: calculatePrice(wordsAmount),
-          currency: pricing.currency.toLowerCase(),
-          gateway: 'stripe'
+          wordCount: wordsAmount,
+          currency: pricing.currency
         }
       });
 
