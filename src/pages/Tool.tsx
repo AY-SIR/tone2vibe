@@ -150,12 +150,8 @@ const Tool = () => {
         title: "Audio Generated",
       });
       
-      // Force real-time profile update after audio generation
-      console.log('Audio generated, forcing profile refresh in 2 seconds');
-      setTimeout(() => {
-        console.log('Refreshing profile after audio generation...');
-        window.location.reload(); // Smooth refresh for updated word counts
-      }, 2000);
+      // No auto-refresh here - let user download first
+      console.log('Audio generated successfully');
     }
   };
 
@@ -169,13 +165,17 @@ const Tool = () => {
     setVoiceRecording(null);
     setProcessedAudioUrl("");
     
-    // Force profile refresh to ensure latest word counts
+    // Force profile refresh to ensure latest word counts with loader
     if (user) {
       console.log('Starting new generation - refreshing profile');
-      // The real-time subscription should automatically update, but we can trigger a manual refresh
+      
+      // Show processing overlay during refresh
+      setIsProcessing(true);
+      setProcessingStep("Refreshing word balance...");
+      
       setTimeout(() => {
         window.location.reload(); // Force page refresh for smooth experience
-      }, 100);
+      }, 1500);
     }
   };
 
