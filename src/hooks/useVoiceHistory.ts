@@ -11,6 +11,9 @@ interface VoiceProject {
   audio_url: string;
   created_at: string;
   voice_settings: any;
+  processing_time_ms?: number;
+  generation_started_at?: string;
+  generation_completed_at?: string;
 }
 
 export const useVoiceHistory = () => {
@@ -107,7 +110,10 @@ export const useVoiceHistory = () => {
           word_count: item.words_used,
           audio_url: item.audio_url || '',
           created_at: item.created_at,
-          voice_settings: item.voice_settings
+          voice_settings: item.voice_settings,
+          processing_time_ms: item.processing_time_ms,
+          generation_started_at: item.generation_started_at,
+          generation_completed_at: item.generation_completed_at
         }));
       
       // Remove duplicates based on id (most reliable) or creation timestamp

@@ -48,9 +48,12 @@ export type Database = {
         Row: {
           audio_url: string | null
           created_at: string
+          generation_completed_at: string | null
+          generation_started_at: string | null
           id: string
           language: string
           original_text: string
+          processing_time_ms: number | null
           title: string
           updated_at: string
           user_id: string
@@ -60,9 +63,12 @@ export type Database = {
         Insert: {
           audio_url?: string | null
           created_at?: string
+          generation_completed_at?: string | null
+          generation_started_at?: string | null
           id?: string
           language?: string
           original_text: string
+          processing_time_ms?: number | null
           title: string
           updated_at?: string
           user_id: string
@@ -72,9 +78,12 @@ export type Database = {
         Update: {
           audio_url?: string | null
           created_at?: string
+          generation_completed_at?: string | null
+          generation_started_at?: string | null
           id?: string
           language?: string
           original_text?: string
+          processing_time_ms?: number | null
           title?: string
           updated_at?: string
           user_id?: string

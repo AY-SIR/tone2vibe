@@ -12,6 +12,8 @@ serve(async (req) => {
   }
 
   try {
+    const generationStartTime = new Date(); // Track start time
+    
     const body = await req.json();
     const { text, voice_settings, language = "en-US" } = body;
 
@@ -96,6 +98,15 @@ serve(async (req) => {
       if (recentEntries && recentEntries.length > 0) {
         console.log('Duplicate entry prevented - found recent identical entry');
       } else {
+        const generationEndTime = new Date();
+        const processingTimeMs = generationEndTime.getTime() - generationStartTime.getTime();
+        
+        console.log('Saving to history with time tracking:', {
+          processingTimeMs,
+          startTime: generationStartTime,
+          endTime: generationEndTime
+        });
+        
         const { error: insertError } = await supabaseService.from("history").insert({
           user_id: user.id,
           title: `Voice Generation ${new Date().toLocaleDateString()}`,
@@ -107,6 +118,9 @@ serve(async (req) => {
             is_sample: false
           },
           audio_url: `data:audio/mp3;base64,${base64Audio}`,
+          processing_time_ms: processingTimeMs,
+          generation_started_at: generationStartTime.toISOString(),
+          generation_completed_at: generationEndTime.toISOString(),
           created_at: new Date().toISOString()
         });
 

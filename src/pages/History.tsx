@@ -211,12 +211,22 @@ const History = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-sm sm:text-base lg:text-lg">{project.title}</CardTitle>
-                      <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
+                     <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
                         <Badge variant="outline" className="text-xs">{project.language}</Badge>
                         <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>
+                        {project.processing_time_ms && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                            {(project.processing_time_ms / 1000).toFixed(1)}s
+                          </Badge>
+                        )}
                         <span className="text-xs sm:text-sm text-muted-foreground">
                           {new Date(project.created_at).toLocaleDateString()}
                         </span>
+                        {project.generation_started_at && (
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(project.generation_started_at).toLocaleTimeString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
