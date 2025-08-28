@@ -109,10 +109,18 @@ export class AnalyticsService {
       const totalWordsProcessed = profile?.plan_words_used || 0; // Use plan_words_used for analytics
       const planWordsRemaining = Math.max(0, (profile?.words_limit || 1000) - totalWordsProcessed);
       
-      // For Pro/Premium users, only show purchased words if they actually bought extra words
-      // word_balance should now be 0 for all users unless they purchased extra words
-      const purchasedWords = (profile?.plan !== 'free' && profile?.word_balance > 0) ? profile.word_balance : 0;
+      // Always include purchased words in remaining calculation
+      const purchasedWords = profile?.word_balance || 0;
       const wordsRemaining = planWordsRemaining + purchasedWords; // Total available
+      
+      console.log('Word calculation:', {
+        totalWordsProcessed,
+        planWordsRemaining,
+        purchasedWords,
+        wordsRemaining,
+        planWordsUsed: profile?.plan_words_used,
+        wordsLimit: profile?.words_limit
+      });
       const totalAudioGenerated = projectsArray.length;
 
       // Recent activity (last 30 days)
