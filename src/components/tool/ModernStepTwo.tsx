@@ -205,9 +205,7 @@ const ModernStepTwo = ({
   const currentCharCount = editedText.replace(/\s/g, '').length;
   const hasChanges = editedText !== extractedText;
 
-  // Character limit enforcement (10,000 characters max)
-  const MAX_CHARACTERS = 10000;
-  const isOverCharacterLimit = currentCharCount > MAX_CHARACTERS;
+
 
   return (
     <div className="space-y-6">
@@ -378,7 +376,7 @@ const ModernStepTwo = ({
         
         <Button
           onClick={onNext}
-          disabled={!editedText.trim() || isImproving || isTranslating || isOverCharacterLimit}
+          disabled={!editedText.trim() || isImproving || isTranslating}
           size="lg"
           className="px-6 sm:px-8 order-1 sm:order-2 text-sm"
         >
