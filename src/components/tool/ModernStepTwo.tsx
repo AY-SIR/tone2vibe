@@ -285,7 +285,7 @@ const ModernStepTwo = ({
             <div>
               <Textarea
                 value={editedText}
-                onChange={(e) => {
+                onChange={(e) => 
                    setEditedText(e.target.value)
                   }
           
