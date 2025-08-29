@@ -286,30 +286,16 @@ const ModernStepTwo = ({
               <Textarea
                 value={editedText}
                 onChange={(e) => {
-                  const newValue = e.target.value;
-                  const newCharCount = newValue.replace(/\s/g, '').length;
-                  if (newCharCount <= MAX_CHARACTERS) {
-                    setEditedText(newValue);
+                   setEditedText(e.target.value)
                   }
-                }}
+          
                 placeholder="Review and edit your text here..."
-                className={`min-h-[200px] resize-none text-base leading-relaxed ${
-                  isOverCharacterLimit ? 'border-red-500 focus:border-red-500' : ''
-                }`}
+                className="min-h-[200px] resize-none text-base leading-relaxed"
               />
-              <div className="flex justify-between items-center mt-2 text-xs">
-                <span className="text-gray-500">
-                  Edit your text to ensure it sounds natural when converted to speech.
-                </span>
-                <div className="flex space-x-4 text-sm">
-                  <span className={isOverCharacterLimit ? 'text-red-500 font-medium' : 'text-gray-500'}>
-                    {currentCharCount}/{MAX_CHARACTERS} characters
-                  </span>
-                  <span className="text-gray-500">
-                    {currentWordCount} words
-                  </span>
-                </div>
-              </div>
+              <p className="text-xs text-gray-500 mt-2">
+Edit your text to ensure it sounds natural when convert to Voice.
+              
+</p>
             </div>
 
             {/* AI Improvement */}
