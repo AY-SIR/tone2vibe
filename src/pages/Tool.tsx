@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";   // ✅ Added Progress imp
 import { AlertCircle, CheckCircle, Clock } from "lucide-react"; // ✅ Added missing icons
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { GeoRestrictionAlert } from "@/components/common/GeoRestrictionAlert";
 import ModernStepOne from "@/components/tool/ModernStepOne";
 import ModernStepTwo from "@/components/tool/ModernStepTwo";
 import ModernStepThree from "@/components/tool/ModernStepThree";
@@ -206,11 +207,22 @@ const Tool = () => {
         message={processingStep || "Processing your request..."}
       />
 
-      {/* Header */}
-      <Header />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <Header />
+        
+        {/* Geo Restriction Alert */}
+        <div className="container mx-auto px-4 max-w-4xl">
+          <GeoRestrictionAlert />
+        </div>
 
-      <div className="min-h-screen bg-background py-2 px-2 sm:py-4 sm:px-4 lg:px-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-bold mb-2">AI Voice Generator</h1>
+            <p className="text-muted-foreground">
+              Convert your text to natural-sounding speech in just a few steps
+            </p>
+          </div>
 
           {/* Progress Bar */}
           <div className="mb-4 sm:mb-6">
@@ -259,7 +271,6 @@ const Tool = () => {
               );
             })}
           </div>
-        </div>
 
         {/* Word Balance Warning */}
         {!hasEnoughWords() && wordCount > 0 && (
@@ -403,6 +414,7 @@ const Tool = () => {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </>
   );

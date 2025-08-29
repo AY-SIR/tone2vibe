@@ -51,6 +51,11 @@ export class LocationService {
     return location || { country: 'Unknown', currency: 'USD' };
   }
 
+  // Get currency based on country (force INR for India, USD for others)
+  static getCurrencyForCountry(countryName: string): 'INR' | 'USD' {
+    return countryName === 'India' ? 'INR' : 'USD';
+  }
+
   static getPricing(currency: string = 'USD'): PricingData {
     const pricingMap: Record<string, PricingData> = {
       'INR': {
@@ -72,6 +77,11 @@ export class LocationService {
         words: { pricePerThousand: 0.49 }
       }
     };
+
+    // Force currency restrictions
+    if (currency !== 'INR' && currency !== 'USD') {
+      currency = 'USD'; // Default to USD for unsupported currencies
+    }
 
     return pricingMap[currency] || pricingMap['USD'];
   }

@@ -187,8 +187,27 @@ const ModernStepTwo = ({
     }
   };
 
-  const currentWordCount = editedText.trim().split(/\s+/).filter(word => word.length > 0).length;
+  // Calculate word count with 45-character rule (same as Step 1)
+  const calculateDisplayWordCount = (text: string) => {
+    const words = text.trim().split(/\s+/).filter((w) => w.length > 0);
+    let totalWordCount = 0;
+    words.forEach((word) => {
+      if (word.length > 45) {
+        totalWordCount += Math.ceil(word.length / 45);
+      } else {
+        totalWordCount += 1;
+      }
+    });
+    return totalWordCount;
+  };
+
+  const currentWordCount = calculateDisplayWordCount(editedText);
+  const currentCharCount = editedText.replace(/\s/g, '').length;
   const hasChanges = editedText !== extractedText;
+
+  // Character limit enforcement (10,000 characters max)
+  const MAX_CHARACTERS = 10000;
+  const isOverCharacterLimit = currentCharCount > MAX_CHARACTERS;
 
   return (
     <div className="space-y-6">
@@ -268,13 +287,31 @@ const ModernStepTwo = ({
             <div>
               <Textarea
                 value={editedText}
-                onChange={(e) => setEditedText(e.target.value)}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  const newCharCount = newValue.replace(/\s/g, '').length;
+                  if (newCharCount <= MAX_CHARACTERS) {
+                    setEditedText(newValue);
+                  }
+                }}
                 placeholder="Review and edit your text here..."
-                className="min-h-[200px] resize-none text-base leading-relaxed"
+                className={`min-h-[200px] resize-none text-base leading-relaxed ${
+                  isOverCharacterLimit ? 'border-red-500 focus:border-red-500' : ''
+                }`}
               />
-              <p className="text-xs text-gray-500 mt-2">
-                Edit your text to ensure it sounds natural when converted to speech.
-              </p>
+              <div className="flex justify-between items-center mt-2 text-xs">
+                <span className="text-gray-500">
+                  Edit your text to ensure it sounds natural when converted to speech.
+                </span>
+                <div className="flex space-x-4 text-sm">
+                  <span className={isOverCharacterLimit ? 'text-red-500 font-medium' : 'text-gray-500'}>
+                    {currentCharCount}/{MAX_CHARACTERS} characters
+                  </span>
+                  <span className="text-gray-500">
+                    {currentWordCount} words
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* AI Improvement */}
@@ -341,7 +378,7 @@ const ModernStepTwo = ({
         
         <Button
           onClick={onNext}
-          disabled={!editedText.trim() || isImproving || isTranslating}
+          disabled={!editedText.trim() || isImproving || isTranslating || isOverCharacterLimit}
           size="lg"
           className="px-6 sm:px-8 order-1 sm:order-2 text-sm"
         >

@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { LocationService, LocationData } from '@/services/locationService';
+import { GeoRestrictionService } from '@/services/geoRestrictionService';
 
 interface Profile {
   id: string;
@@ -150,6 +151,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
+      // Check geo restrictions before allowing signup
+      const geoCheck = await GeoRestrictionService.checkCountryAccess();
+      
+      if (!geoCheck.isAllowed) {
+        return { 
+          data: null,
+          error: new Error(geoCheck.message)
+        };
+      }
+
       // First check if email already exists in database
       const { data: existingUser, error: checkError } = await supabase
         .from('profiles')
@@ -184,6 +195,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
+      // Force correct currency based on user's country
+      if (geoCheck.countryCode && data.user) {
+        const forcedCurrency = GeoRestrictionService.getForcedCurrency(geoCheck.countryCode);
+        localStorage.setItem(`user_currency_${data.user.id}`, forcedCurrency);
+      }
+
       return { data, error: null };
     } catch (error) {
       console.error('Signup error:', error);
@@ -196,6 +213,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
+      // Check geo restrictions before allowing login
+      const geoCheck = await GeoRestrictionService.checkCountryAccess();
+      
+      if (!geoCheck.isAllowed) {
+        return { 
+          data: null,
+          error: new Error(geoCheck.message)
+        };
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -217,6 +244,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Sign out the user immediately if email not verified
         await supabase.auth.signOut();
         throw new Error('Please verify your email address before signing in. Check your inbox for a confirmation email.');
+      }
+
+      // Force correct currency based on user's country
+      if (geoCheck.countryCode && data.user) {
+        const forcedCurrency = GeoRestrictionService.getForcedCurrency(geoCheck.countryCode);
+        localStorage.setItem(`user_currency_${data.user.id}`, forcedCurrency);
       }
 
       // Track login IP only on first login (check localStorage)

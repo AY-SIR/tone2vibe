@@ -26,8 +26,16 @@ export function WordPurchase() {
   }, []);
 
   const loadPricing = async () => {
-    const userPricing = await WordService.getPricingForUser();
-    setPricing(userPricing);
+    // Get user's forced currency or default to INR for India, USD for others
+    const userLocation = await LocationService.detectUserLocation();
+    const forcedCurrency = userLocation.country === 'India' ? 'INR' : 'USD';
+    
+    const userPricing = WordService.getPricingForUser(profile?.plan || 'free', forcedCurrency);
+    setPricing({
+      currency: forcedCurrency,
+      pricePerThousand: userPricing.pricePerThousand,
+      symbol: userPricing.symbol
+    });
   };
 
   const canPurchaseWords = () => {
@@ -97,11 +105,30 @@ export function WordPurchase() {
     setLoading(true);
 
     try {
+      // Check geo restrictions before payment
+      const { GeoRestrictionService } = await import('@/services/geoRestrictionService');
+      const geoCheck = await GeoRestrictionService.validatePaymentLocation();
+      
+      if (!geoCheck.isAllowed) {
+        toast({
+          title: "Payment Blocked",
+          description: geoCheck.message,
+          variant: "destructive"
+        });
+        setLoading(false);
+        setShowPaymentGateway(false);
+        return;
+      }
+
+      // Force currency based on geo location  
+      const forcedCurrency = geoCheck.countryCode ? 
+        GeoRestrictionService.getForcedCurrency(geoCheck.countryCode) : 'USD';
+
       // Create Stripe payment session for word purchase
       const { data, error } = await supabase.functions.invoke('purchase-words', {
         body: {
           wordCount: wordsAmount,
-          currency: pricing.currency
+          currency: forcedCurrency // Use forced currency
         }
       });
 
