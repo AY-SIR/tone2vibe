@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";   
-import { AlertCircle, CheckCircle, Clock } from "lucide-react"; 
+import { Progress } from "@/components/ui/progress";
+import { AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { GeoRestrictionAlert } from "@/components/common/GeoRestrictionAlert";
@@ -38,9 +38,6 @@ const Tool = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
 
-  // Scroll ref for step container
-  const stepContainerRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     if (!loading && !user) {
       navigate("/");
@@ -67,6 +64,7 @@ const Tool = () => {
 
   const hasEnoughWords = () => {
     if (!profile) return false;
+    // Check new word system: plan words + purchased words
     const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
     const purchasedWords = profile.word_balance || 0;
     const totalAvailable = planWordsAvailable + purchasedWords;
@@ -95,24 +93,16 @@ const Tool = () => {
     return descriptions[step as keyof typeof descriptions] || "";
   };
 
-  const scrollToTop = () => {
-    if (stepContainerRef.current) {
-      stepContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
-
   const handleNext = () => {
     if (currentStep < totalSteps) {
       setCompletedSteps((prev) => [...prev, currentStep]);
       setCurrentStep(currentStep + 1);
-      scrollToTop();
     }
   };
 
   const handlePrevious = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
-      scrollToTop();
     }
   };
 
@@ -160,11 +150,14 @@ const Tool = () => {
         responseTime: 0,
         title: "Audio Generated",
       });
-      console.log("Audio generated successfully");
+      
+      // No auto-refresh here - let user download first
+      console.log('Audio generated successfully');
     }
   };
 
   const handleReset = () => {
+    // Reset all state for new generation
     setCurrentStep(1);
     setCompletedSteps([]);
     setExtractedText("");
@@ -172,21 +165,28 @@ const Tool = () => {
     setSelectedVoiceId("");
     setVoiceRecording(null);
     setProcessedAudioUrl("");
-
+    
+    // Force profile refresh to ensure latest word counts with loader
     if (user) {
-      console.log("Starting new generation - refreshing profile");
+      console.log('Starting new generation - refreshing profile');
+      
+      // Show processing overlay during refresh
       setIsProcessing(true);
       setProcessingStep("Refreshing word balance...");
+      
       setTimeout(() => {
-        window.location.reload();
+        window.location.reload(); // Force page refresh for smooth experience
       }, 1500);
     }
   };
 
   const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
+  
+  // Calculate remaining words using new system
   const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
   const purchasedWords = profile?.word_balance || 0;
-  const remainingWords = planWordsAvailable + purchasedWords;
+  const totalWordsRemaining = planWordsAvailable + purchasedWords;
+  const remainingWords = totalWordsRemaining;
 
   if (loading) {
     return (
@@ -208,67 +208,99 @@ const Tool = () => {
       />
 
       <div className="min-h-screen bg-background">
-        {/* Header - fixed */}
-        <div className="sticky top-0 z-50 bg-background shadow-sm">
-          <Header />
-        </div>
-
+        {/* Header */}
+        <Header />
+        
         {/* Geo Restriction Alert */}
         <div className="container mx-auto px-4 max-w-4xl">
           <GeoRestrictionAlert />
         </div>
 
-        <div className="container mx-auto px-4 py-4 max-w-4xl">
-          <div className="mb-4 text-center">
-            <h1 className="text-3xl font-bold mb-2">AI Voice Generator</h1>
-            <p className="text-muted-foreground">
-              Convert your text to natural-sounding speech in just a few steps
-            </p>
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          
+          {/* ✅ MOVED: Live Word Balance Display */}
+          {profile && (
+            <Card className="mb-4 sm:mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-blue-100 p-2 rounded-full">
+                      <CheckCircle className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">
+                        Word Balance
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Plan: {profile.plan} •
+                        <br/>
+                        Updates in real-time
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <div className="text-xl font-bold text-blue-600">
+                      {remainingWords.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <div>{profile?.plan?.toUpperCase()}: {((profile?.words_limit || 0) - (profile?.plan_words_used || 0)).toLocaleString()} left</div>
+                      {/* Only show purchased words if user has any */}
+                      {(profile?.word_balance || 0) > 0 && (
+                        <div>+ Purchased: {(profile?.word_balance || 0).toLocaleString()}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ✅ MOVED: Step Navigation */}
+          <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
+            {Array.from({ length: totalSteps }, (_, i) => {
+              const step = i + 1;
+              const isCompleted = completedSteps.includes(step);
+              const isCurrent = currentStep === step;
+              return (
+                <Button
+                  key={step}
+                  variant={
+                    isCurrent
+                      ? "default"
+                      : isCompleted
+                      ? "secondary"
+                      : "outline"
+                  }
+                  size="sm"
+                  className={`flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm ${
+                    isCurrent ? "shadow-lg" : ""
+                  }`}
+                  disabled={step > currentStep}
+                >
+                  {isCompleted && (
+                    <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
+                  )}
+                  {isCurrent && isProcessing && (
+                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                  )}
+                  <span className="hidden sm:inline font-medium">
+                    {getStepTitle(step)}
+                  </span>
+                  <span className="sm:hidden font-medium">{step}</span>
+                </Button>
+              );
+            })}
           </div>
 
-          {/* Progress + Step Navigation - sticky under header */}
-          <div className="sticky top-16 z-40 bg-background pt-2 pb-2">
-            <div className="mb-2 sm:mb-4">
-              <div className="flex justify-between text-xs sm:text-sm text-muted-foreground mb-2">
-                <span>
-                  Step {currentStep} of {totalSteps}
-                </span>
-                <span>{Math.round(progressPercentage)}% Complete</span>
-              </div>
-              <Progress value={progressPercentage} className="h-2 sm:h-3" />
+          {/* Progress Bar */}
+          <div className="mb-4 sm:mb-6">
+            <div className="flex justify-between text-xs sm:text-sm text-muted-foreground mb-2">
+              <span>
+                Step {currentStep} of {totalSteps}
+              </span>
+              <span>{Math.round(progressPercentage)}% Complete</span>
             </div>
-
-            <div className="flex flex-wrap justify-center gap-1 sm:gap-2">
-              {Array.from({ length: totalSteps }, (_, i) => {
-                const step = i + 1;
-                const isCompleted = completedSteps.includes(step);
-                const isCurrent = currentStep === step;
-                return (
-                  <Button
-                    key={step}
-                    variant={
-                      isCurrent ? "default" : isCompleted ? "secondary" : "outline"
-                    }
-                    size="sm"
-                    className={`flex items-center space-x-1 px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm ${
-                      isCurrent ? "shadow-lg" : ""
-                    }`}
-                    disabled={step > currentStep}
-                  >
-                    {isCompleted && (
-                      <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
-                    )}
-                    {isCurrent && isProcessing && (
-                      <Clock className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                    )}
-                    <span className="hidden sm:inline font-medium">
-                      {getStepTitle(step)}
-                    </span>
-                    <span className="sm:hidden font-medium">{step}</span>
-                  </Button>
-                );
-              })}
-            </div>
+            <Progress value={progressPercentage} className="h-2 sm:h-3" />
           </div>
 
           {/* Word Balance Warning */}
@@ -297,135 +329,85 @@ const Tool = () => {
             </Card>
           )}
 
-          {/* Live Word Balance Display */}
-          {profile && (
-            <Card className="mb-4 sm:mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-blue-100 p-2 rounded-full">
-                      <CheckCircle className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">
-                        Word Balance
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        Plan: {profile.plan} •
-                        <br />
-                        Updates in real-time
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <div className="text-xl font-bold text-blue-600">
-                      {remainingWords.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <div>
-                        {profile?.plan?.toUpperCase()}:{" "}
-                        {(
-                          (profile?.words_limit || 0) -
-                          (profile?.plan_words_used || 0)
-                        ).toLocaleString()}{" "}
-                        left
-                      </div>
-                      {(profile?.word_balance || 0) > 0 && (
-                        <div>
-                          + Purchased: {(profile?.word_balance || 0).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+          {/* Step Content */}
+          <Card className="shadow-lg border-0 bg-card">
+            <CardHeader className="border-b p-4 sm:p-6">
+              <div className="flex items-center space-x-3">
+                <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm">
+                  {currentStep}
+                </span>
+                <div>
+                  <CardTitle className="text-base sm:text-lg lg:text-xl">
+                    {getStepTitle(currentStep)}
+                  </CardTitle>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                    {getStepDescription(currentStep)}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </CardHeader>
 
-          {/* Step Content - scrollable */}
-          <div
-            ref={stepContainerRef}
-            className="max-h-[calc(100vh-280px)] overflow-y-auto pr-2"
-          >
-            <Card className="shadow-lg border-0 bg-card">
-              <CardHeader className="border-b p-4 sm:p-6">
-                <div className="flex items-center space-x-3">
-                  <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm">
-                    {currentStep}
-                  </span>
-                  <div>
-                    <CardTitle className="text-base sm:text-lg lg:text-xl">
-                      {getStepTitle(currentStep)}
-                    </CardTitle>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                      {getStepDescription(currentStep)}
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              {currentStep === 1 && (
+                <ModernStepOne
+                  onNext={handleNext}
+                  onTextExtracted={handleTextExtraction}
+                  onWordCountUpdate={handleWordCountUpdate}
+                  onProcessingStart={handleProcessingStart}
+                  onProcessingEnd={handleProcessingEnd}
+                />
+              )}
 
-              <CardContent className="p-4 sm:p-6">
-                {currentStep === 1 && (
-                  <ModernStepOne
-                    onNext={handleNext}
-                    onTextExtracted={handleTextExtraction}
-                    onWordCountUpdate={handleWordCountUpdate}
-                    onProcessingStart={handleProcessingStart}
-                    onProcessingEnd={handleProcessingEnd}
-                  />
-                )}
+              {currentStep === 2 && (
+                <ModernStepTwo
+                  extractedText={extractedText}
+                  wordCount={wordCount}
+                  onNext={handleNext}
+                  onPrevious={handlePrevious}
+                  onProcessingStart={handleProcessingStart}
+                  onProcessingEnd={handleProcessingEnd}
+                  onLanguageSelect={handleLanguageSelect}
+                />
+              )}
 
-                {currentStep === 2 && (
-                  <ModernStepTwo
-                    extractedText={extractedText}
-                    wordCount={wordCount}
-                    onNext={handleNext}
-                    onPrevious={handlePrevious}
-                    onProcessingStart={handleProcessingStart}
-                    onProcessingEnd={handleProcessingEnd}
-                    onLanguageSelect={handleLanguageSelect}
-                  />
-                )}
+              {currentStep === 3 && (
+                <ModernStepThree
+                  onNext={handleNext}
+                  onPrevious={handlePrevious}
+                  onVoiceRecorded={handleVoiceRecorded}
+                  onProcessingStart={handleProcessingStart}
+                  onProcessingEnd={handleProcessingEnd}
+                  onVoiceSelect={handleVoiceSelect}
+                  selectedVoiceId={selectedVoiceId}
+                  selectedLanguage={selectedLanguage}
+                />
+              )}
 
-                {currentStep === 3 && (
-                  <ModernStepThree
-                    onNext={handleNext}
-                    onPrevious={handlePrevious}
-                    onVoiceRecorded={handleVoiceRecorded}
-                    onProcessingStart={handleProcessingStart}
-                    onProcessingEnd={handleProcessingEnd}
-                    onVoiceSelect={handleVoiceSelect}
-                    selectedVoiceId={selectedVoiceId}
-                    selectedLanguage={selectedLanguage}
-                  />
-                )}
+              {currentStep === 4 && (
+                <ModernStepFour
+                  extractedText={extractedText}
+                  selectedLanguage={selectedLanguage}
+                  voiceRecording={voiceRecording}
+                  wordCount={wordCount}
+                  onNext={handleNext}
+                  onPrevious={handlePrevious}
+                  onAudioGenerated={handleAudioGenerated}
+                  onProcessingStart={handleProcessingStart}
+                  onProcessingEnd={handleProcessingEnd}
+                />
+              )}
 
-                {currentStep === 4 && (
-                  <ModernStepFour
-                    extractedText={extractedText}
-                    selectedLanguage={selectedLanguage}
-                    voiceRecording={voiceRecording}
-                    wordCount={wordCount}
-                    onNext={handleNext}
-                    onPrevious={handlePrevious}
-                    onAudioGenerated={handleAudioGenerated}
-                    onProcessingStart={handleProcessingStart}
-                    onProcessingEnd={handleProcessingEnd}
-                  />
-                )}
-
-                {currentStep === 5 && (
-                  <ModernStepFive
-                    audioUrl={processedAudioUrl || ""}
-                    extractedText={extractedText}
-                    selectedLanguage={selectedLanguage}
-                    wordCount={wordCount}
-                    onNextGeneration={handleReset}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
+              {currentStep === 5 && (
+                <ModernStepFive
+                  audioUrl={processedAudioUrl || ""}
+                  extractedText={extractedText}
+                  selectedLanguage={selectedLanguage}
+                  wordCount={wordCount}
+                  onNextGeneration={handleReset}
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </>
@@ -433,3 +415,4 @@ const Tool = () => {
 };
 
 export default Tool;
+                  
