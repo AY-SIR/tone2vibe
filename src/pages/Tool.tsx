@@ -319,7 +319,7 @@ const Tool = () => {
                   </div>
                 </div>
                 <div className="text-right space-y-1">
-                  <div className="text-xl font-bold text-orange-400">
+                  <div className="text-xl font-bold text-blue-600">
                     {remainingWords.toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500 space-y-1">
