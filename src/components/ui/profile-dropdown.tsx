@@ -104,11 +104,7 @@ export function ProfileDropdown() {
                   {purchasedWords > 0 ? purchasedWords.toLocaleString() : "0"}
                 </span>
               </div>
-              {purchasedWords === 0 && profile.plan !== 'free' && (
-                <p className="text-xs text-muted-foreground">
-                  Extra words can be purchased if needed
-                </p>
-              )}
+              
               <p className="text-xs text-muted-foreground">
                 {totalAvailable.toLocaleString()} total available
               </p>
