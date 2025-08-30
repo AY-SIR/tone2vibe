@@ -8,8 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { User, Mail, MapPin, Building, Crown, Save, ArrowLeft, Calendar, Zap, Clock, Shield } from "lucide-react";
+import { User, Mail, MapPin, Building, Crown, Save, ArrowLeft, Calendar, Zap, Clock, Shield, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +26,7 @@ const Profile = () => {
     preferred_language: profile?.preferred_language || 'en-US'
   });
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -54,6 +57,40 @@ const Profile = () => {
       });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch('https://msbmyiqhohtjdfbjmxlf.supabase.co/functions/v1/delete-account', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete account');
+      }
+
+      toast({
+        title: "Account deleted",
+        description: "Your account has been permanently deleted",
+      });
+      
+      navigate('/');
+    } catch (error) {
+      toast({
+        title: "Deletion failed",
+        description: "Could not delete account. Please try again or contact support.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -136,287 +173,359 @@ const Profile = () => {
           </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-3">
+        {/* Mobile-first layout: Profile -> Form -> Plan -> Delete */}
+        <div className="space-y-8">
           
-          {/* Left Column - Profile & Plan Info */}
-          <div className="lg:col-span-1 space-y-6">
+          {/* Profile Card - Shows first on mobile */}
+          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                <div className="relative inline-block">
+                  <Avatar className="h-24 w-24 ring-4 ring-primary/20">
+                    <AvatarImage src={profile?.avatar_url || undefined} />
+                    <AvatarFallback className="text-xl font-semibold bg-gradient-to-br from-primary/20 to-secondary/20">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                
+                <div className="space-y-1">
+                  <h3 className="text-xl font-semibold">{formData.full_name || 'User'}</h3>
+                  <p className="text-muted-foreground text-sm">{formData.email}</p>
+                  <Badge 
+                    variant="secondary"
+                    className={`mt-2 ${planDetails.bgColor} ${planDetails.textColor} border-0`}
+                  >
+                    {planDetails.icon}
+                    <span className="ml-2 font-medium">{planDetails.name}</span>
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Profile Form - Shows second on mobile, spans wider on desktop */}
+          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center space-x-2">
+                <User className="h-5 w-5" />
+                <span>Personal Information</span>
+              </CardTitle>
+              <p className="text-muted-foreground">
+                Update your personal details and preferences
+              </p>
+            </CardHeader>
             
-            {/* Profile Card */}
-            <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <div className="relative inline-block">
-                    <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-                      <AvatarImage src={profile?.avatar_url || undefined} />
-                      <AvatarFallback className="text-xl font-semibold bg-gradient-to-br from-primary/20 to-secondary/20">
-                        {getInitials()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   
-                  <div className="space-y-1">
-                    <h3 className="text-xl font-semibold">{formData.full_name || 'User'}</h3>
-                    <p className="text-muted-foreground text-sm">{formData.email}</p>
-                    <Badge 
-                      variant="secondary"
-                      className={`mt-2 ${planDetails.bgColor} ${planDetails.textColor} border-0`}
-                    >
-                      {planDetails.icon}
-                      <span className="ml-2 font-medium">{planDetails.name}</span>
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Plan Details Card */}
-            <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center space-x-2 text-lg">
-                  {planDetails.icon}
-                  <span>{planDetails.name} Plan</span>
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">{planDetails.description}</p>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Usage Stats */}
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Words Used</span>
-                    <span className="font-medium">{profile?.plan_words_used || 0} / {profile?.words_limit || 1000}</span>
-                  </div>
-                  
-                  <Progress 
-                    value={usagePercentage} 
-                    className="h-2"
-                  />
-                  
-                  <div className="text-xs text-muted-foreground text-center">
-                    {(100 - usagePercentage).toFixed(1)}% remaining this month
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Additional Info - Only show purchased words if user has any */}
-                <div className="space-y-3">
-                  {(profile?.word_balance || 0) > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Purchased Words</span>
-                      <span className="font-medium text-blue-600">{profile.word_balance.toLocaleString()} (never expire)</span>
+                  {/* Full Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name" className="text-sm font-medium">
+                      Full Name
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="full_name"
+                        placeholder="Enter your full name"
+                        value={formData.full_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                        className="pl-10 border-muted-foreground/20 focus:border-primary"
+                      />
                     </div>
-                  )}
-                  
-                  <div className="flex justify-between text-sm border-t pt-3">
-                    <span className="text-muted-foreground font-medium">Total Available</span>
-                    <span className="font-bold text-green-600">
-                      {Math.max(0, (profile?.words_limit || 0) - (profile?.plan_words_used || 0) + (profile?.word_balance || 0)).toLocaleString()}
+                  </div>
+
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      Email Address
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={formData.email}
+                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                        className="pl-10 border-muted-foreground/20 focus:border-primary"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Company */}
+                  <div className="space-y-2">
+                    <Label htmlFor="company" className="text-sm font-medium">
+                      Company
+                    </Label>
+                    <div className="relative">
+                      <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="company"
+                        placeholder="Company name (optional)"
+                        value={formData.company}
+                        onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+                        className="pl-10 border-muted-foreground/20 focus:border-primary"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Country */}
+                  <div className="space-y-2">
+                    <Label htmlFor="country" className="text-sm font-medium">
+                      Country
+                    </Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="country"
+                        placeholder="Your country"
+                        value={formData.country}
+                        onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
+                        className="pl-10 border-muted-foreground/20 focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preferred Language */}
+                <div className="space-y-2">
+                  <Label htmlFor="preferred_language" className="text-sm font-medium">
+                    Preferred Language
+                  </Label>
+                  <Select
+                    value={formData.preferred_language}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, preferred_language: value }))}
+                  >
+                    <SelectTrigger className="border-muted-foreground/20 focus:border-primary">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en-US">English (US)</SelectItem>
+                      <SelectItem value="en-GB">English (UK)</SelectItem>
+                      <SelectItem value="es-ES">Spanish</SelectItem>
+                      <SelectItem value="fr-FR">French</SelectItem>
+                      <SelectItem value="de-DE">German</SelectItem>
+                      <SelectItem value="it-IT">Italian</SelectItem>
+                      <SelectItem value="pt-BR">Portuguese</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Submit Button */}
+                <div className="pt-4">
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                    disabled={isUpdating}
+                    size="lg"
+                  >
+                    {isUpdating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Updating Profile...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Plan Details Card - Shows third on mobile */}
+          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center space-x-2 text-lg">
+                {planDetails.icon}
+                <span>{planDetails.name} Plan</span>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">{planDetails.description}</p>
+            </CardHeader>
+            
+            <CardContent className="space-y-4">
+              {/* Usage Stats */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Words Used</span>
+                  <span className="font-medium">{profile?.plan_words_used || 0} / {profile?.words_limit || 1000}</span>
+                </div>
+                
+                <Progress 
+                  value={usagePercentage} 
+                  className="h-2"
+                />
+                
+                <div className="text-xs text-muted-foreground text-center">
+                  {(100 - usagePercentage).toFixed(1)}% remaining this month
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Additional Info - Only show purchased words if user has any */}
+              <div className="space-y-3">
+                {(profile?.word_balance || 0) > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Purchased Words</span>
+                    <span className="font-medium text-blue-600">{profile.word_balance.toLocaleString()} (never expire)</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between text-sm border-t pt-3">
+                  <span className="text-muted-foreground font-medium">Total Available</span>
+                  <span className="font-bold text-green-600">
+                    {Math.max(0, (profile?.words_limit || 0) - (profile?.plan_words_used || 0) + (profile?.word_balance || 0)).toLocaleString()}
+                  </span>
+                </div>
+                
+                <div className="text-xs text-muted-foreground text-center">
+                  {profile?.plan === 'free' 
+                    ? 'Plan words only • No purchases allowed'
+                    : 'Plan words used first, then purchased words'}
+                </div>
+              </div>
+
+              {/* Plan Dates */}
+              {profile?.plan !== 'free' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center text-muted-foreground">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Plan Started
+                    </span>
+                    <span className="font-medium">
+                      {profile?.plan_start_date
+                        ? new Date(profile.plan_start_date).toLocaleDateString()
+                        : 'N/A'
+                      }
                     </span>
                   </div>
                   
-                  <div className="text-xs text-muted-foreground text-center">
-                    {profile?.plan === 'free' 
-                      ? 'Plan words only • No purchases allowed'
-                      : 'Plan words used first, then purchased words'}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center text-muted-foreground">
+                      <Clock className="h-4 w-4 mr-2" />
+                      Expires
+                    </span>
+                    <span className="font-medium">
+                      {profile?.plan_expires_at
+                        ? new Date(profile.plan_expires_at).toLocaleDateString()
+                        : '30 days from start'
+                      }
+                    </span>
                   </div>
                 </div>
+              )}
 
-                {/* Plan Dates */}
-                {profile?.plan !== 'free' && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center text-muted-foreground">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Plan Started
-                      </span>
-                      <span className="font-medium">
-                        {profile?.plan_start_date
-                          ? new Date(profile.plan_start_date).toLocaleDateString()
-                          : 'N/A'
-                        }
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center text-muted-foreground">
-                        <Clock className="h-4 w-4 mr-2" />
-                        Expires
-                      </span>
-                      <span className="font-medium">
-                        {profile?.plan_expires_at
-                          ? new Date(profile.plan_expires_at).toLocaleDateString()
-                          : '30 days from start'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                )}
+              <Separator />
 
-                <Separator />
+              {/* Features */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Plan Features</h4>
+                <ul className="space-y-1">
+                  {planDetails.features.map((feature, index) => (
+                    <li key={index} className="flex items-center text-xs">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary mr-3 flex-shrink-0" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-                {/* Features */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Plan Features</h4>
-                  <ul className="space-y-1">
-                    {planDetails.features.map((feature, index) => (
-                      <li key={index} className="flex items-center text-xs">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary mr-3 flex-shrink-0" />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              {/* Plan Action */}
+              <Button 
+                onClick={() => navigate('/payment')} 
+                className={`w-full mt-4 bg-gradient-to-r ${planDetails.color} hover:opacity-90 transition-opacity`}
+                variant={profile?.plan === 'free' ? 'default' : 'outline'}
+              >
+                <Crown className="h-4 w-4 mr-2" />
+                {profile?.plan === 'free' ? 'Upgrade Plan' : 'Manage Plan'}
+              </Button>
+            </CardContent>
+          </Card>
 
-                {/* Plan Action */}
-                <Button 
-                  onClick={() => navigate('/payment')} 
-                  className={`w-full mt-4 bg-gradient-to-r ${planDetails.color} hover:opacity-90 transition-opacity`}
-                  variant={profile?.plan === 'free' ? 'default' : 'outline'}
-                >
-                  <Crown className="h-4 w-4 mr-2" />
-                  {profile?.plan === 'free' ? 'Upgrade Plan' : 'Manage Plan'}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column - Profile Form */}
-          <div className="lg:col-span-2">
-            <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-xl flex items-center space-x-2">
-                  <User className="h-5 w-5" />
-                  <span>Personal Information</span>
-                </CardTitle>
-                <p className="text-muted-foreground">
-                  Update your personal details and preferences
-                </p>
-              </CardHeader>
-              
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                    {/* Full Name */}
-                    <div className="space-y-2">
-                      <Label htmlFor="full_name" className="text-sm font-medium">
-                        Full Name
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="full_name"
-                          placeholder="Enter your full name"
-                          value={formData.full_name}
-                          onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                          className="pl-10 border-muted-foreground/20 focus:border-primary"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Email */}
-                    <div className="space-y-2">
-                      <Label htmlFor="email" className="text-sm font-medium">
-                        Email Address
-                      </Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="Enter your email"
-                          value={formData.email}
-                          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                          className="pl-10 border-muted-foreground/20 focus:border-primary"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Company */}
-                    <div className="space-y-2">
-                      <Label htmlFor="company" className="text-sm font-medium">
-                        Company
-                      </Label>
-                      <div className="relative">
-                        <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="company"
-                          placeholder="Company name (optional)"
-                          value={formData.company}
-                          onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-                          className="pl-10 border-muted-foreground/20 focus:border-primary"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Country */}
-                    <div className="space-y-2">
-                      <Label htmlFor="country" className="text-sm font-medium">
-                        Country
-                      </Label>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="country"
-                          placeholder="Your country"
-                          value={formData.country}
-                          onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
-                          className="pl-10 border-muted-foreground/20 focus:border-primary"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Preferred Language */}
+          {/* Delete Account Section - Shows last */}
+          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm border-red-200">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center space-x-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                <span>Danger Zone</span>
+              </CardTitle>
+              <p className="text-muted-foreground">
+                Permanently delete your account and all associated data
+              </p>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-3">
+                  <Trash2 className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                   <div className="space-y-2">
-                    <Label htmlFor="preferred_language" className="text-sm font-medium">
-                      Preferred Language
-                    </Label>
-                    <Select
-                      value={formData.preferred_language}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, preferred_language: value }))}
-                    >
-                      <SelectTrigger className="border-muted-foreground/20 focus:border-primary">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en-US">English (US)</SelectItem>
-                        <SelectItem value="en-GB">English (UK)</SelectItem>
-                        <SelectItem value="es-ES">Spanish</SelectItem>
-                        <SelectItem value="fr-FR">French</SelectItem>
-                        <SelectItem value="de-DE">German</SelectItem>
-                        <SelectItem value="it-IT">Italian</SelectItem>
-                        <SelectItem value="pt-BR">Portuguese</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <h4 className="text-sm font-medium text-red-800 dark:text-red-200">
+                      This action cannot be undone
+                    </h4>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      Deleting your account will permanently remove all your data, including:
+                    </p>
+                    <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 ml-4 list-disc">
+                      <li>Profile information and preferences</li>
+                      <li>Voice history and recordings</li>
+                      <li>Subscription and payment data</li>
+                      <li>Purchased word credits</li>
+                    </ul>
                   </div>
+                </div>
+              </div>
 
-                  {/* Submit Button */}
-                  <div className="pt-4">
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                      disabled={isUpdating}
-                      size="lg"
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full"
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Account Permanently
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-red-600">
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete your account
+                      and remove all your data from our servers, including your voice history,
+                      subscription, and any purchased word credits.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      className="bg-red-600 hover:bg-red-700"
+                      disabled={isDeleting}
                     >
-                      {isUpdating ? (
+                      {isDeleting ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Updating Profile...
+                          Deleting...
                         </>
                       ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-2" />
-                          Save Changes
-                        </>
+                        'Yes, delete my account'
                       )}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
