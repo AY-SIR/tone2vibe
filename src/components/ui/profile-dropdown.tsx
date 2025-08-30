@@ -106,7 +106,7 @@ export function ProfileDropdown() {
               </div>
               
               <p className="text-xs text-muted-foreground">
-                {totalAvailable.toLocaleString()} total available
+               Total available {totalAvailable.toLocaleString()} 
               </p>
             </div>
           </div>
