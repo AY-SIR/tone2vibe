@@ -37,6 +37,8 @@ export default function ModernStepThree({
   const [voiceMethod, setVoiceMethod] = useState<"record" | "upload" | "prebuilt">("record");
   const [hasVoiceData, setHasVoiceData] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [sampleParagraphs, setSampleParagraphs] = useState<{ [key: string]: string }>({});
   const [prebuiltVoices, setPrebuiltVoices] = useState<PrebuiltVoice[]>([]);
   const [filteredVoices, setFilteredVoices] = useState<PrebuiltVoice[]>([]);
@@ -170,8 +172,49 @@ export default function ModernStepThree({
   };
 
   const playPrebuiltSample = async (voiceId: string) => {
-    setIsPlaying(true);
-    setTimeout(() => setIsPlaying(false), 3000); // Simulated playback
+    // Stop current audio if playing
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+
+    const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
+    if (!voice?.audio_preview_url) return;
+
+    try {
+      const audio = new Audio(voice.audio_preview_url);
+      setCurrentAudio(audio);
+      setPlayingVoiceId(voiceId);
+      setIsPlaying(true);
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setPlayingVoiceId(null);
+        setCurrentAudio(null);
+      };
+
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setPlayingVoiceId(null);
+        setCurrentAudio(null);
+        toast({
+          title: "Playback Error",
+          description: "Unable to play voice sample.",
+          variant: "destructive",
+        });
+      };
+
+      await audio.play();
+    } catch (error) {
+      setIsPlaying(false);
+      setPlayingVoiceId(null);
+      setCurrentAudio(null);
+      toast({
+        title: "Playback Error",
+        description: "Unable to play voice sample.",
+        variant: "destructive",
+      });
+    }
   };
 
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
@@ -341,40 +384,46 @@ export default function ModernStepThree({
                         }`}
                         onClick={() => handlePrebuiltSelect(voice.voice_id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium">{voice.name}</h4>
-                              {voice.gender && (
-                                <Badge variant="outline" className="text-xs">
-                                  {voice.gender}
-                                </Badge>
-                              )}
-                              {voice.accent && (
-                                <Badge variant="outline" className="text-xs">
-                                  {voice.accent}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground">{voice.description}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {voice.audio_preview_url && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  playPrebuiltSample(voice.voice_id);
-                                }}
-                                disabled={isPlaying}
-                              >
-                                {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                              </Button>
-                            )}
-                            {selectedVoiceId === voice.voice_id && <Badge>Selected</Badge>}
-                          </div>
-                        </div>
+                         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                           <div className="flex-1 min-w-0">
+                             <div className="flex flex-wrap items-center gap-2 mb-1">
+                               <h4 className="font-medium text-sm sm:text-base truncate">{voice.name}</h4>
+                               {voice.gender && (
+                                 <Badge variant="outline" className="text-xs">
+                                   {voice.gender}
+                                 </Badge>
+                               )}
+                               {voice.accent && (
+                                 <Badge variant="outline" className="text-xs">
+                                   {voice.accent}
+                                 </Badge>
+                               )}
+                             </div>
+                             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{voice.description}</p>
+                           </div>
+                           <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0">
+                             {voice.audio_preview_url && (
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   playPrebuiltSample(voice.voice_id);
+                                 }}
+                                 disabled={isPlaying && playingVoiceId !== voice.voice_id}
+                                 className="h-8 w-8 p-0"
+                               >
+                                 {playingVoiceId === voice.voice_id && isPlaying ? 
+                                   <Pause className="h-3 w-3" /> : 
+                                   <Play className="h-3 w-3" />
+                                 }
+                               </Button>
+                             )}
+                             {selectedVoiceId === voice.voice_id && (
+                               <Badge className="text-xs">Selected</Badge>
+                             )}
+                           </div>
+                         </div>
                         </div>
                       )))}
                     </div>

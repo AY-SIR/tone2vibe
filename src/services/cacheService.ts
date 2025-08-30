@@ -2,72 +2,44 @@
 class CacheService {
   private cache = new Map<string, any>();
   private timestamps = new Map<string, number>();
-  private readonly TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly TTL = 0; // Disabled caching - set to 0
 
   set(key: string, data: any): void {
-    this.cache.set(key, data);
-    this.timestamps.set(key, Date.now());
-    
-    // Store in localStorage for persistence
-    try {
-      localStorage.setItem(`cache_${key}`, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      console.warn('Failed to store in localStorage:', error);
-    }
+    // Caching disabled - do nothing
+    return;
   }
 
   get(key: string): any | null {
-    const timestamp = this.timestamps.get(key);
-    
-    if (timestamp && Date.now() - timestamp > this.TTL) {
-      this.delete(key);
-      return null;
-    }
-
-    let data = this.cache.get(key);
-    
-    // Fallback to localStorage
-    if (!data) {
-      try {
-        const stored = localStorage.getItem(`cache_${key}`);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Date.now() - parsed.timestamp < this.TTL) {
-            data = parsed.data;
-            this.cache.set(key, data);
-            this.timestamps.set(key, parsed.timestamp);
-          } else {
-            localStorage.removeItem(`cache_${key}`);
-          }
-        }
-      } catch (error) {
-        console.warn('Failed to retrieve from localStorage:', error);
-      }
-    }
-
-    return data || null;
+    // Caching disabled - always return null
+    return null;
   }
 
   delete(key: string): void {
+    // Clear any existing cache data
     this.cache.delete(key);
     this.timestamps.delete(key);
-    localStorage.removeItem(`cache_${key}`);
+    try {
+      localStorage.removeItem(`cache_${key}`);
+    } catch (error) {
+      // Ignore errors
+    }
   }
 
   clear(): void {
     this.cache.clear();
     this.timestamps.clear();
     
-    // Clear cache items from localStorage
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith('cache_')) {
-        localStorage.removeItem(key);
-      }
-    });
+    // Clear all cache items from localStorage
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('cache_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (error) {
+      // Ignore errors
+    }
   }
 
   // Check if we're online

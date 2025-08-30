@@ -222,7 +222,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       onOpenChange(open);
       if (!open) resetState();
     }}>
-      <DialogContent className="sm:max-w-md font-modern">
+      <DialogContent className="sm:max-w-md font-modern animate-fade-in data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out transition-all duration-300">
         <DialogHeader>
   <DialogTitle className="flex items-center justify-center text-black">
     <div className="flex items-center justify-center w-8 h-8 bg-white/70 rounded-lg">
@@ -236,13 +236,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup" | "forgot")} className="w-full">
           {/* Only Login and Sign Up triggers */}
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login" className="text-black">Login</TabsTrigger>
-            <TabsTrigger value="signup" className="text-black">Sign Up</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 transition-all duration-200">
+            <TabsTrigger value="login" className="text-black transition-all duration-200 data-[state=active]:animate-fade-in">Login</TabsTrigger>
+            <TabsTrigger value="signup" className="text-black transition-all duration-200 data-[state=active]:animate-fade-in">Sign Up</TabsTrigger>
           </TabsList>
 
           {/* LOGIN TAB */}
-          <TabsContent value="login" className="space-y-4 mt-6">
+          <TabsContent value="login" className="space-y-4 mt-6 animate-fade-in data-[state=active]:animate-scale-in transition-all duration-300">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="loginEmail" className="text-black">Email</Label>
@@ -318,7 +318,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           </TabsContent>
 
           {/* SIGNUP TAB */}
-          <TabsContent value="signup" className="space-y-4 mt-6">
+          <TabsContent value="signup" className="space-y-4 mt-6 animate-fade-in data-[state=active]:animate-scale-in transition-all duration-300">
             {confirmationSent ? (
               <div className="text-center space-y-4">
                 <CheckCircle className="h-12 w-12 text-green-600 mx-auto" />
