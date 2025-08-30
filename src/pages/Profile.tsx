@@ -247,6 +247,7 @@ const Profile = () => {
                       <Input
                         id="email"
                         type="email"
+                        readOnly
                         placeholder="Enter your email"
                         value={formData.email}
                         onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
@@ -281,6 +282,7 @@ const Profile = () => {
                       <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
                         id="country"
+                        realOnly
                         placeholder="Your country"
                         value={formData.country}
                         onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
