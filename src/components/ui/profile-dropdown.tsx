@@ -105,9 +105,12 @@ export function ProfileDropdown() {
                 </span>
               </div>
               
-              <p className="text-xs text-muted-foreground">
-               Total available {totalAvailable.toLocaleString()} 
-              </p>
+              <div className="flex justify-between text-xs">
+  <span className="text-muted-foreground">Total available:</span>
+  <span className="text-gray-800 font-medium">
+    {totalAvailable.toLocaleString()}
+  </span>
+</div>
             </div>
           </div>
         </DropdownMenuLabel>
