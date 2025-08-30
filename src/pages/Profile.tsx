@@ -304,13 +304,7 @@ const Profile = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="en-US">English (US)</SelectItem>
-                      <SelectItem value="en-GB">English (UK)</SelectItem>
-                      <SelectItem value="es-ES">Spanish</SelectItem>
-                      <SelectItem value="fr-FR">French</SelectItem>
-                      <SelectItem value="de-DE">German</SelectItem>
-                      <SelectItem value="it-IT">Italian</SelectItem>
-                      <SelectItem value="pt-BR">Portuguese</SelectItem>
-                    </SelectContent>
+                       </SelectContent>
                   </Select>
                 </div>
 
