@@ -259,54 +259,49 @@ const History = () => {
                     </div>
                   </div>
                 </CardHeader>
+                
                 <CardContent className="pt-0 p-3 sm:p-6">
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">
-                    {project.original_text}
-                  </p>
+  <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">
+    {project.original_text}
+  </p>
 
-                  {/* Bottom row: icons left, time right */}
-                  <div className="flex items-center justify-between">
-                    {/* Left: action buttons */}
-                    <div className="flex items-center space-x-1 sm:space-x-2">
-                      <Button
-                        onClick={() => playAudio(project)}
-                        variant="outline"
-                        size="sm"
-                        disabled={!project.audio_url}
-                        className="h-7 sm:h-8 px-2 sm:px-3"
-                      >
-                        {playingAudio === project.id ? (
-                          <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
-                        ) : (
-                          <Play className="h-3 w-3 sm:h-4 sm:w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => downloadAudio(project)}
-                        variant="outline"
-                        size="sm"
-                        disabled={!project.audio_url}
-                        className="h-7 sm:h-8 px-2 sm:px-3"
-                      >
-                        <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                    </div>
+  {/* Bottom row: buttons left, date+time right */}
+  <div className="flex items-center justify-between">
+    {/* Left: action buttons */}
+    <div className="flex items-center space-x-1 sm:space-x-2">
+      <Button
+        onClick={() => playAudio(project)}
+        variant="outline"
+        size="sm"
+        disabled={!project.audio_url}
+        className="h-7 sm:h-8 px-2 sm:px-3"
+      >
+        {playingAudio === project.id ? (
+          <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+        ) : (
+          <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+        )}
+      </Button>
+      <Button
+        onClick={() => downloadAudio(project)}
+        variant="outline"
+        size="sm"
+        disabled={!project.audio_url}
+        className="h-7 sm:h-8 px-2 sm:px-3"
+      >
+        <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+      </Button>
+    </div>
 
-                    {/* Right: time info */}
-                    <div className="flex flex-col text-right">
-                      <span className="text-xs sm:text-sm text-muted-foreground">
-                        {new Date(project.created_at).toLocaleDateString()}
-                      </span>
-                      {project.generation_started_at && (
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(
-                            project.generation_started_at
-                          ).toLocaleTimeString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
+    {/* Right: date + time */}
+    <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+      <span>{new Date(project.created_at).toLocaleDateString()}</span>
+      {project.generation_started_at && (
+        <span>{new Date(project.generation_started_at).toLocaleTimeString()}</span>
+      )}
+    </div>
+  </div>
+</CardContent>
               </Card>
             ))}
           </div>
