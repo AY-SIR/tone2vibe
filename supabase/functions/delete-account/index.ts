@@ -43,6 +43,23 @@ Deno.serve(async (req) => {
     // Delete user data from all tables (cascading deletes should handle most relationships)
     console.log(`Starting account deletion for user: ${userId}`)
 
+    // Get user email before deletion
+    const userEmail = user.email
+
+    // Add email to banned list to prevent re-signup
+    if (userEmail) {
+      const { error: banError } = await supabase
+        .from('banned_emails')
+        .insert({
+          email: userEmail,
+          reason: 'account_deleted'
+        })
+
+      if (banError) {
+        console.error('Error adding email to banned list:', banError)
+      }
+    }
+
     // Delete from profiles table (this should cascade to other related tables)
     const { error: profileError } = await supabase
       .from('profiles')

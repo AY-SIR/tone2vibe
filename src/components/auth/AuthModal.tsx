@@ -77,6 +77,23 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setLoginLoading(true);
     try {
+      // Check if email is banned first
+      const { data: bannedEmail } = await supabase
+        .from('banned_emails')
+        .select('email')
+        .eq('email', loginEmail)
+        .single();
+
+      if (bannedEmail) {
+        toast({
+          title: "Account Restricted",
+          description: "This email is permanently restricted. The associated account was previously deleted.",
+          variant: "destructive",
+        });
+        setLoginLoading(false);
+        return;
+      }
+
       const { error } = await signIn(loginEmail, loginPassword);
       if (error) throw error;
 
@@ -142,8 +159,36 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setSignupLoading(true);
     try {
+      // Check if email is banned first
+      const { data: bannedEmail } = await supabase
+        .from('banned_emails')
+        .select('email')
+        .eq('email', signupEmail)
+        .single();
+
+      if (bannedEmail) {
+        toast({
+          title: "Email Restricted",
+          description: "This email cannot be used for signup. This account was previously deleted and is permanently restricted.",
+          variant: "destructive",
+        });
+        setSignupLoading(false);
+        return;
+      }
+
       const { data, error } = await signUp(signupEmail, signupPassword, signupName);
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('banned_email')) {
+          toast({
+            title: "Email Restricted",
+            description: "This email cannot be used for signup. This account was previously deleted and is permanently restricted.",
+            variant: "destructive",
+          });
+          setSignupLoading(false);
+          return;
+        }
+        throw error;
+      }
 
       setConfirmationSent(true);
     } catch (error: any) {

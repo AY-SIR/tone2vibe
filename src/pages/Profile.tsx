@@ -8,8 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { User, Mail, MapPin, Building, Crown, Save, ArrowLeft, Calendar, Zap, Clock, Shield, Trash2 } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { User, Mail, MapPin, Building, Crown, Save, ArrowLeft, Calendar, Zap, Clock, Shield, Trash2, Loader2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,8 @@ const Profile = () => {
   });
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -61,36 +63,39 @@ const Profile = () => {
   };
 
   const handleDeleteAccount = async () => {
+    if (!user || confirmEmail !== user.email) return;
+    
     setIsDeleting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch('https://msbmyiqhohtjdfbjmxlf.supabase.co/functions/v1/delete-account', {
-        method: 'POST',
+      const { data, error } = await supabase.functions.invoke('delete-account', {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json',
-        },
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete account');
-      }
+      if (error) throw error;
 
       toast({
         title: "Account deleted",
-        description: "Your account has been permanently deleted",
+        description: "Your account has been permanently deleted and this email is now permanently restricted.",
+        variant: "destructive"
       });
-      
+
+      // Sign out user
+      await supabase.auth.signOut();
       navigate('/');
-    } catch (error) {
+      
+    } catch (error: any) {
+      console.error('Delete account error:', error);
       toast({
-        title: "Deletion failed",
-        description: "Could not delete account. Please try again or contact support.",
+        title: "Error",
+        description: error.message || "Failed to delete account. Please try again.",
         variant: "destructive"
       });
     } finally {
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setConfirmEmail('');
     }
   };
 
@@ -447,82 +452,85 @@ const Profile = () => {
           </Card>
 
           {/* Delete Account Section - Shows last */}
-          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm border-red-200">
+          <Card className="border-destructive bg-destructive/5">
             <CardHeader>
-              <CardTitle className="text-xl flex items-center space-x-2 text-red-600">
+              <CardTitle className="text-destructive flex items-center gap-2">
                 <Trash2 className="h-5 w-5" />
-                <span>Danger Zone</span>
+                Danger Zone
               </CardTitle>
               <p className="text-muted-foreground">
-                Permanently delete your account and all associated data
+                Once you delete your account, there is no going back. Your email will be permanently banned from creating new accounts.
               </p>
             </CardHeader>
-            
             <CardContent>
-              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-                <div className="flex items-start space-x-3">
-                  <Trash2 className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-red-800 dark:text-red-200">
-                      This action cannot be undone
-                    </h4>
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      Deleting your account will permanently remove all your data, including:
-                    </p>
-                    <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 ml-4 list-disc">
-                      <li>Profile information and preferences</li>
-                      <li>Voice history and recordings</li>
-                      <li>Subscription and payment data</li>
-                      <li>Purchased word credits</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive" 
-                    className="w-full"
-                    disabled={isDeleting}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Account Permanently
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-red-600">
-                      Are you absolutely sure?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your account
-                      and remove all your data from our servers, including your voice history,
-                      subscription, and any purchased word credits.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      className="bg-red-600 hover:bg-red-700"
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Deleting...
-                        </>
-                      ) : (
-                        'Yes, delete my account'
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete My Account Forever
+              </Button>
             </CardContent>
           </Card>
         </div>
+
+        {/* Unique Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteConfirm} onOpenChange={(open) => {
+          setShowDeleteConfirm(open);
+          if (!open) setConfirmEmail('');
+        }}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                <Trash2 className="h-5 w-5" />
+                Permanently Delete Account
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p className="font-medium">⚠️ This action is irreversible and will:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>Delete all your voice recordings and history</li>
+                  <li>Cancel any active subscriptions</li>
+                  <li>Permanently ban your email from future signups</li>
+                  <li>Remove all account data immediately</li>
+                </ul>
+                <p className="text-sm font-medium mt-4">
+                  To confirm, type your email address: <span className="text-foreground font-mono">{user?.email}</span>
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="my-4">
+              <Input
+                placeholder="Enter your email to confirm"
+                value={confirmEmail}
+                onChange={(e) => setConfirmEmail(e.target.value)}
+                className="border-destructive focus:ring-destructive"
+              />
+            </div>
+
+            <AlertDialogFooter className="flex-col gap-2">
+              <AlertDialogAction
+                onClick={handleDeleteAccount}
+                disabled={isDeleting || confirmEmail !== user?.email}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting Account...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Yes, Delete My Account Forever
+                  </>
+                )}
+              </AlertDialogAction>
+              <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
