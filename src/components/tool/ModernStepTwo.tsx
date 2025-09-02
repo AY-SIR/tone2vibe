@@ -37,9 +37,20 @@ const ModernStepTwo = ({
 
   const languages = [
 
+
   { code: 'en-US', name: 'English (US)' },
   { code: 'en-GB', name: 'English (UK)' },
   { code: 'hi-IN', name: 'Hindi' },
+  { code: 'ta-IN', name: 'Tamil' },
+  { code: 'te-IN', name: 'Telugu' },
+  { code: 'bn-IN', name: 'Bengali (India)' },
+  { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
+  { code: 'mr-IN', name: 'Marathi' },
+  { code: 'gu-IN', name: 'Gujarati' },
+  { code: 'pa-IN', name: 'Punjabi' },
+  { code: 'kn-IN', name: 'Kannada' },
+  { code: 'ml-IN', name: 'Malayalam' },
+  { code: 'ur-PK', name: 'Urdu' },
   { code: 'es-ES', name: 'Spanish (Spain)' },
   { code: 'es-MX', name: 'Spanish (Mexico)' },
   { code: 'fr-FR', name: 'French (France)' },
@@ -60,7 +71,6 @@ const ModernStepTwo = ({
   { code: 'no-NO', name: 'Norwegian' },
   { code: 'da-DK', name: 'Danish' },
   { code: 'fi-FI', name: 'Finnish' },
-  { code: 'pl-PL', name: 'Polish' },
   { code: 'cs-CZ', name: 'Czech' },
   { code: 'el-GR', name: 'Greek' },
   { code: 'he-IL', name: 'Hebrew' },
@@ -68,28 +78,17 @@ const ModernStepTwo = ({
   { code: 'vi-VN', name: 'Vietnamese' },
   { code: 'id-ID', name: 'Indonesian' },
   { code: 'ms-MY', name: 'Malay' },
-  { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
-  { code: 'bn-IN', name: 'Bengali (India)' },
-  { code: 'pa-IN', name: 'Punjabi' },
-  { code: 'gu-IN', name: 'Gujarati' },
-  { code: 'ta-IN', name: 'Tamil' },
-  { code: 'te-IN', name: 'Telugu' },
-  { code: 'kn-IN', name: 'Kannada' },
-  { code: 'ml-IN', name: 'Malayalam' },
-  { code: 'mr-IN', name: 'Marathi' },
-  { code: 'or-IN', name: 'Odia' },
-  { code: 'si-LK', name: 'Sinhala' },
-  { code: 'ur-PK', name: 'Urdu' },
   { code: 'fa-IR', name: 'Persian (Farsi)' },
   { code: 'uk-UA', name: 'Ukrainian' },
-  { code: 'ro-RO', name: 'Romanian' },
-  { code: 'hu-HU', name: 'Hungarian' },
+  { code: 'ro-RO', name: 'Romanian'  },
   { code: 'sk-SK', name: 'Slovak' },
   { code: 'sl-SI', name: 'Slovenian' },
   { code: 'hr-HR', name: 'Croatian' },
   { code: 'sr-RS', name: 'Serbian' },
   { code: 'bg-BG', name: 'Bulgarian' },
   { code: 'lt-LT', name: 'Lithuanian' }
+
+
 ];
 
 
@@ -267,7 +266,7 @@ const ModernStepTwo = ({
   {/* Left-aligned badge */}
   <div className="flex items-center space-x-2">
     <Badge variant={hasChanges ? "default" : "secondary"}>
-      {currentWordCount} W
+      {currentWordCount}
     </Badge>
     {hasChanges && (
       <Badge variant="outline" className="text-orange-600 border-orange-200">

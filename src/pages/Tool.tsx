@@ -209,16 +209,19 @@ const Tool = () => {
 
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <Header />
+<div className="sticky top-2 z-50">
+  <Header />
+</div>
+
         
         {/* Geo Restriction Alert */}
         <div className="container mx-auto px-4 max-w-4xl">
           <GeoRestrictionAlert />
         </div>
 
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="container mx-auto px-4 py-8 max-w-5xl">
           
-          {/* ✅ MOVED: Live Word Balance Display */}
+
           {profile && (
             <Card className="mb-4 sm:mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
               <CardContent className="p-3 sm:p-4">
@@ -255,8 +258,8 @@ const Tool = () => {
             </Card>
           )}
 
-          {/* ✅ MOVED: Step Navigation */}
-          <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
+
+          <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6 ">
             {Array.from({ length: totalSteps }, (_, i) => {
               const step = i + 1;
               const isCompleted = completedSteps.includes(step);
@@ -293,7 +296,7 @@ const Tool = () => {
           </div>
 
           {/* Progress Bar */}
-          <div className="mb-4 sm:mb-6">
+          <div className="mb-4 sm:mb-6 ">
             <div className="flex justify-between text-xs sm:text-sm text-muted-foreground mb-2">
               <span>
                 Step {currentStep} of {totalSteps}
