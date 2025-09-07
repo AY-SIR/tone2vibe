@@ -47,6 +47,7 @@ const Index = () => {
   const navigate = useNavigate();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [cookieConsent, setCookieConsent] = useState(
     localStorage.getItem("cookie-consent")
@@ -64,6 +65,29 @@ const Index = () => {
 
   useEffect(() => {
     loadPricing();
+  }, []);
+
+  // Handle URL params for auth modal and redirects
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authParam = urlParams.get('auth');
+    const redirectParam = urlParams.get('redirect');
+
+    if (authParam === 'open') {
+      const consentStatus = localStorage.getItem("cookie-consent");
+      
+      if (consentStatus === "declined") {
+        setShowCookieAlert(true);
+        if (redirectParam) {
+          setRedirectTo(decodeURIComponent(redirectParam));
+        }
+      } else {
+        setShowAuthModal(true);
+        if (redirectParam) {
+          setRedirectTo(decodeURIComponent(redirectParam));
+        }
+      }
+    }
   }, []);
 
   const loadPricing = async () => {
@@ -210,10 +234,51 @@ const Index = () => {
     }
   };
 
+  const handlePlanClick = (planName: string) => {
+    const consentStatus = localStorage.getItem("cookie-consent");
+
+    if (planName === "Free") {
+      handleGetStarted();
+    } else {
+      // Pro or Premium plan
+      if (user) {
+        navigate("/payment");
+      } else {
+        // Check cookie consent first
+        if (consentStatus === "declined") {
+          setRedirectTo("/payment");
+          setShowCookieAlert(true);
+          return;
+        }
+        
+        setRedirectTo("/payment");
+        setShowAuthModal(true);
+      }
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    if (redirectTo) {
+      navigate(redirectTo, { replace: true });
+      setRedirectTo(null);
+      
+      // Clean URL by removing auth and redirect params
+      const url = new URL(window.location.href);
+      url.searchParams.delete('auth');
+      url.searchParams.delete('redirect');
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
   const handleCookieAccept = () => {
     setCookieConsent("accepted");
     localStorage.setItem("cookie-consent", "accepted");
     setShowCookieAlert(false);
+    
+    // If there was a pending auth modal, show it now
+    if (redirectTo) {
+      setShowAuthModal(true);
+    }
   };
 
   const handleCookieDecline = () => {
@@ -467,17 +532,13 @@ const Index = () => {
                       ))}
                     </ul>
 
-                    <Button
+                     <Button
                       className={`w-full ${
                         plan.popular
                           ? "bg-black hover:bg-gray-800 text-white"
                           : "bg-white hover:bg-gray-100 text-black border border-gray-300"
                       }`}
-                      onClick={
-                        plan.name === "Free"
-                          ? handleGetStarted
-                          : () => navigate("/payment")
-                      }
+                      onClick={() => handlePlanClick(plan.name)}
                     >
                       {plan.cta}
                     </Button>
@@ -599,7 +660,11 @@ const Index = () => {
           </div>
         </footer>
 
-        <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
+        <AuthModal 
+          open={showAuthModal} 
+          onOpenChange={setShowAuthModal}
+          onSuccess={handleAuthSuccess}
+        />
         <VideoModal open={showVideoModal} onOpenChange={setShowVideoModal} />
 
         {/* Welcome Popup - Shows first for new users only */}

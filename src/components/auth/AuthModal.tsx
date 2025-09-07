@@ -17,9 +17,10 @@ import { Mic } from "lucide-react";
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function AuthModal({ open, onOpenChange }: AuthModalProps) {
+export function AuthModal({ open, onOpenChange, onSuccess }: AuthModalProps) {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupName, setSignupName] = useState('');
@@ -97,6 +98,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       const { error } = await signIn(loginEmail, loginPassword);
       if (error) throw error;
 
+      onSuccess?.();
       onOpenChange(false);
       resetState();
     } catch (error: any) {

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 interface ProtectedRouteProps {
@@ -14,14 +14,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!loading) {
       if (requireAuth && !user) {
-        navigate('/');
+        const redirectPath = encodeURIComponent(location.pathname + location.search);
+        navigate(`/?auth=open&redirect=${redirectPath}`, { replace: true });
       }
     }
-  }, [user, loading, requireAuth, navigate]);
+  }, [user, loading, requireAuth, navigate, location]);
 
   if (loading) {
     return (
