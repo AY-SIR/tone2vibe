@@ -15,10 +15,10 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       
       // Show alert when right-click is attempted
       toast({
-        title: " Action Not Allowed",
-        description: "restricted.",
-        variant: "destructive",
-        duration: 3000,
+        title: "⚠️ Action Restricted",
+        description: "Right-click is disabled for security purposes.",
+        variant: "default",
+        duration: 2000,
       });
       
       return false;

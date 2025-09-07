@@ -338,7 +338,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         {isRefreshing ? (
           <div className="flex items-center space-x-3 px-8 py-3 bg-blue-50 rounded-lg">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-blue-700 font-medium">Preparing next generation...</span>
+            <span className="text-blue-700 font-medium">Refreshing word balance...</span>
           </div>
         ) : (
           <Button
