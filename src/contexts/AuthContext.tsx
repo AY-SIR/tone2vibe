@@ -1,8 +1,12 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { LocationService, LocationData } from '@/services/locationService';
-import { GeoRestrictionService } from '@/services/geoRestrictionService';
+import { locationService } from '@/services/locationService';
+import { geoRestrictionService } from '@/services/geoRestrictionService';
+import { LoadingScreen } from '@/components/common/LoadingScreen';
+import { PlanExpiryPopup } from '@/components/common/PlanExpiryPopup';
+import { usePlanExpiry } from '@/hooks/usePlanExpiry';
+import { useToast } from '@/hooks/use-toast';
 
 interface Profile {
   id: string;
@@ -37,7 +41,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   locationData: LocationData | null;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ data: any; error: Error | null }>;
+  signUp: (email: string, password: string, options?: { emailRedirectTo?: string }) => Promise<{ data: any; error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
@@ -54,12 +58,27 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [locationData, setLocationData] = useState<any>(null);
+  const { toast } = useToast();
+  const { expiryData, dismissPopup } = usePlanExpiry();
+
+  // Track IP address when user logs in
+  const trackLoginIP = async (userId: string) => {
+    try {
+      await supabase.functions.invoke('track-login-ip', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+    } catch (error) {
+      console.error('Error tracking login IP:', error);
+    }
+  };
 
   useEffect(() => {
     const getSession = async () => {
@@ -149,10 +168,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [session]);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, options?: { emailRedirectTo?: string }) => {
     try {
       // Check geo restrictions before allowing signup
-      const geoCheck = await GeoRestrictionService.checkCountryAccess();
+      const geoCheck = await geoRestrictionService.checkCountryAccess();
       
       if (!geoCheck.isAllowed) {
         return { 
@@ -176,9 +195,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/email-confirmed`,
+          emailRedirectTo: options?.emailRedirectTo || `${window.location.origin}/email-confirmed`,
           data: {
-            full_name: fullName,
             email: email
           }
         }
@@ -197,7 +215,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Force correct currency based on user's country
       if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = GeoRestrictionService.getForcedCurrency(geoCheck.countryCode);
+        const forcedCurrency = geoRestrictionService.getForcedCurrency(geoCheck.countryCode);
         localStorage.setItem(`user_currency_${data.user.id}`, forcedCurrency);
       }
 
@@ -214,7 +232,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     try {
       // Check geo restrictions before allowing login
-      const geoCheck = await GeoRestrictionService.checkCountryAccess();
+      const geoCheck = await geoRestrictionService.checkCountryAccess();
       
       if (!geoCheck.isAllowed) {
         return { 
@@ -248,25 +266,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Force correct currency based on user's country
       if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = GeoRestrictionService.getForcedCurrency(geoCheck.countryCode);
+        const forcedCurrency = geoRestrictionService.getForcedCurrency(geoCheck.countryCode);
         localStorage.setItem(`user_currency_${data.user.id}`, forcedCurrency);
-      }
-
-      // Track login IP only on first login (check localStorage)
-      if (data.user) {
-        const hasTrackedIP = localStorage.getItem(`ip_tracked_${data.user.id}`);
-        if (!hasTrackedIP) {
-          setTimeout(() => {
-            trackLoginIP();
-          }, 1000);
-        } else {
-          // Load saved location data from localStorage
-          const savedLocation = localStorage.getItem(`user_location_${data.user.id}`);
-          if (savedLocation) {
-            const locationData = JSON.parse(savedLocation);
-            setLocationData(locationData);
-          }
-        }
       }
 
       return { data, error: null };
@@ -411,7 +412,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? <LoadingScreen /> : children}
+      
+      {/* Plan expiry popup */}
+      <PlanExpiryPopup
+        isOpen={expiryData.show_popup}
+        onClose={dismissPopup}
+        daysUntilExpiry={expiryData.days_until_expiry || 0}
+        plan={expiryData.plan || ''}
+        expiresAt={expiryData.expires_at || ''}
+        isExpired={expiryData.is_expired || false}
+      />
     </AuthContext.Provider>
   );
+};
 };

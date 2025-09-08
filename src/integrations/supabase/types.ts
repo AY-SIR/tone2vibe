@@ -83,6 +83,30 @@ export type Database = {
         }
         Relationships: []
       }
+      expiry_notifications: {
+        Row: {
+          id: string
+          notification_type: string
+          plan_expires_at: string
+          sent_at: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notification_type: string
+          plan_expires_at: string
+          sent_at?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notification_type?: string
+          plan_expires_at?: string
+          sent_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       history: {
         Row: {
           audio_url: string | null
@@ -661,6 +685,10 @@ export type Database = {
           words_to_add: number
         }
         Returns: boolean
+      }
+      check_plan_expiry: {
+        Args: { user_id_param: string }
+        Returns: Json
       }
       deduct_words_smartly: {
         Args: { user_id_param: string; words_to_deduct: number }

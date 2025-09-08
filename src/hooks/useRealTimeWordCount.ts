@@ -23,7 +23,7 @@ export const useRealTimeWordCount = () => {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: `id=eq.${user.id}`
+          filter: `user_id=eq.${user.id}`
         },
         (payload) => {
           console.log('Real-time word count update:', payload);
