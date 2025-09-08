@@ -35,14 +35,26 @@ interface Profile {
   plan_end_date: string | null;
 }
 
+interface LocationData {
+  country: string;
+  currency: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
   locationData: LocationData | null;
-  signUp: (email: string, password: string, options?: { emailRedirectTo?: string }) => Promise<{ data: any; error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    options?: { emailRedirectTo?: string }
+  ) => Promise<{ data: any; error: Error | null }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ data: any; error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
@@ -58,33 +70,24 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [locationData, setLocationData] = useState<any>(null);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
   const { toast } = useToast();
   const { expiryData, dismissPopup } = usePlanExpiry();
-
-  // Track IP address when user logs in
-  const trackLoginIP = async (userId: string) => {
-    try {
-      await supabase.functions.invoke('track-login-ip', {
-        headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-      });
-    } catch (error) {
-      console.error('Error tracking login IP:', error);
-    }
-  };
 
   useEffect(() => {
     const getSession = async () => {
       try {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession()
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
         // Check if user has verified email before setting session
         if (session?.user && !session.user.email_confirmed_at) {
@@ -93,23 +96,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        setSession(session)
+        setSession(session);
 
         if (session) {
-          setUser(session.user)
+          setUser(session.user);
         }
       } catch (error) {
-        console.error("Session error:", error);
+        console.error('Session error:', error);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
-    getSession()
+    getSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email_confirmed_at);
-      
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(
+        'Auth state change:',
+        event,
+        session?.user?.email_confirmed_at
+      );
+
       // Check email verification on auth state change
       if (session?.user && !session.user.email_confirmed_at && event !== 'SIGNED_OUT') {
         console.log('User email not verified during state change, signing out...');
@@ -128,14 +137,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (user) {
       loadUserProfile();
-      
+
       // Load saved location if available
       const savedLocation = localStorage.getItem(`user_location_${user.id}`);
       if (savedLocation) {
         const locationData = JSON.parse(savedLocation);
         setLocationData(locationData);
       }
-      
+
       // Set up real-time subscription for profile updates
       const profileChannel = supabase
         .channel('profile-updates')
@@ -145,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             event: 'UPDATE',
             schema: 'public',
             table: 'profiles',
-            filter: `user_id=eq.${user.id}`
+            filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
             console.log('Profile updated in real-time:', payload.new);
@@ -168,15 +177,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [session]);
 
-  const signUp = async (email: string, password: string, options?: { emailRedirectTo?: string }) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    options?: { emailRedirectTo?: string }
+  ) => {
     try {
       // Check geo restrictions before allowing signup
       const geoCheck = await geoRestrictionService.checkCountryAccess();
-      
+
       if (!geoCheck.isAllowed) {
-        return { 
+        return {
           data: null,
-          error: new Error(geoCheck.message)
+          error: new Error(geoCheck.message),
         };
       }
 
@@ -188,43 +201,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (existingUser && !checkError) {
-        throw new Error('An account with this email already exists. Please sign in instead.');
+        throw new Error(
+          'An account with this email already exists. Please sign in instead.'
+        );
       }
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: options?.emailRedirectTo || `${window.location.origin}/email-confirmed`,
+          emailRedirectTo:
+            options?.emailRedirectTo ||
+            `${window.location.origin}/email-confirmed`,
           data: {
-            email: email
-          }
-        }
+            email: email,
+          },
+        },
       });
 
       if (error) {
         // Handle specific error cases
-        if (error.message.includes('already registered') || 
-            error.message.includes('User already registered') ||
-            error.message.includes('signup_disabled') ||
-            error.status === 422) {
-          throw new Error('An account with this email already exists. Please sign in instead.');
+        if (
+          error.message.includes('already registered') ||
+          error.message.includes('User already registered') ||
+          error.message.includes('signup_disabled') ||
+          error.status === 422
+        ) {
+          throw new Error(
+            'An account with this email already exists. Please sign in instead.'
+          );
         }
         throw error;
       }
 
       // Force correct currency based on user's country
       if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = geoRestrictionService.getForcedCurrency(geoCheck.countryCode);
-        localStorage.setItem(`user_currency_${data.user.id}`, forcedCurrency);
+        const forcedCurrency = geoRestrictionService.getForcedCurrency(
+          geoCheck.countryCode
+        );
+        localStorage.setItem(
+          `user_currency_${data.user.id}`,
+          forcedCurrency
+        );
       }
 
       return { data, error: null };
     } catch (error) {
       console.error('Signup error:', error);
-      return { 
-        data: null, 
-        error: error instanceof Error ? error : new Error('Signup failed') 
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error('Signup failed'),
       };
     }
   };
@@ -233,11 +259,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // Check geo restrictions before allowing login
       const geoCheck = await geoRestrictionService.checkCountryAccess();
-      
+
       if (!geoCheck.isAllowed) {
-        return { 
+        return {
           data: null,
-          error: new Error(geoCheck.message)
+          error: new Error(geoCheck.message),
         };
       }
 
@@ -249,10 +275,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         // Handle specific error cases
         if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Invalid email or password. Please check your credentials.');
+          throw new Error(
+            'Invalid email or password. Please check your credentials.'
+          );
         }
         if (error.message.includes('Email not confirmed')) {
-          throw new Error('Please verify your email address before signing in. Check your inbox for a confirmation email.');
+          throw new Error(
+            'Please verify your email address before signing in. Check your inbox for a confirmation email.'
+          );
         }
         throw error;
       }
@@ -261,21 +291,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.user && !data.user.email_confirmed_at) {
         // Sign out the user immediately if email not verified
         await supabase.auth.signOut();
-        throw new Error('Please verify your email address before signing in. Check your inbox for a confirmation email.');
+        throw new Error(
+          'Please verify your email address before signing in. Check your inbox for a confirmation email.'
+        );
       }
 
       // Force correct currency based on user's country
       if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = geoRestrictionService.getForcedCurrency(geoCheck.countryCode);
-        localStorage.setItem(`user_currency_${data.user.id}`, forcedCurrency);
+        const forcedCurrency = geoRestrictionService.getForcedCurrency(
+          geoCheck.countryCode
+        );
+        localStorage.setItem(
+          `user_currency_${data.user.id}`,
+          forcedCurrency
+        );
       }
 
       return { data, error: null };
     } catch (error) {
       console.error('Signin error:', error);
-      return { 
-        data: null, 
-        error: error instanceof Error ? error : new Error('Sign in failed') 
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error('Sign in failed'),
       };
     }
   };
@@ -284,24 +321,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase.functions.invoke('track-login-ip', {
         headers: {
-          Authorization: `Bearer ${session?.access_token}`
-        }
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
 
       if (data && !error && user) {
         console.log('IP tracking completed:', data);
-        
+
         // Update location data
         if (data.country) {
           const locationData = {
             country: data.country,
-            currency: data.country === 'India' ? 'INR' : 'USD'
+            currency: data.country === 'India' ? 'INR' : 'USD',
           };
           setLocationData(locationData);
 
           // Save to localStorage to avoid future IP calls
           localStorage.setItem(`ip_tracked_${user.id}`, 'true');
-          localStorage.setItem(`user_location_${user.id}`, JSON.stringify(locationData));
+          localStorage.setItem(
+            `user_location_${user.id}`,
+            JSON.stringify(locationData)
+          );
         }
 
         // Reload profile to get updated data
@@ -335,14 +375,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {
         setProfile({
           ...data,
-          ip_address: (data.ip_address as string) || null
+          ip_address: (data.ip_address as string) || null,
         } as Profile);
-        
+
         // Set location data from profile if available
         if (data.country) {
           setLocationData({
             country: data.country,
-            currency: data.country === 'India' ? 'INR' : 'USD'
+            currency: data.country === 'India' ? 'INR' : 'USD',
           });
         }
       }
@@ -355,23 +395,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       // Clear all state and localStorage
       setUser(null);
       setSession(null);
       setProfile(null);
       setLocationData(null);
-      
+
       // Clear saved location data on sign out
       if (user) {
         localStorage.removeItem(`ip_tracked_${user.id}`);
         localStorage.removeItem(`user_location_${user.id}`);
       }
-      
+
       return { error: null };
     } catch (error) {
       console.error('Signout error:', error);
-      return { error: error instanceof Error ? error : new Error('Sign out failed') };
+      return {
+        error: error instanceof Error ? error : new Error('Sign out failed'),
+      };
     }
   };
 
@@ -381,15 +423,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user) throw new Error('No user found');
-    
+
     try {
       const { error } = await supabase
         .from('profiles')
         .update(data)
         .eq('user_id', user.id);
-      
+
       if (error) throw error;
-      
+
       await loadUserProfile();
     } catch (error) {
       console.error('Profile update error:', error);
@@ -413,7 +455,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={value}>
       {loading ? <LoadingScreen /> : children}
-      
+
       {/* Plan expiry popup */}
       <PlanExpiryPopup
         isOpen={expiryData.show_popup}
@@ -426,4 +468,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
-
