@@ -9,8 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { SecurityProvider } from "@/components/common/SecurityProvider";
-import FloatingNavController from "@/components/common/FloatingNavController";
-import { useState } from "react";
+import { Suspense } from "react";
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -28,8 +27,6 @@ import EmailConfirmed from "./pages/EmailConfirmed";
 const queryClient = new QueryClient();
 
 function App() {
-  const [activeSection, setActiveSection] = useState('home');
-  
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -40,7 +37,7 @@ function App() {
               <Sonner />
               <AuthProvider>
                 <Routes>
-                  <Route path="/" element={<Index activeSection={activeSection} setActiveSection={setActiveSection} />} />
+                  <Route path="/" element={<Index />} />
                   <Route 
                      path="/tool" 
                      element={
@@ -96,14 +93,8 @@ function App() {
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/email-confirmed" element={<EmailConfirmed />} />
                   <Route path="*" element={<NotFound />} />
-                  </Routes>
-                  
-                  {/* Global Floating Navigation - Hide on specific routes */}
-                  <FloatingNavController 
-                    activeSection={activeSection}
-                    onSectionChange={setActiveSection}
-                  />
-                </AuthProvider>
+                </Routes>
+              </AuthProvider>
             </TooltipProvider>
           </SecurityProvider>
         </ResponsiveGuard>

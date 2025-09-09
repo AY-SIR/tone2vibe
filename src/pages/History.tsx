@@ -227,44 +227,27 @@ const History = () => {
             </div>
 
             {/* Content Type Toggles */}
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 pt-4 border-t border-muted">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/15 transition-all duration-300 border border-primary/20 hover:border-primary/30 shadow-sm hover:shadow-md group">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-primary/20 group-hover:bg-primary/30 transition-colors duration-300">
-                    <Volume2 className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <Label htmlFor="voice-generation" className="text-sm font-semibold cursor-pointer text-foreground group-hover:text-primary transition-colors duration-300">
-                      AI Voice Generation
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Smart AI-generated voices</p>
-                  </div>
-                </div>
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 pt-4 border-t border-muted">
+              <div className="flex items-center space-x-3">
+                <Volume2 className="h-4 w-4 text-primary" />
+                <Label htmlFor="voice-generation" className="text-sm font-medium">
+                  AI Voice Generation
+                </Label>
                 <Switch
                   id="voice-generation"
                   checked={showVoiceGeneration}
                   onCheckedChange={setShowVoiceGeneration}
-                  className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/20 transition-all duration-300 scale-110"
                 />
               </div>
-              
-              <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-secondary/5 to-secondary/10 hover:from-secondary/10 hover:to-secondary/15 transition-all duration-300 border border-secondary/20 hover:border-secondary/30 shadow-sm hover:shadow-md group">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-secondary/20 group-hover:bg-secondary/30 transition-colors duration-300">
-                    <Mic className="h-4 w-4 text-secondary" />
-                  </div>
-                  <div>
-                    <Label htmlFor="user-recorded" className="text-sm font-semibold cursor-pointer text-foreground group-hover:text-secondary transition-colors duration-300">
-                      User Recorded Voice
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Your personal recordings</p>
-                  </div>
-                </div>
+              <div className="flex items-center space-x-3">
+                <Mic className="h-4 w-4 text-secondary" />
+                <Label htmlFor="user-recorded" className="text-sm font-medium">
+                  User Recorded Voice
+                </Label>
                 <Switch
                   id="user-recorded"
                   checked={showUserRecorded}
                   onCheckedChange={setShowUserRecorded}
-                  className="data-[state=checked]:bg-secondary data-[state=unchecked]:bg-muted-foreground/20 transition-all duration-300 scale-110"
                 />
               </div>
             </div>
