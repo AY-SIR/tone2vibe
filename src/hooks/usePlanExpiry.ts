@@ -29,7 +29,7 @@ export const usePlanExpiry = () => {
         return;
       }
 
-      const response = data as PlanExpiryData;
+      const response = data as unknown as PlanExpiryData;
       setExpiryData(response || { show_popup: false });
     } catch (error) {
       console.error('Error in plan expiry check:', error);

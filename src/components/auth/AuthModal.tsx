@@ -178,7 +178,7 @@ export function AuthModal({ open, onOpenChange, onSuccess }: AuthModalProps) {
         return;
       }
 
-      const { data, error } = await signUp(signupEmail, signupPassword, signupName);
+      const { data, error } = await signUp(signupEmail, signupPassword);
       if (error) {
         if (error.message.includes('banned_email')) {
           toast({

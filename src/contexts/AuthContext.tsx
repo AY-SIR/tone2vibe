@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { locationService } from '@/services/locationService';
-import { geoRestrictionService } from '@/services/geoRestrictionService';
+import { LocationService } from '@/services/locationService';
+import { GeoRestrictionService } from '@/services/geoRestrictionService';
 import { LoadingScreen } from '@/components/common/LoadingScreen';
 import { PlanExpiryPopup } from '@/components/common/PlanExpiryPopup';
 import { usePlanExpiry } from '@/hooks/usePlanExpiry';
@@ -184,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   ) => {
     try {
       // Check geo restrictions before allowing signup
-      const geoCheck = await geoRestrictionService.checkCountryAccess();
+      const geoCheck = await GeoRestrictionService.checkCountryAccess();
 
       if (!geoCheck.isAllowed) {
         return {
@@ -236,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // Force correct currency based on user's country
       if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = geoRestrictionService.getForcedCurrency(
+        const forcedCurrency = GeoRestrictionService.getForcedCurrency(
           geoCheck.countryCode
         );
         localStorage.setItem(
@@ -258,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signIn = async (email: string, password: string) => {
     try {
       // Check geo restrictions before allowing login
-      const geoCheck = await geoRestrictionService.checkCountryAccess();
+      const geoCheck = await GeoRestrictionService.checkCountryAccess();
 
       if (!geoCheck.isAllowed) {
         return {
@@ -298,7 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // Force correct currency based on user's country
       if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = geoRestrictionService.getForcedCurrency(
+        const forcedCurrency = GeoRestrictionService.getForcedCurrency(
           geoCheck.countryCode
         );
         localStorage.setItem(
