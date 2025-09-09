@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useRef, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   Play,
   Pause,
@@ -34,10 +43,19 @@ const History = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
-  const [showVoiceGeneration, setShowVoiceGeneration] = useState(true);
-  const [showUserRecorded, setShowUserRecorded] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Cleanup effect to pause audio when component unmounts
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
   if (!user) {
     navigate("/");
@@ -54,49 +72,57 @@ const History = () => {
       project.original_text.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesLanguage =
       languageFilter === "all" || project.language === languageFilter;
-
     return matchesSearch && matchesLanguage;
   });
 
   // Separate generated and recorded voices
   const generatedVoices = filteredProjects.filter((project) => {
-    const isGenerated =
-      !project.voice_settings?.type ||
-      project.voice_settings?.type === "generated" ||
-      project.voice_settings?.type === "ai_generated" ||
-      (project.voice_settings?.type === "cloned" &&
-        project.voice_settings?.is_permanent);
-    return isGenerated;
+    const type = project.voice_settings?.type;
+    return (
+      type === "generated" ||
+      type === "ai_generated" ||
+      (type === "cloned" && project.voice_settings?.is_permanent === true)
+    );
   });
 
   const recordedVoices = filteredProjects.filter((project) => {
-    const isRecorded =
-      project.voice_settings?.type === "recorded" ||
-      project.voice_settings?.type === "user_recorded" ||
-      (project.voice_settings?.type === "cloned" &&
-        !project.voice_settings?.is_permanent);
-    return isRecorded;
+    const type = project.voice_settings?.type;
+    return (
+      type === "recorded" ||
+      type === "user_recorded" ||
+      (type === "cloned" && project.voice_settings?.is_permanent === false)
+    );
   });
 
   const languages = Array.from(new Set(projects.map((p) => p.language)));
 
   const playAudio = async (project: any) => {
     try {
-      if (playingAudio === project.id) {
+      // If clicking the currently playing audio, pause it
+      if (playingAudio === project.id && audioRef.current) {
+        audioRef.current.pause();
         setPlayingAudio(null);
         return;
       }
 
+      // If another audio is playing, pause it first
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
       if (project.audio_url) {
         const audio = new Audio(project.audio_url);
+        audioRef.current = audio; // Store instance in ref
         setPlayingAudio(project.id);
 
         audio.onended = () => {
           setPlayingAudio(null);
+          audioRef.current = null;
         };
 
         audio.onerror = () => {
           setPlayingAudio(null);
+          audioRef.current = null;
           toast({
             title: "Playback failed",
             description: "Could not play audio file",
@@ -112,8 +138,9 @@ const History = () => {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (err) {
       setPlayingAudio(null);
+      if (audioRef.current) audioRef.current = null;
       toast({
         title: "Playback error",
         description: "Could not play audio",
@@ -131,7 +158,6 @@ const History = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
         toast({
           title: "Download started",
           description: "Audio file downloading",
@@ -143,7 +169,7 @@ const History = () => {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (err) {
       toast({
         title: "Download failed",
         description: "Could not download audio file",
@@ -167,13 +193,11 @@ const History = () => {
               <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Back to Home</span>
             </Button>
-
             <Badge variant="outline" className="text-xs">
               {profile?.plan?.charAt(0).toUpperCase()}
               {profile?.plan?.slice(1)} Plan
             </Badge>
           </div>
-
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 mt-2 sm:mb-2">
               Voice History
@@ -182,7 +206,6 @@ const History = () => {
               Your generated voice projects • {retentionInfo} retention
             </p>
           </div>
-
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
             <div className="text-xs sm:text-sm flex items-center gap-2">
               <Badge variant="outline" className="text-xs">
@@ -196,7 +219,7 @@ const History = () => {
           </div>
         </div>
 
-        {/* Filters and Toggles */}
+        {/* Filters and Tabs Card */}
         <Card className="mb-4 sm:mb-6">
           <CardContent className="p-3 sm:p-4">
             {/* Search and Language Filter */}
@@ -226,31 +249,71 @@ const History = () => {
               </Select>
             </div>
 
-            {/* Content Type Toggles */}
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 pt-4 border-t border-muted">
-              <div className="flex items-center space-x-3">
-                <Volume2 className="h-4 w-4 text-primary" />
-                <Label htmlFor="voice-generation" className="text-sm font-medium">
-                  AI Voice Generation
-                </Label>
-                <Switch
-                  id="voice-generation"
-                  checked={showVoiceGeneration}
-                  onCheckedChange={setShowVoiceGeneration}
-                />
-              </div>
-              <div className="flex items-center space-x-3">
-                <Mic className="h-4 w-4 text-secondary" />
-                <Label htmlFor="user-recorded" className="text-sm font-medium">
-                  User Recorded Voice
-                </Label>
-                <Switch
-                  id="user-recorded"
-                  checked={showUserRecorded}
-                  onCheckedChange={setShowUserRecorded}
-                />
-              </div>
-            </div>
+            <Tabs defaultValue="generated" className="w-full mt-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger
+                  value="generated"
+                  className="flex items-center gap-2"
+                >
+                  <Volume2 className="h-4 w-4 text-primary" />
+                  AI Voice Generation ({generatedVoices.length})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="recorded"
+                  className="flex items-center gap-2"
+                >
+                  <Mic className="h-4 w-4 text-secondary" />
+                  User Recorded Voice ({recordedVoices.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="generated">
+                {generatedVoices.length > 0 ? (
+                  <div className="space-y-3 sm:space-y-4 mt-4">
+                    {generatedVoices.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        playingAudio={playingAudio}
+                        onPlay={playAudio}
+                        onDownload={downloadAudio}
+                        type="generated"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center p-6 sm:p-8">
+                    <p className="text-muted-foreground mb-4 text-sm sm:text-base">
+                      No generated voice projects found matching your filters.
+                    </p>
+                    <Button onClick={() => navigate("/tool")} size="sm">
+                      Create a New Voice
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="recorded">
+                {recordedVoices.length > 0 ? (
+                  <div className="space-y-3 sm:space-y-4 mt-4">
+                    {recordedVoices.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        playingAudio={playingAudio}
+                        onPlay={playAudio}
+                        onDownload={downloadAudio}
+                        type="recorded"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm text-center p-6 sm:p-8">
+                    No recorded voices found matching your filters.
+                  </p>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
@@ -262,90 +325,24 @@ const History = () => {
             </CardContent>
           </Card>
         )}
-
-        {/* Projects List */}
-        {!showVoiceGeneration && !showUserRecorded ? (
-          <Card>
-            <CardContent className="p-6 sm:p-8 text-center">
-              <p className="text-muted-foreground mb-4 text-sm sm:text-base">
-                Enable at least one content type to view projects
-              </p>
-            </CardContent>
-          </Card>
-        ) : generatedVoices.length === 0 && recordedVoices.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 sm:p-8 text-center">
-              <p className="text-muted-foreground mb-4 text-sm sm:text-base">
-                No voice projects found
-              </p>
-              <Button onClick={() => navigate("/tool")} size="sm">
-                Create Your First Voice
-              </Button>
-            </CardContent>  
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            {/* AI Voice Generation Section */}
-            {showVoiceGeneration && generatedVoices.length > 0 && (
-              <div>
-                <div className="flex items-center space-x-3 mb-4">
-                  <Volume2 className="h-5 w-5 text-primary" />
-                  <h2 className="text-lg sm:text-xl font-semibold">
-                    AI Voice Generation ({generatedVoices.length})
-                  </h2>
-                </div>
-                <div className="space-y-3 sm:space-y-4">
-                  {generatedVoices.map((project) => (
-                    <ProjectCard 
-                      key={project.id} 
-                      project={project} 
-                      playingAudio={playingAudio}
-                      onPlay={playAudio}
-                      onDownload={downloadAudio}
-                      type="generated"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* User Recorded Voice Section */}
-            {showUserRecorded && recordedVoices.length > 0 && (
-              <div>
-                <div className="flex items-center space-x-3 mb-4">
-                  <Mic className="h-5 w-5 text-secondary" />
-                  <h2 className="text-lg sm:text-xl font-semibold">
-                    User Recorded Voice ({recordedVoices.length})
-                  </h2>
-                </div>
-                <div className="space-y-3 sm:space-y-4">
-                  {recordedVoices.map((project) => (
-                    <ProjectCard 
-                      key={project.id} 
-                      project={project} 
-                      playingAudio={playingAudio}
-                      onPlay={playAudio}
-                      onDownload={downloadAudio}
-                      type="recorded"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
 // ProjectCard Component
-const ProjectCard = ({ project, playingAudio, onPlay, onDownload, type }: {
+const ProjectCard = ({
+  project,
+  playingAudio,
+  onPlay,
+  onDownload,
+  type,
+}: {
   project: any;
   playingAudio: string | null;
   onPlay: (project: any) => void;
   onDownload: (project: any) => void;
-  type: 'generated' | 'recorded';
+  type: "generated" | "recorded";
 }) => {
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -353,7 +350,7 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, type }: {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <CardTitle className="text-sm sm:text-base lg:text-lg flex items-center space-x-2">
-              {type === 'generated' ? (
+              {type === "generated" ? (
                 <Volume2 className="h-4 w-4 text-primary" />
               ) : (
                 <Mic className="h-4 w-4 text-secondary" />
@@ -367,11 +364,15 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, type }: {
               <Badge variant="secondary" className="text-xs">
                 {project.word_count} words
               </Badge>
-              <Badge 
-                variant="outline" 
-                className={`text-xs ${type === 'generated' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}
+              <Badge
+                variant="outline"
+                className={`text-xs ${
+                  type === "generated"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-secondary/10 text-secondary"
+                }`}
               >
-                {type === 'generated' ? 'AI Generated' : 'User Recorded'}
+                {type === "generated" ? "AI Generated" : "User Recorded"}
               </Badge>
               {project.processing_time_ms && (
                 <Badge
@@ -385,12 +386,10 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, type }: {
           </div>
         </div>
       </CardHeader>
-      
       <CardContent className="pt-0 p-3 sm:p-6">
         <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">
           {project.original_text}
         </p>
-
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
             <Button
@@ -416,11 +415,12 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, type }: {
               <Download className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </div>
-
           <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
             <span>{new Date(project.created_at).toLocaleDateString()}</span>
             {project.generation_started_at && (
-              <span>{new Date(project.generation_started_at).toLocaleTimeString()}</span>
+              <span>
+                {new Date(project.generation_started_at).toLocaleTimeString()}
+              </span>
             )}
           </div>
         </div>
