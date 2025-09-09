@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
 
 interface PlanExpiryData {
   show_popup: boolean;
@@ -10,8 +10,12 @@ interface PlanExpiryData {
   is_expired?: boolean;
 }
 
-export const usePlanExpiry = () => {
-  const { user, profile } = useAuth();
+interface Profile {
+  plan: string;
+  plan_expires_at: string | null;
+}
+
+export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const [expiryData, setExpiryData] = useState<PlanExpiryData>({ show_popup: false });
   const [isLoading, setIsLoading] = useState(false);
 

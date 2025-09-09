@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const { toast } = useToast();
-  const { expiryData, dismissPopup } = usePlanExpiry();
+  const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
 
   useEffect(() => {
     const getSession = async () => {
