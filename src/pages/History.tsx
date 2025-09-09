@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -17,6 +19,8 @@ import {
   Search,
   Filter,
   ArrowLeft,
+  Mic,
+  Volume2,
 } from "lucide-react";
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +34,8 @@ const History = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [showVoiceGeneration, setShowVoiceGeneration] = useState(true);
+  const [showUserRecorded, setShowUserRecorded] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -49,15 +55,27 @@ const History = () => {
     const matchesLanguage =
       languageFilter === "all" || project.language === languageFilter;
 
-    // Only show generated voices, not temporary recorded ones
+    return matchesSearch && matchesLanguage;
+  });
+
+  // Separate generated and recorded voices
+  const generatedVoices = filteredProjects.filter((project) => {
     const isGenerated =
       !project.voice_settings?.type ||
       project.voice_settings?.type === "generated" ||
       project.voice_settings?.type === "ai_generated" ||
       (project.voice_settings?.type === "cloned" &&
         project.voice_settings?.is_permanent);
+    return isGenerated;
+  });
 
-    return matchesSearch && matchesLanguage && isGenerated;
+  const recordedVoices = filteredProjects.filter((project) => {
+    const isRecorded =
+      project.voice_settings?.type === "recorded" ||
+      project.voice_settings?.type === "user_recorded" ||
+      (project.voice_settings?.type === "cloned" &&
+        !project.voice_settings?.is_permanent);
+    return isRecorded;
   });
 
   const languages = Array.from(new Set(projects.map((p) => p.language)));
@@ -178,10 +196,11 @@ const History = () => {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters and Toggles */}
         <Card className="mb-4 sm:mb-6">
           <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            {/* Search and Language Filter */}
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
@@ -206,6 +225,32 @@ const History = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Content Type Toggles */}
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 pt-4 border-t border-muted">
+              <div className="flex items-center space-x-3">
+                <Volume2 className="h-4 w-4 text-primary" />
+                <Label htmlFor="voice-generation" className="text-sm font-medium">
+                  AI Voice Generation
+                </Label>
+                <Switch
+                  id="voice-generation"
+                  checked={showVoiceGeneration}
+                  onCheckedChange={setShowVoiceGeneration}
+                />
+              </div>
+              <div className="flex items-center space-x-3">
+                <Mic className="h-4 w-4 text-secondary" />
+                <Label htmlFor="user-recorded" className="text-sm font-medium">
+                  User Recorded Voice
+                </Label>
+                <Switch
+                  id="user-recorded"
+                  checked={showUserRecorded}
+                  onCheckedChange={setShowUserRecorded}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -219,7 +264,15 @@ const History = () => {
         )}
 
         {/* Projects List */}
-        {filteredProjects.length === 0 ? (
+        {!showVoiceGeneration && !showUserRecorded ? (
+          <Card>
+            <CardContent className="p-6 sm:p-8 text-center">
+              <p className="text-muted-foreground mb-4 text-sm sm:text-base">
+                Enable at least one content type to view projects
+              </p>
+            </CardContent>
+          </Card>
+        ) : generatedVoices.length === 0 && recordedVoices.length === 0 ? (
           <Card>
             <CardContent className="p-6 sm:p-8 text-center">
               <p className="text-muted-foreground mb-4 text-sm sm:text-base">
@@ -228,86 +281,151 @@ const History = () => {
               <Button onClick={() => navigate("/tool")} size="sm">
                 Create Your First Voice
               </Button>
-            </CardContent>
+            </CardContent>  
           </Card>
         ) : (
-          <div className="space-y-3 sm:space-y-4">
-            {filteredProjects.map((project) => (
-              <Card key={project.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-sm sm:text-base lg:text-lg">
-                        {project.title}
-                      </CardTitle>
-                      <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs">
-                          {project.language}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {project.word_count} words
-                        </Badge>
-                        {project.processing_time_ms && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs bg-blue-50 text-blue-700"
-                          >
-                            {(project.processing_time_ms / 1000).toFixed(1)}s
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pt-0 p-3 sm:p-6">
-  <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">
-    {project.original_text}
-  </p>
+          <div className="space-y-6">
+            {/* AI Voice Generation Section */}
+            {showVoiceGeneration && generatedVoices.length > 0 && (
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <Volume2 className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg sm:text-xl font-semibold">
+                    AI Voice Generation ({generatedVoices.length})
+                  </h2>
+                </div>
+                <div className="space-y-3 sm:space-y-4">
+                  {generatedVoices.map((project) => (
+                    <ProjectCard 
+                      key={project.id} 
+                      project={project} 
+                      playingAudio={playingAudio}
+                      onPlay={playAudio}
+                      onDownload={downloadAudio}
+                      type="generated"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
-  {/* Bottom row: buttons left, date+time right */}
-  <div className="flex items-center justify-between">
-    {/* Left: action buttons */}
-    <div className="flex items-center space-x-1 sm:space-x-2">
-      <Button
-        onClick={() => playAudio(project)}
-        variant="outline"
-        size="sm"
-        disabled={!project.audio_url}
-        className="h-7 sm:h-8 px-2 sm:px-3"
-      >
-        {playingAudio === project.id ? (
-          <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
-        ) : (
-          <Play className="h-3 w-3 sm:h-4 sm:w-4" />
-        )}
-      </Button>
-      <Button
-        onClick={() => downloadAudio(project)}
-        variant="outline"
-        size="sm"
-        disabled={!project.audio_url}
-        className="h-7 sm:h-8 px-2 sm:px-3"
-      >
-        <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-      </Button>
-    </div>
-
-    {/* Right: date + time */}
-    <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-      <span>{new Date(project.created_at).toLocaleDateString()}</span>
-      {project.generation_started_at && (
-        <span>{new Date(project.generation_started_at).toLocaleTimeString()}</span>
-      )}
-    </div>
-  </div>
-</CardContent>
-              </Card>
-            ))}
+            {/* User Recorded Voice Section */}
+            {showUserRecorded && recordedVoices.length > 0 && (
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <Mic className="h-5 w-5 text-secondary" />
+                  <h2 className="text-lg sm:text-xl font-semibold">
+                    User Recorded Voice ({recordedVoices.length})
+                  </h2>
+                </div>
+                <div className="space-y-3 sm:space-y-4">
+                  {recordedVoices.map((project) => (
+                    <ProjectCard 
+                      key={project.id} 
+                      project={project} 
+                      playingAudio={playingAudio}
+                      onPlay={playAudio}
+                      onDownload={downloadAudio}
+                      type="recorded"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
+  );
+};
+
+// ProjectCard Component
+const ProjectCard = ({ project, playingAudio, onPlay, onDownload, type }: {
+  project: any;
+  playingAudio: string | null;
+  onPlay: (project: any) => void;
+  onDownload: (project: any) => void;
+  type: 'generated' | 'recorded';
+}) => {
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="text-sm sm:text-base lg:text-lg flex items-center space-x-2">
+              {type === 'generated' ? (
+                <Volume2 className="h-4 w-4 text-primary" />
+              ) : (
+                <Mic className="h-4 w-4 text-secondary" />
+              )}
+              <span>{project.title}</span>
+            </CardTitle>
+            <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
+              <Badge variant="outline" className="text-xs">
+                {project.language}
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                {project.word_count} words
+              </Badge>
+              <Badge 
+                variant="outline" 
+                className={`text-xs ${type === 'generated' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}
+              >
+                {type === 'generated' ? 'AI Generated' : 'User Recorded'}
+              </Badge>
+              {project.processing_time_ms && (
+                <Badge
+                  variant="outline"
+                  className="text-xs bg-blue-50 text-blue-700"
+                >
+                  {(project.processing_time_ms / 1000).toFixed(1)}s
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="pt-0 p-3 sm:p-6">
+        <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">
+          {project.original_text}
+        </p>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            <Button
+              onClick={() => onPlay(project)}
+              variant="outline"
+              size="sm"
+              disabled={!project.audio_url}
+              className="h-7 sm:h-8 px-2 sm:px-3"
+            >
+              {playingAudio === project.id ? (
+                <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+              ) : (
+                <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+              )}
+            </Button>
+            <Button
+              onClick={() => onDownload(project)}
+              variant="outline"
+              size="sm"
+              disabled={!project.audio_url}
+              className="h-7 sm:h-8 px-2 sm:px-3"
+            >
+              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+            <span>{new Date(project.created_at).toLocaleDateString()}</span>
+            {project.generation_started_at && (
+              <span>{new Date(project.generation_started_at).toLocaleTimeString()}</span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
