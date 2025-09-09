@@ -41,8 +41,12 @@ import { NewsletterSection } from "@/components/sections/NewsletterSection";
 import { CookieConsent } from "@/components/common/CookieConsent";
 import { WelcomePopup } from "@/components/common/WelcomePopup";
 import { LocationService } from "@/services/locationService";
+import FloatingNav from "@/components/common/FloatingNav";
 
-const Index = () => {
+const Index = ({ activeSection, setActiveSection }: { 
+  activeSection: string; 
+  setActiveSection: (section: string) => void; 
+}) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
@@ -52,8 +56,8 @@ const Index = () => {
   const [cookieConsent, setCookieConsent] = useState(
     localStorage.getItem("cookie-consent")
   );
-  const [showWelcome, setShowWelcome] = useState(false);
   const [showCookieAlert, setShowCookieAlert] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [pricing, setPricing] = useState({
     currency: "INR",
     symbol: "₹",
@@ -365,58 +369,61 @@ const Index = () => {
           </div>
         </nav>
 
-        <section className="relative pt-16 pb-24 px-4 text-center overflow-hidden">
-          {/* Background grid */}
-          <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
-            <GridPattern rows={15} columns={50} cellSize={32} />
-          </div>
+        {/* Hero Section */}
+        {(activeSection === 'home') && (
+          <section className="relative pt-16 pb-24 px-4 text-center overflow-hidden animate-fade-in">
+            {/* Background grid */}
+            <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
+              <GridPattern rows={15} columns={50} cellSize={32} />
+            </div>
 
-          {/* Foreground content */}
-          <div className="relative z-10 container mx-auto max-w-4xl mt-10">
-            <div className="animate-fade-in">
-              <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400">
-                ✨ Now with 50+ language support
-              </Badge>
+            {/* Foreground content */}
+            <div className="relative z-10 container mx-auto max-w-4xl mt-10">
+              <div className="animate-fade-in">
+                <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400">
+                  ✨ Now with 50+ language support
+                </Badge>
 
-              <h1 className="text-4xl md:text-6xl font-bold mb-6 text-black leading-tight">
-                Clone Your Voice with{" "}
-                <span className="block bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
-                  <span className="bg-gradient-to-r from-pink-500 via-blue-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
-                    AI
-                  </span>{" "}
-                  Precision
-                </span>
-              </h1>
+                <h1 className="text-4xl md:text-6xl font-bold mb-6 text-black leading-tight">
+                  Clone Your Voice with{" "}
+                  <span className="block bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-pink-500 via-blue-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
+                      AI
+                    </span>{" "}
+                    Precision
+                  </span>
+                </h1>
 
-              <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-center">
-                Transform any text into speech that sounds exactly like you.
-                <br/>Perfect for content creators, educators, and anyone who wants
-                personalized voice synthesis.
-              </p>
+                <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-center">
+                  Transform any text into speech that sounds exactly like you.
+                  <br/>Perfect for content creators, educators, and anyone who wants
+                  personalized voice synthesis.
+                </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button
-                  size="lg"
-                  className="bg-black hover:bg-gray-800 text-white px-8 py-4 text-lg font-bold animate-scale-in"
-                  onClick={handleGetStarted}
-                >
-                  {user ? "Go to Tool" : "Start Cloning Now"}
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button
+                    size="lg"
+                    className="bg-black hover:bg-gray-800 text-white px-8 py-4 text-lg font-bold animate-scale-in"
+                    onClick={handleGetStarted}
+                  >
+                    {user ? "Go to Tool" : "Start Cloning Now"}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
 
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-gray-300 hover:bg-gray-100 text-black px-8 py-4 text-lg animate-scale-in"
-                  onClick={() => setShowVideoModal(true)}
-                >
-                  <Play className="mr-2 h-5 w-5" />
-                  Watch Demo
-                </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-gray-300 hover:bg-gray-100 text-black px-8 py-4 text-lg animate-scale-in"
+                    onClick={() => setShowVideoModal(true)}
+                  >
+                    <Play className="mr-2 h-5 w-5" />
+                    Watch Demo
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
 <div className="flex items-center my-10">
   <div className="flex-grow border-t border-gray-300"></div>
@@ -469,85 +476,89 @@ const Index = () => {
 
         {/* Workflow Section */}
         <WorkflowSection />
-
-<div className="flex items-center my-10">
-  <div className="flex-grow border-t border-gray-300"></div>
-  <Mic className="mx-3 h-5 w-5 text-gray-900" />
-  <div className="flex-grow border-t border-gray-300"></div>
-</div>
+        {/* Divider */}
+        {(activeSection === 'pricing') && (
+          <div className="flex items-center my-10 animate-fade-in">
+            <div className="flex-grow border-t border-gray-300"></div>
+            <Mic className="mx-3 h-5 w-5 text-gray-900" />
+            <div className="flex-grow border-t border-gray-300"></div>
+          </div>
+        )}
 
         {/* Pricing Section */}
-        <section id="pricing" className="py-12 px-4 ">
-          <div className="container mx-auto">
-            <div className="text-center mb-16 animate-fade-in">
-            <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-               Popular Plans
-              </h2>
-              <p className="text-gray-600 text-xl max-w-2xl mx-auto mt-4">
-                Choose the perfect plan for your voice cloning needs
-              </p>
-            </div>
+        {(activeSection === 'pricing') && (
+          <section id="pricing" className="py-12 px-4 animate-fade-in">
+            <div className="container mx-auto">
+              <div className="text-center mb-16 animate-fade-in">
+              <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                 Popular Plans
+                </h2>
+                <p className="text-gray-600 text-xl max-w-2xl mx-auto mt-4">
+                  Choose the perfect plan for your voice cloning needs
+                </p>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {pricingPlans.map((plan, index) => (
-                <Card
-                  key={index}
-                  className={`relative hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up ${
-                    plan.popular ? "ring-2 ring-black shadow-lg" : ""
-                  }`}
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <Badge className="bg-black text-white">
-                        Most Popular
-                      </Badge>
-                    </div>
-                  )}
-                  <CardContent className="p-8">
-                    <div className="text-center mb-6">
-                      <h3 className="text-2xl font-bold mb-2 text-black">
-                        {plan.name}
-                      </h3>
-                      <p className="text-gray-600 mb-4">{plan.description}</p>
-                      <div className="flex items-baseline justify-center">
-                        <span className="text-4xl font-bold text-black">
-                          {plan.price}
-                        </span>
-                        <span className="text-gray-600">{plan.period}</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                {pricingPlans.map((plan, index) => (
+                  <Card
+                    key={index}
+                    className={`relative hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-slide-up ${
+                      plan.popular ? "ring-2 ring-black shadow-lg" : ""
+                    }`}
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    {plan.popular && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <Badge className="bg-black text-white">
+                          Most Popular
+                        </Badge>
                       </div>
-                    </div>
-
-                    <ul className="space-y-3 mb-8">
-                      {plan.features.map((feature, featureIndex) => (
-                        <li
-                          key={featureIndex}
-                          className="flex items-center space-x-3"
-                        >
-                          <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700 text-sm">
-                            {feature}
+                    )}
+                    <CardContent className="p-8">
+                      <div className="text-center mb-6">
+                        <h3 className="text-2xl font-bold mb-2 text-black">
+                          {plan.name}
+                        </h3>
+                        <p className="text-gray-600 mb-4">{plan.description}</p>
+                        <div className="flex items-baseline justify-center">
+                          <span className="text-4xl font-bold text-black">
+                            {plan.price}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
+                          <span className="text-gray-600">{plan.period}</span>
+                        </div>
+                      </div>
 
-                     <Button
-                      className={`w-full ${
-                        plan.popular
-                          ? "bg-black hover:bg-gray-800 text-white"
-                          : "bg-white hover:bg-gray-100 text-black border border-gray-300"
-                      }`}
-                      onClick={() => handlePlanClick(plan.name)}
-                    >
-                      {plan.cta}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                      <ul className="space-y-3 mb-8">
+                        {plan.features.map((feature, featureIndex) => (
+                          <li
+                            key={featureIndex}
+                            className="flex items-center space-x-3"
+                          >
+                            <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                            <span className="text-gray-700 text-sm">
+                              {feature}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+
+                       <Button
+                        className={`w-full ${
+                          plan.popular
+                            ? "bg-black hover:bg-gray-800 text-white"
+                            : "bg-white hover:bg-gray-100 text-black border border-gray-300"
+                        }`}
+                        onClick={() => handlePlanClick(plan.name)}
+                      >
+                        {plan.cta}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Newsletter Section */}
         <NewsletterSection />
@@ -713,6 +724,9 @@ const Index = () => {
             </div>
           </div>
         )}
+
+        {/* Floating Navigation - Removed from Index, now in App.tsx */}
+
       </div>
     </div>
   );
