@@ -5,7 +5,7 @@ import { LocationService } from '@/services/locationService';
 import { GeoRestrictionService } from '@/services/geoRestrictionService';
 import { LoadingScreen } from '@/components/common/LoadingScreen';
 import { PlanExpiryPopup } from '@/components/common/PlanExpiryPopup';
-import { usePlanExpiry } from '@/hooks/usePlanExpiry';
+import { usePlanExpiry } from '@/hooks/usePlanExpiryGuard';
 import { useToast } from '@/hooks/use-toast';
 
 interface Profile {
