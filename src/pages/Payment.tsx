@@ -44,7 +44,7 @@ const Payment = () => {
   const loadPricing = async () => {
     try {
       const locationData = await LocationService.detectUserLocation();
-      const userPricing = LocationService.getPricing(locationData.currency);
+      const userPricing = LocationService.getPricing();
       setPricing(userPricing);
     } catch (error) {
       console.error('Failed to load pricing:', error);
@@ -433,9 +433,9 @@ const Payment = () => {
                 All paid plans include the ability to purchase additional words at {pricing.symbol}{pricing.words.pricePerThousand} per 1,000 words. 
                 Pro users can buy up to 41,000 total words, Premium users can buy up to 99,000 total words.
               </p>
-              <p className="text-xs sm:text-sm">
-                Location: {locationData?.country || 'India'} • Currency: {pricing.currency}
-              </p>
+            <div className="text-xs sm:text-sm">
+              Location: भारत | India • Currency: ₹ INR Only
+            </div>
             </div>
           </TabsContent>
 

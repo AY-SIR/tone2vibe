@@ -37,7 +37,7 @@ const Terms = () => {
           <p className="text-lg sm:text-base text-gray-600">
             Please read these terms carefully before using our voice cloning service.
           </p>
-          <p className="text-sm text-gray-500 mt-2">Last updated: July 2025</p>
+          <p className="text-sm text-gray-500 mt-2">Last updated: January 2025</p>
         </div>
 
         {/* Terms Cards */}
@@ -51,7 +51,7 @@ const Terms = () => {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-4">
-                By accessing and using Tone2Vibe, you accept and agree to be bound by the terms and provision of this agreement.
+                By accessing and using this voice synthesis platform, you accept and agree to be bound by these terms and conditions.
               </p>
               <p className="text-gray-600">
                 If you do not agree to abide by the above, please do not use this service. We reserve the right to modify these terms at any time, and such modifications will be effective immediately upon posting.
@@ -65,7 +65,7 @@ const Terms = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-gray-600">
-                Tone2Vibe provides AI-powered voice cloning technology that allows users to:
+                Our platform provides AI-powered voice synthesis technology that allows users to:
               </p>
               <ul className="space-y-2 text-gray-600 ml-4 list-disc">
                 <li>Convert text to speech using their own voice characteristics</li>
@@ -159,7 +159,7 @@ const Terms = () => {
               <div>
                 <h4 className="font-semibold mb-2">Our Rights:</h4>
                 <p className="text-gray-600">
-                  Tone2Vibe and its technology are protected by intellectual property laws. You may not copy, modify, or reverse engineer our service.
+                Our platform and its technology are protected by intellectual property laws. You may not copy, modify, or reverse engineer our service.
                 </p>
               </div>
               <div>
@@ -177,7 +177,7 @@ const Terms = () => {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-4">
-                Tone2Vibe is provided "as is" without warranties of any kind. We are not liable for any damages arising from the use of our service, including but not limited to:
+                Our platform is provided "as is" without warranties of any kind. We are not liable for any damages arising from the use of our service, including but not limited to:
               </p>
               <ul className="space-y-2 text-gray-600 ml-4 list-disc">
                 <li>Loss of data or content</li>
@@ -211,7 +211,7 @@ const Terms = () => {
                 For questions about these Terms of Service, please contact us:
               </p>
               <div className="space-y-2 text-gray-600">
-                <p><strong>Email:</strong> terms@tone2vibe.com</p>
+                <p><strong>Email:</strong> support@voicesynthesis.app</p>
 
               </div>
               <Button

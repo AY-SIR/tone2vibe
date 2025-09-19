@@ -34,7 +34,7 @@ import {
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 
 const History = () => {
@@ -57,13 +57,26 @@ const History = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
+
   if (!user) {
-    navigate("/");
     return null;
   }
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen bg-background py-2 px-2 sm:py-4 sm:px-4 lg:px-8">
+        <div className="mx-auto space-y-6">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      </div>
+    );
   }
 
   const filteredProjects = projects.filter((project) => {
@@ -75,23 +88,19 @@ const History = () => {
     return matchesSearch && matchesLanguage;
   });
 
-  // Separate generated and recorded voices
+  // Separate generated and recorded voices with better logic
   const generatedVoices = filteredProjects.filter((project) => {
     const type = project.voice_settings?.type;
-    return (
-      type === "generated" ||
-      type === "ai_generated" ||
-      (type === "cloned" && project.voice_settings?.is_permanent === true)
-    );
+    const isAI = type === "generated" || type === "ai_generated" || type === "cloned";
+    const isFromGeneration = !type && project.audio_url && project.original_text;
+    return isAI || isFromGeneration;
   });
 
   const recordedVoices = filteredProjects.filter((project) => {
     const type = project.voice_settings?.type;
-    return (
-      type === "recorded" ||
-      type === "user_recorded" ||
-      (type === "cloned" && project.voice_settings?.is_permanent === false)
-    );
+    const isUserRecorded = type === "recorded" || type === "user_recorded" || type === "uploaded";
+    const hasVoiceRecording = project.voice_settings?.has_voice_recording === true;
+    return isUserRecorded || hasVoiceRecording;
   });
 
   const languages = Array.from(new Set(projects.map((p) => p.language)));
@@ -203,7 +212,7 @@ const History = () => {
               Voice History
             </h1>
             <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
-              Your generated voice projects • {retentionInfo} retention
+              Your generated voice projects • {retentionInfo('all')} retention
             </p>
           </div>
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
@@ -212,7 +221,7 @@ const History = () => {
                 {profile?.plan}
               </Badge>
               <span>
-                Retention: {retentionInfo} • {filteredProjects.length} of{" "}
+                Retention: {retentionInfo('all')} • {filteredProjects.length} of{" "}
                 {projects.length} projects shown
               </span>
             </div>
@@ -256,14 +265,14 @@ const History = () => {
                   className="flex items-center gap-2"
                 >
                   <Volume2 className="h-4 w-4 text-primary" />
-                  AI Voice Generation ({generatedVoices.length})
+                  AI Voice Generation
                 </TabsTrigger>
                 <TabsTrigger
                   value="recorded"
                   className="flex items-center gap-2"
                 >
-                  <Mic className="h-4 w-4 text-secondary" />
-                  User Recorded Voice ({recordedVoices.length})
+                  <Mic className="h-4 w-4 text-primary" />
+                  User  Voice
                 </TabsTrigger>
               </TabsList>
 

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface LocationData {
   country: string;
-  currency: string;
+  countryCode: string;
   ip?: string;
 }
 
@@ -25,65 +25,47 @@ export class LocationService {
           'Accept': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch location data');
       }
-      
+
       const data = await response.json();
-      
+
       return {
         country: data.country_name || 'Unknown',
-        currency: data.currency || 'USD',
+        countryCode: data.country_code || 'Unknown',
         ip: data.ip
       };
     } catch (error) {
       console.error('Error fetching location:', error);
       return {
         country: 'Unknown',
-        currency: 'USD'
+        countryCode: 'Unknown'
       };
     }
   }
 
   static async detectUserLocation(): Promise<LocationData> {
     const location = await this.getUserLocation();
-    return location || { country: 'Unknown', currency: 'USD' };
+    return location || { country: 'Unknown', countryCode: 'Unknown' };
   }
 
-  // Get currency based on country (force INR for India, USD for others)
-  static getCurrencyForCountry(countryName: string): 'INR' | 'USD' {
-    return countryName === 'India' ? 'INR' : 'USD';
+  // Check if user is from India
+  static isIndianUser(countryCode: string): boolean {
+    return countryCode === 'IN';
   }
 
-  static getPricing(currency: string = 'USD'): PricingData {
-    const pricingMap: Record<string, PricingData> = {
-      'INR': {
-        currency: 'INR',
-        symbol: '₹',
-        plans: {
-          pro: { price: 99, originalPrice: 99 },
-          premium: { price: 299, originalPrice: 299 }
-        },
-        words: { pricePerThousand: 31 }
+  static getPricing(): PricingData {
+    return {
+      currency: 'INR',
+      symbol: '₹',
+      plans: {
+        pro: { price: 99, originalPrice: 99 },
+        premium: { price: 299, originalPrice: 299 }
       },
-      'USD': {
-        currency: 'USD',
-        symbol: '$',
-        plans: {
-          pro: { price: 1.70, originalPrice: 1.70 },
-          premium: { price: 4.01, originalPrice: 4.01 }
-        },
-        words: { pricePerThousand: 0.49 }
-      }
+      words: { pricePerThousand: 31 }
     };
-
-    // Force currency restrictions
-    if (currency !== 'INR' && currency !== 'USD') {
-      currency = 'USD'; // Default to USD for unsupported currencies
-    }
-
-    return pricingMap[currency] || pricingMap['USD'];
   }
 
   static async saveUserLocation(userId: string, locationData: LocationData): Promise<void> {
@@ -111,7 +93,7 @@ export class LocationService {
 
       return {
         country: data.country || 'Unknown',
-        currency: 'USD'
+        countryCode: data.country === 'India' ? 'IN' : 'Unknown'
       };
     } catch (error) {
       console.error('Error fetching location from db:', error);

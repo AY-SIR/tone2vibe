@@ -1,24 +1,23 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { LocationService } from '@/services/locationService';
-import { GeoRestrictionService } from '@/services/geoRestrictionService';
-import { LoadingScreen } from '@/components/common/LoadingScreen';
-import { PlanExpiryPopup } from '@/components/common/PlanExpiryPopup';
-import { usePlanExpiry } from '@/hooks/usePlanExpiryGuard';
-import { useToast } from '@/hooks/use-toast';
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { IndiaOnlyService } from "@/services/indiaOnlyService";
+import { LoadingScreen } from "@/components/common/LoadingScreen";
+import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
+import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
+import { useToast } from "@/hooks/use-toast";
 
-interface Profile {
+export interface Profile {
   id: string;
   user_id: string;
   full_name: string;
   avatar_url: string;
   plan: string;
   words_limit: number;
-  words_used: number; // Legacy field - kept for compatibility
-  plan_words_used: number; // New field for plan-specific word usage
-  word_balance: number; // Purchased words that never expire
-  total_words_used: number; // Total words ever used
+  words_used: number;
+  plan_words_used: number;
+  word_balance: number;
+  total_words_used: number;
   upload_limit_mb: number;
   plan_expires_at: string | null;
   last_login_at: string | null;
@@ -49,7 +48,7 @@ interface AuthContextType {
   signUp: (
     email: string,
     password: string,
-    options?: { emailRedirectTo?: string }
+    options?: { emailRedirectTo?: string; fullName?: string }
   ) => Promise<{ data: any; error: Error | null }>;
   signIn: (
     email: string,
@@ -65,145 +64,212 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth error");
   }
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
-  const { toast } = useToast();
+
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
+  const { toast } = useToast();
 
-  useEffect(() => {
-    const getSession = async () => {
-      try {
-        setLoading(true);
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+  const authSubscriptionRef = useRef<any>(null);
+  const profileChannelRef = useRef<any>(null);
 
-        // Check if user has verified email before setting session
-        if (session?.user && !session.user.email_confirmed_at) {
-          console.log('User email not verified, signing out...');
-          await supabase.auth.signOut();
-          return;
-        }
+  /** -------------------
+   * Load User Profile
+   * ------------------- */
+  const loadUserProfile = async (userId?: string) => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-        setSession(session);
-
-        if (session) {
-          setUser(session.user);
-        }
-      } catch (error) {
-        console.error('Session error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(
-        'Auth state change:',
-        event,
-        session?.user?.email_confirmed_at
-      );
-
-      // Check email verification on auth state change
-      if (session?.user && !session.user.email_confirmed_at && event !== 'SIGNED_OUT') {
-        console.log('User email not verified during state change, signing out...');
-        await supabase.auth.signOut();
+      if (error || !data) {
+        console.debug("Profile not found:", error);
         return;
       }
 
-      setUser(session?.user || null);
-      setSession(session || null);
+      setProfile({
+        ...data,
+        ip_address: (data.ip_address as string | null) || null,
+      });
+
+      if (data.country) {
+        const location = {
+          country: data.country,
+          currency: "INR", // Only INR now
+        };
+        setLocationData(location);
+        try {
+          localStorage.setItem(`user_location_${userId}`, JSON.stringify(location));
+        } catch {}
+      }
+    } catch (err) {
+      console.error("Load profile error:", err);
+    }
+  };
+
+  /** -------------------
+   * Initialize Auth Session
+   * ------------------- */
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      setLoading(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        setSession(data?.session || null);
+        setUser(data?.session?.user || null);
+      } catch (err) {
+        console.error("Session init error:", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    init();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setUser(newSession?.user || null);
+      setSession(newSession || null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    authSubscriptionRef.current = authListener?.subscription;
+
+    return () => {
+      mounted = false;
+      if (authSubscriptionRef.current) {
+        try {
+          authSubscriptionRef.current.unsubscribe?.();
+        } catch {
+          supabase.removeChannel?.(authSubscriptionRef.current);
+        }
+      }
+    };
   }, []);
 
+  /** -------------------
+   * Profile Subscription
+   * ------------------- */
   useEffect(() => {
-    if (user) {
-      loadUserProfile();
-
-      // Load saved location if available
-      const savedLocation = localStorage.getItem(`user_location_${user.id}`);
-      if (savedLocation) {
-        const locationData = JSON.parse(savedLocation);
-        setLocationData(locationData);
+    if (profileChannelRef.current) {
+      try {
+        supabase.removeChannel?.(profileChannelRef.current);
+      } catch {
+        profileChannelRef.current.unsubscribe?.();
       }
+      profileChannelRef.current = null;
+    }
 
-      // Set up real-time subscription for profile updates
-      const profileChannel = supabase
-        .channel('profile-updates')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Profile updated in real-time:', payload.new);
-            setProfile(payload.new as any);
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(profileChannel);
-      };
-    } else {
+    if (!user) {
       setProfile(null);
+      setLocationData(null);
+      return;
     }
-  }, [user]);
 
+    loadUserProfile(user.id);
+
+    try {
+      const savedLocation = localStorage.getItem(`user_location_${user.id}`);
+      if (savedLocation) setLocationData(JSON.parse(savedLocation));
+    } catch {}
+
+    const channel = supabase
+      .channel(`profile-updates-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => setProfile(payload.new as Profile)
+      )
+      .subscribe();
+
+    profileChannelRef.current = channel;
+
+    return () => {
+      if (profileChannelRef.current) {
+        try {
+          supabase.removeChannel?.(profileChannelRef.current);
+        } catch {
+          profileChannelRef.current.unsubscribe?.();
+        }
+      }
+    };
+  }, [user?.id]);
+
+  /** -------------------
+   * Track IP & Location
+   * ------------------- */
   useEffect(() => {
-    if (session?.access_token) {
-      trackLoginIP();
-    }
-  }, [session]);
+    const trackLoginIP = async () => {
+      if (!session?.access_token || !user) return;
+      if (localStorage.getItem(`ip_tracked_${user.id}`)) return;
 
+      try {
+        const { data } = await supabase.functions.invoke("track-login-ip", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+
+        if (data?.country) {
+          const location = {
+            country: data.country,
+            currency: "INR", // Only INR now
+          };
+          setLocationData(location);
+          localStorage.setItem(`ip_tracked_${user.id}`, "true");
+          localStorage.setItem(`user_location_${user.id}`, JSON.stringify(location));
+          await loadUserProfile(user.id);
+        }
+      } catch (err) {
+        console.error("IP tracking failed:", err);
+      }
+    };
+    trackLoginIP();
+  }, [session?.access_token, user?.id]);
+
+  /** -------------------
+   * Auth Actions
+   * ------------------- */
   const signUp = async (
     email: string,
     password: string,
-    options?: { emailRedirectTo?: string }
+    options?: { emailRedirectTo?: string; fullName?: string }
   ) => {
     try {
-      // Check geo restrictions before allowing signup
-      const geoCheck = await GeoRestrictionService.checkCountryAccess();
+      const geoCheck = await IndiaOnlyService.checkIndianAccess();
+      if (!geoCheck.isAllowed)
+        return { data: null, error: new Error(geoCheck.message) };
 
-      if (!geoCheck.isAllowed) {
+      // Check if email already exists
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (existing) {
         return {
           data: null,
-          error: new Error(geoCheck.message),
+          error: new Error("An account with this email already exists. Please sign in."),
         };
-      }
-
-      // First check if email already exists in database
-      const { data: existingUser, error: checkError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', email)
-        .single();
-
-      if (existingUser && !checkError) {
-        throw new Error(
-          'An account with this email already exists. Please sign in instead.'
-        );
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -211,61 +277,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         password,
         options: {
           emailRedirectTo:
-            options?.emailRedirectTo ||
-            `${window.location.origin}/email-confirmed`,
+            options?.emailRedirectTo || `${window.location.origin}/email-confirmation`,
           data: {
-            email: email,
+            full_name: options?.fullName || "",
+            name: options?.fullName || "",
           },
         },
       });
 
       if (error) {
-        // Handle specific error cases
+        const msg = error.message || "";
         if (
-          error.message.includes('already registered') ||
-          error.message.includes('User already registered') ||
-          error.message.includes('signup_disabled') ||
-          error.status === 422
+          msg.includes("already registered") ||
+          msg.includes("User already registered")
         ) {
-          throw new Error(
-            'An account with this email already exists. Please sign in instead.'
-          );
+          return {
+            data: null,
+            error: new Error("This email is already registered. Please sign in."),
+          };
         }
-        throw error;
-      }
-
-      // Force correct currency based on user's country
-      if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = GeoRestrictionService.getForcedCurrency(
-          geoCheck.countryCode
-        );
-        localStorage.setItem(
-          `user_currency_${data.user.id}`,
-          forcedCurrency
-        );
+        return { data: null, error };
       }
 
       return { data, error: null };
-    } catch (error) {
-      console.error('Signup error:', error);
+    } catch (err) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error('Signup failed'),
+        error: err instanceof Error ? err : new Error("Signup failed"),
       };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      // Check geo restrictions before allowing login
-      const geoCheck = await GeoRestrictionService.checkCountryAccess();
-
-      if (!geoCheck.isAllowed) {
-        return {
-          data: null,
-          error: new Error(geoCheck.message),
-        };
-      }
+      const geoCheck = await IndiaOnlyService.checkIndianAccess();
+      if (!geoCheck.isAllowed)
+        return { data: null, error: new Error(geoCheck.message) };
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -273,121 +320,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (error) {
-        // Handle specific error cases
-        if (error.message.includes('Invalid login credentials')) {
-          throw new Error(
-            'Invalid email or password. Please check your credentials.'
-          );
-        }
-        if (error.message.includes('Email not confirmed')) {
-          throw new Error(
-            'Please verify your email address before signing in. Check your inbox for a confirmation email.'
-          );
-        }
-        throw error;
-      }
-
-      // Check if user email is verified
-      if (data.user && !data.user.email_confirmed_at) {
-        // Sign out the user immediately if email not verified
-        await supabase.auth.signOut();
-        throw new Error(
-          'Please verify your email address before signing in. Check your inbox for a confirmation email.'
-        );
-      }
-
-      // Force correct currency based on user's country
-      if (geoCheck.countryCode && data.user) {
-        const forcedCurrency = GeoRestrictionService.getForcedCurrency(
-          geoCheck.countryCode
-        );
-        localStorage.setItem(
-          `user_currency_${data.user.id}`,
-          forcedCurrency
-        );
+        const msg = error.message || "";
+        if (msg.includes("Invalid login credentials"))
+          return { data: null, error: new Error("Invalid email or password.") };
+        if (msg.includes("Email not confirmed"))
+          return {
+            data: null,
+            error: new Error("Please verify your email before signing in."),
+          };
+        return { data: null, error };
       }
 
       return { data, error: null };
-    } catch (error) {
-      console.error('Signin error:', error);
+    } catch (err) {
       return {
         data: null,
-        error: error instanceof Error ? error : new Error('Sign in failed'),
+        error: err instanceof Error ? err : new Error("Sign in failed"),
       };
-    }
-  };
-
-  const trackLoginIP = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('track-login-ip', {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-      });
-
-      if (data && !error && user) {
-        console.log('IP tracking completed:', data);
-
-        // Update location data
-        if (data.country) {
-          const locationData = {
-            country: data.country,
-            currency: data.country === 'India' ? 'INR' : 'USD',
-          };
-          setLocationData(locationData);
-
-          // Save to localStorage to avoid future IP calls
-          localStorage.setItem(`ip_tracked_${user.id}`, 'true');
-          localStorage.setItem(
-            `user_location_${user.id}`,
-            JSON.stringify(locationData)
-          );
-        }
-
-        // Reload profile to get updated data
-        loadUserProfile();
-      }
-    } catch (error) {
-      console.error('IP tracking error:', error);
-    }
-  };
-
-  const loadUserProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // Profile doesn't exist, this is handled by the trigger
-          console.log('Profile not found, will be created by trigger');
-          return;
-        }
-        console.error('Profile loading error:', error);
-        return;
-      }
-
-      if (data) {
-        setProfile({
-          ...data,
-          ip_address: (data.ip_address as string) || null,
-        } as Profile);
-
-        // Set location data from profile if available
-        if (data.country) {
-          setLocationData({
-            country: data.country,
-            currency: data.country === 'India' ? 'INR' : 'USD',
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Load profile error:', error);
     }
   };
 
@@ -396,49 +345,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
-      // Clear all state and localStorage
+      const uid = user?.id;
       setUser(null);
       setSession(null);
       setProfile(null);
       setLocationData(null);
 
-      // Clear saved location data on sign out
-      if (user) {
-        localStorage.removeItem(`ip_tracked_${user.id}`);
-        localStorage.removeItem(`user_location_${user.id}`);
+      if (uid) {
+        localStorage.removeItem(`ip_tracked_${uid}`);
+        localStorage.removeItem(`user_location_${uid}`);
+        localStorage.removeItem(`user_currency_${uid}`);
       }
 
       return { error: null };
-    } catch (error) {
-      console.error('Signout error:', error);
+    } catch (err) {
       return {
-        error: error instanceof Error ? error : new Error('Sign out failed'),
+        error: err instanceof Error ? err : new Error("Sign out failed"),
       };
     }
   };
 
   const refreshProfile = async () => {
-    await loadUserProfile();
+    if (user?.id) await loadUserProfile(user.id);
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
-    if (!user) throw new Error('No user found');
-
+    if (!user) throw new Error("No user found");
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update(data)
-        .eq('user_id', user.id);
-
+        .eq("user_id", user.id);
       if (error) throw error;
-
-      await loadUserProfile();
-    } catch (error) {
-      console.error('Profile update error:', error);
-      throw error;
+      await loadUserProfile(user.id);
+    } catch (err) {
+      console.error("Profile update error:", err);
+      throw err;
     }
   };
 
+  /** -------------------
+   * Context Value
+   * ------------------- */
   const value: AuthContextType = {
     user,
     session,
@@ -454,17 +402,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AuthContext.Provider value={value}>
-      {loading ? <LoadingScreen /> : children}
-
-      {/* Plan expiry popup */}
-      <PlanExpiryPopup
-        isOpen={expiryData.show_popup}
-        onClose={dismissPopup}
-        daysUntilExpiry={expiryData.days_until_expiry || 0}
-        plan={expiryData.plan || ''}
-        expiresAt={expiryData.expires_at || ''}
-        isExpired={expiryData.is_expired || false}
-      />
+      {loading ? (
+        <LoadingScreen />
+      ) : (
+        <>
+          {children}
+          <PlanExpiryPopup
+            isOpen={expiryData.show_popup}
+            onClose={dismissPopup}
+            daysUntilExpiry={expiryData.days_until_expiry || 0}
+            plan={expiryData.plan || ""}
+            expiresAt={expiryData.expires_at || ""}
+            isExpired={expiryData.is_expired || false}
+          />
+        </>
+      )}
     </AuthContext.Provider>
   );
 };

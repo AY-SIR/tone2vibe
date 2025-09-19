@@ -40,9 +40,9 @@ export default function EmailConfirmation() {
             setStatus('success');
             setMessage('Email confirmed successfully! Redirecting to your dashboard...');
             
-            // Redirect after a short delay
+            // Redirect to email-confirmed page
             setTimeout(() => {
-              navigate('/tool');
+              navigate('/email-confirmed');
             }, 2000);
           }
         } else if (type === 'recovery') {

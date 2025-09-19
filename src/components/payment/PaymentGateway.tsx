@@ -41,7 +41,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         const savedLocation = localStorage.getItem(`user_location_${user.id}`);
         if (savedLocation) {
           const locationData = JSON.parse(savedLocation);
-          const userPricing = LocationService.getPricing(locationData.currency);
+          const userPricing = LocationService.getPricing();
           setPricing(userPricing);
           return;
         }
@@ -49,7 +49,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       
       // Fallback to detection if no saved data
       const locationData = await LocationService.detectUserLocation();
-      const userPricing = LocationService.getPricing(locationData.currency);
+      const userPricing = LocationService.getPricing();
       setPricing(userPricing);
     } catch (error) {
       console.error('Failed to load pricing:', error);

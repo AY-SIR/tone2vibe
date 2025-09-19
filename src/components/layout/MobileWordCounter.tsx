@@ -34,7 +34,7 @@ export function MobileWordCounter() {
       title={`Plan: ${formatWords(planWordsUsed)}/${formatWords(planWordsLimit)} | Available: ${formatWords(totalAvailable)}${purchasedWords > 0 ? ` (${formatWords(purchasedWords)} purchased)` : ''}`}
     >
       {showFull ? (
-        <span>{totalAvailable.toLocaleString()} words total</span>
+        <span>{totalAvailable.toLocaleString()} words </span>
       ) : (
         <span>{formatWords(totalAvailable)} left</span>
       )}

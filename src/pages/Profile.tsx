@@ -1,390 +1,547 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { User, Mail, MapPin, Building, Crown, Save, ArrowLeft, Calendar, Zap, Clock, Shield, Trash2, Loader2 } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  User,
+  Mail,
+  MapPin,
+  Building,
+  Crown,
+  Save,
+  ArrowLeft,
+  Zap,
+  Shield,
+  Loader2,
+  CheckCircle2,
+  Trash2,
+} from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { ProfileSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 
-const Profile = () => {
+const Profile: React.FC = () => {
   const { user, profile, updateProfile, loading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // form data synced from profile/user
   const [formData, setFormData] = useState({
-    full_name: profile?.full_name || '',
-    email: profile?.email || '',
-    company: profile?.company || '',
-    country: profile?.country || '',
-    preferred_language: profile?.preferred_language || 'en-US'
+    full_name: "",
+    email: "",
+    company: "",
+    country: "",
+    preferred_language: "en-US",
   });
+
+  // sync form values when profile or user changes
+  useEffect(() => {
+    setFormData({
+      full_name: profile?.full_name || "",
+      email: profile?.email || user?.email || "",
+      company: profile?.company || "",
+      country: profile?.country || "",
+      preferred_language: profile?.preferred_language || "en-US",
+    });
+  }, [profile, user]);
+
+  // redirect when unauthenticated (after loading finishes)
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [loading, user, navigate]);
+
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [confirmEmail, setConfirmEmail] = useState('');
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const [confirmEmail, setConfirmEmail] = useState("");
 
+  if (loading) {
+    return <ProfileSkeleton />;
+  }
+
+  // If not loading but user is missing, we already triggered navigate; avoid rendering UI
   if (!user) {
-    navigate('/auth');
     return null;
   }
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData((prev) => ({ ...prev, [id]: value }));
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdating(true);
-    try {
-      await updateProfile(formData);
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been successfully updated",
-      });
-    } catch (error) {
-      toast({
-        title: "Update failed",
-        description: "Could not update profile. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsUpdating(false);
+  const handleLanguageChange = useCallback((value: string) => {
+    setFormData((prev) => ({ ...prev, preferred_language: value }));
+  }, []);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) return;
+
+      setIsUpdating(true);
+      try {
+        await updateProfile({
+          full_name: formData.full_name,
+          company: formData.company,
+          country: formData.country,
+          preferred_language: formData.preferred_language,
+        });
+        toast({
+          title: "Profile updated",
+          description: "Your profile has been successfully updated.",
+        });
+      } catch (err: any) {
+        console.error("Profile update error:", err);
+        toast({
+          title: "Update failed",
+          description: err?.message || "Could not update profile. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [formData, updateProfile, toast, user]
+  );
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (!user) return;
+
+    if (confirmEmail.trim().toLowerCase() !== user.email?.toLowerCase()) {
+      toast({ title: "Email does not match.", variant: "destructive" });
+      return;
     }
-  };
 
-  const handleDeleteAccount = async () => {
-    if (!user || confirmEmail !== user.email) return;
     setIsDeleting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('delete-account', {
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      });
-      if (error) throw error;
+      const res = await supabase.functions.invoke("delete-account");
+
+      if (res?.error) throw res.error;
+
       toast({
         title: "Account deleted",
-        description: "Your account has been permanently deleted and this email is now permanently restricted.",
-        variant: "destructive"
+        description: "Your account has been permanently deleted.",
       });
+
       await supabase.auth.signOut();
-      navigate('/');
+      setShowDeleteConfirm(false);
+      setConfirmEmail("");
+      setIsDeleting(false);
+      navigate("/");
     } catch (error: any) {
-      console.error('Delete account error:', error);
+      console.error("Delete account error:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete account. Please try again.",
-        variant: "destructive"
+        description: error?.message || "Failed to delete account. Please try again.",
+        variant: "destructive",
       });
-    } finally {
       setIsDeleting(false);
-      setShowDeleteConfirm(false);
-      setConfirmEmail('');
     }
-  };
+  }, [confirmEmail, user, toast, navigate]);
 
-  const getInitials = () => {
+  const getInitials = useCallback(() => {
     if (formData.full_name) {
       return formData.full_name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
+        .split(" ")
+        .map((n) => n[0] || "")
+        .join("")
         .toUpperCase()
         .substring(0, 2);
     }
     if (formData.email) {
       return formData.email[0].toUpperCase();
     }
-    return 'U';
-  };
+    return "U";
+  }, [formData.full_name, formData.email]);
 
-  const getPlanDetails = () => {
-    const plan = profile?.plan || 'free';
+  const getPlanDetails = useCallback(() => {
+    const plan = profile?.plan || "free";
     switch (plan) {
-      case 'premium':
+      case "premium":
         return {
-          name: 'Premium',
-          color: 'from-purple-600 to-pink-600',
-          bgColor: 'bg-gradient-to-r from-purple-50 to-pink-50',
-          textColor: 'text-purple-700',
-          icon: <Crown className="h-5 w-5" />,
-          features: ['50,000 words/month', 'Premium AI voices', '90-day history', 'Priority support', 'Advanced analytics'],
-          description: 'Everything you need for professional voice synthesis'
+          name: "Premium",
+          color: "from-purple-600 to-pink-600",
+          textColor: "text-purple-700",
+          icon: <Crown className="w-5 h-5" />,
+          features: [
+            "50,000 words/month",
+            "Premium AI voices",
+            "90-day history",
+            "Priority support",
+            "Advanced analytics",
+          ],
+          description: "Everything you need for professional voice synthesis",
         };
-      case 'pro':
+      case "pro":
         return {
-          name: 'Pro',
-          color: 'from-blue-600 to-indigo-600',
-          bgColor: 'bg-gradient-to-r from-blue-50 to-indigo-50',
-          textColor: 'text-blue-700',
-          icon: <Zap className="h-5 w-5" />,
-          features: ['10,000 words/month', 'Advanced voices', '30-day history', 'Email support', 'Custom voices'],
-          description: 'Perfect for content creators and businesses'
+          name: "Pro",
+          color: "from-blue-600 to-indigo-600",
+          textColor: "text-blue-700",
+          icon: <Zap className="w-5 h-5" />,
+          features: [
+            "10,000 words/month",
+            "Advanced voices",
+            "30-day history",
+            "Email support",
+            "Custom voices",
+          ],
+          description: "Perfect for content creators and businesses",
         };
       default:
         return {
-          name: 'Free',
-          color: 'from-gray-600 to-gray-700',
-          bgColor: 'bg-gradient-to-r from-gray-50 to-gray-100',
-          textColor: 'text-gray-700',
-          icon: <Shield className="h-5 w-5" />,
-          features: ['1,000 words/month', 'Basic voices', '7-day history', 'Community support'],
-          description: 'Great for getting started with voice synthesis'
+          name: "Free",
+          color: "from-gray-600 to-gray-700",
+          textColor: "text-gray-700",
+          icon: <Shield className="w-5 h-5" />,
+          features: [
+            "1,000 words/month",
+            "Basic voices",
+            "7-day history",
+            "Community support",
+          ],
+          description: "Great for getting started with voice synthesis",
         };
     }
-  };
+  }, [profile?.plan]);
 
-  const planDetails = getPlanDetails();
-  const usagePercentage = Math.min((profile?.plan_words_used || 0) / (profile?.words_limit || 1000) * 100, 100);
+  const planDetails = useMemo(() => getPlanDetails(), [getPlanDetails]);
+
+  const wordsLimit =
+    profile?.words_limit && profile.words_limit > 0
+      ? profile.words_limit
+      : 1000;
+  const planWordsUsed = profile?.plan_words_used || 0;
+  const usagePercentage = Math.min((planWordsUsed / wordsLimit) * 100, 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-      <div className="container mx-auto px-4 py-8 ">
-        <div className="mb-8">
-          <Button variant="ghost" onClick={() => navigate('/')} className="mb-6 text-muted-foreground hover:text-foreground" >
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
+    <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex flex-col space-y-8">
+        {/* Page Header */}
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="mb-4 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
           </Button>
-          <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"> Profile Settings </h1>
-            <p className="text-muted-foreground text-lg"> Manage your account, preferences, and subscription </p>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-center">Profile Settings</h1>
+          <p className="text-muted-foreground text-center mt-4">
+            Manage your account, preferences, and subscription.
+          </p>
         </div>
 
-        <div className="space-y-8 ">
-          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="text-center space-y-4">
-                <div className="relative inline-block">
-                  <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-                    <AvatarImage src={profile?.avatar_url || undefined} />
-                    <AvatarFallback className="text-xl font-semibold bg-gradient-to-br from-primary/20 to-secondary/20">
-                      {getInitials()}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
+        {/* Mobile Profile Card */}
+        <div className="block md:hidden">
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center text-center gap-4">
+                <Avatar className="w-24 h-24 text-3xl">
+                  <AvatarImage
+                    src={profile?.avatar_url || ""}
+                    alt={formData.full_name || "User"}
+                  />
+                  <AvatarFallback>{getInitials()}</AvatarFallback>
+                </Avatar>
                 <div className="space-y-1">
-                  <h3 className="text-xl font-semibold">{formData.full_name || 'User'}</h3>
-                  <p className="text-muted-foreground text-sm">{formData.email}</p>
-                  <Badge variant="secondary" className={`mt-2 ${planDetails.bgColor} ${planDetails.textColor} border-0`} >
-                    {planDetails.icon} <span className="ml-2 font-medium">{planDetails.name}</span>
+                  <h2 className="text-2xl font-semibold">
+                    {formData.full_name || "User"}
+                  </h2>
+                  <p className="text-xs sm:text-sm md:text-base text-muted-foreground break-words text-center max-w-[90%] mx-auto">
+  {formData.email}
+</p>
+
+                  <Badge
+                    variant="outline"
+                    className={`font-semibold ${planDetails.textColor}`}
+                  >
+                    {planDetails.name}
                   </Badge>
                 </div>
               </div>
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center space-x-2">
-                <User className="h-5 w-5" />
-                <span>Personal Information</span>
-              </CardTitle>
-              <p className="text-muted-foreground"> Update your personal details and preferences </p>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Responsive Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Left Column */}
+          <div className="md:col-span-2 flex flex-col gap-8">
+            <form onSubmit={handleSubmit}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                  <CardDescription>
+                    Update your personal details and preferences.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name" className="text-sm font-medium"> Full Name </Label>
+                    <Label htmlFor="full_name">Full Name</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input id="full_name" placeholder="Enter your full name" value={formData.full_name} onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))} className="pl-10 border-muted-foreground/20 focus:border-primary" />
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="full_name"
+                        value={formData.full_name}
+                        onChange={handleInputChange}
+                        className="pl-10"
+                      />
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium"> Email Address </Label>
+                    <Label htmlFor="email">Email Address</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input id="email" type="email" readOnly placeholder="Enter your email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} className="pl-10 border-muted-foreground/20 focus:border-primary" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        disabled
+                        className="pl-10 text-muted-foreground"
+                      />
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="company" className="text-sm font-medium"> Company </Label>
+                    <Label htmlFor="company">Company</Label>
                     <div className="relative">
-                      <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input id="company" placeholder="Company name (optional)" value={formData.company} onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))} className="pl-10 border-muted-foreground/20 focus:border-primary" />
+                      <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="company"
+                        value={formData.company}
+                        onChange={handleInputChange}
+                        className="pl-10"
+                      />
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="country" className="text-sm font-medium"> Country </Label>
+                    <Label htmlFor="country">Country</Label>
                     <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input id="country" readOnly placeholder="Your country" value={formData.country} onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))} className="pl-10 border-muted-foreground/20 focus:border-primary" />
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="country"
+                        value={formData.country}
+                        onChange={handleInputChange}
+                        className="pl-10"
+                      />
                     </div>
                   </div>
-                </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Preferred Language</Label>
+                    <Select
+                      value={formData.preferred_language}
+                      onValueChange={handleLanguageChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en-US">English (US)</SelectItem>
 
-                <div className="space-y-2">
-                  <Label htmlFor="preferred_language" className="text-sm font-medium"> Preferred Language </Label>
-                  <Select value={formData.preferred_language} onValueChange={(value) => setFormData(prev => ({ ...prev, preferred_language: value }))} >
-                    <SelectTrigger className="border-muted-foreground/20 focus:border-primary">
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en-US">English (US)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="pt-4">
-                  <Button type="submit" className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70" disabled={isUpdating} size="lg" >
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+                <CardFooter className="border-t px-6 py-4">
+                  <Button type="submit" disabled={isUpdating}>
                     {isUpdating ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div> Updating Profile...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...
                       </>
                     ) : (
                       <>
-                        <Save className="h-4 w-4 mr-2" /> Save Changes
+                        <Save className="mr-2 h-4 w-4" /> Save Changes
                       </>
                     )}
                   </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                </CardFooter>
+              </Card>
+            </form>
 
-          <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center space-x-2 text-lg">
-                {planDetails.icon} <span>{planDetails.name} Plan</span>
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">{planDetails.description}</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Words Used</span>
-                  <span className="font-medium">{profile?.plan_words_used || 0} / {profile?.words_limit || 1000}</span>
-                </div>
-                <Progress value={usagePercentage} className="h-2" />
-                <div className="text-xs text-muted-foreground text-center">
-                  {(100 - usagePercentage).toFixed(1)}% remaining this month
-                </div>
-              </div>
-              <Separator />
-
-              <div className="space-y-3">
-                {(profile?.word_balance || 0) > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Purchased Words</span>
-                    <span className="font-medium text-blue-600">{profile.word_balance.toLocaleString()} (never expire)</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm border-t pt-3">
-                  <span className="text-muted-foreground font-medium">Total Available</span>
-                  <span className="font-bold text-green-600">
-                    {Math.max(0, (profile?.words_limit || 0) - (profile?.plan_words_used || 0) + (profile?.word_balance || 0)).toLocaleString()}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground text-center">
-                  {profile?.plan === 'free' ? 'Plan words only • No purchases allowed' : 'Plan words used first, then purchased words'}
-                </div>
-              </div>
-
-              {profile?.plan !== 'free' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center text-muted-foreground">
-                      <Calendar className="h-4 w-4 mr-2" /> Plan Started
-                    </span>
-                    <span className="font-medium">
-                      {profile?.plan_start_date ? new Date(profile.plan_start_date).toLocaleDateString() : 'N/A'}
+            {/* Plan Details Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {planDetails.icon} {planDetails.name} Plan
+                </CardTitle>
+                <CardDescription>{planDetails.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-1 text-sm font-medium">
+                    <span>Words Used</span>
+                    <span>
+                      {planWordsUsed.toLocaleString()} / {wordsLimit.toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center text-muted-foreground">
-                      <Clock className="h-4 w-4 mr-2" /> Expires
-                    </span>
-                    <span className="font-medium">
-                      {profile?.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString() : '30 days from start'}
-                    </span>
+                  <Progress value={usagePercentage} />
+                  <p className="text-xs text-muted-foreground mt-1 text-right">
+                    {(100 - usagePercentage).toFixed(1)}% remaining this month
+                  </p>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Plan Features</h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    {planDetails.features.map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </CardContent>
+              <CardFooter className="border-t px-6 py-4">
+                <Button
+                  onClick={() => navigate("/payment")}
+                  className={`w-full bg-gradient-to-r ${planDetails.color} hover:opacity-90 transition-opacity`}
+                >
+                  {profile?.plan === "free" ? "Upgrade Plan" : "Manage Plan"}
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+
+          {/* Right Column */}
+          <div className="flex flex-col gap-8">
+            {/* Desktop / Tablet Profile Card */}
+            <Card className="hidden md:block">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center text-center gap-4">
+                  <Avatar className="w-24 h-24 text-3xl">
+                    <AvatarImage
+                      src={profile?.avatar_url || ""}
+                      alt={formData.full_name || "User"}
+                    />
+                    <AvatarFallback>{getInitials()}</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-1">
+                    <h2 className="text-2xl font-semibold">
+                      {formData.full_name || "User"}
+                    </h2>
+                    <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground break-words text-center max-w-[86%] mx-auto leading-snug">
+  {formData.email}
+</p>
+
+                    <Badge
+                      variant="outline"
+                      className={`font-semibold ${planDetails.textColor}`}
+                    >
+                      {planDetails.name}
+                    </Badge>
                   </div>
                 </div>
-              )}
-              <Separator />
+              </CardContent>
+            </Card>
 
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Plan Features</h4>
-                <ul className="space-y-1">
-                  {planDetails.features.map((feature, index) => (
-                    <li key={index} className="flex items-center text-xs">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary mr-3 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {/* Danger Zone */}
+            <Card className="border-destructive/50 bg-destructive/5">
+              <CardHeader>
+                <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Once you delete your account, there is no going back. Your email will be permanently banned from creating new accounts.
+                </CardDescription>
+              </CardContent>
+              <CardFooter>
+                <Button
+  variant="destructive"
+  onClick={() => setShowDeleteConfirm(true)}
+  className="w-full flex items-center justify-center gap-2 text-[11px] sm:text-xs md:text-sm lg:text-base py-2 sm:py-2.5 md:py-3 font-medium rounded-xl transition-all duration-200 hover:opacity-90 text-center whitespace-normal break-words leading-snug"
+>
+  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+  <span className="break-words max-w-full text-center">
+    Delete My Account Forever
+  </span>
+</Button>
 
-              <Button onClick={() => navigate('/payment')} className={`w-full mt-4 bg-gradient-to-r ${planDetails.color} hover:opacity-90 transition-opacity`} variant={profile?.plan === 'free' ? 'default' : 'outline'} >
-                <Crown className="h-4 w-4 mr-2" /> {profile?.plan === 'free' ? 'Upgrade Plan' : 'Manage Plan'}
-              </Button>
-            </CardContent>
-          </Card>
 
-          <Card className="border-destructive bg-destructive/5">
-            <CardHeader>
-              <CardTitle className="text-destructive flex items-center gap-2">
-                <Trash2 className="h-5 w-5" /> Danger Zone
-              </CardTitle>
-              <p className="text-muted-foreground"> Once you delete your account, there is no going back. Your email will be permanently banned from creating new accounts. </p>
-            </CardHeader>
-            <CardContent>
-              <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)} className="w-full" >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete My Account Forever
-              </Button>
-            </CardContent>
-          </Card>
+
+              </CardFooter>
+            </Card>
+          </div>
         </div>
-
-        <AlertDialog open={showDeleteConfirm} onOpenChange={(open) => { setShowDeleteConfirm(open); if (!open) setConfirmEmail(''); }}>
-          <AlertDialogContent className="max-w-md">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-destructive flex items-center gap-2">
-                <Trash2 className="h-5 w-5" /> Permanently Delete Account
-              </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p className="font-medium">️ This action is irreversible and will:</p>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Delete all your voice recordings and history</li>
-                  <li>Cancel any active subscriptions</li>
-                  <li>Permanently ban your email from future signups</li>
-                  <li>Remove all account data immediately</li>
-                </ul>
-                <p className="text-sm font-medium mt-4"> To confirm, type your email address: <span className="text-foreground font-mono">{user?.email}</span> </p>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="my-4">
-              <Input placeholder="Enter your email to confirm" value={confirmEmail} onChange={(e) => setConfirmEmail(e.target.value)} className="border-destructive focus:ring-destructive" />
-            </div>
-            <AlertDialogFooter className="flex-col gap-2">
-              <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting || confirmEmail !== user?.email} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full" >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting Account...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4 mr-2" /> Yes, Delete My Account Forever
-                  </>
-                )}
-              </AlertDialogAction>
-              <AlertDialogCancel className="w-full">Cancel</AlertDialogCancel>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      {/* Delete Account Confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action is irreversible. To confirm, please type your email address:{" "}
+              <span className="font-bold text-foreground">{user?.email}</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="confirmEmail" className="sr-only">
+              Confirm Email
+            </Label>
+            <Input
+              id="confirmEmail"
+              type="email"
+              placeholder="Enter your email to confirm"
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              className="border-destructive focus:ring-destructive"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={
+                isDeleting ||
+                confirmEmail.trim().toLowerCase() !== user.email?.toLowerCase()
+              }
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                "Delete Account"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

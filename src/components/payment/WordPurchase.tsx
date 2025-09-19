@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { LocationService } from "@/services/locationService";
 import { WordService } from "@/services/wordService";
+import { IndiaOnlyService } from "@/services/indiaOnlyService";
 
 export function WordPurchase() {
   const { user, profile, locationData } = useAuth();
@@ -105,14 +106,13 @@ export function WordPurchase() {
     setLoading(true);
 
     try {
-      // Check geo restrictions before payment
-      const { GeoRestrictionService } = await import('@/services/geoRestrictionService');
-      const geoCheck = await GeoRestrictionService.validatePaymentLocation();
+      // Check access for Indian users only
+      const access = await IndiaOnlyService.checkIndianAccess();
       
-      if (!geoCheck.isAllowed) {
+      if (!access.isAllowed) {
         toast({
           title: "Payment Blocked",
-          description: geoCheck.message,
+          description: access.message,
           variant: "destructive"
         });
         setLoading(false);
@@ -120,9 +120,8 @@ export function WordPurchase() {
         return;
       }
 
-      // Force currency based on geo location  
-      const forcedCurrency = geoCheck.countryCode ? 
-        GeoRestrictionService.getForcedCurrency(geoCheck.countryCode) : 'USD';
+      // Force INR currency for India only service
+      const forcedCurrency = 'INR';
 
       // Create Stripe payment session for word purchase
       const { data, error } = await supabase.functions.invoke('purchase-words', {

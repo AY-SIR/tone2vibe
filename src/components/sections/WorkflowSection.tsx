@@ -49,7 +49,7 @@ export const WorkflowSection = () => {
   };
 
   return (
-    <section id="workflow" className="py-24 px-4 bg-white">
+    <section id="workflow" className="py-12 px-4 bg-white">
       <div className="container mx-auto">
         <div className="text-center mb-16 animate-fade-in">
                       <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">

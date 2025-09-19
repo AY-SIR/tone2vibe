@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export function NewsletterSection() {
   const [email, setEmail] = useState("");
@@ -16,22 +17,61 @@ export function NewsletterSection() {
     e.preventDefault();
     if (!email) return;
 
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     
-    // Simulate newsletter subscription
-    setTimeout(() => {
-      setIsSubscribed(true);
-      setIsLoading(false);
+    try {
+      const { error } = await supabase
+        .from('newsletter_subscriptions')
+        .insert([
+          {
+            email: email.toLowerCase().trim(),
+            is_active: true,
+            subscribed_at: new Date().toISOString()
+          }
+        ]);
+
+      if (error) {
+        // Check if email already exists
+        if (error.message.includes('duplicate') || error.code === '23505') {
+          toast({
+            title: "Already Subscribed",
+            description: "This email is already subscribed to our newsletter.",
+            variant: "destructive"
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        setIsSubscribed(true);
+        toast({
+          title: "Successfully subscribed!",
+          description: "You'll receive updates about new features and improvements.",
+        });
+      }
+    } catch (error) {
+      console.error('Newsletter subscription error:', error);
       toast({
-        title: "Successfully subscribed!",
-        description: "You'll receive updates about new features and improvements.",
+        title: "Subscription Failed",
+        description: "Unable to subscribe. Please try again later.",
+        variant: "destructive"
       });
-    }, 1000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubscribed) {
     return (
-      <section className="py-16 ">
+      <section className="py-16">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center mb-4">
             <CheckCircle className="h-16 w-16 text-green-500" />
@@ -48,7 +88,7 @@ export function NewsletterSection() {
   }
 
   return (
-    <section className="py-16 ">
+    <section className="py-0 mb-8">
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-6">

@@ -287,8 +287,8 @@ export default function ModernStepThree({
             <CardContent className="space-y-6">
               <Tabs defaultValue="uploadFile" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full">
-                  <TabsTrigger value="uploadFile">Upload</TabsTrigger>
-                  <TabsTrigger value="history">Voice History</TabsTrigger>
+                  <TabsTrigger value="uploadFile">Upload File</TabsTrigger>
+                  <TabsTrigger value="history">Recorded History</TabsTrigger>
                 </TabsList>
 
                 {/* Upload Sub-Tab */}
@@ -321,11 +321,12 @@ export default function ModernStepThree({
                   </div>
                 </TabsContent>
 
-                {/* History Sub-Tab */}
+                {/* Voice History only */}
                 <TabsContent value="history" className="space-y-4">
-                  <VoiceHistoryDropdown
+                  <VoiceHistoryDropdown 
                     onVoiceSelect={onVoiceSelect}
                     selectedVoiceId={selectedVoiceId}
+                    filterType="recorded"
                   />
                 </TabsContent>
               </Tabs>

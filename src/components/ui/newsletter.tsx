@@ -19,8 +19,8 @@ export function Newsletter() {
     setIsLoading(true);
     try {
       const { error } = await supabase
-        .from("newsletter_subscriptions" as any)
-        .insert([{ email }] as any);
+        .from("newsletter_subscriptions")
+        .insert([{ email }]);
 
       if (error) throw error;
 

@@ -217,7 +217,6 @@ export type Database = {
           id: string
           plan: string | null
           status: string
-          stripe_session_id: string | null
           updated_at: string
           user_id: string | null
           words_purchased: number | null
@@ -229,7 +228,6 @@ export type Database = {
           id?: string
           plan?: string | null
           status?: string
-          stripe_session_id?: string | null
           updated_at?: string
           user_id?: string | null
           words_purchased?: number | null
@@ -241,7 +239,6 @@ export type Database = {
           id?: string
           plan?: string | null
           status?: string
-          stripe_session_id?: string | null
           updated_at?: string
           user_id?: string | null
           words_purchased?: number | null
@@ -405,6 +402,8 @@ export type Database = {
           full_name: string | null
           id: string
           ip_address: unknown | null
+          is_vpn_user: boolean | null
+          last_ip_check: string | null
           last_login_at: string | null
           last_word_purchase_at: string | null
           login_count: number | null
@@ -418,6 +417,7 @@ export type Database = {
           plan_words_used: number | null
           preferred_language: string | null
           total_words_used: number | null
+          ui_language: string | null
           updated_at: string
           upload_limit_mb: number | null
           user_id: string
@@ -435,6 +435,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           ip_address?: unknown | null
+          is_vpn_user?: boolean | null
+          last_ip_check?: string | null
           last_login_at?: string | null
           last_word_purchase_at?: string | null
           login_count?: number | null
@@ -448,6 +450,7 @@ export type Database = {
           plan_words_used?: number | null
           preferred_language?: string | null
           total_words_used?: number | null
+          ui_language?: string | null
           updated_at?: string
           upload_limit_mb?: number | null
           user_id: string
@@ -465,6 +468,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           ip_address?: unknown | null
+          is_vpn_user?: boolean | null
+          last_ip_check?: string | null
           last_login_at?: string | null
           last_word_purchase_at?: string | null
           login_count?: number | null
@@ -478,6 +483,7 @@ export type Database = {
           plan_words_used?: number | null
           preferred_language?: string | null
           total_words_used?: number | null
+          ui_language?: string | null
           updated_at?: string
           upload_limit_mb?: number | null
           user_id?: string
@@ -528,6 +534,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_locations: {
+        Row: {
+          city: string | null
+          confidence_score: number | null
+          country_code: string
+          country_name: string
+          created_at: string | null
+          id: string
+          ip_address: unknown
+          is_vpn: boolean | null
+          last_checked_at: string | null
+          region: string | null
+          updated_at: string | null
+          user_id: string
+          vpn_provider: string | null
+        }
+        Insert: {
+          city?: string | null
+          confidence_score?: number | null
+          country_code: string
+          country_name: string
+          created_at?: string | null
+          id?: string
+          ip_address: unknown
+          is_vpn?: boolean | null
+          last_checked_at?: string | null
+          region?: string | null
+          updated_at?: string | null
+          user_id: string
+          vpn_provider?: string | null
+        }
+        Update: {
+          city?: string | null
+          confidence_score?: number | null
+          country_code?: string
+          country_name?: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          is_vpn?: boolean | null
+          last_checked_at?: string | null
+          region?: string | null
+          updated_at?: string | null
+          user_id?: string
+          vpn_provider?: string | null
+        }
+        Relationships: []
       }
       user_sessions: {
         Row: {
@@ -631,6 +685,36 @@ export type Database = {
           user_id?: string
           voice_settings?: Json | null
           words_used?: number
+        }
+        Relationships: []
+      }
+      vpn_detections: {
+        Row: {
+          created_at: string | null
+          detection_result: Json | null
+          expires_at: string | null
+          id: string
+          ip_address: unknown
+          is_vpn: boolean
+          provider: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          detection_result?: Json | null
+          expires_at?: string | null
+          id?: string
+          ip_address: unknown
+          is_vpn?: boolean
+          provider?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          detection_result?: Json | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: unknown
+          is_vpn?: boolean
+          provider?: string | null
         }
         Relationships: []
       }

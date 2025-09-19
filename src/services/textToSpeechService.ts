@@ -21,7 +21,7 @@ export interface TTSResult {
 
 export class TextToSpeechService {
   // Generate speech using advanced TTS service
-  static async generateSpeech(text: string, options: TTSOptions = {}): Promise<TTSResult | null> {
+  static async generateSpeech(text: string, options: TTSOptions & { isSample?: boolean } = {}): Promise<TTSResult | null> {
     try {
       console.log('Generating speech with options:', { textLength: text.length, options });
       
@@ -37,7 +37,8 @@ export class TextToSpeechService {
             accent: options.accent || 'default',
             style: options.style || 'natural'
           },
-          language: options.language || 'en-US'
+          language: options.language || 'en-US',
+          isSample: options.isSample || false // Mark if this is a sample generation
         }
       });
 

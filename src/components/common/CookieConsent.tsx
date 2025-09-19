@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cookie, X } from "lucide-react";
+import { Cookie, X, ChevronDown, ChevronUp } from "lucide-react";
 
 interface CookieConsentProps {
   onAccept: () => void;
@@ -11,6 +11,7 @@ interface CookieConsentProps {
 
 export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     // Check if user has already made a choice
@@ -90,7 +91,7 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[60] p-4">
+    <div className="fixed bottom-0 left-0 right-0 z-[9999] p-4">
       <Card className="max-w-4xl mx-auto shadow-2xl border-gray-300 bg-white">
         <CardContent className="p-4 sm:p-6">
           <div className="flex items-start space-x-3">
@@ -100,12 +101,41 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
                 We use cookies
               </h3>
               <p className="text-sm sm:text-base text-gray-700 mb-4 leading-relaxed">
-                We use cookies to enhance your experience, provide personalized content, and analyze our traffic. 
-                By clicking "Accept All", you consent to our use of cookies. You can manage your preferences or 
-                learn more in our{" "}
-                <a href="/cookies" className="text-black underline hover:text-gray-700">
-                  Cookie Policy
-                </a>.
+                We use cookies to enhance your experience, provide personalized content, and analyze our traffic.
+                {!isExpanded && (
+                  <span>
+                    {" "}
+                    <button
+                      onClick={() => setIsExpanded(true)}
+                      className="text-black underline hover:text-gray-700 inline-flex items-center"
+                    >
+                      Learn more <ChevronDown className="h-3 w-3 ml-1" />
+                    </button>
+                  </span>
+                )}
+                {isExpanded && (
+                  <span>
+                    {" "}By clicking "Accept All", you consent to our use of cookies including analytics, personalization, and advertising cookies. We also share information about your use of our site with our analytics and advertising partners. You can manage your preferences in our{" "}
+                    <a href="/cookies" className="text-black underline hover:text-gray-700">
+                      Cookie Policy
+                    </a>
+                    , review our{" "}
+                    <a href="/privacy" className="text-black underline hover:text-gray-700">
+                      Privacy Policy
+                    </a>
+                    , or read our{" "}
+                    <a href="/terms" className="text-black underline hover:text-gray-700">
+                      Terms of Service
+                    </a>
+                    .{" "}
+                    <button
+                      onClick={() => setIsExpanded(false)}
+                      className="text-black underline hover:text-gray-700 inline-flex items-center"
+                    >
+                      Show less <ChevronUp className="h-3 w-3 ml-1" />
+                    </button>
+                  </span>
+                )}
               </p>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <Button 

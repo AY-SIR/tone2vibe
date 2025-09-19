@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 interface ProtectedRouteProps {
@@ -8,23 +8,11 @@ interface ProtectedRouteProps {
   requireAuth?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requireAuth = true 
-}) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAuth = true }) => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    if (!loading) {
-      if (requireAuth && !user) {
-        const redirectPath = encodeURIComponent(location.pathname + location.search);
-        navigate(`/?auth=open&redirect=${redirectPath}`, { replace: true });
-      }
-    }
-  }, [user, loading, requireAuth, navigate, location]);
-
+  // Wait for auth state to initialize before redirecting
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -33,8 +21,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
+  // Redirect only if auth is required and user is not logged in
   if (requireAuth && !user) {
-    return null;
+    const redirectPath = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/?auth=open&redirect=${redirectPath}`} replace />;
   }
 
   return <>{children}</>;

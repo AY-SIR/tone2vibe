@@ -53,8 +53,10 @@ export const VoiceRecorder = ({
       };
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        setAudioBlob(blob);
+        if (recordingDuration >= minimumDuration) {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          setAudioBlob(blob);
+        }
         stream.getTracks().forEach(track => track.stop());
       };
       
@@ -90,6 +92,8 @@ export const VoiceRecorder = ({
       }
       
       if (recordingDuration < minimumDuration) {
+        setAudioBlob(null);
+        setRecordingDuration(0);
         toast({
           title: "Recording too short",
           description: `Please record for at least ${minimumDuration} seconds`,
@@ -129,10 +133,48 @@ export const VoiceRecorder = ({
   const confirmRecording = () => {
     if (audioBlob) {
       onRecordingComplete(audioBlob);
+      // Store in history for future use
+      saveRecordingToHistory();
       toast({
         title: "Voice sample saved",
-        description: "Ready to use for synthesis",
+        description: "Ready to use for synthesis and saved to history",
       });
+    }
+  };
+
+  const saveRecordingToHistory = async () => {
+    if (!audioBlob) return;
+    
+    try {
+      // Store recording in history with proper metadata
+      const response = await fetch(URL.createObjectURL(audioBlob));
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(uint8Array)));
+      
+      // Import supabase and auth context
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      // Get current user (assuming we can access it through window context or similar)
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        await supabase.from('history').insert({
+          user_id: user.id,
+          title: `Recording-${new Date().toISOString().slice(0, 10)}-${Date.now().toString().slice(-4)}`,
+          original_text: 'User Voice Recording',
+          language: 'en-US',
+          words_used: 0,
+          audio_url: `data:audio/webm;base64,${base64Audio}`,
+          voice_settings: {
+            type: 'recorded',
+            has_voice_recording: true,
+            recording_duration: recordingDuration
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error saving recording to history:', error);
     }
   };
 

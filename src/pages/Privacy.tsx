@@ -36,7 +36,7 @@ useEffect(() => {
           <p className="text-base md:text-lg text-gray-600 px-4">
             Your privacy is our priority. Learn how we protect and handle your data.
           </p>
-          <p className="text-sm text-gray-500 mt-2">Last updated: August 2026</p>
+          <p className="text-sm text-gray-500 mt-2">Last updated: January 2025</p>
         </div>
 
         {/* Privacy Cards */}
@@ -51,22 +51,18 @@ useEffect(() => {
             <CardContent className="space-y-4">
               <div>
                 <h4 className="font-semibold mb-2 text-sm md:text-base">Account Information:</h4>
-<p className="text-gray-600 text-sm md:text-base m-0">
-  <strong>Email address:</strong> to identify and communicate with your account.<br />
-  <strong>IP address:</strong> for security, fraud prevention, and audit purposes.<br />
-  <strong>Authentication tokens:</strong> securely stored to manage account access.<br />
-  <strong>Subscription details:</strong> including plan type, payment status, and billing history, for account management and billing purposes.
-</p>
-
-
-
-
+                <p className="text-gray-600 text-sm md:text-base m-0">
+                  <strong>Email address:</strong> for account identification and communication.<br />
+                  <strong>IP address:</strong> for security monitoring and service optimization.<br />
+                  <strong>Authentication data:</strong> securely encrypted for account access.<br />
+                  <strong>Plan details:</strong> subscription type and usage limits for service delivery.
+                </p>
 
 
               </div>
               <div>
                 <h4 className="font-semibold mb-2 text-sm md:text-base">Voice Data:</h4>
-                <p className="text-gray-600 text-sm md:text-base">Voice recordings for cloning purposes. Free users' voice data is processed but not stored permanently. Paid users can choose to store voice models for reuse.</p>
+                <p className="text-gray-600 text-sm md:text-base">Voice recordings for synthesis. Sample voices are temporary and not stored. User-generated voices follow plan-based retention policies.</p>
               </div>
               <div>
                 <h4 className="font-semibold mb-2 text-sm md:text-base">Usage Analytics:</h4>
@@ -165,7 +161,7 @@ useEffect(() => {
                 If you have any questions about this Privacy Policy or our data practices:
               </p>
               <div className="space-y-2 text-gray-600 text-sm md:text-base">
-                <p><strong>Email:</strong> privacy@tone2vibe.com</p>
+                <p><strong>Email:</strong> support@voicesynthesis.app</p>
 
               </div>
               <Button

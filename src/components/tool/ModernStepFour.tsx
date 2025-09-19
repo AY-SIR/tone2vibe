@@ -108,21 +108,15 @@ const ModernStepFour = ({
     try {
       const sampleText = getSampleText();
       
-      // Generate sample with current settings - using standard generation but mark as sample
-      const { data, error } = await supabase.functions.invoke('generate-voice', {
+      // Generate sample with dedicated sample function - no history saving, no word deduction
+      const { data, error } = await supabase.functions.invoke('generate-sample-voice', {
         body: {
-          text: sampleText,
           voice_settings: {
-            voice: 'alloy',
-            speed: speed[0],
-            pitch: pitch[0],
-            emotion: emotion,
-            accent: accent,
-            style: voiceStyle,
-            is_sample: true // Mark as sample in voice_settings
-          },
-          language: selectedLanguage,
-          is_sample: true // Flag to prevent history saving AND word deduction
+            stability: voiceStability[0],
+            similarity_boost: voiceClarity[0],
+            style: voiceStyle === 'natural' ? 0.0 : 0.5,
+            use_speaker_boost: true
+          }
         }
       });
 
@@ -131,18 +125,12 @@ const ModernStepFour = ({
       clearInterval(progressInterval);
       setProgress(100);
       
-      if (data?.audioContent) {
-        // Convert base64 to blob URL
-        const audioBlob = new Blob([
-          new Uint8Array(atob(data.audioContent).split('').map(c => c.charCodeAt(0)))
-        ], { type: 'audio/mpeg' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        
-        setSampleAudio(audioUrl);
+      if (data?.audio_url) {
+        setSampleAudio(data.audio_url);
         
         toast({
           title: "Sample generated!",
-          description: "Listen to the sample and approve or adjust settings. No words deducted for samples.",
+          description: `"${data.sample_text}" - Listen to the sample and approve or adjust settings. No words deducted for samples.`,
         });
       }
     } catch (error) {
@@ -226,17 +214,18 @@ const ModernStepFour = ({
     }, 500);
 
     try {
-      // Generate full speech directly with edge function - ONLY ONE CALL
+      // Generate full speech with custom title
+      const title = `Audio Generation - ${new Date().toLocaleDateString()}`;
+      
       const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text: extractedText,
+          title: title,
           voice_settings: {
-            voice: 'alloy',
-            speed: speed[0],
-            pitch: pitch[0],
-            emotion: emotion,
-            accent: accent,
-            style: voiceStyle
+            stability: voiceStability[0],
+            similarity_boost: voiceClarity[0],
+            style: voiceStyle === 'natural' ? 0.0 : 0.5,
+            use_speaker_boost: true
           },
           language: selectedLanguage
         }
@@ -246,15 +235,16 @@ const ModernStepFour = ({
         throw new Error(error.message || 'Failed to generate audio');
       }
 
-      if (data && data.audioContent) {
+      if (data && (data.audioContent || data.audio_url)) {
         clearInterval(progressInterval);
         setProgress(100);
         
-        // Convert base64 to blob URL
-        const audioBlob = new Blob([
-          new Uint8Array(atob(data.audioContent).split('').map(c => c.charCodeAt(0)))
-        ], { type: 'audio/mpeg' });
-        const audioUrl = URL.createObjectURL(audioBlob);
+        let audioUrl = '';
+        
+        if (data.audio_url) {
+          // Use direct audio URL from edge function
+          audioUrl = data.audio_url;
+        }
         
         setGeneratedAudio(audioUrl);
         onAudioGenerated(audioUrl);
