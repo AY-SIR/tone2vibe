@@ -11,9 +11,9 @@ export interface LocationCache {
 
 export class LocationCacheService {
   private static readonly CACHE_KEY = 'user_location_cache';
-  private static readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-  
-  // Generate session ID for this browser session
+  private static readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24h
+
+  // Generate a session ID for this browser session
   private static getSessionId(): string {
     let sessionId = sessionStorage.getItem('location_session_id');
     if (!sessionId) {
@@ -23,156 +23,143 @@ export class LocationCacheService {
     return sessionId;
   }
 
-  // Mask IP for privacy (only store first 2 octets)
+  // Mask IP for privacy
   private static maskIP(ip: string): string {
-    if (ip.includes(':')) {
-      // IPv6 - keep only first 4 parts
-      return ip.split(':').slice(0, 4).join(':') + '::';
-    } else {
-      // IPv4 - keep only first 2 octets
-      return ip.split('.').slice(0, 2).join('.') + '.x.x';
-    }
+    if (!ip) return 'x.x.x.x';
+    if (ip.includes(':')) return ip.split(':').slice(0, 4).join(':') + '::';
+    return ip.split('.').slice(0, 2).join('.') + '.x.x';
   }
 
-  // Check if cached location is valid
+  // Get cached location if valid
   static getCachedLocation(): LocationCache | null {
     try {
       const cached = localStorage.getItem(this.CACHE_KEY);
       if (!cached) return null;
 
       const data: LocationCache = JSON.parse(cached);
-      const now = Date.now();
-
-      // Check if cache is expired
-      if (now - data.timestamp > this.CACHE_DURATION) {
+      if (Date.now() - data.timestamp > this.CACHE_DURATION) {
         this.clearCache();
         return null;
       }
 
-      // Check if same session
-      if (data.sessionId !== this.getSessionId()) {
-        return null;
-      }
-
+      if (data.sessionId !== this.getSessionId()) return null;
       return data;
-    } catch (error) {
-      console.warn('Error reading location cache:', error);
+    } catch {
       this.clearCache();
       return null;
     }
   }
 
-  // Cache location data
+  // Cache location locally
   static async cacheLocation(ip: string, countryCode: string, country: string): Promise<LocationCache> {
     const locationCache: LocationCache = {
-      countryCode,
+      countryCode: countryCode.toUpperCase(),
       country,
-      isIndian: countryCode === 'IN',
+      isIndian: countryCode.toUpperCase() === 'IN',
       partialIP: this.maskIP(ip),
       timestamp: Date.now(),
-      sessionId: this.getSessionId()
+      sessionId: this.getSessionId(),
     };
 
     try {
       localStorage.setItem(this.CACHE_KEY, JSON.stringify(locationCache));
-      
-      // Also set a simple cookie for quick server-side access
-      document.cookie = `user_country=${countryCode}; path=/; max-age=${this.CACHE_DURATION / 1000}; secure; samesite=strict`;
-    } catch (error) {
-      console.warn('Error caching location:', error);
+      document.cookie = `user_country=${locationCache.countryCode}; path=/; max-age=${Math.floor(this.CACHE_DURATION / 1000)}; secure; samesite=strict`;
+    } catch (err) {
+      console.warn('Error caching location:', err);
     }
 
     return locationCache;
   }
 
-  // Fetch location from API (only when needed)
+  // Fetch location from APIs with fallback
   static async fetchLocation(): Promise<LocationCache> {
-    try {
-      const response = await fetch('https://ipapi.co/json/', {
-        headers: { 'Accept': 'application/json' }
-      });
+    const apis = [
+      async () => {
+        const res = await fetch('https://ipapi.co/json/', { headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error('ipapi.co failed');
+        const data = await res.json();
+        return { ip: data.ip, countryCode: data.country_code, country: data.country_name };
+      },
+      async () => {
+        const token = '';
+        const res = await fetch(`https://ipinfo.io/json?token=${token}`);
+        if (!res.ok) throw new Error('ipinfo.io failed');
+        const data = await res.json();
+        return { ip: data.ip, countryCode: data.country, country: data.country };
+      },
+      async () => {
+        const res = await fetch('https://geolocation-db.com/json/');
+        if (!res.ok) throw new Error('geolocation-db failed');
+        const data = await res.json();
+        return { ip: data.IPv4, countryCode: data.country_code, country: data.country_name };
+      },
+      async () => {
+        const res = await fetch('https://ipwho.is/');
+        if (!res.ok) throw new Error('ipwho.is failed');
+        const data = await res.json();
+        return { ip: data.ip, countryCode: data.country_code, country: data.country };
+      },
+    ];
 
-      if (!response.ok) {
-        throw new Error('IP detection failed');
+    for (const api of apis) {
+      try {
+        const { ip, countryCode, country } = await api();
+        if (ip && countryCode && country) {
+          return await this.cacheLocation(ip, countryCode, country);
+        }
+      } catch (err) {
+        console.warn('Location API failed, trying next...', err);
       }
-
-      const data = await response.json();
-      return await this.cacheLocation(
-        data.ip || 'unknown',
-        data.country_code || 'XX',
-        data.country_name || 'Unknown'
-      );
-    } catch (error) {
-      console.error('Location fetch failed:', error);
-      
-      // Return cached data if available, otherwise fallback
-      const cached = this.getCachedLocation();
-      if (cached) return cached;
-
-      // Ultimate fallback
-      return await this.cacheLocation('unknown', 'XX', 'Unknown');
     }
+
+    // Fallback if all fail
+    return await this.cacheLocation('unknown', 'XX', 'Unknown');
   }
 
   // Get location (cached or fresh)
   static async getLocation(): Promise<LocationCache> {
     const cached = this.getCachedLocation();
-    if (cached) {
-      return cached;
-    }
-
+    if (cached) return cached;
     return await this.fetchLocation();
   }
 
-  // Save user location to database (only for authenticated users)
+  // Save location to Supabase
   static async saveUserLocation(userId: string, locationData: LocationCache): Promise<void> {
     try {
-      // Update profile with country information
       await supabase.from('profiles').upsert({
         user_id: userId,
         country: locationData.country,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
+        country_code: locationData.countryCode,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
 
-      // Also save to user_locations if table exists
+      // Optional: user_locations table
       try {
         await supabase.from('user_locations').upsert({
           user_id: userId,
           country_code: locationData.countryCode,
           country_name: locationData.country,
           ip_address: locationData.partialIP,
-          created_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-      } catch (err) {
-        // Table might not exist, ignore this error
-        console.warn('user_locations table not found, skipping:', err);
-      }
-    } catch (error) {
-      console.error('Error saving user location:', error);
+          created_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      } catch {}
+    } catch (err) {
+      console.error('Error saving user location:', err);
     }
   }
 
-  // Clear cache
   static clearCache(): void {
     try {
       localStorage.removeItem(this.CACHE_KEY);
       document.cookie = 'user_country=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    } catch (error) {
-      console.warn('Error clearing location cache:', error);
-    }
+    } catch {}
   }
 
-  // Quick country check from cookie
   static getCountryFromCookie(): string | null {
     try {
-      const cookies = document.cookie.split(';');
-      const countryCookie = cookies.find(c => c.trim().startsWith('user_country='));
-      return countryCookie ? countryCookie.split('=')[1] : null;
-    } catch (error) {
+      const cookie = document.cookie.split(';').find(c => c.trim().startsWith('user_country='));
+      return cookie ? cookie.split('=')[1].trim() : null;
+    } catch {
       return null;
     }
   }

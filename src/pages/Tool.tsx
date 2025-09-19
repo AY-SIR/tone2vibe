@@ -6,7 +6,6 @@ import { Progress } from "@/components/ui/progress";
 import { AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import ModernStepOne from "@/components/tool/ModernStepOne";
 import ModernStepTwo from "@/components/tool/ModernStepTwo";
 import ModernStepThree from "@/components/tool/ModernStepThree";
@@ -163,7 +162,7 @@ const Tool = () => {
 
     if (user && refreshProfile) {
       setIsProcessing(true);
-      setProcessingStep("Refreshing word balance...");
+      setProcessingStep("Refreshing...");
       await refreshProfile(); // Refresh profile from context
       setIsProcessing(false);
     }
@@ -195,9 +194,7 @@ const Tool = () => {
           <Header />
         </div>
 
-        <div className="container mx-auto px-4 max-w-4xl">
-          <IndiaOnlyAlert />
-        </div>
+
 
         <div className="container mx-auto px-4 py-8 max-w-6xl">
           {/* Step Buttons */}

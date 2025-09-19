@@ -46,7 +46,6 @@ const Index = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
-
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -65,105 +64,68 @@ const Index = () => {
     },
   });
 
-  useEffect(() => {
-    loadPricing();
-  }, []);
+  // -------------------------
+  // One-time country detection
+  // -------------------------
+  const detectAndSaveCountry = async () => {
+    try {
+      const savedCountry = localStorage.getItem("user-country");
+      if (savedCountry) return savedCountry;
 
-  // Handle URL params for auth modal and redirects
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const authParam = urlParams.get('auth');
-    const redirectParam = urlParams.get('redirect');
+      const locationData = await LocationService.detectUserLocation();
+      const country = locationData?.country || "Unknown";
 
-    if (authParam === 'open') {
-      const consentStatus = localStorage.getItem("cookie-consent");
+      localStorage.setItem("user-country", country);
 
-      if (consentStatus === "declined") {
-        setShowCookieAlert(true);
-        if (redirectParam) {
-          setRedirectTo(decodeURIComponent(redirectParam));
-        }
-      } else {
-        setShowAuthModal(true);
-        if (redirectParam) {
-          setRedirectTo(decodeURIComponent(redirectParam));
-        }
-      }
+      return country;
+    } catch (error) {
+      console.error("Country detection failed:", error);
+      return "Unknown";
     }
-  }, []);
+  };
 
+  // -------------------------
+  // Load pricing based on country
+  // -------------------------
   const loadPricing = async () => {
     try {
-      const locationData = await LocationService.detectUserLocation();
-      const userPricing = LocationService.getPricing();
+      const country = await detectAndSaveCountry();
+      const userPricing = LocationService.getPricing(country);
       setPricing(userPricing);
     } catch (error) {
       console.error("Failed to load pricing:", error);
     }
   };
 
+  useEffect(() => {
+    loadPricing();
+  }, []);
+
+  // -------------------------
+  // Features array
+  // -------------------------
   const features = [
-    {
-      icon: <FileText className="h-6 w-6" />,
-      title: "Multiple Input Types",
-      description: "Upload text, PDF, or images—AI extracts content instantly.",
-    },
-    {
-      icon: <Mic className="h-6 w-6" />,
-      title: "Advanced Voice Cloning",
-      description: "Clone your voice with studio-quality accuracy.",
-    },
-    {
-      icon: <Languages className="h-6 w-6" />,
-      title: "50+ Languages",
-      description: "Convert text to speech in over 50 languages.",
-    },
-    {
-      icon: <Volume2 className="h-6 w-6" />,
-      title: "Natural Speech",
-      description: "Generate lifelike audio with emotional depth.",
-    },
-    {
-      icon: <Settings className="h-6 w-6" />,
-      title: "Advanced Controls",
-      description: "Control pitch, speed, and emotion in speech.",
-    },
-    {
-      icon: <Shield className="h-6 w-6" />,
-      title: "Privacy & Security",
-      description: "Your voice data is encrypted and never misused.",
-    },
-    {
-      icon: <Download className="h-6 w-6" />,
-      title: "Export Options",
-      description: "Download audio in MP3, WAV, and more formats.",
-    },
-    {
-      icon: <History className="h-6 w-6" />,
-      title: "Project History",
-      description: "Access past projects with full metadata.",
-    },
-    {
-      icon: <Zap className="h-6 w-6" />,
-      title: "Lightning Fast",
-      description: "Get results instantly with AI-powered speed.",
-    },
+    { icon: <FileText className="h-6 w-6" />, title: "Multiple Input Types", description: "Upload text, PDF, or images—AI extracts content instantly." },
+    { icon: <Mic className="h-6 w-6" />, title: "Advanced Voice Cloning", description: "Clone your voice with studio-quality accuracy." },
+    { icon: <Languages className="h-6 w-6" />, title: "50+ Languages", description: "Convert text to speech in over 50 languages." },
+    { icon: <Volume2 className="h-6 w-6" />, title: "Natural Speech", description: "Generate lifelike audio with emotional depth." },
+    { icon: <Settings className="h-6 w-6" />, title: "Advanced Controls", description: "Control pitch, speed, and emotion in speech." },
+    { icon: <Shield className="h-6 w-6" />, title: "Privacy & Security", description: "Your voice data is encrypted and never misused." },
+    { icon: <Download className="h-6 w-6" />, title: "Export Options", description: "Download audio in MP3, WAV, and more formats." },
+    { icon: <History className="h-6 w-6" />, title: "Project History", description: "Access past projects with full metadata." },
+    { icon: <Zap className="h-6 w-6" />, title: "Lightning Fast", description: "Get results instantly with AI-powered speed." },
   ];
 
+  // -------------------------
+  // Pricing plans array
+  // -------------------------
   const pricingPlans = [
     {
       name: "Free",
       price: `${pricing.symbol}0`,
       period: "/month",
       description: "Perfect for trying out voice cloning",
-      features: [
-        "1,000 words/month",
-        "5MB upload limit",
-        "Basic voice quality",
-        "7 Days History",
-        "Last 3 voices in History",
-        "Email support",
-      ],
+      features: ["1,000 words/month","10MB upload limit","Basic voice quality","7 Days History","Last 3 voices in History","Email support"],
       cta: "Get Started",
       popular: false,
     },
@@ -173,18 +135,10 @@ const Index = () => {
       period: "/month",
       description: "Best for content creators and professionals",
       features: [
-        "10,000 words/month",
-        "25MB upload limit",
-        "High quality audio",
-        "Last 30 voice history",
-        "30 Days History",
-        "Voice storage & reuse",
-        "Priority support",
-        "Speed & pitch control",
-        `Buy extra words (${pricing.symbol}${
-          pricing.currency === "INR" ? "31" : "0.37"
-        } per 1000 words)`,
-        "Max total: 41,000 words",
+        "10,000 words/month","25MB upload limit","High quality audio","Last 30 voice history",
+        "30 Days History","Voice storage & reuse","Priority support","Speed & pitch control",
+        `Buy extra words (${pricing.symbol}${pricing.currency === "INR" ? "31" : "0.37"} per 1000 words)`,
+        "Max total: 41,000 words"
       ],
       cta: "Upgrade",
       popular: true,
@@ -195,57 +149,60 @@ const Index = () => {
       period: "/month",
       description: "For teams and heavy users",
       features: [
-        "50,000 words/month",
-        "100MB upload limit",
-        "Ultra-high quality",
-        "Last 90 voice history",
-        "90 Days History",
-        "Voice storage & reuse",
-        "Advanced Speed & pitch control",
+        "50,000 words/month","100MB upload limit","Ultra-high quality","Last 90 voice history",
+        "90 Days History","Voice storage & reuse","Advanced Speed & pitch control",
         "24/7 priority support",
-        `Buy extra words (${pricing.symbol}${
-          pricing.currency === "INR" ? "31" : "0.37"
-        } per 1000 words)`,
-        "Max total: 99,000 words",
+        `Buy extra words (${pricing.symbol}${pricing.currency === "INR" ? "31" : "0.37"} per 1000 words)`,
+        "Max total: 99,000 words"
       ],
       cta: "Upgrade",
       popular: false,
     },
   ];
 
+  // -------------------------
+  // Auth, cookies, and welcome functions
+  // -------------------------
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authParam = urlParams.get('auth');
+    const redirectParam = urlParams.get('redirect');
+
+    if (authParam === 'open') {
+      const consentStatus = localStorage.getItem("cookie-consent");
+
+      if (consentStatus === "declined") {
+        setShowCookieAlert(true);
+        if (redirectParam) setRedirectTo(decodeURIComponent(redirectParam));
+      } else {
+        setShowAuthModal(true);
+        if (redirectParam) setRedirectTo(decodeURIComponent(redirectParam));
+      }
+    }
+  }, []);
+
   const handleGetStarted = () => {
     const consentStatus = localStorage.getItem("cookie-consent");
-
     if (consentStatus === "declined") {
       setShowCookieAlert(true);
       return;
     }
-
-    if (user) {
-      navigate("/tool");
-    } else {
-      setShowAuthModal(true);
-    }
+    if (user) navigate("/tool");
+    else setShowAuthModal(true);
   };
 
   const handlePlanClick = (planName: string) => {
     const consentStatus = localStorage.getItem("cookie-consent");
-
-    if (planName === "Free") {
-      handleGetStarted();
-    } else {
-      if (user) {
-        navigate("/payment");
-      } else {
-        if (consentStatus === "declined") {
-          setRedirectTo("/payment");
-          setShowCookieAlert(true);
-          return;
-        }
-
+    if (planName === "Free") return handleGetStarted();
+    if (user) navigate("/payment");
+    else {
+      if (consentStatus === "declined") {
         setRedirectTo("/payment");
-        setShowAuthModal(true);
+        setShowCookieAlert(true);
+        return;
       }
+      setRedirectTo("/payment");
+      setShowAuthModal(true);
     }
   };
 
@@ -253,7 +210,6 @@ const Index = () => {
     if (redirectTo) {
       navigate(redirectTo, { replace: true });
       setRedirectTo(null);
-
       const url = new URL(window.location.href);
       url.searchParams.delete('auth');
       url.searchParams.delete('redirect');
@@ -265,10 +221,7 @@ const Index = () => {
     setCookieConsent("accepted");
     localStorage.setItem("cookie-consent", "accepted");
     setShowCookieAlert(false);
-
-    if (redirectTo) {
-      setShowAuthModal(true);
-    }
+    if (redirectTo) setShowAuthModal(true);
   };
 
   const handleCookieDecline = () => {
@@ -280,10 +233,7 @@ const Index = () => {
   const handleWelcomeClose = () => {
     setShowWelcome(false);
     localStorage.setItem("hasSeenWelcome", "true");
-    const hasConsented = localStorage.getItem("cookie-consent");
-    if (!hasConsented) {
-      setCookieConsent(null);
-    }
+    if (!localStorage.getItem("cookie-consent")) setCookieConsent(null);
   };
 
   const handleWelcomeGetStarted = () => {
@@ -294,11 +244,7 @@ const Index = () => {
 
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem("hasSeenWelcome");
-    const isLoggedIn = !!user;
-
-    if (!hasSeenWelcome && !isLoggedIn) {
-      setTimeout(() => setShowWelcome(true), 1000);
-    }
+    if (!hasSeenWelcome && !user) setTimeout(() => setShowWelcome(true), 1000);
   }, [user]);
 
 

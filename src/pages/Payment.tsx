@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Crown, ArrowLeft, Star, Zap, Shield, Calendar } from "lucide-react";
+import { Check, Crown, ArrowLeft, Star, Zap, Shield, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -12,17 +11,15 @@ import { PaymentGateway } from "@/components/payment/PaymentGateway";
 import { WordPurchase } from "@/components/payment/WordPurchase";
 import { PaymentHistory } from "@/components/payment/PaymentHistory";
 import { LocationService } from "@/services/locationService";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package } from "lucide-react";
 
 const Payment = () => {
   const navigate = useNavigate();
-  const { user, profile, locationData } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'pro' | 'premium'>('pro');
-  const [showWordPurchase, setShowWordPurchase] = useState(false);
+  const [activeTab, setActiveTab] = useState('plans');
   const [pricing, setPricing] = useState({
     currency: 'INR',
     symbol: '₹',
@@ -43,7 +40,7 @@ const Payment = () => {
 
   const loadPricing = async () => {
     try {
-      const locationData = await LocationService.detectUserLocation();
+      await LocationService.detectUserLocation();
       const userPricing = LocationService.getPricing();
       setPricing(userPricing);
     } catch (error) {
@@ -61,7 +58,7 @@ const Payment = () => {
       period: '/month',
       features: [
         '1,000 words/month',
-        '10MB upload limit', 
+        '10MB upload limit',
         'Basic voice quality',
         '24 Hours History',
         'Last 3 voices in History',
@@ -70,7 +67,7 @@ const Payment = () => {
       ],
       buttonText: 'Current Plan',
       popular: false,
-      current: profile?.plan === 'free'
+      current: !profile?.plan || profile?.plan === 'free'
     },
     {
       id: 'pro',
@@ -135,20 +132,14 @@ const Payment = () => {
       return;
     }
 
-    if (planId === profile?.plan) {
-      // Check if plan is still active
-      const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
-      
-      if (isExpired) {
-        // Allow renewal for expired plans
-        await handlePlanPurchase(planId);
-      } else {
-        toast({
-          title: "Already subscribed",
-          description: `You're already on the ${planId} plan. Use word purchase to buy additional words.`,
-        });
-        setShowWordPurchase(true);
-      }
+    const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
+
+    if (planId === profile?.plan && !isExpired) {
+      toast({
+        title: "Already subscribed",
+        description: `You're already on the ${planId} plan. Use word purchase to buy additional words.`,
+      });
+      setActiveTab('words');
       return;
     }
 
@@ -161,33 +152,23 @@ const Payment = () => {
       return;
     }
 
-    // Check if user has active plan and trying to downgrade
-    if (profile?.plan === 'premium' && planId === 'pro') {
-      const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
-      
-      if (!isExpired) {
+    if (profile?.plan && profile.plan !== 'free' && planId !== profile.plan && !isExpired) {
+      if (profile?.plan === 'premium' && planId === 'pro') {
         toast({
           title: "Downgrade Not Allowed",
-          description: "You cannot downgrade from Premium to Pro while your plan is active. Wait for expiration or contact support.",
+          description: "You cannot downgrade while your plan is active. Please contact support.",
           variant: "destructive"
         });
         return;
       }
-    }
 
-    // Check if user has active plan and trying to upgrade/change
-    if (profile?.plan && profile.plan !== 'free' && planId !== profile.plan) {
-      const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
-      
-      if (!isExpired) {
-        toast({
-          title: "Plan Change Restricted",
-          description: "You can only change plans after your current plan expires. Current plan expires on " + 
-            (profile?.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString() : 'N/A'),
-          variant: "destructive"
-        });
-        return;
-      }
+      toast({
+        title: "Plan Change Restricted",
+        description: "You can only change plans after your current plan expires on " +
+          (profile?.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString() : 'N/A'),
+        variant: "destructive"
+      });
+      return;
     }
 
     await handlePlanPurchase(planId);
@@ -207,12 +188,6 @@ const Payment = () => {
     }
   };
 
-  const handlePayment = async (planId: 'pro' | 'premium') => {
-    setLoading(planId);
-    // Payment is now handled directly by PaymentGateway component
-    setLoading(null);
-  };
-
   const getPlanIcon = (planId: string) => {
     switch (planId) {
       case 'pro': return <Zap className="h-4 w-4 sm:h-5 sm:w-5" />;
@@ -221,44 +196,26 @@ const Payment = () => {
     }
   };
 
-  const canUpgrade = (planId: string) => {
-    if (planId === 'free') return false;
-    if (planId === profile?.plan) return false;
-    if (profile?.plan === 'premium' && planId === 'pro') return false;
-    return true;
-  };
-
   const formatPlanExpiry = () => {
     if (!profile?.plan_expires_at) return null;
-    
     const expiryDate = new Date(profile.plan_expires_at);
-    const now = new Date();
-    const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
     return {
-      date: expiryDate.toLocaleDateString('en-IN', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
-      }),
-      daysLeft
+      date: expiryDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }),
     };
   };
 
   const planExpiry = formatPlanExpiry();
   const isLoggedInUser = user?.id !== 'guest';
 
-  if (!user || !profile) {
-    return null;
-  }
+  if (!user || !profile) return null;
 
   if (showPaymentGateway) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="mb-6 text-center">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => setShowPaymentGateway(false)}
               className="flex items-center space-x-2 mx-auto text-sm"
             >
@@ -266,9 +223,9 @@ const Payment = () => {
               <span>Back to Plans</span>
             </Button>
           </div>
-          <PaymentGateway 
+          <PaymentGateway
             selectedPlan={selectedPlan}
-            onPayment={handlePayment}
+            onPayment={() => {}}
             isProcessing={loading !== null}
           />
         </div>
@@ -278,29 +235,21 @@ const Payment = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <header className="border-b bg-white">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate('/')}
-            className="flex items-center space-x-2 text-sm"
-          >
+          <Button variant="ghost" onClick={() => navigate('/')} className="flex items-center space-x-2 text-sm">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Back to Home</span>
             <span className="sm:hidden">Back</span>
           </Button>
-          
           <div className="text-xs sm:text-sm text-gray-600">
-            Current Plan: <span className="font-medium capitalize">{profile?.plan}</span>
-
+            Current Plan: <span className="font-medium capitalize">{profile?.plan || 'Free'}</span>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-6 sm:py-12 max-w-6xl">
-        {/* Tabs for Plan Management, Word Purchase, and Payment History */}
-        <Tabs defaultValue="plans" className="w-full">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6 sm:mb-8 bg-gray-100">
             <TabsTrigger value="plans" className="data-[state=active]:bg-black data-[state=active]:text-white text-xs sm:text-sm">Plan Management</TabsTrigger>
             <TabsTrigger value="words" disabled={!['pro', 'premium'].includes(profile?.plan || '')} className="data-[state=active]:bg-black data-[state=active]:text-white text-xs sm:text-sm">
@@ -310,16 +259,13 @@ const Payment = () => {
           </TabsList>
 
           <TabsContent value="plans" className="space-y-6 sm:space-y-8">
-            {/* Page Header */}
             <div className="text-center mb-6 sm:mb-12">
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">Choose Your Plan</h1>
               <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
-                Unlock the full potential of AI voice cloning with our flexible pricing plans. 
-
+                Unlock the full potential of AI voice cloning with our flexible pricing plans.
               </p>
             </div>
 
-            {/* Current Plan Info */}
             {isLoggedInUser && profile.plan !== 'free' && (
               <div className="mb-4 sm:mb-8 p-3 sm:p-4 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="flex items-center justify-between">
@@ -329,55 +275,33 @@ const Payment = () => {
                       You're currently on the <span className="capitalize">{profile.plan}</span> plan
                     </span>
                   </div>
-
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <p className="text-gray-600 text-xs sm:text-sm">
                     Words used: {profile.plan_words_used?.toLocaleString() || 0} / {profile.words_limit?.toLocaleString() || 0}
                   </p>
-                  {planExpiry && (
-                    <p className="text-gray-600 text-xs">
-                      Expires: {planExpiry.date}
-                    </p>
-                  )}
+                  {planExpiry && <p className="text-gray-600 text-xs">Expires: {planExpiry.date}</p>}
                 </div>
               </div>
             )}
 
-            {/* Pricing Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-12">
               {plans.map((plan) => (
-                <Card 
-                  key={plan.id} 
+                <Card
+                  key={plan.id}
                   className={`relative transition-all duration-300 hover:shadow-xl ${
-                    plan.popular 
-                      ? 'border-black shadow-lg scale-105' 
-                      : plan.current 
-                        ? 'border-gray-500 bg-gray-50' 
-                        : 'border-gray-200'
+                    plan.popular ? 'border-black shadow-lg scale-105' : plan.current ? 'border-gray-500 bg-gray-50' : 'border-gray-200'
                   }`}
                 >
-                  {plan.popular && (
-                    <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-black text-white px-2 py-1 text-xs">
-                      Most Popular
-                    </Badge>
-                  )}
-                  
-                  {plan.current && isLoggedInUser && (
-                    <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gray-500 text-white px-2 py-1 text-xs">
-                      Current Plan
-                    </Badge>
-                  )}
+                  {plan.popular && !plan.current && <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-black text-white px-2 py-1 text-xs">Most Popular</Badge>}
+                  {plan.current && isLoggedInUser && <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gray-500 text-white px-2 py-1 text-xs">Current Plan</Badge>}
 
                   <CardHeader className="text-center pb-4">
                     <div className="flex items-center justify-center mb-2">
                       {getPlanIcon(plan.id)}
                       <CardTitle className="text-lg sm:text-xl md:text-2xl font-bold ml-2">{plan.name}</CardTitle>
                     </div>
-                    <CardDescription className="text-gray-600 min-h-[2.5rem] flex items-center justify-center text-xs sm:text-sm md:text-base px-2">
-                      {plan.subtitle}
-                    </CardDescription>
-                    
+                    <CardDescription className="text-gray-600 min-h-[2.5rem] flex items-center justify-center text-xs sm:text-sm md:text-base px-2">{plan.subtitle}</CardDescription>
                     <div className="flex items-baseline justify-center space-x-1 mt-4">
                       <span className="text-gray-500 text-sm sm:text-base md:text-lg">{pricing.symbol}</span>
                       <span className="text-2xl sm:text-3xl md:text-4xl font-bold">{plan.price}</span>
@@ -394,29 +318,17 @@ const Payment = () => {
                         </li>
                       ))}
                     </ul>
-
                     <div className="space-y-2">
                       <Button
                         onClick={() => handlePlanSelect(plan.id)}
                         disabled={loading === plan.id || (plan.current && plan.canUpgrade === false)}
-                        className={`w-full text-sm ${
-                          plan.current 
-                            ? 'bg-gray-100 text-gray-800 cursor-not-allowed' 
-                            : plan.popular 
-                            ? 'bg-black hover:bg-gray-800 text-white' 
-                            : 'bg-gray-800 hover:bg-black text-white'
-                        }`}
+                        className={`w-full text-sm ${plan.current ? 'bg-gray-100 text-gray-800 cursor-not-allowed' : plan.popular ? 'bg-black hover:bg-gray-800 text-white' : 'bg-gray-800 hover:bg-black text-white'}`}
                         variant={plan.current ? "outline" : "default"}
                       >
                         {loading === plan.id ? 'Processing...' : plan.buttonText}
                       </Button>
-                      
                       {plan.current && plan.id !== 'free' && (
-                        <Button
-                          onClick={() => setShowWordPurchase(true)}
-                          variant="outline"
-                          className="w-full text-sm"
-                        >
+                        <Button onClick={() => setActiveTab('words')} variant="outline" className="w-full text-sm">
                           <Package className="h-4 w-4 mr-2" />
                           Buy Additional Words
                         </Button>
@@ -427,15 +339,14 @@ const Payment = () => {
               ))}
             </div>
 
-            {/* Additional Info */}
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
               <p className="mb-4 text-xs sm:text-sm md:text-base px-4">
-                All paid plans include the ability to purchase additional words at {pricing.symbol}{pricing.words.pricePerThousand} per 1,000 words. 
+                All paid plans include the ability to purchase additional words at {pricing.symbol}{pricing.words.pricePerThousand} per 1,000 words.
                 Pro users can buy up to 41,000 total words, Premium users can buy up to 99,000 total words.
               </p>
-            <div className="text-xs sm:text-sm">
-              Location: भारत | India • Currency: ₹ INR Only
-            </div>
+              <div className="text-xs sm:text-sm">
+                Location: भारत | India • Currency: ₹ INR Only
+              </div>
             </div>
           </TabsContent>
 
@@ -447,17 +358,6 @@ const Payment = () => {
             <PaymentHistory />
           </TabsContent>
         </Tabs>
-
-        {showWordPurchase && (
-          <Dialog open={showWordPurchase} onOpenChange={setShowWordPurchase}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Buy Additional Words</DialogTitle>
-              </DialogHeader>
-              <WordPurchase />
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
     </div>
   );

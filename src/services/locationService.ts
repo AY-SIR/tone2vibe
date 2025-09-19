@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface LocationData {
@@ -18,86 +17,108 @@ export interface PricingData {
 }
 
 export class LocationService {
-  static async getUserLocation(): Promise<LocationData | null> {
-    try {
-      const response = await fetch('https://ipapi.co/json/', {
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch location data');
-      }
-
-      const data = await response.json();
-
-      return {
+  // List of APIs and how to map their response
+  private static apis = [
+    {
+      url: 'https://ipapi.co/json/',
+      map: (data: any) => ({
         country: data.country_name || 'Unknown',
         countryCode: data.country_code || 'Unknown',
-        ip: data.ip
-      };
-    } catch (error) {
-      console.error('Error fetching location:', error);
-      return {
-        country: 'Unknown',
-        countryCode: 'Unknown'
-      };
+        ip: data.ip,
+      }),
+    },
+    {
+      url: 'https://ipwho.is/json/',
+      map: (data: any) => ({
+        country: data.country || 'Unknown',
+        countryCode: data.country_code || 'Unknown',
+        ip: data.ip,
+      }),
+    },
+    {
+      url: 'https://geolocation-db.com/json/',
+      map: (data: any) => ({
+        country: data.country_name || 'Unknown',
+        countryCode: data.country_code || 'Unknown',
+        ip: data.IPv4,
+      }),
+    },
+  ];
+
+  /** Detects user location using multiple APIs */
+  static async getUserLocation(): Promise<LocationData> {
+    for (const api of this.apis) {
+      try {
+        const res = await fetch(api.url, { headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error(`Failed API: ${api.url}`);
+        const data = await res.json();
+        return api.map(data);
+      } catch (err) {
+        console.warn(`API failed: ${api.url}`, err);
+      }
     }
+    console.error('All location APIs failed, using default.');
+    return { country: 'Unknown', countryCode: 'Unknown' };
   }
 
+  /** Detects user location */
   static async detectUserLocation(): Promise<LocationData> {
-    const location = await this.getUserLocation();
-    return location || { country: 'Unknown', countryCode: 'Unknown' };
+    return await this.getUserLocation();
   }
 
-  // Check if user is from India
+  /** Checks if user is from India */
   static isIndianUser(countryCode: string): boolean {
-    return countryCode === 'IN';
+    return countryCode.toUpperCase() === 'IN';
   }
 
+  /** Returns pricing data */
   static getPricing(): PricingData {
     return {
       currency: 'INR',
       symbol: '₹',
-      plans: {
-        pro: { price: 99, originalPrice: 99 },
-        premium: { price: 299, originalPrice: 299 }
-      },
-      words: { pricePerThousand: 31 }
+      plans: { pro: { price: 99, originalPrice: 99 }, premium: { price: 299, originalPrice: 299 } },
+      words: { pricePerThousand: 31 },
     };
   }
 
+  /** Saves user location to Supabase */
   static async saveUserLocation(userId: string, locationData: LocationData): Promise<void> {
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
-          country: locationData.country
+          country: locationData.country || 'Unknown',
+          country_code: locationData.countryCode || 'Unknown',
+          ip: locationData.ip || null,
         })
         .eq('user_id', userId);
-    } catch (error) {
-      console.error('Error saving location:', error);
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error saving location to Supabase:', err);
     }
   }
 
-  static async getUserLocationFromDb(userId: string): Promise<LocationData | null> {
+  /** Gets user location from Supabase */
+  static async getUserLocationFromDb(userId: string): Promise<LocationData> {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('country')
+        .select('country, country_code, ip')
         .eq('user_id', userId)
         .single();
 
-      if (error || !data) return null;
+      if (error || !data) {
+        return { country: 'Unknown', countryCode: 'Unknown' };
+      }
 
       return {
         country: data.country || 'Unknown',
-        countryCode: data.country === 'India' ? 'IN' : 'Unknown'
+        countryCode: data.country_code?.toUpperCase() || 'Unknown',
+        ip: data.ip || undefined,
       };
-    } catch (error) {
-      console.error('Error fetching location from db:', error);
-      return null;
+    } catch (err) {
+      console.error('Error fetching location from DB:', err);
+      return { country: 'Unknown', countryCode: 'Unknown' };
     }
   }
 }
