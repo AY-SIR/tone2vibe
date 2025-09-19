@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,20 +17,24 @@ const PaymentSuccess = () => {
   const [successTitle, setSuccessTitle] = useState("Payment Successful!");
   const [successDescription, setSuccessDescription] = useState("");
 
+  // Get URL parameters
   const sessionId = searchParams.get("session_id");
   const plan = searchParams.get("plan");
   const type = searchParams.get("type");
   const count = searchParams.get("count");
+  const paymentId = searchParams.get("payment_id");
+  const paymentRequestId = searchParams.get("payment_request_id");
 
   useEffect(() => {
     const verifyPayment = async () => {
-      if (!sessionId) {
+      if (!sessionId && !paymentId) {
         navigate("/payment");
         return;
       }
 
       try {
-        if (type === 'words') {
+        if (type === 'words' && sessionId) {
+          // Legacy Stripe word purchase verification
           const { data, error } = await supabase.functions.invoke("verify-word-purchase", {
             body: { sessionId }
           });
@@ -51,7 +54,8 @@ const PaymentSuccess = () => {
           } else {
             throw new Error(data.error || 'Verification failed');
           }
-        } else if (plan) {
+        } else if (plan && sessionId) {
+          // Legacy Stripe subscription verification
           const { data, error } = await supabase.functions.invoke("verify-stripe-payment", {
             body: { sessionId, plan }
           });
@@ -68,7 +72,29 @@ const PaymentSuccess = () => {
               description: `Your ${plan} plan has been activated.`,
             });
           } else {
-            throw new Error(data.message || 'Verification failed');
+            throw new Error(data.error || 'Payment verification failed');
+          }
+        } else if (paymentId && paymentRequestId) {
+          // New Instamojo verification
+          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
+            body: { payment_id: paymentId, payment_request_id: paymentRequestId }
+          });
+
+          if (error) throw error;
+
+          if (data.success) {
+            setVerified(true);
+            setSuccessTitle("Payment Successful!");
+            setSuccessDescription("Your payment has been processed successfully.");
+            
+            // Refresh user profile to show updated plan/words
+            await refreshProfile();
+            toast({
+              title: "Payment Successful!",
+              description: "Your payment has been processed successfully.",
+            });
+          } else {
+            throw new Error(data.error || 'Payment verification failed');
           }
         } else {
           navigate("/payment");
@@ -87,7 +113,7 @@ const PaymentSuccess = () => {
     };
 
     verifyPayment();
-  }, [sessionId, plan, type, count, navigate, refreshProfile, toast]);
+  }, [sessionId, paymentId, paymentRequestId, plan, type, count, navigate, refreshProfile, toast]);
 
   if (isVerifying) {
     return (

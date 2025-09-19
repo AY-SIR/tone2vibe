@@ -48,7 +48,7 @@ export class InstamojoService {
         purpose: planData.name,
         buyer_name: userName,
         email: userEmail,
-        redirect_url: `${window.location.origin}/payment-success?plan=${plan}&type=subscription`,
+        redirect_url: `${window.location.origin}/payment-success?plan=${plan}&type=subscription&payment_id={payment_id}&payment_request_id={payment_request_id}`,
         webhook: `${window.location.origin}/api/instamojo-webhook`,
         allow_repeated_payments: false
       };
@@ -96,7 +96,7 @@ export class InstamojoService {
         purpose: `${wordCount.toLocaleString()} Words Purchase`,
         buyer_name: userName,
         email: userEmail,
-        redirect_url: `${window.location.origin}/payment-success?type=words&count=${wordCount}`,
+        redirect_url: `${window.location.origin}/payment-success?type=words&count=${wordCount}&payment_id={payment_id}&payment_request_id={payment_request_id}`,
         webhook: `${window.location.origin}/api/instamojo-webhook`,
         allow_repeated_payments: false
       };

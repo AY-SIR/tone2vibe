@@ -10,9 +10,8 @@ import { CreditCard, Package, AlertCircle, Globe, IndianRupee } from "lucide-rea
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { LocationService } from "@/services/locationService";
-import { WordService } from "@/services/wordService";
-import { IndiaOnlyService } from "@/services/indiaOnlyService";
+import { LocationCacheService } from "@/services/locationCache";
+import { InstamojoService } from "@/services/instamojo";
 
 export function WordPurchase() {
   const { user, profile, locationData } = useAuth();
@@ -20,24 +19,9 @@ export function WordPurchase() {
   const [wordsAmount, setWordsAmount] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
-  const [pricing, setPricing] = useState({ currency: 'INR', pricePerThousand: 31, symbol: '₹' });
+  const [pricing] = useState({ currency: 'INR', pricePerThousand: 31, symbol: '₹' });
 
-  useEffect(() => {
-    loadPricing();
-  }, []);
-
-  const loadPricing = async () => {
-    // Get user's forced currency or default to INR for India, USD for others
-    const userLocation = await LocationService.detectUserLocation();
-    const forcedCurrency = userLocation.country === 'India' ? 'INR' : 'USD';
-    
-    const userPricing = WordService.getPricingForUser(profile?.plan || 'free', forcedCurrency);
-    setPricing({
-      currency: forcedCurrency,
-      pricePerThousand: userPricing.pricePerThousand,
-      symbol: userPricing.symbol
-    });
-  };
+  // Removed pricing loading - fixed to INR only
 
   const canPurchaseWords = () => {
     if (!profile) return false;
@@ -46,7 +30,7 @@ export function WordPurchase() {
 
   const calculatePrice = (words: number) => {
     const cost = (words / 1000) * pricing.pricePerThousand;
-    return pricing.currency === 'USD' ? parseFloat(cost.toFixed(2)) : Math.ceil(cost);
+    return Math.ceil(cost); // Always round up for INR
   };
 
   const getMaxPurchaseLimit = () => {
@@ -102,17 +86,16 @@ export function WordPurchase() {
     setShowPaymentGateway(true);
   };
 
-  const handlePaymentGateway = async (gateway: 'stripe') => {
+  const handlePaymentGateway = async () => {
     setLoading(true);
 
     try {
-      // Check access for Indian users only
-      const access = await IndiaOnlyService.checkIndianAccess();
-      
-      if (!access.isAllowed) {
+      // Verify user is in India
+      const location = await LocationCacheService.getLocation();
+      if (!location.isIndian) {
         toast({
-          title: "Payment Blocked",
-          description: access.message,
+          title: "Access Denied",
+          description: `This service is only available in India. Your location: ${location.country}`,
           variant: "destructive"
         });
         setLoading(false);
@@ -120,41 +103,33 @@ export function WordPurchase() {
         return;
       }
 
-      // Force INR currency for India only service
-      const forcedCurrency = 'INR';
+      // Create Instamojo payment for word purchase
+      const result = await InstamojoService.createWordPayment(
+        wordsAmount,
+        user!.email || '',
+        user!.user_metadata?.full_name || 'User'
+      );
 
-      // Create Stripe payment session for word purchase
-      const { data, error } = await supabase.functions.invoke('purchase-words', {
-        body: {
-          wordCount: wordsAmount,
-          currency: forcedCurrency // Use forced currency
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Failed to create payment session');
-      }
-
-      if (data?.url) {
-        // Open Stripe checkout in a new tab
-        window.open(data.url, '_blank');
+      if (result.success && result.payment_request?.longurl) {
+        // Redirect to Instamojo payment page
+        window.location.href = result.payment_request.longurl;
         toast({
           title: "Payment Initiated",
-          description: "Complete your payment in the new tab.",
+          description: "Redirecting to secure payment page...",
         });
         setShowPaymentGateway(false);
       } else {
-        throw new Error('No payment URL received');
+        throw new Error(result.message || 'Failed to create payment');
       }
     } catch (error) {
       console.error('Payment error:', error);
-      // User-friendly error messages
+      
       let friendlyMessage = "Something went wrong with your payment. Please try again.";
       
       if (error instanceof Error) {
-        if (error.message.includes('Invalid plan selected')) {
-          friendlyMessage = "There was an issue with your plan. Please contact support.";
-        } else if (error.message.includes('create payment session')) {
+        if (error.message.includes('India')) {
+          friendlyMessage = "This service is only available for users in India.";
+        } else if (error.message.includes('create payment')) {
           friendlyMessage = "Unable to start payment process. Please try again.";
         }
       }
@@ -270,7 +245,7 @@ export function WordPurchase() {
                   className="text-center text-sm"
                 />
                 <p className="text-xs text-gray-500 text-center">
-                  Min: 1,000 • Max: {maxAvailable.toLocaleString()} • Price: {pricing.symbol}{pricing.currency === 'USD' ? pricing.pricePerThousand.toFixed(2) : pricing.pricePerThousand} per 1,000 words
+                  Min: 1,000 • Max: {maxAvailable.toLocaleString()} • Price: ₹{pricing.pricePerThousand} per 1,000 words
                 </p>
               </div>
 
@@ -278,7 +253,7 @@ export function WordPurchase() {
               <div className="bg-black text-white rounded-lg p-3 text-center">
                 <div className="text-xs opacity-75">Total Price</div>
                 <div className="text-lg sm:text-xl font-bold">
-                  {pricing.symbol}{pricing.currency === 'USD' ? calculatePrice(wordsAmount).toFixed(2) : calculatePrice(wordsAmount)}
+                  ₹{calculatePrice(wordsAmount)}
                 </div>
                 <div className="text-xs opacity-75">
                   {wordsAmount.toLocaleString()} words
@@ -328,26 +303,26 @@ export function WordPurchase() {
               <p className="font-medium text-sm">Purchase Summary</p>
               <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
               <p className="text-base sm:text-lg font-bold">
-                {pricing.symbol}{pricing.currency === 'USD' ? calculatePrice(wordsAmount).toFixed(2) : calculatePrice(wordsAmount)}
+                ₹{calculatePrice(wordsAmount)}
               </p>
             </div>
 
             <div className="space-y-2">
-              {/* Stripe Payment (Universal) */}
+              {/* Instamojo Payment (India Only) */}
               <Button
-                onClick={() => handlePaymentGateway('stripe')}
+                onClick={handlePaymentGateway}
                 disabled={loading}
-                className="w-full bg-black hover:bg-gray-800 text-white text-xs sm:text-sm"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm"
                 size="lg"
               >
-                <CreditCard className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                Pay with Stripe ({pricing.currency})
-                <Badge className="ml-2 bg-green-500 text-xs">Secure</Badge>
+                <IndianRupee className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                Pay ₹{calculatePrice(wordsAmount)} - Secure Payment
+                <Badge className="ml-2 bg-green-500 text-xs">Safe & Fast</Badge>
               </Button>
             </div>
 
             <p className="text-xs text-gray-500 text-center">
-              Secure payment processing • No additional fees
+              Secure payment processing for India • No additional fees
             </p>
           </div>
         </DialogContent>

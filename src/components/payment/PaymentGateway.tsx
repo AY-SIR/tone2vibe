@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +6,9 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { LocationService } from "@/services/locationService";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { LocationCacheService } from "@/services/locationCache";
+import { InstamojoService } from "@/services/instamojo";
 
 interface PaymentGatewayProps {
   selectedPlan: 'pro' | 'premium';
@@ -21,7 +20,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   const { profile, user } = useAuth();
   const { toast } = useToast();
   const [confirmPayment, setConfirmPayment] = useState(false);
-  const [pricing, setPricing] = useState({
+  const [pricing] = useState({
     currency: 'INR',
     symbol: '₹',
     plans: {
@@ -30,32 +29,6 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
     }
   });
 
-  useEffect(() => {
-    loadPricing();
-  }, [user]);
-
-  const loadPricing = async () => {
-    try {
-      // Use saved location data instead of detecting again
-      if (user) {
-        const savedLocation = localStorage.getItem(`user_location_${user.id}`);
-        if (savedLocation) {
-          const locationData = JSON.parse(savedLocation);
-          const userPricing = LocationService.getPricing();
-          setPricing(userPricing);
-          return;
-        }
-      }
-      
-      // Fallback to detection if no saved data
-      const locationData = await LocationService.detectUserLocation();
-      const userPricing = LocationService.getPricing();
-      setPricing(userPricing);
-    } catch (error) {
-      console.error('Failed to load pricing:', error);
-    }
-  };
-  
   const planDetails = {
     pro: {
       name: "Pro",
@@ -63,14 +36,14 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       originalPrice: pricing.plans.pro.originalPrice,
       features: [
         "10,000 words/month base limit",
-        "Buy up to 41,000 total words",
+        "Buy up to 36,000 additional words",
         "25MB upload limit", 
         "High quality audio",
         "30 days history",
         "Priority support",
         "Basic Analytics",
       ],
-      icon: <Crown className="h-4 w-4 sm:h-5 sm:w-5 " />,
+      icon: <Crown className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: "bg-gray-700"
     },
     premium: {
@@ -79,7 +52,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       originalPrice: pricing.plans.premium.originalPrice,
       features: [
         "50,000 words/month base limit",
-        "Buy up to 99,999 total words",
+        "Buy up to 49,000 additional words",
         "100MB upload limit",
         "Ultra-high quality",
         "90 days history", 
@@ -105,33 +78,29 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
     if (!user || !confirmPayment) return;
 
     try {
-      // Verify payment location matches login location
-      const savedLocation = localStorage.getItem(`user_location_${user.id}`);
-      if (savedLocation) {
-        const currentLocation = await LocationService.getUserLocation();
-        const userLocationData = JSON.parse(savedLocation);
-        
-        if (currentLocation?.country && userLocationData.country && 
-            currentLocation.country !== userLocationData.country) {
-          toast({
-            title: "Location Verification",
-            description: `Payment location (${currentLocation.country}) differs from login location (${userLocationData.country}). Proceeding with payment.`,
-            variant: "default"
-          });
-        }
+      // Verify user is in India
+      const location = await LocationCacheService.getLocation();
+      if (!location.isIndian) {
+        toast({
+          title: "Access Denied",
+          description: `This service is only available in India. Your location: ${location.country}`,
+          variant: "destructive"
+        });
+        return;
       }
 
-      const { data, error } = await supabase.functions.invoke('create-stripe-payment', {
-        body: { plan: selectedPlan }
-      });
+      // Create Instamojo payment
+      const result = await InstamojoService.createPlanPayment(
+        selectedPlan,
+        user.email || '',
+        user.user_metadata?.full_name || user.user_metadata?.display_name || 'User'
+      );
 
-      if (error) throw error;
-
-      if (data?.url) {
-        // Open in new tab instead of redirecting
-        window.open(data.url, '_blank');
+      if (result.success && result.payment_request?.longurl) {
+        // Redirect to Instamojo payment page
+        window.location.href = result.payment_request.longurl;
       } else {
-        throw new Error('No payment URL received');
+        throw new Error(result.message || 'Failed to create payment');
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -143,8 +112,8 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           userFriendlyMessage = "Please check your internet connection and try again.";
         } else if (error.message.includes('unauthorized') || error.message.includes('auth')) {
           userFriendlyMessage = "Please sign in again and try your payment.";
-        } else if (error.message.includes('rate limit')) {
-          userFriendlyMessage = "Too many payment attempts. Please wait a moment before trying again.";
+        } else if (error.message.includes('India')) {
+          userFriendlyMessage = "This service is only available for users in India.";
         }
       }
       
@@ -160,7 +129,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
     return (
       <Card className="w-full max-w-md mx-auto border-orange-200">
         <CardHeader className="text-center p-3 sm:p-6">
-          <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4`}>
+          <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
             {plan.icon}
           </div>
           <CardTitle className="text-base sm:text-lg md:text-2xl">Already Subscribed</CardTitle>
@@ -214,7 +183,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center p-3 sm:p-6">
-        <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4`}>
+        <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
           {plan.icon}
         </div>
         <CardTitle className="text-base sm:text-lg md:text-2xl">
@@ -270,7 +239,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           </div>
           
           <div className="text-xs text-gray-500 text-center">
-            Billed monthly • Cancel anytime • Currency: {pricing.currency}
+            Billed monthly • Cancel anytime • INR Currency Only
           </div>
         </div>
 
@@ -295,7 +264,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         <Button 
           onClick={handlePayment}
           disabled={isProcessing || !confirmPayment}
-          className={`w-full ${plan.color} hover:opacity-90 text-white text-xs sm:text-sm`}
+          className={`w-full bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm`}
         >
           {isProcessing ? (
             <div className="flex items-center space-x-2">
@@ -319,7 +288,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         {/* Security Notice */}
         <div className="text-xs text-gray-500 text-center">
           <div className="flex items-center justify-center space-x-1">
-            <span></span>
+            <span>🔒</span>
             <span>Secure payment processing</span>
           </div>
           <div className="mt-1">
