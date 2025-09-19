@@ -21,6 +21,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   Play,
   Pause,
@@ -30,6 +31,7 @@ import {
   ArrowLeft,
   Mic,
   Volume2,
+  Hash,
 } from "lucide-react";
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +45,8 @@ const History = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [showGeneratedVoices, setShowGeneratedVoices] = useState(true);
+  const [showRecordedVoices, setShowRecordedVoices] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { toast } = useToast();
@@ -258,27 +262,82 @@ const History = () => {
               </Select>
             </div>
 
-            <Tabs defaultValue="generated" className="w-full mt-4">
+            {/* Enhanced Toggle Switches */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              {/* AI Voice Generation Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <Volume2 className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">AI Voice Generation</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Generated: {generatedVoices.length} projects • ID: #VG{new Date().getFullYear()}
+                    </p>
+                  </div>
+                </div>
+                <Switch 
+                  checked={showGeneratedVoices} 
+                  onCheckedChange={setShowGeneratedVoices}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+
+              {/* User Recorded Voice Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-secondary/10">
+                    <Mic className="h-4 w-4 text-secondary" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">User Recorded Voice</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Recorded: {recordedVoices.length} samples • ID: #UR{new Date().getFullYear()}
+                    </p>
+                  </div>
+                </div>
+                <Switch 
+                  checked={showRecordedVoices} 
+                  onCheckedChange={setShowRecordedVoices}
+                  className="data-[state=checked]:bg-secondary"
+                />
+              </div>
+            </div>
+
+            <Tabs defaultValue="generated" className="w-full mt-6">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger
                   value="generated"
                   className="flex items-center gap-2"
+                  disabled={!showGeneratedVoices}
                 >
-                  <Volume2 className="h-4 w-4 text-primary" />
+                  <Volume2 className="h-4 w-4" />
                   AI Voice Generation
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {generatedVoices.length}
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger
                   value="recorded"
                   className="flex items-center gap-2"
+                  disabled={!showRecordedVoices}
                 >
-                  <Mic className="h-4 w-4 text-primary" />
-                  User  Voice
+                  <Mic className="h-4 w-4" />
+                  User Recorded Voice
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {recordedVoices.length}
+                  </Badge>
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="generated">
-                {generatedVoices.length > 0 ? (
+                {showGeneratedVoices && generatedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
+                    <div className="flex items-center gap-2 mb-4 p-3 bg-primary/5 rounded-lg">
+                      <Hash className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">AI Generated Voice Projects - ID: #VG{new Date().getFullYear()}</span>
+                    </div>
                     {generatedVoices.map((project) => (
                       <ProjectCard
                         key={project.id}
@@ -290,7 +349,7 @@ const History = () => {
                       />
                     ))}
                   </div>
-                ) : (
+                ) : showGeneratedVoices ? (
                   <div className="text-center p-6 sm:p-8">
                     <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                       No generated voice projects found matching your filters.
@@ -299,12 +358,22 @@ const History = () => {
                       Create a New Voice
                     </Button>
                   </div>
+                ) : (
+                  <div className="text-center p-6 sm:p-8">
+                    <p className="text-muted-foreground text-sm sm:text-base">
+                      AI Voice Generation is currently disabled. Enable it using the toggle above.
+                    </p>
+                  </div>
                 )}
               </TabsContent>
 
               <TabsContent value="recorded">
-                {recordedVoices.length > 0 ? (
+                {showRecordedVoices && recordedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
+                    <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/5 rounded-lg">
+                      <Hash className="h-4 w-4 text-secondary" />
+                      <span className="text-sm font-medium">User Recorded Voice Projects - ID: #UR{new Date().getFullYear()}</span>
+                    </div>
                     {recordedVoices.map((project) => (
                       <ProjectCard
                         key={project.id}
@@ -316,10 +385,16 @@ const History = () => {
                       />
                     ))}
                   </div>
-                ) : (
+                ) : showRecordedVoices ? (
                   <p className="text-muted-foreground text-sm text-center p-6 sm:p-8">
                     No recorded voices found matching your filters.
                   </p>
+                ) : (
+                  <div className="text-center p-6 sm:p-8">
+                    <p className="text-muted-foreground text-sm sm:text-base">
+                      User Recorded Voice is currently disabled. Enable it using the toggle above.
+                    </p>
+                  </div>
                 )}
               </TabsContent>
             </Tabs>

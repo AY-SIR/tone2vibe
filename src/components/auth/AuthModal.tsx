@@ -8,10 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, MapPin } from "lucide-react";
+import { Loader2, Mail, Lock, User, Eye, EyeOff, MapPin, CheckCircle } from "lucide-react";
 import { AuthError } from '@supabase/supabase-js';
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
-import { IndiaOnlyService } from "@/services/indiaOnlyService";
+import { LocationCacheService } from "@/services/locationCache";
 
 interface AuthModalProps {
   open: boolean;
@@ -21,31 +21,57 @@ interface AuthModalProps {
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isIndianUser, setIsIndianUser] = useState<boolean | null>(null);
-  const [checkingLocation, setCheckingLocation] = useState(true);
+  const [checkingLocation, setCheckingLocation] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [locationChecked, setLocationChecked] = useState(false);
 
   useEffect(() => {
-    if (open) {
+    if (open && !locationChecked) {
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
       setFullName('');
       setAgreeToTerms(false);
       setIsClosing(false);
 
       const checkIndianAccess = async () => {
+        setCheckingLocation(true);
         try {
-          const access = await IndiaOnlyService.checkIndianAccess();
-          setIsIndianUser(access.isAllowed);
-          if (!access.isAllowed) {
-            toast.error(access.message, { duration: 5000 });
+          // Try to get country from cookie first
+          const cookieCountry = LocationCacheService.getCountryFromCookie();
+          if (cookieCountry === 'IN') {
+            setIsIndianUser(true);
+            setLocationChecked(true);
+            setCheckingLocation(false);
+            return;
+          }
+
+          if (cookieCountry && cookieCountry !== 'IN') {
+            setIsIndianUser(false);
+            setLocationChecked(true);
+            setCheckingLocation(false);
+            toast.error('This service is only available in India.', { duration: 5000 });
+            return;
+          }
+
+          // If no cookie or cache, fetch location
+          const location = await LocationCacheService.getLocation();
+          setIsIndianUser(location.isIndian);
+          setLocationChecked(true);
+          
+          if (!location.isIndian) {
+            toast.error(`This service is only available in India. Detected: ${location.country}`, { duration: 5000 });
           }
         } catch (error) {
           setIsIndianUser(false);
+          setLocationChecked(true);
           toast.error('This service is only available in India.');
         } finally {
           setCheckingLocation(false);
@@ -54,26 +80,57 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       checkIndianAccess();
     }
-  }, [open]);
+  }, [open, locationChecked]);
 
   const handleSubmit = async (type: 'signin' | 'signup') => {
+    // Validate Indian access
     if (isIndianUser === false) {
       toast.error('This service is only available in India.');
       return;
     }
 
+    // Basic validation
     if (!email || !password) {
       toast.error('Please fill in all required fields.');
       return;
     }
 
+    // Signup specific validation
     if (type === 'signup') {
-      if (!fullName) {
+      if (!fullName.trim()) {
         toast.error('Please enter your full name.');
         return;
       }
+      
+      if (!confirmPassword) {
+        toast.error('Please confirm your password.');
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        toast.error('Passwords do not match.');
+        return;
+      }
+      
+      if (password.length < 6) {
+        toast.error('Password must be at least 6 characters long.');
+        return;
+      }
+      
       if (!agreeToTerms) {
         toast.error('You must agree to the Terms of Service and Privacy Policy.');
+        return;
+      }
+
+      // Final location check before signup
+      try {
+        const location = await LocationCacheService.getLocation();
+        if (!location.isIndian) {
+          toast.error(`Signup failed: Service only available in India. Your location: ${location.country}`);
+          return;
+        }
+      } catch (error) {
+        toast.error('Location verification failed. Please try again.');
         return;
       }
     }
@@ -84,18 +141,31 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       if (type === 'signup') {
         const redirectUrl = `${window.location.origin}/email-confirmation`;
 
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: redirectUrl,
-            data: { full_name: fullName }
+            data: { 
+              full_name: fullName.trim(),
+              display_name: fullName.trim()
+            }
           }
         });
 
         if (error) throw error;
 
-        toast.success('Please check your email to confirm your account.');
+        // Save location data for the new user
+        if (data.user) {
+          try {
+            const location = await LocationCacheService.getLocation();
+            await LocationCacheService.saveUserLocation(data.user.id, location);
+          } catch (err) {
+            console.warn('Failed to save user location:', err);
+          }
+        }
+
+        toast.success('Account created! Please check your email to confirm your account.');
 
         setTimeout(() => {
           setIsClosing(true);
@@ -105,8 +175,18 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }, 3000);
 
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+
+        // Save location for existing user on login
+        if (data.user) {
+          try {
+            const location = await LocationCacheService.getLocation();
+            await LocationCacheService.saveUserLocation(data.user.id, location);
+          } catch (err) {
+            console.warn('Failed to save user location:', err);
+          }
+        }
 
         toast.success('Successfully signed in!');
         onOpenChange(false);
@@ -131,10 +211,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-orange-500" />
-            Welcome
+            Welcome to Voice AI
           </DialogTitle>
           <DialogDescription>
-            Sign in to your account or create a new one (India Only)
+            Sign in to your account or create a new one
           </DialogDescription>
         </DialogHeader>
 
@@ -142,8 +222,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
         {checkingLocation ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Verifying location...</span>
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <span className="ml-2">Checking access...</span>
           </div>
         ) : isIndianUser ? (
           <Tabs defaultValue="signin" className="w-full">
@@ -240,7 +320,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   <Input
                     id="signup-password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
+                    placeholder="Create a password (min. 6 characters)"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 pr-10"
@@ -254,6 +334,32 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <div className="relative">
+                  <CheckCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-destructive">Passwords do not match</p>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
