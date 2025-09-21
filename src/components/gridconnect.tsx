@@ -10,6 +10,7 @@ const services = [
     description: "Share thoughts instantly & join trending moments.",
     icon: Twitter,
     url: "https://twitter.com/yourprofile", // Replace with your Twitter
+    color: "#1DA1F2", // Twitter blue
   }
 
   ,{
@@ -17,12 +18,16 @@ const services = [
     description: "Create, connect & vibe with your audience.",
     icon: Instagram,
     url: "https://instagram.com/yourprofile", // Replace with your Instagram
+        color: "#E1306C", // Instagram pink
+
   },
   {
     name: "LinkedIn",
     description: "Build networks, showcase skills & unlock growth.",
     icon: Linkedin,
     url: "https://linkedin.com/in/yourprofile", // Replace with your LinkedIn
+        color: "#0077B5", // LinkedIn blue
+
   },
 ];
 
@@ -47,7 +52,7 @@ const GridConnect = () => {
                   {/* Top row: Icon + External Link */}
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center justify-center w-14 h-14 rounded-full ">
-                      <Icon className="w-8 h-8 " />
+                      <Icon className="w-8 h-8 " color={service.color} />
                     </div>
                     <ExternalLink
                       size={20}

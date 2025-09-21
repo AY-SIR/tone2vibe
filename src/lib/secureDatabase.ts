@@ -15,7 +15,7 @@ export class DatabaseSecurity {
     const originalError = console.error;
     const originalWarn = console.warn;
     const originalInfo = console.info;
-    
+
     const sensitiveKeywords = [
       'supabase',
       'database',
@@ -39,7 +39,7 @@ export class DatabaseSecurity {
     const filterSensitiveData = (args: any[]) => {
       return args.filter(arg => {
         if (typeof arg === 'string') {
-          return !sensitiveKeywords.some(keyword => 
+          return !sensitiveKeywords.some(keyword =>
             arg.toLowerCase().includes(keyword)
           );
         }
@@ -117,16 +117,16 @@ export class DatabaseSecurity {
   private static obfuscateNetworkRequests() {
     // Enhanced network request obfuscation
     const originalFetch = window.fetch;
-    
+
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       try {
         const response = await originalFetch(input, init);
-        
+
         // Don't log successful requests to reduce console noise
         if (response.ok) {
           return response;
         }
-        
+
         return response;
       } catch (error) {
         // Only log generic errors without exposing sensitive data

@@ -5,13 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GridPattern } from "@/components/GridPattern";
 import GridConnect from "@/components/gridconnect";
+
 import { FloatingNavigation } from "@/components/ui/FloatingNavigation";
 import { MobileWordCounter } from "@/components/layout/MobileWordCounter";
 
 import {
-  lock,
   Mic,
-  Globe,
   Zap,
   Shield,
   FileText,
@@ -21,12 +20,8 @@ import {
   Download,
   History,
   ArrowRight,
-  Star,
-  Users,
-  Clock,
   Check,
   Play,
-  Upload,
   Cookie,
   LogIn,
 } from "lucide-react";
@@ -35,10 +30,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { VideoModal } from "@/components/common/VideoModal";
-
 import { WorkflowSection } from "@/components/sections/WorkflowSection";
-import { UserMenu } from "@/components/ui/user-menu";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { NewsletterSection } from "@/components/sections/NewsletterSection";
 import { CookieConsent } from "@/components/common/CookieConsent";
 import { WelcomePopup } from "@/components/common/WelcomePopup";
@@ -66,32 +58,15 @@ const Index = () => {
     },
   });
 
-  // -------------------------
-  // One-time country detection
-  // -------------------------
-  const detectAndSaveCountry = async () => {
-    try {
-      const savedCountry = localStorage.getItem("user-country");
-      if (savedCountry) return savedCountry;
-
-      const locationData = await LocationService.detectUserLocation();
-      const country = locationData?.country || "Unknown";
-
-      localStorage.setItem("user-country", country);
-
-      return country;
-    } catch (error) {
-      console.error("Country detection failed:", error);
-      return "Unknown";
-    }
-  };
-
-  // -------------------------
   // Load pricing based on country
-  // -------------------------
   const loadPricing = async () => {
     try {
-      const country = await detectAndSaveCountry();
+      const savedCountry = localStorage.getItem("user-country");
+      if (!savedCountry) {
+        const locationData = await LocationService.detectUserLocation();
+        const country = locationData?.country || "Unknown";
+        localStorage.setItem("user-country", country);
+      }
       const userPricing = LocationService.getPricing();
       setPricing(userPricing);
     } catch (error) {
@@ -103,9 +78,7 @@ const Index = () => {
     loadPricing();
   }, []);
 
-  // -------------------------
   // Features array
-  // -------------------------
   const features = [
     { icon: <FileText className="h-6 w-6" />, title: "Multiple Input Types", description: "Upload text, PDF, or images—AI extracts content instantly." },
     { icon: <Mic className="h-6 w-6" />, title: "Advanced Voice Cloning", description: "Clone your voice with studio-quality accuracy." },
@@ -118,9 +91,7 @@ const Index = () => {
     { icon: <Zap className="h-6 w-6" />, title: "Lightning Fast", description: "Get results instantly with AI-powered speed." },
   ];
 
-  // -------------------------
   // Pricing plans array
-  // -------------------------
   const pricingPlans = [
     {
       name: "Free",
@@ -162,9 +133,7 @@ const Index = () => {
     },
   ];
 
-  // -------------------------
-  // Auth, cookies, and welcome functions
-  // -------------------------
+  // Auth and cookies handlers
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const authParam = urlParams.get('auth');
@@ -172,7 +141,6 @@ const Index = () => {
 
     if (authParam === 'open') {
       const consentStatus = localStorage.getItem("cookie-consent");
-
       if (consentStatus === "declined") {
         setShowCookieAlert(true);
         if (redirectParam) setRedirectTo(decodeURIComponent(redirectParam));
@@ -249,69 +217,20 @@ const Index = () => {
     if (!hasSeenWelcome && !user) setTimeout(() => setShowWelcome(true), 1000);
   }, [user]);
 
+  // Section change handler with scroll to top
+  const handleSectionChange = (section: "home" | "features" | "pricing") => {
+    setCurrentSection(section);
+    // Scroll to top immediately
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-  return (
-<div
-  className="relative h-screen bg-white font-modern overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]"
->
-      {/* Foreground site content */}
-      <div className="relative z-10">
-        {/* Navigation */}
-<nav
-  className="fixed top-2 left-6 right-6 z-50 rounded-2xl border border-white/20 bg-white/40 backdrop-blur-md shadow-lg transition-transform duration-300
-"
->          <div className="px-6 py-4 flex items-center justify-between">
-            <Link
-              to="/"
-              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-            >
-              <div className="w-8 h-8 bg-white/70 rounded-lg flex items-center justify-center shadow-sm">
-                <Mic className="h-5 w-5 text-black" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
-                Tone2Vibe
-              </span>
-            </Link>
-
-
-<div className="flex items-center space-x-4">
-
-            {profile?.plan && (
-  <>
-    <div  className="hidden min-[400px]:inline-block text-xs capitalize">
-      <MobileWordCounter />
-    </div>
-    <Badge
-      variant="outline"
-      className="hidden sm:inline-block text-xs capitalize"
-    >
-      {profile.plan}
-    </Badge>
-  </>
-)}
-
-
-
-
-              {user ? (
-                <ProfileDropdown />
-              ) : (
-                <Button
-                  onClick={() => setShowAuthModal(true)}
-                  className="bg-gray-100/70 hover:bg-gray-200/80 text-black flex items-center gap-2 rounded-xl"
-                >
-                  Sign In
-                  <LogIn className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </nav>
-
-        {/* Dynamic Content Based on Current Section */}
-        {currentSection === "home" && (
-          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
-            <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
+  // Render content based on current section
+  const renderContent = () => {
+    switch (currentSection) {
+      case "home":
+        return (
+          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-screen flex items-center">
+            <div className="absolute inset-0  [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10]">
               <GridPattern rows={15} columns={50} cellSize={32} />
             </div>
             <div className="relative z-10 container mx-auto max-w-4xl">
@@ -359,10 +278,11 @@ const Index = () => {
               </div>
             </div>
           </section>
-        )}
+        );
 
-        {currentSection === "features" && (
-          <section className="relative py-28 px-6 bg-white text-black">
+      case "features":
+        return (
+          <section className="relative py-28 px-6 bg-white text-black min-h-screen">
             <div className="container mx-auto">
               <div className="text-center mb-16">
                 <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
@@ -395,16 +315,17 @@ const Index = () => {
                   </div>
                 ))}
               </div>
-            </div>
 
-            <div className="mt-24">
-              <WorkflowSection />
+              <div className="mt-24">
+                <WorkflowSection />
+              </div>
             </div>
           </section>
-        )}
+        );
 
-        {currentSection === "pricing" && (
-          <section className="py-28 px-4">
+      case "pricing":
+        return (
+          <section className="py-28 px-4 min-h-screen">
             <div className="container mx-auto">
               <div className="text-center mb-16 animate-fade-in">
                 <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
@@ -475,165 +396,238 @@ const Index = () => {
               </div>
             </div>
           </section>
-        )}
+        );
 
-        <div className="flex items-center my-10">
-          <div className="flex-grow border-t border-gray-300"></div>
-          <Mic className="mx-3 h-5 w-5 text-gray-900" />
-          <div className="flex-grow border-t border-gray-300"></div>
-        </div>
-        
-        {/* Fixed Newsletter and Footer */}
-        <NewsletterSection />
+      default:
+        return null;
+    }
+  };
 
-        <footer className="bg-white border-t border-gray-200 py-12 px-4">
-          <div className="container mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-              <div>
-                <Link
-                  to="/"
-                  className="flex items-center space-x-2 mb-4 hover:opacity-80 transition-opacity"
-                >
-                  <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                    <Mic className="h-5 w-5 text-black" />
-                  </div>
-                  <span className="text-xl font-bold text-black">
-                    Tone2Vibe
-                  </span>
-                </Link>
-                <p className="text-gray-600">
-                  "Transform words into moods"
-                </p>
-              </div>
+  return (
+    <div className="relative min-h-screen bg-white font-modern overflow-x-hidden">
+      {/* Navigation */}
+      <nav className="fixed top-2 left-6 right-6 z-50 rounded-2xl border border-white/20 bg-white/40 backdrop-blur-md shadow-lg transition-transform duration-300">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <button
+            onClick={() => handleSectionChange("home")}
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-8 h-8 bg-white/70 rounded-lg flex items-center justify-center shadow-sm">
+              <Mic className="h-5 w-5 text-black" />
+            </div>
+            <span className="text-xl font-bold bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
+              Tone2Vibe
+            </span>
+          </button>
 
-              <div>
-                <h4 className="font-bold mb-4 text-black">Product</h4>
-                <ul className="space-y-2 text-gray-600">
-                  {currentSection !== "features" && (
-                    <li>
-                      <button onClick={() => setCurrentSection("features")} className="hover:text-black transition-colors">
-                        Features
-                      </button>
-                    </li>
-                  )}
-                  {currentSection !== "pricing" && (
-                    <li>
-                      <button onClick={() => setCurrentSection("pricing")} className="hover:text-black transition-colors">
-                        Pricing
-                      </button>
-                    </li>
-                  )}
+          <div className="flex items-center space-x-4">
+            {profile?.plan && (
+              <>
+                <div className="hidden min-[400px]:inline-block text-xs capitalize">
+                  <MobileWordCounter />
                 </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-
-        {/* FIX: Removed min-h-screen from the section below */}
-        {currentSection === "features" && (
-          <section
-className="relative py-28 px-6 bg-white text-black">
-            <div className="container mx-auto">
-              <div className="text-center mb-16">
-                <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-                  Our Key Features
-                </h2>
-                <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
-                  Minimal. Bold. Powerful. Everything you need, nothing you don't.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-                {features.map((feature, index) => (
-                  <div
-                    key={index}
-                    className="group relative cursor-pointer p-8 border border-gray-200 rounded-2xl bg-white hover:shadow-xl transition-all duration-500"
-                  >
-                    <div className="w-14 h-14 flex items-center justify-center rounded-xl text-black mb-6 transition-colors duration-500">
-                      {feature.icon}
-                    </div>
-
-                    <h3 className="text-2xl font-bold mb-3 text-black">
-                      {feature.title}
-                    </h3>
-
-                    <p className="text-gray-600 leading-relaxed">
-                      {feature.description}
-                    </p>
-
-                    <div className="absolute bottom-0 left-0 w-0 h-[2px] bg-black group-hover:w-full transition-all duration-500"></div>
-            <div className="border-t border-gray-200 mt-8 pt-8">
-              <GridConnect />
-
-              <div className="flex items-center my-10">
-                <div className="flex-grow border-t border-gray-300"></div>
-                <Mic className="mx-3 h-5 w-5 text-gray-900" />
-                <div className="flex-grow border-t border-gray-300"></div>
-              </div>
-              <div className="text-center text-gray-600 mt-4">
-                <p>&copy; 2025 Tone2Vibe. All rights reserved.</p>
-              </div>
-            </div>
-          </div>
-        </footer>
-
-        {/* Floating Navigation */}
-        <FloatingNavigation
-          currentSection={currentSection}
-          onSectionChange={setCurrentSection}
-        />
-
-        <AuthModal
-          open={showAuthModal}
-          onOpenChange={setShowAuthModal}
-        />
-        <VideoModal open={showVideoModal} onOpenChange={setShowVideoModal} />
-
-        {showWelcome && !user && (
-          <WelcomePopup
-            onGetStarted={handleWelcomeGetStarted}
-            onClose={handleWelcomeClose}
-          />
-        )}
-
-        {!showWelcome && !cookieConsent && !user && (
-          <CookieConsent
-            onAccept={handleCookieAccept}
-            onDecline={handleCookieDecline}
-          />
-        )}
-
-        {showCookieAlert && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-2xl">
-              <div className="flex items-center space-x-2 mb-4">
-                <Cookie className="h-5 w-5 text-gray-900" />
-                <h3 className="text-lg font-semibold">Cookies Required</h3>
-              </div>
-              <p className="text-gray-600 mb-6">
-                You have declined cookies. Please accept cookies to use login and
-                other features of Tone2Vibe.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={handleCookieAccept}
-                  className="flex-1 bg-gray-900 hover:bg-gray-700"
-                >
-                  Accept Cookies & Continue
-                </Button>
-                <Button
+                <Badge
                   variant="outline"
-                  onClick={() => setShowCookieAlert(false)}
-                  className="flex-1"
+                  className="hidden sm:inline-block text-xs capitalize"
                 >
-                  Cancel
-                </Button>
-              </div>
+                  {profile.plan}
+                </Badge>
+              </>
+            )}
+
+            {user ? (
+              <ProfileDropdown />
+            ) : (
+              <Button
+                onClick={() => setShowAuthModal(true)}
+                className="bg-gray-100/70 hover:bg-gray-200/80 text-black flex items-center gap-2 rounded-xl"
+              >
+                Sign In
+                <LogIn className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main>
+        {renderContent()}
+      </main>
+
+      {/* Divider */}
+      <div className="flex items-center my-10">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <Mic className="mx-3 h-5 w-5 text-gray-900" />
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
+
+      {/* Newsletter */}
+      <NewsletterSection />
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 py-12 px-4">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+              <button
+                onClick={() => handleSectionChange("home")}
+                className="flex items-center space-x-2 mb-4 hover:opacity-80 transition-opacity"
+              >
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                  <Mic className="h-5 w-5 text-black" />
+                </div>
+                <span className="text-xl font-bold text-black">
+                  Tone2Vibe
+                </span>
+              </button>
+              <p className="text-gray-600">
+               "Transform words into moods"
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-bold mb-4 text-black">Product</h4>
+              <ul className="space-y-2 text-gray-600">
+                <li>
+                  <button
+                    onClick={() => handleSectionChange("features")}
+                    className="hover:text-black transition-colors"
+                  >
+                    Features
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleSectionChange("pricing")}
+                    className="hover:text-black transition-colors"
+                  >
+                    Pricing
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold mb-4 text-black">Company</h4>
+              <ul className="space-y-2 text-gray-600">
+                <li>
+                  <Link to="/blog" className="hover:text-black transition-colors">
+                    Blog
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/contact"
+                    className="hover:text-black transition-colors"
+                  >
+                    Contact
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/cookies"
+                    className="hover:text-black transition-colors"
+                  >
+                    Cookie Policy
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-bold mb-4 text-black">Legal</h4>
+              <ul className="space-y-2 text-gray-600">
+                <li>
+                  <Link
+                    to="/privacy"
+                    className="hover:text-black transition-colors"
+                  >
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/terms"
+                    className="hover:text-black transition-colors"
+                  >
+                    Terms of Service
+                  </Link>
+                </li>
+              </ul>
             </div>
           </div>
-        )}
-      </div>
+          <div className="border-t border-gray-200 mt-8 pt-8">
+            <GridConnect />
+            <div className="flex items-center my-10">
+              <div className="flex-grow border-t border-gray-300"></div>
+              <Mic className="mx-3 h-5 w-5 text-gray-900" />
+              <div className="flex-grow border-t border-gray-300"></div>
+            </div>
+            <div className="text-center text-gray-600 mt-4">
+              <p>&copy; 2025 Tone2Vibe. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* Floating Navigation */}
+      <FloatingNavigation
+        currentSection={currentSection}
+        onSectionChange={handleSectionChange}
+      />
+
+      {/* Modals */}
+      <AuthModal
+        open={showAuthModal}
+        onOpenChange={setShowAuthModal}
+        onSuccess={handleAuthSuccess}
+      />
+      <VideoModal open={showVideoModal} onOpenChange={setShowVideoModal} />
+
+      {showWelcome && !user && (
+        <WelcomePopup
+          onGetStarted={handleWelcomeGetStarted}
+          onClose={handleWelcomeClose}
+        />
+      )}
+
+      {!showWelcome && !cookieConsent && !user && (
+        <CookieConsent
+          onAccept={handleCookieAccept}
+          onDecline={handleCookieDecline}
+        />
+      )}
+
+      {showCookieAlert && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center space-x-2 mb-4">
+              <Cookie className="h-5 w-5 text-gray-900" />
+              <h3 className="text-lg font-semibold">Cookies Required</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              You have declined cookies. Please accept cookies to use login and
+              other features of Tone2Vibe.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={handleCookieAccept}
+                className="flex-1 bg-gray-900 hover:bg-gray-700"
+              >
+                Accept Cookies & Continue
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowCookieAlert(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

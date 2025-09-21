@@ -12,95 +12,116 @@ export const FloatingNavigation = ({
   currentSection,
   onSectionChange,
 }: FloatingNavigationProps) => {
-  const [show, setShow] = useState(true);
-  const [isScrolling, setIsScrolling] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+
   const lastScrollY = useRef(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
+  const scrollingTimer = useRef<NodeJS.Timeout | null>(null);
 
   const sections = [
-    { name: "Features", icon: <FileText />, id: "features" },
-    { name: "Home", icon: <Home />, id: "home" },
-    { name: "Pricing", icon: <CreditCard />, id: "pricing" },
+    { name: "Features", icon: <FileText className="h-4 w-4" />, id: "features" },
+    { name: "Home", icon: <Home className="h-4 w-4" />, id: "home" },
+    { name: "Pricing", icon: <CreditCard className="h-4 w-4" />, id: "pricing" },
   ];
 
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      setIsScrolling(true);
+      const scrollingDown = currentScrollY > lastScrollY.current;
 
-      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        setShow(false);
+      setIsUserScrolling(true);
+
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+        inactivityTimer.current = null;
+      }
+
+      if (scrollingTimer.current) {
+        clearTimeout(scrollingTimer.current);
+        scrollingTimer.current = null;
+      }
+
+      if (scrollingDown && currentScrollY > 100) {
+        setIsVisible(false);
       } else {
-        setShow(true);
+        setIsVisible(true);
       }
 
       lastScrollY.current = currentScrollY;
 
-      // Clear existing timers
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      
-      // Hide during scroll, show after 3 seconds of no scrolling
-      timerRef.current = setTimeout(() => setShow(true), 3000);
-      
-      // Reset scrolling state after 100ms
-      scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 100);
+      scrollingTimer.current = setTimeout(() => {
+        setIsUserScrolling(false);
+      }, 100);
+
+      inactivityTimer.current = setTimeout(() => {
+        setIsVisible(true);
+      }, 3000);
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (scrollingTimer.current) clearTimeout(scrollingTimer.current);
     };
   }, []);
 
-  const handleClick = (id: "home" | "features" | "pricing") => {
-    onSectionChange(id);
-    // Scroll to top when changing sections
+  const handleSectionClick = (sectionId: "home" | "features" | "pricing") => {
+    onSectionChange(sectionId);
     setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 100);
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }, 50);
   };
 
   return (
     <div
       className={cn(
-        "fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[100] transition-all duration-300",
-        show && !isScrolling ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0 pointer-events-none"
+        "fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50",
+        "transition-all duration-500 ease-out",
+        isVisible && !isUserScrolling
+          ? "translate-y-0 opacity-100 pointer-events-auto"
+          : "translate-y-12 opacity-0 pointer-events-none"
       )}
     >
-      <div className="bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-2 py-2 shadow-2xl flex items-center space-x-2 sm:space-x-0">
-        {sections.map((section, index) => (
-          <div key={section.id} className="flex items-center">
-             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleClick(section.id as "home" | "features" | "pricing")}
-              className={cn(
-                "rounded-full h-10 w-20 sm:w-28 flex items-center justify-center sm:justify-start px-0 sm:px-4 transition-colors duration-300",
-                currentSection === section.id
-                  ? "bg-black text-white shadow-lg hover:bg-black hover:text-white"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-black"
-              )}
+      <div className="bg-white/95 backdrop-blur-lg border border-gray-200/50 rounded-full shadow-2xl px-3 py-2">
+        <div className="flex items-center space-x-2">
+          {sections.map((section, index) => (
+            <div
+              key={section.id}
+              data-lov-id={section.id}
+              className="flex items-center"
             >
-              {React.cloneElement(section.icon, {
-                className: cn(
-                  "h-5 w-5 transition-colors duration-300",
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleSectionClick(section.id as "home" | "features" | "pricing")}
+                className={cn(
+                  "rounded-full transition-all duration-300 ease-out",
+                  "h-10 px-4 flex items-center justify-center gap-2",
+                  "hover:scale-105 active:scale-95",
                   currentSection === section.id
-                    ? "text-white"
-                    : "text-gray-600 group-hover:text-black"
-                ),
-              })}
-              <span className="hidden sm:inline ml-2">{section.name}</span>
-            </Button>
+                    ? "bg-black text-white shadow-lg hover:bg-black hover:text-white"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-black"
+                )}
+              >
+                {section.icon}
+                <span className="hidden sm:inline text-sm font-medium">
+                  {section.name}
+                </span>
+              </Button>
 
-            {index < sections.length - 1 && (
-              <div className="hidden sm:block w-px h-6 bg-gray-300 mx-2"></div>
-            )}
-          </div>
-        ))}
+              {/* Separator */}
+              {index < sections.length - 1 && (
+                <div className="w-px h-4 bg-gray-300 hidden sm:block" />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
