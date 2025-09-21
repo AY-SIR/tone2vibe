@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Home, FileText, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,9 +17,9 @@ export const FloatingNavigation = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const sections = [
-    { name: "Features", icon: <FileText className="h-5 w-5" />, id: "features" },
-    { name: "Home", icon: <Home className="h-5 w-5" />, id: "home" },
-    { name: "Pricing", icon: <CreditCard className="h-5 w-5" />, id: "pricing" },
+    { name: "Features", icon: <FileText />, id: "features" },
+    { name: "Home", icon: <Home />, id: "home" },
+    { name: "Pricing", icon: <CreditCard />, id: "pricing" },
   ];
 
   useEffect(() => {
@@ -47,8 +47,7 @@ export const FloatingNavigation = ({
 
   const handleClick = (id: "home" | "features" | "pricing") => {
     onSectionChange(id);
-    // Smooth scroll to top when changing sections
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -58,27 +57,35 @@ export const FloatingNavigation = ({
         show ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0 pointer-events-none"
       )}
     >
-      <div className="bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-2 py-2 shadow-2xl flex items-center space-x-2 sm:space-x-0 dark:bg-black/90 dark:border-white/10">
+      <div className="bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-2 py-2 shadow-2xl flex items-center space-x-2 sm:space-x-0">
         {sections.map((section, index) => (
           <div key={section.id} className="flex items-center">
-            <Button
+             <Button
               variant="ghost"
               size="sm"
               onClick={() => handleClick(section.id as "home" | "features" | "pricing")}
               className={cn(
                 "rounded-full h-10 w-20 sm:w-28 flex items-center justify-center sm:justify-start px-0 sm:px-4 transition-colors duration-300",
                 currentSection === section.id
-                  ? "bg-black text-white shadow-lg dark:bg-white dark:text-black"
-                  : "hover:bg-gray-100 text-gray-600 dark:hover:bg-gray-800 dark:text-gray-400"
+                  // --- FIX: Added explicit hover styles to the active button ---
+                  ? "bg-black text-white shadow-lg hover:bg-black hover:text-white"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-black"
               )}
             >
-              {section.icon}
+              {/* No changes needed for the icon, its styling was correct */}
+              {React.cloneElement(section.icon, {
+                className: cn(
+                  "h-5 w-5 transition-colors duration-300",
+                  currentSection === section.id
+                    ? "text-white"
+                    : "text-gray-600 group-hover:text-black" // Using group-hover for icon color change
+                ),
+              })}
               <span className="hidden sm:inline ml-2">{section.name}</span>
             </Button>
 
-            {/* Divider (hidden on mobile) */}
             {index < sections.length - 1 && (
-              <div className="hidden sm:block w-px h-6 bg-gray-300 mx-2 dark:bg-gray-600"></div>
+              <div className="hidden sm:block w-px h-6 bg-gray-300 mx-2"></div>
             )}
           </div>
         ))}

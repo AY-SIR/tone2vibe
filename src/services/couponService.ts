@@ -1,4 +1,5 @@
-// Simplified coupon service - tables will be created later
+import { supabase } from "@/integrations/supabase/client";
+
 export interface CouponValidation {
   isValid: boolean;
   discount: number;
@@ -13,30 +14,22 @@ export interface CouponValidation {
 }
 
 export class CouponService {
-  // Simple placeholder for now - will be expanded when database tables are created
   static async validateCoupon(
-    couponCode: string, 
-    amount: number, 
+    couponCode: string,
+    amount: number,
     type: 'subscription' | 'words'
   ): Promise<CouponValidation> {
-    // Hardcoded coupons for now - replace with database later
-    const coupons: Record<string, { discount: number; type: string }> = {
-      'SAVE10': { discount: 10, type: 'both' },
-      'WELCOME20': { discount: 20, type: 'subscription' },
-      'WORDS15': { discount: 15, type: 'words' }
-    };
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('code', couponCode.toUpperCase())
+      .single();
 
-    const coupon = coupons[couponCode.toUpperCase()];
-    
-    if (!coupon) {
-      return {
-        isValid: false,
-        discount: 0,
-        message: 'Invalid coupon code'
-      };
+    if (error || !data) {
+      return { isValid: false, discount: 0, message: 'Invalid coupon code' };
     }
 
-    if (coupon.type !== 'both' && coupon.type !== type) {
+    if (data.type !== 'both' && data.type !== type) {
       return {
         isValid: false,
         discount: 0,
@@ -44,12 +37,23 @@ export class CouponService {
       };
     }
 
-    const discount = Math.round((amount * coupon.discount) / 100);
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      return { isValid: false, discount: 0, message: 'Coupon has expired' };
+    }
+
+    const discount = Math.round((amount * data.discount_percentage) / 100);
 
     return {
       isValid: true,
       discount,
-      message: `Coupon applied! You save ₹${discount} (${coupon.discount}% off)`
+      message: `Coupon applied! You save ₹${discount} (${data.discount_percentage}% off)`,
+      coupon: {
+        id: data.id,
+        code: data.code,
+        discount_percentage: data.discount_percentage,
+        discount_amount: discount,
+        expires_at: data.expires_at
+      }
     };
   }
 }

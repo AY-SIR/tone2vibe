@@ -9,6 +9,7 @@ import { FloatingNavigation } from "@/components/ui/FloatingNavigation";
 import { MobileWordCounter } from "@/components/layout/MobileWordCounter";
 
 import {
+  lock,
   Mic,
   Globe,
   Zap,
@@ -309,7 +310,7 @@ const Index = () => {
 
         {/* Dynamic Content Based on Current Section */}
         {currentSection === "home" && (
-          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
+        <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
 
 <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
               <GridPattern rows={15} columns={50} cellSize={32} />
@@ -360,6 +361,7 @@ const Index = () => {
             </div>
           </section>
         )}
+
 
         {/* FIX: Removed min-h-screen from the section below */}
         {currentSection === "features" && (

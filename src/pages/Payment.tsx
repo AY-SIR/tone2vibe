@@ -271,7 +271,7 @@ const Payment = () => {
           <TabsContent value="plans" className="space-y-6 sm:space-y-8">
             <div className="text-center mb-6 sm:mb-12">
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4">Choose Your Plan</h1>
-              <p className="text-base sm:text-lg md:text-xl font-bold text-gray-600 max-w-3xl mx-auto px-4">
+              <p className="text-base sm:text-lg md:text-xl  text-gray-600 max-w-3xl mx-auto px-4">
                 Unlock the full potential of AI voice cloning with our flexible pricing plans.
               </p>
             </div>

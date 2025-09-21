@@ -123,9 +123,9 @@ export function WordPurchase() {
       }
     } catch (error) {
       console.error('Payment error:', error);
-      
+
       let friendlyMessage = "Something went wrong with your payment. Please try again.";
-      
+
       if (error instanceof Error) {
         if (error.message.includes('India')) {
           friendlyMessage = "This service is only available for users in India.";
@@ -133,7 +133,7 @@ export function WordPurchase() {
           friendlyMessage = "Unable to start payment process. Please try again.";
         }
       }
-      
+
       toast({
         title: "Payment Issue",
         description: friendlyMessage,
@@ -207,7 +207,7 @@ export function WordPurchase() {
                 </p>
               </div>
             </div>
-            
+
             {/* Only show purchased words if user actually has some */}
             {(profile.word_balance || 0) > 0 && (
               <div className="mt-2 pt-2 border-t">
@@ -217,7 +217,7 @@ export function WordPurchase() {
                 </div>
               </div>
             )}
-            
+
             <div className="mt-2 text-xs text-gray-500 space-y-1">
               <p><strong>Plan:</strong> {profile.plan.toUpperCase()} - {profile.plan === 'free' ? '1,000' : profile.plan === 'pro' ? '10,000' : '50,000'} words/month</p>
               {profile.plan !== 'free' && (
@@ -292,41 +292,49 @@ export function WordPurchase() {
         </CardContent>
       </Card>
 
-      {/* Payment Gateway Selection Dialog */}
-      <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
-        <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="text-center text-base sm:text-lg font-semibold">Choose Payment Method</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <p className="font-medium text-sm">Purchase Summary</p>
-              <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
-              <p className="text-base sm:text-lg font-bold">
-                ₹{calculatePrice(wordsAmount)}
-              </p>
-            </div>
 
-            <div className="space-y-2">
-              {/* Instamojo Payment (India Only) */}
-              <Button
-                onClick={handlePaymentGateway}
-                disabled={loading}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm"
-                size="lg"
-              >
-                <IndianRupee className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                Pay ₹{calculatePrice(wordsAmount)} - Secure Payment
-                <Badge className="ml-2 bg-green-500 text-xs">Safe & Fast</Badge>
-              </Button>
-            </div>
+  {/* Payment Gateway Selection Dialog */}
+  <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
+    <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6">
+      <DialogHeader className="pb-4">
+        <DialogTitle className="text-center text-base sm:text-lg font-semibold">
+          Choose Payment Method
+        </DialogTitle>
+      </DialogHeader>
 
-            <p className="text-xs text-gray-500 text-center">
-              Secure payment processing for India • No additional fees
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+      <div className="space-y-4">
+        {/* Purchase Summary */}
+        <div className="text-center p-3 bg-gray-50 rounded-lg">
+          <p className="font-medium text-sm">Purchase Summary</p>
+          <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
+          <p className="text-base sm:text-lg font-bold">
+            ₹{calculatePrice(wordsAmount)}
+          </p>
+        </div>
+
+        {/* Instamojo Payment (India Only) */}
+        <div className="space-y-2 px-2 sm:px-0">
+          <Button
+            onClick={handlePaymentGateway}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm px-3 py-2 sm:py-3 rounded-md"
+            size="lg"
+          >
+            <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate text-center">
+              Pay ₹{calculatePrice(wordsAmount)} - Secure Payment
+            </span>
+            <Badge className="ml-2 bg-green-500 text-[10px] sm:text-xs px-1.5 py-0.5 rounded">
+              Safe & Fast
+            </Badge>
+          </Button>
+
+          <p className="text-[10px] sm:text-xs text-gray-500 text-center px-1 sm:px-0">
+            Secure payment processing for India • No additional fees
+          </p>
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
+</>
+); }
