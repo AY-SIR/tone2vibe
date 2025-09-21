@@ -112,9 +112,9 @@ export class LocationService {
       }
 
       return {
-        country: data.country || 'Unknown',
-        countryCode: data.country_code?.toUpperCase() || 'Unknown',
-        ip: data.ip || undefined,
+        country: 'Unknown',
+        countryCode: 'Unknown',
+        ip: undefined,
       };
     } catch (err) {
       console.error('Error fetching location from DB:', err);

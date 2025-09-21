@@ -71,7 +71,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
             value={couponCode}
             onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
             onKeyPress={handleKeyPress}
-            disabled={disabled || isValidating || (validationResult?.isValid && !validationResult.coupon)}
+            disabled={disabled || isValidating || validationResult?.isValid}
             className="text-sm"
           />
         </div>
@@ -123,7 +123,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
       )}
 
       {/* Discount Preview */}
-      {validationResult?.isValid && validationResult.coupon && (
+      {validationResult?.isValid && (
         <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex justify-between items-center text-sm">
             <span className="text-green-700">Original Amount:</span>

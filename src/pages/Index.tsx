@@ -90,7 +90,7 @@ const Index = () => {
   const loadPricing = async () => {
     try {
       const country = await detectAndSaveCountry();
-      const userPricing = LocationService.getPricing(country);
+      const userPricing = LocationService.getPricing();
       setPricing(userPricing);
     } catch (error) {
       console.error("Failed to load pricing:", error);
