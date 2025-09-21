@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -13,23 +19,27 @@ import { CouponInput } from "./CouponInput";
 import type { CouponValidation } from "@/services/couponService";
 
 interface PaymentGatewayProps {
-  selectedPlan: 'pro' | 'premium';
-  onPayment: (plan: 'pro' | 'premium') => void;
+  selectedPlan: "pro" | "premium";
+  onPayment: (plan: "pro" | "premium") => void;
   isProcessing: boolean;
 }
 
-export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: PaymentGatewayProps) {
+export function PaymentGateway({
+  selectedPlan,
+  onPayment,
+  isProcessing
+}: PaymentGatewayProps) {
   const { profile, user } = useAuth();
   const { toast } = useToast();
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [couponValidation, setCouponValidation] = useState<CouponValidation>({
     isValid: false,
     discount: 0,
-    message: ''
+    message: ""
   });
   const [pricing] = useState({
-    currency: 'INR',
-    symbol: '₹',
+    currency: "INR",
+    symbol: "₹",
     plans: {
       pro: { price: 99, originalPrice: 99 },
       premium: { price: 299, originalPrice: 299 }
@@ -48,7 +58,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         "High quality audio",
         "30 days history",
         "Priority support",
-        "Basic Analytics",
+        "Basic Analytics"
       ],
       icon: <Crown className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: "bg-gray-700"
@@ -64,7 +74,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         "Ultra-high quality",
         "90 days history",
         "24/7 support",
-        "Advanced Analytics",
+        "Advanced Analytics"
       ],
       icon: <Star className="h-4 w-4 sm:h-5 sm:w-5" />,
       color: "bg-gray-700"
@@ -76,11 +86,11 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   const finalAmount = Math.max(0, baseAmount - couponValidation.discount);
 
   const currentPlan = profile?.plan;
-  const isUpgrade = currentPlan === 'pro' && selectedPlan === 'premium';
-  const isDowngrade = currentPlan === 'premium' && selectedPlan === 'pro';
+  const isUpgrade = currentPlan === "pro" && selectedPlan === "premium";
+  const isDowngrade = currentPlan === "premium" && selectedPlan === "pro";
   const isChange = isUpgrade || isDowngrade;
 
-  const canPurchase = currentPlan === 'free' || isChange;
+  const canPurchase = currentPlan === "free" || isChange;
 
   const handleCouponApplied = (validation: CouponValidation) => {
     setCouponValidation(validation);
@@ -104,28 +114,35 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       // Create Instamojo payment
       const result = await InstamojoService.createPlanPayment(
         selectedPlan,
-        user.email || '',
-        user.user_metadata?.full_name || user.user_metadata?.display_name || 'User'
+        user.email || "",
+        user.user_metadata?.full_name ||
+          user.user_metadata?.display_name ||
+          "User"
       );
 
       if (result.success && result.payment_request?.longurl) {
-        // Redirect to Instamojo payment page
         window.location.href = result.payment_request.longurl;
       } else {
-        throw new Error(result.message || 'Failed to create payment');
+        throw new Error(result.message || "Failed to create payment");
       }
     } catch (error) {
-      console.error('Payment error:', error);
+      console.error("Payment error:", error);
 
-      let userFriendlyMessage = "We're having trouble processing your payment right now. Please try again in a moment.";
+      let userFriendlyMessage =
+        "We're having trouble processing your payment right now. Please try again in a moment.";
 
       if (error instanceof Error) {
-        if (error.message.includes('network') || error.message.includes('fetch')) {
-          userFriendlyMessage = "Please check your internet connection and try again.";
-        } else if (error.message.includes('unauthorized') || error.message.includes('auth')) {
+        if (error.message.includes("network") || error.message.includes("fetch")) {
+          userFriendlyMessage =
+            "Please check your internet connection and try again.";
+        } else if (
+          error.message.includes("unauthorized") ||
+          error.message.includes("auth")
+        ) {
           userFriendlyMessage = "Please sign in again and try your payment.";
-        } else if (error.message.includes('India')) {
-          userFriendlyMessage = "This service is only available for users in India.";
+        } else if (error.message.includes("India")) {
+          userFriendlyMessage =
+            "This service is only available for users in India.";
         }
       }
 
@@ -137,14 +154,19 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
     }
   };
 
+  // --- Already subscribed ---
   if (!canPurchase && currentPlan === selectedPlan) {
     return (
-      <Card className="w-full max-w-md mx-auto border-orange-200">
+      <Card className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto border-orange-200">
         <CardHeader className="text-center p-3 sm:p-6">
-          <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
+          <div
+            className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}
+          >
             {plan.icon}
           </div>
-          <CardTitle className="text-base sm:text-lg md:text-2xl">Already Subscribed</CardTitle>
+          <CardTitle className="text-base sm:text-lg md:text-2xl">
+            Already Subscribed
+          </CardTitle>
           <CardDescription className="text-xs sm:text-sm">
             You're already on the {plan.name} plan
           </CardDescription>
@@ -155,7 +177,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
             You're currently enjoying all {plan.name} features
           </p>
           <Button
-            onClick={() => window.location.href = '/'}
+            onClick={() => (window.location.href = "/")}
             className="w-full text-xs sm:text-sm"
             variant="outline"
           >
@@ -166,22 +188,28 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
     );
   }
 
+  // --- Invalid change ---
   if (!canPurchase) {
     return (
-      <Card className="w-full max-w-md mx-auto border-red-200">
+      <Card className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto border-red-200">
         <CardHeader className="text-center p-3 sm:p-6">
           <AlertTriangle className="h-10 w-10 sm:h-12 sm:w-12 text-red-500 mx-auto mb-4" />
-          <CardTitle className="text-base sm:text-lg md:text-2xl">Invalid Plan Change</CardTitle>
+          <CardTitle className="text-base sm:text-lg md:text-2xl">
+            Invalid Plan Change
+          </CardTitle>
           <CardDescription className="text-xs sm:text-sm">
             Plan changes are restricted based on your current subscription
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center p-3 sm:p-6">
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
-            Current plan: <Badge variant="outline" className="text-xs">{currentPlan}</Badge>
+            Current plan:{" "}
+            <Badge variant="outline" className="text-xs">
+              {currentPlan}
+            </Badge>
           </p>
           <Button
-            onClick={() => window.location.href = '/payment'}
+            onClick={() => (window.location.href = "/payment")}
             className="w-full text-xs sm:text-sm"
             variant="outline"
           >
@@ -192,36 +220,46 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
     );
   }
 
+  // --- Main card ---
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto">
       <CardHeader className="text-center p-3 sm:p-6">
-        <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
+        <div
+          className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}
+        >
           {plan.icon}
         </div>
         <CardTitle className="text-base sm:text-lg md:text-2xl">
-          {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}
+          {isUpgrade
+            ? "Upgrade to "
+            : isDowngrade
+            ? "Downgrade to "
+            : "Subscribe to "}
+          {plan.name}
         </CardTitle>
         <CardDescription className="text-xs sm:text-sm">
           {isChange
             ? `Change your ${currentPlan} plan to ${selectedPlan} plan`
-            : 'Choose your subscription plan and start creating amazing voice content'
-          }
+            : "Choose your subscription plan and start creating amazing voice content"}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6">
         {/* Current Plan Badge */}
-        {currentPlan && currentPlan !== 'free' && (
+        {currentPlan && currentPlan !== "free" && (
           <div className="text-center">
             <Badge variant="outline" className="mb-4 text-xs">
-              Currently on {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
+              Currently on{" "}
+              {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
             </Badge>
           </div>
         )}
 
-        {/* Plan Features */}
+        {/* Features */}
         <div className="space-y-2">
-          <h4 className="font-medium text-xs sm:text-sm text-gray-900">What's included:</h4>
+          <h4 className="font-medium text-xs sm:text-sm text-gray-900">
+            What's included:
+          </h4>
           <ul className="space-y-1">
             {plan.features.map((feature, index) => (
               <li key={index} className="flex items-center space-x-2 text-xs">
@@ -234,7 +272,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
 
         <Separator />
 
-        {/* Coupon Section */}
+        {/* Coupon */}
         <CouponInput
           amount={baseAmount}
           type="subscription"
@@ -244,19 +282,27 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
 
         <Separator />
 
-        {/* Pricing Breakdown */}
+        {/* Pricing */}
         <div className="space-y-2">
-          <h4 className="font-medium text-xs sm:text-sm text-gray-900">Pricing Details:</h4>
+          <h4 className="font-medium text-xs sm:text-sm text-gray-900">
+            Pricing Details:
+          </h4>
 
           <div className="flex justify-between text-xs">
             <span>Plan Price</span>
-            <span>{pricing.symbol}{baseAmount}</span>
+            <span>
+              {pricing.symbol}
+              {baseAmount}
+            </span>
           </div>
 
           {couponValidation.isValid && (
             <div className="flex justify-between text-xs text-green-600">
               <span>Coupon Discount</span>
-              <span>-{pricing.symbol}{couponValidation.discount}</span>
+              <span>
+                -{pricing.symbol}
+                {couponValidation.discount}
+              </span>
             </div>
           )}
 
@@ -264,7 +310,10 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
 
           <div className="flex justify-between font-medium text-xs sm:text-sm">
             <span>Total Amount</span>
-            <span>{pricing.symbol}{finalAmount}</span>
+            <span>
+              {pricing.symbol}
+              {finalAmount}
+            </span>
           </div>
 
           <div className="text-xs text-gray-500 text-center">
@@ -272,7 +321,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           </div>
         </div>
 
-        {/* Payment Confirmation */}
+        {/* Confirm */}
         <div className="space-y-3">
           <div className="flex items-start space-x-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
             <Checkbox
@@ -282,14 +331,19 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
             />
             <div className="text-xs text-gray-600">
               <label htmlFor="confirm-payment" className="cursor-pointer">
-                I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong>
-                for the {plan.name} plan. This amount will be charged to my selected payment method.
+                I confirm the payment of{" "}
+                <strong>
+                  {pricing.symbol}
+                  {finalAmount}
+                </strong>{" "}
+                for the {plan.name} plan. This amount will be charged to my
+                selected payment method.
               </label>
             </div>
           </div>
         </div>
 
-        {/* Payment Button */}
+        {/* Button */}
         <Button
           onClick={handlePayment}
           disabled={isProcessing || !confirmPayment}
@@ -306,9 +360,11 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
             <div className="flex items-center space-x-2">
               <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>
-                {isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` :
-                 isDowngrade ? `Downgrade for ${pricing.symbol}${finalAmount}` :
-                 `Subscribe for ${pricing.symbol}${finalAmount}`}
+                {isUpgrade
+                  ? `Upgrade for ${pricing.symbol}${finalAmount}`
+                  : isDowngrade
+                  ? `Downgrade for ${pricing.symbol}${finalAmount}`
+                  : `Subscribe for ${pricing.symbol}${finalAmount}`}
               </span>
             </div>
           )}
