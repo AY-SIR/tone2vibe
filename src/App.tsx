@@ -1,3 +1,4 @@
+import React from "react";
 import Blog from "@/components/sections/blog";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,7 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { SecurityProvider } from "@/components/common/SecurityProvider";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -26,7 +27,14 @@ import EmailConfirmed from "./pages/EmailConfirmed";
 
 const queryClient = new QueryClient();
 
+import { DatabaseSecurity } from "@/lib/secureDatabase";
+
 function App() {
+  useEffect(() => {
+    // Initialize database security measures
+    DatabaseSecurity.initializeSecurityMeasures();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

@@ -17,8 +17,7 @@ const PaymentSuccess = () => {
   const [successTitle, setSuccessTitle] = useState("Payment Successful!");
   const [successDescription, setSuccessDescription] = useState("");
 
-  // Get URL parameters
-  const sessionId = searchParams.get("session_id");
+  // Get URL parameters (removed sessionId as it's Stripe specific)
   const plan = searchParams.get("plan");
   const type = searchParams.get("type");
   const count = searchParams.get("count");
@@ -27,16 +26,16 @@ const PaymentSuccess = () => {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      if (!sessionId && !paymentId) {
+      if (!paymentId && !paymentRequestId) {
         navigate("/payment");
         return;
       }
 
       try {
-        if (type === 'words' && sessionId) {
-          // Legacy Stripe word purchase verification
-          const { data, error } = await supabase.functions.invoke("verify-word-purchase", {
-            body: { sessionId }
+        if (type === 'words' && paymentId) {
+          // Instamojo word purchase verification
+          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
+            body: { payment_id: paymentId, payment_request_id: paymentRequestId, type: 'words' }
           });
 
           if (error) throw error;
@@ -54,10 +53,10 @@ const PaymentSuccess = () => {
           } else {
             throw new Error(data.error || 'Verification failed');
           }
-        } else if (plan && sessionId) {
-          // Legacy Stripe subscription verification
-          const { data, error } = await supabase.functions.invoke("verify-stripe-payment", {
-            body: { sessionId, plan }
+        } else if (plan && paymentId) {
+          // Instamojo subscription verification
+          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
+            body: { payment_id: paymentId, payment_request_id: paymentRequestId, type: 'subscription', plan }
           });
 
           if (error) throw error;
@@ -113,7 +112,7 @@ const PaymentSuccess = () => {
     };
 
     verifyPayment();
-  }, [sessionId, paymentId, paymentRequestId, plan, type, count, navigate, refreshProfile, toast]);
+  }, [paymentId, paymentRequestId, plan, type, count, navigate, refreshProfile, toast]);
 
   if (isVerifying) {
     return (

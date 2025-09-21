@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
+import { CouponInput } from "./CouponInput";
+import type { CouponValidation } from "@/services/couponService";
 
 interface PaymentGatewayProps {
   selectedPlan: 'pro' | 'premium';
@@ -20,6 +22,11 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   const { profile, user } = useAuth();
   const { toast } = useToast();
   const [confirmPayment, setConfirmPayment] = useState(false);
+  const [couponValidation, setCouponValidation] = useState<CouponValidation>({
+    isValid: false,
+    discount: 0,
+    message: ''
+  });
   const [pricing] = useState({
     currency: 'INR',
     symbol: '₹',
@@ -65,7 +72,8 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   };
 
   const plan = planDetails[selectedPlan];
-  const totalAmount = plan.price;
+  const baseAmount = plan.price;
+  const finalAmount = Math.max(0, baseAmount - couponValidation.discount);
   
   const currentPlan = profile?.plan;
   const isUpgrade = currentPlan === 'pro' && selectedPlan === 'premium';
@@ -73,6 +81,10 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   const isChange = isUpgrade || isDowngrade;
 
   const canPurchase = currentPlan === 'free' || isChange;
+
+  const handleCouponApplied = (validation: CouponValidation) => {
+    setCouponValidation(validation);
+  };
 
   const handlePayment = async () => {
     if (!user || !confirmPayment) return;
@@ -221,6 +233,16 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         </div>
 
         <Separator />
+        
+        {/* Coupon Section */}
+        <CouponInput 
+          amount={baseAmount}
+          type="subscription"
+          onCouponApplied={handleCouponApplied}
+          disabled={isProcessing}
+        />
+
+        <Separator />
 
         {/* Pricing Breakdown */}
         <div className="space-y-2">
@@ -228,14 +250,21 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           
           <div className="flex justify-between text-xs">
             <span>Plan Price</span>
-            <span>{pricing.symbol}{plan.price}</span>
+            <span>{pricing.symbol}{baseAmount}</span>
           </div>
+          
+          {couponValidation.isValid && (
+            <div className="flex justify-between text-xs text-green-600">
+              <span>Coupon Discount</span>
+              <span>-{pricing.symbol}{couponValidation.discount}</span>
+            </div>
+          )}
           
           <Separator />
           
           <div className="flex justify-between font-medium text-xs sm:text-sm">
             <span>Total Amount</span>
-            <span>{pricing.symbol}{totalAmount}</span>
+            <span>{pricing.symbol}{finalAmount}</span>
           </div>
           
           <div className="text-xs text-gray-500 text-center">
@@ -253,7 +282,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
             />
             <div className="text-xs text-gray-600">
               <label htmlFor="confirm-payment" className="cursor-pointer">
-                I confirm the payment of <strong>{pricing.symbol}{totalAmount}</strong> 
+                I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong> 
                 for the {plan.name} plan. This amount will be charged to my selected payment method.
               </label>
             </div>
@@ -277,9 +306,9 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
             <div className="flex items-center space-x-2">
               <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>
-                {isUpgrade ? `Upgrade for ${pricing.symbol}${totalAmount}` : 
-                 isDowngrade ? `Downgrade for ${pricing.symbol}${totalAmount}` : 
-                 `Subscribe for ${pricing.symbol}${totalAmount}`}
+                {isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` : 
+                 isDowngrade ? `Downgrade for ${pricing.symbol}${finalAmount}` : 
+                 `Subscribe for ${pricing.symbol}${finalAmount}`}
               </span>
             </div>
           )}

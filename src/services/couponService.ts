@@ -3,6 +3,13 @@ export interface CouponValidation {
   isValid: boolean;
   discount: number;
   message: string;
+  coupon?: {
+    id: string;
+    code: string;
+    discount_percentage: number;
+    discount_amount: number;
+    expires_at?: string;
+  };
 }
 
 export class CouponService {

@@ -31,7 +31,7 @@ import {
   ArrowLeft,
   Mic,
   Volume2,
-  Hash,
+  
 } from "lucide-react";
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
@@ -273,7 +273,7 @@ const History = () => {
                   <div>
                     <h3 className="font-medium text-sm">AI Voice Generation</h3>
                     <p className="text-xs text-muted-foreground">
-                      Generated: {generatedVoices.length} projects • ID: #VG{new Date().getFullYear()}
+                      Generated: {generatedVoices.length} projects
                     </p>
                   </div>
                 </div>
@@ -293,7 +293,7 @@ const History = () => {
                   <div>
                     <h3 className="font-medium text-sm">User Recorded Voice</h3>
                     <p className="text-xs text-muted-foreground">
-                      Recorded: {recordedVoices.length} samples • ID: #UR{new Date().getFullYear()}
+                      Recorded: {recordedVoices.length} samples
                     </p>
                   </div>
                 </div>
@@ -335,8 +335,8 @@ const History = () => {
                 {showGeneratedVoices && generatedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
                     <div className="flex items-center gap-2 mb-4 p-3 bg-primary/5 rounded-lg">
-                      <Hash className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">AI Generated Voice Projects - ID: #VG{new Date().getFullYear()}</span>
+                      <Volume2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">AI Generated Voice Projects</span>
                     </div>
                     {generatedVoices.map((project) => (
                       <ProjectCard
@@ -371,8 +371,8 @@ const History = () => {
                 {showRecordedVoices && recordedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
                     <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/5 rounded-lg">
-                      <Hash className="h-4 w-4 text-secondary" />
-                      <span className="text-sm font-medium">User Recorded Voice Projects - ID: #UR{new Date().getFullYear()}</span>
+                      <Mic className="h-4 w-4 text-secondary" />
+                      <span className="text-sm font-medium">User Recorded Voice Projects</span>
                     </div>
                     {recordedVoices.map((project) => (
                       <ProjectCard

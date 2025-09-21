@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { VoiceRecorder } from "@/components/tool/VoiceRecorder";
 import { VoiceHistoryDropdown } from "@/components/tool/VoiceHistoryDropdown";
 import { PrebuiltVoiceService, type PrebuiltVoice } from "@/services/prebuiltVoiceService";
+import { UploadLimitService } from "@/services/uploadLimitService";
 
 interface ModernStepThreeProps {
   onNext: () => void;
@@ -117,7 +118,7 @@ export default function ModernStepThree({
     if (!file) return;
 
     const allowedTypes = ["audio/mp3", "audio/wav", "audio/mpeg", "audio/wave", "audio/x-wav"];
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = UploadLimitService.getUploadLimit(profile?.plan || 'free') * 1024 * 1024; // Convert MB to bytes
     
     if (!allowedTypes.includes(file.type)) {
       toast({
@@ -131,7 +132,7 @@ export default function ModernStepThree({
     if (file.size > maxSize) {
       toast({
         title: "File Too Large",
-        description: "Please upload a file smaller than 10MB.",
+        description: `Please upload a file smaller than ${UploadLimitService.getUploadLimit(profile?.plan || 'free')}MB.`,
         variant: "destructive",
       });
       return;
