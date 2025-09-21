@@ -310,9 +310,8 @@ const Index = () => {
 
         {/* Dynamic Content Based on Current Section */}
         {currentSection === "home" && (
-        <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
-
-<div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
+          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
+            <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
               <GridPattern rows={15} columns={50} cellSize={32} />
             </div>
             <div className="relative z-10 container mx-auto max-w-4xl">
@@ -362,11 +361,8 @@ const Index = () => {
           </section>
         )}
 
-
-        {/* FIX: Removed min-h-screen from the section below */}
         {currentSection === "features" && (
-          <section
-className="relative py-28 px-6 bg-white text-black">
+          <section className="relative py-28 px-6 bg-white text-black">
             <div className="container mx-auto">
               <div className="text-center mb-16">
                 <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
@@ -407,13 +403,12 @@ className="relative py-28 px-6 bg-white text-black">
           </section>
         )}
 
-        {/* FIX: Removed min-h-screen from the section below */}
         {currentSection === "pricing" && (
-          <section  className="py-28 px-4 " >
+          <section className="py-28 px-4">
             <div className="container mx-auto">
               <div className="text-center mb-16 animate-fade-in">
                 <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-                   Popular Plans
+                  Popular Plans
                 </h2>
                 <p className="text-gray-600 text-xl max-w-2xl mx-auto mt-4">
                   Choose the perfect plan for your voice cloning needs
@@ -464,7 +459,7 @@ className="relative py-28 px-6 bg-white text-black">
                         ))}
                       </ul>
 
-                       <Button
+                      <Button
                         className={`w-full ${
                           plan.popular
                             ? "bg-black hover:bg-gray-800 text-white"
@@ -481,15 +476,17 @@ className="relative py-28 px-6 bg-white text-black">
             </div>
           </section>
         )}
-<div className="flex items-center my-10">
-  <div className="flex-grow border-t border-gray-300"></div>
-  <Mic className="mx-3 h-5 w-5 text-gray-900" />
-  <div className="flex-grow border-t border-gray-300"></div>
-</div>
+
+        <div className="flex items-center my-10">
+          <div className="flex-grow border-t border-gray-300"></div>
+          <Mic className="mx-3 h-5 w-5 text-gray-900" />
+          <div className="flex-grow border-t border-gray-300"></div>
+        </div>
+        
         {/* Fixed Newsletter and Footer */}
         <NewsletterSection />
 
-            <footer className="bg-white border-t border-gray-200 py-12 px-4">
+        <footer className="bg-white border-t border-gray-200 py-12 px-4">
           <div className="container mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div>
@@ -505,84 +502,75 @@ className="relative py-28 px-6 bg-white text-black">
                   </span>
                 </Link>
                 <p className="text-gray-600">
-                 "Transform words into moods"
+                  "Transform words into moods"
                 </p>
               </div>
 
               <div>
                 <h4 className="font-bold mb-4 text-black">Product</h4>
                 <ul className="space-y-2 text-gray-600">
-                 <li>
-  <button onClick={() => setCurrentSection("features")} className="hover:text-black transition-colors">
-    Features
-  </button>
-</li>
-<li>
-  <button onClick={() => setCurrentSection("pricing")} className="hover:text-black transition-colors">
-    Pricing
-  </button>
-</li>
-
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-bold mb-4 text-black">Company</h4>
-                <ul className="space-y-2 text-gray-600">
-                 {/* FIX: Added Blog link */}
-                 <li>
-                    <Link to="/blog" className="hover:text-black transition-colors">
-                      Blog
-                    </Link>
-                  </li>
-                 <li>
-                    <Link
-                      to="/contact"className="hover:text-black transition-colors"
-                    >
-                      Contact
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/cookies"
-                      className="hover:text-black transition-colors"
-                    >
-                      Cookie Policy
-                    </Link>
-                 </li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-bold mb-4 text-black">Legal</h4>
-                <ul className="space-y-2 text-gray-600">
-                 <li>
-                    <Link
-                      to="/privacy"
-                      className="hover:text-black transition-colors"
-                    >
-                      Privacy Policy
-                    </Link>
-                    </li>
+                  {currentSection !== "features" && (
                     <li>
-                    <Link
-                      to="/terms"
-                      className="hover:text-black transition-colors"
-                    >
-                      Terms of Service
-                    </Link>
-                  </li>
-                </ul>
+                      <button onClick={() => setCurrentSection("features")} className="hover:text-black transition-colors">
+                        Features
+                      </button>
+                    </li>
+                  )}
+                  {currentSection !== "pricing" && (
+                    <li>
+                      <button onClick={() => setCurrentSection("pricing")} className="hover:text-black transition-colors">
+                        Pricing
+                      </button>
+                    </li>
+                  )}
+                </div>
               </div>
             </div>
+          </section>
+        )}
+
+
+        {/* FIX: Removed min-h-screen from the section below */}
+        {currentSection === "features" && (
+          <section
+className="relative py-28 px-6 bg-white text-black">
+            <div className="container mx-auto">
+              <div className="text-center mb-16">
+                <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                  Our Key Features
+                </h2>
+                <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
+                  Minimal. Bold. Powerful. Everything you need, nothing you don't.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+                {features.map((feature, index) => (
+                  <div
+                    key={index}
+                    className="group relative cursor-pointer p-8 border border-gray-200 rounded-2xl bg-white hover:shadow-xl transition-all duration-500"
+                  >
+                    <div className="w-14 h-14 flex items-center justify-center rounded-xl text-black mb-6 transition-colors duration-500">
+                      {feature.icon}
+                    </div>
+
+                    <h3 className="text-2xl font-bold mb-3 text-black">
+                      {feature.title}
+                    </h3>
+
+                    <p className="text-gray-600 leading-relaxed">
+                      {feature.description}
+                    </p>
+
+                    <div className="absolute bottom-0 left-0 w-0 h-[2px] bg-black group-hover:w-full transition-all duration-500"></div>
             <div className="border-t border-gray-200 mt-8 pt-8">
               <GridConnect />
 
-<div className="flex items-center my-10">
-  <div className="flex-grow border-t border-gray-300"></div>
-  <Mic className="mx-3 h-5 w-5 text-gray-900" />
-  <div className="flex-grow border-t border-gray-300"></div>
-</div>
+              <div className="flex items-center my-10">
+                <div className="flex-grow border-t border-gray-300"></div>
+                <Mic className="mx-3 h-5 w-5 text-gray-900" />
+                <div className="flex-grow border-t border-gray-300"></div>
+              </div>
               <div className="text-center text-gray-600 mt-4">
                 <p>&copy; 2025 Tone2Vibe. All rights reserved.</p>
               </div>

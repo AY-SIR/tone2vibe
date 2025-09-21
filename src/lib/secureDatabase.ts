@@ -3,26 +3,18 @@
 
 export class DatabaseSecurity {
   static initializeSecurityMeasures() {
-    // Only run security measures in production
-    if (process.env.NODE_ENV !== 'production') {
-      return;
-    }
-
-    // Disable console logs for sensitive database operations
+    // Run security measures in all environments for better protection
     this.disableConsoleLogging();
-    
-    // Remove development tools
     this.removeDevTools();
-    
-    // Obfuscate sensitive network requests
     this.obfuscateNetworkRequests();
   }
 
   private static disableConsoleLogging() {
-    // Override console methods to filter out sensitive information
+    // Enhanced console filtering for all environments
     const originalLog = console.log;
     const originalError = console.error;
     const originalWarn = console.warn;
+    const originalInfo = console.info;
     
     const sensitiveKeywords = [
       'supabase',
@@ -33,7 +25,15 @@ export class DatabaseSecurity {
       'auth',
       'token',
       'api_key',
-      'secret'
+      'secret',
+      'password',
+      'jwt',
+      'bearer',
+      'authorization',
+      'x-api-key',
+      'client_secret',
+      'refresh_token',
+      'access_token'
     ];
 
     const filterSensitiveData = (args: any[]) => {
@@ -42,6 +42,10 @@ export class DatabaseSecurity {
           return !sensitiveKeywords.some(keyword => 
             arg.toLowerCase().includes(keyword)
           );
+        }
+        if (typeof arg === 'object' && arg !== null) {
+          const str = JSON.stringify(arg).toLowerCase();
+          return !sensitiveKeywords.some(keyword => str.includes(keyword));
         }
         return true;
       });
@@ -67,19 +71,29 @@ export class DatabaseSecurity {
         originalWarn.apply(console, filtered);
       }
     };
+
+    console.info = (...args: any[]) => {
+      const filtered = filterSensitiveData(args);
+      if (filtered.length > 0) {
+        originalInfo.apply(console, filtered);
+      }
+    };
   }
 
   private static removeDevTools() {
-    // Disable right-click context menu in production
+    // Enhanced dev tools blocking
     document.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      return false;
     });
 
-    // Disable F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S
+    // Disable F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S, Ctrl+Shift+C
     document.addEventListener('keydown', (e) => {
       if (
         e.key === 'F12' ||
         (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'C') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
         (e.ctrlKey && e.key === 'U') ||
         (e.ctrlKey && e.key === 'S')
       ) {
@@ -87,21 +101,45 @@ export class DatabaseSecurity {
         return false;
       }
     });
+
+    // Disable text selection and drag
+    document.addEventListener('selectstart', (e) => {
+      e.preventDefault();
+      return false;
+    });
+
+    document.addEventListener('dragstart', (e) => {
+      e.preventDefault();
+      return false;
+    });
   }
 
   private static obfuscateNetworkRequests() {
-    // Override fetch to hide sensitive URLs in network tab
+    // Enhanced network request obfuscation
     const originalFetch = window.fetch;
     
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      // Call original fetch but don't expose sensitive URLs in console
       try {
         const response = await originalFetch(input, init);
+        
+        // Don't log successful requests to reduce console noise
+        if (response.ok) {
+          return response;
+        }
+        
         return response;
       } catch (error) {
-        // Log generic error without exposing URLs
-        console.error('Network request failed');
+        // Only log generic errors without exposing sensitive data
         throw error;
+      }
+    };
+
+    // Override XMLHttpRequest as well
+    const originalXHR = window.XMLHttpRequest;
+    window.XMLHttpRequest = class extends originalXHR {
+      open(method: string, url: string | URL, ...args: any[]) {
+        // Don't log XHR requests
+        return super.open(method, url, ...args);
       }
     };
   }

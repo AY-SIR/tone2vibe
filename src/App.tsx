@@ -31,8 +31,21 @@ import { DatabaseSecurity } from "@/lib/secureDatabase";
 
 function App() {
   useEffect(() => {
-    // Initialize database security measures
+    // Initialize enhanced security measures
     DatabaseSecurity.initializeSecurityMeasures();
+    
+    // Additional production security
+    if (import.meta.env.PROD) {
+      // Disable right-click in production
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      
+      // Clear console periodically in production
+      setInterval(() => {
+        if (typeof console.clear === 'function') {
+          console.clear();
+        }
+      }, 30000); // Clear every 30 seconds
+    }
   }, []);
 
   return (

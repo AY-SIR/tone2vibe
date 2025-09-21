@@ -2,8 +2,8 @@
 export class UploadLimitService {
   static getUploadLimit(plan: string): number {
     const limits = {
-      'free': 10, // 10 MB
-      'pro': 25,  // 25 MB  
+      'free': 10,   // 10 MB
+      'pro': 25,    // 25 MB  
       'premium': 100 // 100 MB
     };
     return limits[plan as keyof typeof limits] || 10;

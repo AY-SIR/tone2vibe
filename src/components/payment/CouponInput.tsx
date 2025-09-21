@@ -24,13 +24,16 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
     try {
       const result = await CouponService.validateCoupon(couponCode.trim(), amount, type);
       setValidationResult(result);
-      onCouponApplied(result);
+      onCouponApplied({
+        ...result,
+        code: couponCode.trim()
+      });
     } catch (error) {
-      console.error('Coupon validation error:', error);
       const errorResult: CouponValidation = {
         isValid: false,
         discount: 0,
-        message: 'Error validating coupon'
+        message: 'Error validating coupon',
+        code: couponCode.trim()
       };
       setValidationResult(errorResult);
       onCouponApplied(errorResult);
@@ -45,7 +48,8 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
     onCouponApplied({
       isValid: false,
       discount: 0,
-      message: ''
+      message: '',
+      code: ''
     });
   };
 

@@ -427,6 +427,32 @@ const Profile: React.FC = () => {
                   </p>
                 </div>
 
+                {/* Plan Expiry Information */}
+                {profile?.plan !== 'free' && profile?.plan_expires_at && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Plan Expiry</h4>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Expires on:</span>
+                      <span className="text-sm font-medium">
+                        {new Date(profile.plan_expires_at).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Days remaining:</span>
+                      <span className={`text-sm font-medium ${
+                        Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7 
+                          ? 'text-red-600' 
+                          : 'text-green-600'
+                      }`}>
+                        {Math.max(0, Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days
+                      </span>
+                    </div>
+                  </div>
+                )}
 
 
 

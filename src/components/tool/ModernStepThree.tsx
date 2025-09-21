@@ -47,6 +47,7 @@ export default function ModernStepThree({
   const [searchTerm, setSearchTerm] = useState("");
 
   const canUsePrebuilt = profile?.plan !== "free";
+  const uploadLimit = UploadLimitService.getUploadLimit(profile?.plan || 'free');
 
   useEffect(() => {
     const paragraphs = {
@@ -299,6 +300,7 @@ export default function ModernStepThree({
                     <ul className="text-sm text-muted-foreground space-y-1">
                       <li>• Supported formats: MP3, WAV</li>
                       <li>• Duration: 10–60 seconds recommended</li>
+                      <li>• Max file size: {uploadLimit}MB ({profile?.plan || 'free'} plan)</li>
                       <li>• Clear audio with minimal background noise</li>
                       <li>• Single speaker only</li>
                     </ul>
@@ -306,7 +308,7 @@ export default function ModernStepThree({
 
                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
                     <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-                    <p className="font-medium mb-2">Choose Audio File</p>
+                    <p className="font-medium mb-2">Choose Audio File (Max {uploadLimit}MB)</p>
                     <input
                       type="file"
                       accept="audio/mp3,audio/wav,audio/mpeg"

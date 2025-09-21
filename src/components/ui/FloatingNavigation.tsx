@@ -13,8 +13,10 @@ export const FloatingNavigation = ({
   onSectionChange,
 }: FloatingNavigationProps) => {
   const [show, setShow] = useState(true);
+  const [isScrolling, setIsScrolling] = useState(false);
   const lastScrollY = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const sections = [
     { name: "Features", icon: <FileText />, id: "features" },
@@ -25,6 +27,7 @@ export const FloatingNavigation = ({
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
+      setIsScrolling(true);
 
       if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
         setShow(false);
@@ -34,27 +37,38 @@ export const FloatingNavigation = ({
 
       lastScrollY.current = currentScrollY;
 
+      // Clear existing timers
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setShow(true), 2000);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      
+      // Hide during scroll, show after 3 seconds of no scrolling
+      timerRef.current = setTimeout(() => setShow(true), 3000);
+      
+      // Reset scrolling state after 100ms
+      scrollTimeoutRef.current = setTimeout(() => setIsScrolling(false), 100);
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => {
       window.removeEventListener("scroll", handleScroll);
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
   }, []);
 
   const handleClick = (id: "home" | "features" | "pricing") => {
     onSectionChange(id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Scroll to top when changing sections
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 100);
   };
 
   return (
     <div
       className={cn(
         "fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[100] transition-all duration-300",
-        show ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0 pointer-events-none"
+        show && !isScrolling ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0 pointer-events-none"
       )}
     >
       <div className="bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-2 py-2 shadow-2xl flex items-center space-x-2 sm:space-x-0">
@@ -67,18 +81,16 @@ export const FloatingNavigation = ({
               className={cn(
                 "rounded-full h-10 w-20 sm:w-28 flex items-center justify-center sm:justify-start px-0 sm:px-4 transition-colors duration-300",
                 currentSection === section.id
-                  // --- FIX: Added explicit hover styles to the active button ---
                   ? "bg-black text-white shadow-lg hover:bg-black hover:text-white"
                   : "text-gray-600 hover:bg-gray-100 hover:text-black"
               )}
             >
-              {/* No changes needed for the icon, its styling was correct */}
               {React.cloneElement(section.icon, {
                 className: cn(
                   "h-5 w-5 transition-colors duration-300",
                   currentSection === section.id
                     ? "text-white"
-                    : "text-gray-600 group-hover:text-black" // Using group-hover for icon color change
+                    : "text-gray-600 group-hover:text-black"
                 ),
               })}
               <span className="hidden sm:inline ml-2">{section.name}</span>

@@ -4,6 +4,7 @@ export interface CouponValidation {
   isValid: boolean;
   discount: number;
   message: string;
+  code?: string;
   coupon?: {
     id: string;
     code: string;
@@ -26,19 +27,20 @@ export class CouponService {
       .single();
 
     if (error || !data) {
-      return { isValid: false, discount: 0, message: 'Invalid coupon code' };
+      return { isValid: false, discount: 0, message: 'Invalid coupon code', code: couponCode };
     }
 
     if (data.type !== 'both' && data.type !== type) {
       return {
         isValid: false,
         discount: 0,
-        message: `This coupon is not applicable to ${type} purchases`
+        message: `This coupon is not applicable to ${type} purchases`,
+        code: couponCode
       };
     }
 
     if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      return { isValid: false, discount: 0, message: 'Coupon has expired' };
+      return { isValid: false, discount: 0, message: 'Coupon has expired', code: couponCode };
     }
 
     const discount = Math.round((amount * data.discount_percentage) / 100);
@@ -47,6 +49,7 @@ export class CouponService {
       isValid: true,
       discount,
       message: `Coupon applied! You save ₹${discount} (${data.discount_percentage}% off)`,
+      code: couponCode,
       coupon: {
         id: data.id,
         code: data.code,

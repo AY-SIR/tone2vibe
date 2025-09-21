@@ -30,7 +30,8 @@ export class InstamojoService {
   static async createPlanPayment(
     plan: 'pro' | 'premium',
     userEmail: string,
-    userName: string
+    userName: string,
+    couponCode?: string
   ): Promise<InstamojoResponse> {
     try {
       const pricing = {
@@ -57,7 +58,8 @@ export class InstamojoService {
         body: { 
           ...paymentRequest,
           type: 'subscription',
-          plan 
+          plan,
+          coupon_code: couponCode
         }
       });
 

@@ -11,30 +11,11 @@ import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
 import { CouponInput } from "./CouponInput";
 import type { CouponValidation } from "@/services/couponService";
-// FIX 2: Import your Supabase client or API utility
-import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentGatewayProps {
   selectedPlan: 'pro' | 'premium';
   onPayment: (plan: 'pro' | 'premium') => void;
   isProcessing: boolean;
-}
-
-// FIX 2: Implement the missing function to activate plans directly
-async function activatePlanDirectly(plan: 'pro' | 'premium', userId: string) {
-  try {
-    // This is where you would call your backend or Supabase function
-    // For example: const { error } = await supabase.rpc('activate_free_plan', { new_plan: plan, user_id: userId });
-    console.log(`Activating ${plan} for user ${userId} directly.`);
-
-    // Placeholder success response. Replace with your actual backend call.
-    // if (error) throw new Error(error.message);
-
-    return { success: true };
-  } catch (error) {
-    console.error("Direct activation failed:", error);
-    return { success: false };
-  }
 }
 
 export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: PaymentGatewayProps) {
@@ -89,17 +70,14 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
 
   const handlePayment = async () => {
     if (!user || !confirmPayment) return;
+    
+    // If final amount is 0 due to coupon, activate plan directly
     if (finalAmount === 0) {
-      const result = await activatePlanDirectly(selectedPlan, user.id);
-      if (result.success) {
-        toast({
-          title: "Plan Activated",
-          description: `${plan.name} plan has been activated for free!`,
-        });
-        onPayment(selectedPlan);
-      } else {
-        toast({ title: "Activation Failed", description: "Failed to activate plan. Please try again.", variant: "destructive" });
-      }
+      toast({
+        title: "Plan Activated",
+        description: `${plan.name} plan has been activated for free with your coupon!`,
+      });
+      onPayment(selectedPlan);
       return;
     }
 
@@ -110,7 +88,6 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         return;
       }
 
-      // FIX 1: Pass the coupon code to the payment service
       const result = await InstamojoService.createPlanPayment(
         selectedPlan,
         user.email || '',
@@ -172,64 +149,170 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      {/* ... No changes to CardHeader, Features, Coupon, Pricing Details ... */}
-        <CardHeader className="text-center p-3 sm:p-6">
-            <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>{plan.icon}</div>
-            <CardTitle className="text-base sm:text-lg md:text-2xl">{isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">{isChange ? `Change your ${currentPlan} plan to ${selectedPlan} plan` : 'Choose your subscription plan'}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6">
-            {currentPlan && currentPlan !== 'free' && (<div className="text-center"><Badge variant="outline" className="mb-4 text-xs">Currently on {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan</Badge></div>)}
-            <div className="space-y-2">
-                <h4 className="font-medium text-xs sm:text-sm text-gray-900">What's included:</h4>
-                <ul className="space-y-1">{plan.features.map((feature, index) => (<li key={index} className="flex items-center space-x-2 text-xs"><Check className="h-3 w-3 text-green-500 flex-shrink-0" /><span>{feature}</span></li>))}</ul>
+      {/* Desktop/Tablet Layout */}
+      <div className="hidden md:grid md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto">
+        {/* Left Side - Plan Details */}
+        <Card>
+          <CardHeader className="text-center p-6">
+            <div className={`${plan.color} w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
+              {plan.icon}
             </div>
-            <Separator />
+            <CardTitle className="text-2xl">{isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}</CardTitle>
+            <CardDescription>{isChange ? `Change your ${currentPlan} plan to ${selectedPlan} plan` : 'Choose your subscription plan'}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 p-6">
+            {currentPlan && currentPlan !== 'free' && (
+              <div className="text-center">
+                <Badge variant="outline" className="mb-4">Currently on {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan</Badge>
+              </div>
+            )}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">What's included:</h4>
+              <ul className="space-y-3">
+                {plan.features.map((feature, index) => (
+                  <li key={index} className="flex items-center space-x-3">
+                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <span className="text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Right Side - Payment */}
+        <Card>
+          <CardHeader className="p-6">
+            <CardTitle>Payment Details</CardTitle>
+            <CardDescription>Complete your subscription</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 p-6">
             <CouponInput amount={baseAmount} type="subscription" onCouponApplied={handleCouponApplied} disabled={isProcessing} />
+            
             <Separator />
-            <div className="space-y-2">
-                <h4 className="font-medium text-xs sm:text-sm text-gray-900">Pricing Details:</h4>
-                <div className="flex justify-between text-xs"><span>Plan Price</span><span>{pricing.symbol}{baseAmount}</span></div>
-                {couponValidation.isValid && (<div className="flex justify-between text-xs text-green-600"><span>Coupon Discount</span><span>-{pricing.symbol}{couponValidation.discount}</span></div>)}
-                <Separator />
-                <div className="flex justify-between font-medium text-xs sm:text-sm"><span>Total Amount</span><span>{pricing.symbol}{finalAmount}</span></div>
-                <div className="text-xs text-gray-500 text-center">Billed monthly • Cancel anytime • INR Currency Only</div>
-            </div>
+            
             <div className="space-y-3">
-                <div className="flex items-start space-x-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
-                    <Checkbox id="confirm-payment" checked={confirmPayment} onCheckedChange={(checked) => setConfirmPayment(checked as boolean)} />
-                    <div className="text-xs text-gray-600"><label htmlFor="confirm-payment" className="cursor-pointer">I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong> for the {plan.name} plan.</label></div>
+              <h4 className="font-medium text-gray-900">Pricing Summary:</h4>
+              <div className="flex justify-between">
+                <span>Plan Price</span>
+                <span>{pricing.symbol}{baseAmount}</span>
+              </div>
+              {couponValidation.isValid && (
+                <div className="flex justify-between text-green-600">
+                  <span>Coupon Discount</span>
+                  <span>-{pricing.symbol}{couponValidation.discount}</span>
                 </div>
+              )}
+              <Separator />
+              <div className="flex justify-between font-medium text-lg">
+                <span>Total Amount</span>
+                <span>{pricing.symbol}{finalAmount}</span>
+              </div>
+              <div className="text-sm text-gray-500 text-center">Billed monthly • Cancel anytime • INR Currency Only</div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
+                <Checkbox id="confirm-payment" checked={confirmPayment} onCheckedChange={(checked) => setConfirmPayment(checked as boolean)} />
+                <div className="text-sm text-gray-600">
+                  <label htmlFor="confirm-payment" className="cursor-pointer">
+                    I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong> for the {plan.name} plan.
+                  </label>
+                </div>
+              </div>
             </div>
 
-            {/* FIX 3: Simplified button text for better UX */}
             <Button
               onClick={handlePayment}
               disabled={isProcessing || !confirmPayment}
-              className={`w-full bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm`}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+              size="lg"
             >
               {isProcessing ? (
                 <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   <span>Processing...</span>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
-                  <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <Zap className="h-4 w-4" />
                   <span>
-                    {isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` :
+                    {finalAmount === 0 ? 'Activate Plan (Free)' :
+                     isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` :
                      isDowngrade ? `Downgrade for ${pricing.symbol}${finalAmount}` :
                      `Subscribe for ${pricing.symbol}${finalAmount}`}
                   </span>
-                </div>
-              )}
-            </Button>
-
             <div className="text-xs text-gray-500 text-center">
-                <div className="flex items-center justify-center space-x-1"><span>🔒</span><span>Secure payment processing</span></div>
-                <div className="mt-1">Your payment information is encrypted and secure</div>
+              <div className="flex items-center justify-center space-x-1">
+                <span>🔒</span>
+                <span>Secure payment processing</span>
+              </div>
+              <div className="mt-1">Your payment information is encrypted and secure</div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+                </div>
+      {/* Mobile Layout */}
+      <div className="md:hidden w-full max-w-md mx-auto">
+        <CardHeader className="text-center p-3 sm:p-6">
+          <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>{plan.icon}</div>
+          <CardTitle className="text-base sm:text-lg md:text-2xl">{isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">{isChange ? `Change your ${currentPlan} plan to ${selectedPlan} plan` : 'Choose your subscription plan'}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6">
+          {currentPlan && currentPlan !== 'free' && (<div className="text-center"><Badge variant="outline" className="mb-4 text-xs">Currently on {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan</Badge></div>)}
+          <div className="space-y-2">
+            <h4 className="font-medium text-xs sm:text-sm text-gray-900">What's included:</h4>
+            <ul className="space-y-1">{plan.features.map((feature, index) => (<li key={index} className="flex items-center space-x-2 text-xs"><Check className="h-3 w-3 text-green-500 flex-shrink-0" /><span>{feature}</span></li>))}</ul>
+          </div>
+          <Separator />
+          <CouponInput amount={baseAmount} type="subscription" onCouponApplied={handleCouponApplied} disabled={isProcessing} />
+          <Separator />
+          <div className="space-y-2">
+            <h4 className="font-medium text-xs sm:text-sm text-gray-900">Pricing Details:</h4>
+            <div className="flex justify-between text-xs"><span>Plan Price</span><span>{pricing.symbol}{baseAmount}</span></div>
+            {couponValidation.isValid && (<div className="flex justify-between text-xs text-green-600"><span>Coupon Discount</span><span>-{pricing.symbol}{couponValidation.discount}</span></div>)}
+            <Separator />
+            <div className="flex justify-between font-medium text-xs sm:text-sm"><span>Total Amount</span><span>{pricing.symbol}{finalAmount}</span></div>
+            <div className="text-xs text-gray-500 text-center">Billed monthly • Cancel anytime • INR Currency Only</div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-start space-x-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
+              <Checkbox id="confirm-payment" checked={confirmPayment} onCheckedChange={(checked) => setConfirmPayment(checked as boolean)} />
+              <div className="text-xs text-gray-600"><label htmlFor="confirm-payment" className="cursor-pointer">I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong> for the {plan.name} plan.</label></div>
+            </div>
+          </div>
+              )}
+          <Button
+            onClick={handlePayment}
+            disabled={isProcessing || !confirmPayment}
+            className={`w-full bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm`}
+          >
+            {isProcessing ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
+                <span>Processing...</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>
+                  {finalAmount === 0 ? 'Activate Plan (Free)' :
+                   isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` :
+                   isDowngrade ? `Downgrade for ${pricing.symbol}${finalAmount}` :
+                   `Subscribe for ${pricing.symbol}${finalAmount}`}
+                </span>
+              </div>
+            )}
+          </Button>
+            </Button>
+          <div className="text-xs text-gray-500 text-center">
+            <div className="flex items-center justify-center space-x-1"><span>🔒</span><span>Secure payment processing</span></div>
+            <div className="mt-1">Your payment information is encrypted and secure</div>
+          </div>
         </CardContent>
+      </div>
     </Card>
   );
 }
