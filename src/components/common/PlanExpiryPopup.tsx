@@ -75,19 +75,12 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
         </DialogHeader>
         
         <div className="flex flex-col gap-3 mt-4">
-          <Button 
-            onClick={handleUpgrade}
-            className="w-full"
-            size="lg"
-          >
-            <CreditCard className="mr-2 h-4 w-4" />
-            {getActionText()}
-          </Button>
+
           
           <Button 
             variant="outline" 
             onClick={onClose}
-            className="w-full"
+            className="w-full bg-black text-white"
           >
             Remind Me Later
           </Button>

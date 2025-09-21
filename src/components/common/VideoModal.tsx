@@ -33,7 +33,7 @@ export function VideoModal({ open, onOpenChange }: VideoModalProps) {
               </div>
             )}
             <iframe
-              src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1"
+              src=""
               title="Tone2Vibe Demo"
               className="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

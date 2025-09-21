@@ -27,6 +27,7 @@ import {
   Play,
   Upload,
   Cookie,
+  LogIn,
 } from "lucide-react";
 
 import { Link, useNavigate } from "react-router-dom";
@@ -249,8 +250,9 @@ const Index = () => {
 
 
   return (
-    <div className="relative min-h-screen bg-white font-modern overflow-x-hidden">
-
+<div
+  className="relative h-screen bg-white font-modern overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]"
+>
       {/* Foreground site content */}
       <div className="relative z-10">
         {/* Navigation */}
@@ -298,7 +300,7 @@ const Index = () => {
                   className="bg-gray-100/70 hover:bg-gray-200/80 text-black flex items-center gap-2 rounded-xl"
                 >
                   Sign In
-                  <ArrowRight className="h-4 w-4" />
+                  <LogIn className="h-4 w-4" />
                 </Button>
               )}
             </div>
@@ -307,14 +309,14 @@ const Index = () => {
 
         {/* Dynamic Content Based on Current Section */}
         {currentSection === "home" && (
-          <section className="relative pt-8 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
+          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-[calc(100vh-80px)] flex items-center">
 
 <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_80%)] pointer-events-none z-[-10]">
               <GridPattern rows={15} columns={50} cellSize={32} />
             </div>
             <div className="relative z-10 container mx-auto max-w-4xl">
               <div className="animate-fade-in">
-                <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400">
+                <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
                   ✨ Now with 50+ language support
                 </Badge>
 
@@ -508,16 +510,17 @@ className="relative py-28 px-6 bg-white text-black">
               <div>
                 <h4 className="font-bold mb-4 text-black">Product</h4>
                 <ul className="space-y-2 text-gray-600">
-                  <li>
-                    <button onClick={() => setCurrentSection("features")} className="hover:text-black transition-colors">
-                      Features
-                    </button>
-                  </li>
-                  <li>
-                    <button onClick={() => setCurrentSection("pricing")} className="hover:text-black transition-colors">
-                      Pricing
-                    </button>
-                  </li>
+                 <li>
+  <button onClick={() => setCurrentSection("features")} className="hover:text-black transition-colors">
+    Features
+  </button>
+</li>
+<li>
+  <button onClick={() => setCurrentSection("pricing")} className="hover:text-black transition-colors">
+    Pricing
+  </button>
+</li>
+
                 </ul>
               </div>
 

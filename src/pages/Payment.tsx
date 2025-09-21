@@ -48,6 +48,8 @@ const Payment = () => {
     }
   };
 
+  const isFreePlanActive = !profile?.plan || profile?.plan === 'free';
+
   const plans = [
     {
       id: 'free',
@@ -65,9 +67,9 @@ const Payment = () => {
         'AI-generated voices',
         'Email support'
       ],
-      buttonText: 'Current Plan',
+      buttonText: isFreePlanActive ? 'Current Plan' : 'Free Plan',
       popular: false,
-      current: !profile?.plan || profile?.plan === 'free'
+      current: isFreePlanActive
     },
     {
       id: 'pro',
@@ -125,10 +127,18 @@ const Payment = () => {
 
   const handlePlanSelect = async (planId: string) => {
     if (planId === 'free') {
-      toast({
-        title: "You're already on the free plan",
-        description: "Upgrade to Pro or Premium for more features!",
-      });
+      if (isFreePlanActive) {
+        toast({
+          title: "This is your current plan",
+          description: "Upgrade to Pro or Premium for more features!",
+        });
+      } else {
+        toast({
+          title: "Cannot Downgrade",
+          description: "You cannot downgrade to the free plan while a subscription is active. Please contact support if you wish to cancel.",
+          variant: "destructive"
+        });
+      }
       return;
     }
 
@@ -260,8 +270,8 @@ const Payment = () => {
 
           <TabsContent value="plans" className="space-y-6 sm:space-y-8">
             <div className="text-center mb-6 sm:mb-12">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">Choose Your Plan</h1>
-              <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4">Choose Your Plan</h1>
+              <p className="text-base sm:text-lg md:text-xl font-bold text-gray-600 max-w-3xl mx-auto px-4">
                 Unlock the full potential of AI voice cloning with our flexible pricing plans.
               </p>
             </div>
@@ -342,7 +352,7 @@ const Payment = () => {
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
               <p className="mb-4 text-xs sm:text-sm md:text-base px-4">
                 All paid plans include the ability to purchase additional words at {pricing.symbol}{pricing.words.pricePerThousand} per 1,000 words.
-                Pro users can buy up to 41,000 total words, Premium users can buy up to 99,000 total words.
+                <br/>Pro users can buy up to 41,000 total words, Premium users can buy up to 99,000 total words.
               </p>
               <div className="text-xs sm:text-sm">
                 Location: भारत | India • Currency: ₹ INR Only

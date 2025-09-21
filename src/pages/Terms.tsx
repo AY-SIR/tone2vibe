@@ -211,7 +211,7 @@ const Terms = () => {
                 For questions about these Terms of Service, please contact us:
               </p>
               <div className="space-y-2 text-gray-600">
-                <p><strong>Email:</strong> support@voicesynthesis.app</p>
+                <p><strong>Email:</strong> support@tone2vibe.in</p>
 
               </div>
               <Button

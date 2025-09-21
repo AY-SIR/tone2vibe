@@ -212,7 +212,7 @@ const History = () => {
             </Badge>
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 mt-2 sm:mb-2">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mb-4 mt-2 sm:mb-2">
               Voice History
             </h1>
             <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
@@ -267,68 +267,33 @@ const History = () => {
               {/* AI Voice Generation Toggle */}
               <div className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <Volume2 className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-sm">AI Voice Generation</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Generated: {generatedVoices.length} projects
-                    </p>
-                  </div>
                 </div>
-                <Switch 
-                  checked={showGeneratedVoices} 
-                  onCheckedChange={setShowGeneratedVoices}
-                  className="data-[state=checked]:bg-primary"
-                />
-              </div>
+               </div>
 
-              {/* User Recorded Voice Toggle */}
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-secondary/10">
-                    <Mic className="h-4 w-4 text-secondary" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-sm">User Recorded Voice</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Recorded: {recordedVoices.length} samples
-                    </p>
-                  </div>
-                </div>
-                <Switch 
-                  checked={showRecordedVoices} 
-                  onCheckedChange={setShowRecordedVoices}
-                  className="data-[state=checked]:bg-secondary"
-                />
-              </div>
-            </div>
+             </div>
 
             <Tabs defaultValue="generated" className="w-full mt-6">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger
-                  value="generated"
-                  className="flex items-center gap-2"
-                  disabled={!showGeneratedVoices}
-                >
-                  <Volume2 className="h-4 w-4" />
-                  AI Voice Generation
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    {generatedVoices.length}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="recorded"
-                  className="flex items-center gap-2"
-                  disabled={!showRecordedVoices}
-                >
-                  <Mic className="h-4 w-4" />
-                  User Recorded Voice
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    {recordedVoices.length}
-                  </Badge>
-                </TabsTrigger>
+  value="generated"
+  className="flex items-center gap-2"
+  disabled={!showGeneratedVoices}
+>
+  <Volume2 className="h-4 w-4" />
+  <span className="hidden sm:inline">AI Voice Generation</span>
+  <span className="inline sm:hidden">AI Voice</span>
+</TabsTrigger>
+
+<TabsTrigger
+  value="recorded"
+  className="flex items-center gap-2"
+  disabled={!showRecordedVoices}
+>
+  <Mic className="h-4 w-4" />
+  <span className="hidden sm:inline">User Recorded Voice</span>
+  <span className="inline sm:hidden">Recorded</span>
+</TabsTrigger>
+
               </TabsList>
 
               <TabsContent value="generated">
@@ -371,8 +336,8 @@ const History = () => {
                 {showRecordedVoices && recordedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
                     <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/5 rounded-lg">
-                      <Mic className="h-4 w-4 text-secondary" />
-                      <span className="text-sm font-medium">User Recorded Voice Projects</span>
+                      <Mic className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">User Recorded Voice </span>
                     </div>
                     {recordedVoices.map((project) => (
                       <ProjectCard
@@ -437,7 +402,7 @@ const ProjectCard = ({
               {type === "generated" ? (
                 <Volume2 className="h-4 w-4 text-primary" />
               ) : (
-                <Mic className="h-4 w-4 text-secondary" />
+                <Mic className="h-4 w-4 text-primary" />
               )}
               <span>{project.title}</span>
             </CardTitle>
@@ -453,7 +418,7 @@ const ProjectCard = ({
                 className={`text-xs ${
                   type === "generated"
                     ? "bg-primary/10 text-primary"
-                    : "bg-secondary/10 text-secondary"
+                    : "bg-secondary/10 text-primary"
                 }`}
               >
                 {type === "generated" ? "AI Generated" : "User Recorded"}

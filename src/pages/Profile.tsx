@@ -68,7 +68,7 @@ const Profile: React.FC = () => {
   // sync form values when profile or user changes
   useEffect(() => {
     setFormData({
-      full_name: profile?.full_name || "",
+      full_name: profile?.full_name || "user",
       email: profile?.email || user?.email || "",
       company: profile?.company || "",
       country: profile?.country || "",
@@ -200,8 +200,8 @@ const Profile: React.FC = () => {
             "50,000 words/month",
             "Premium AI voices",
             "90-day history",
-            "Priority support",
-            "Advanced analytics",
+            "Advanced analytics & insights",
+            "100MB upload limit",
           ],
           description: "Everything you need for professional voice synthesis",
         };
@@ -215,7 +215,7 @@ const Profile: React.FC = () => {
             "10,000 words/month",
             "Advanced voices",
             "30-day history",
-            "Email support",
+            "Usage analytics & charts",
             "Custom voices",
           ],
           description: "Perfect for content creators and businesses",
@@ -228,9 +228,9 @@ const Profile: React.FC = () => {
           icon: <Shield className="w-5 h-5" />,
           features: [
             "1,000 words/month",
+            "10MB upload limit",
             "Basic voices",
             "7-day history",
-            "Community support",
           ],
           description: "Great for getting started with voice synthesis",
         };
@@ -247,20 +247,29 @@ const Profile: React.FC = () => {
   const usagePercentage = Math.min((planWordsUsed / wordsLimit) * 100, 100);
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col space-y-8">
-        {/* Page Header */}
+
+   <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+  <div className="flex flex-col space-y-8">
+    {/* Page Header */}
+    <div className="sticky">
+      <Button
+        variant="ghost"
+        onClick={() => navigate("/")}
+        className="text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Dashboard
+      </Button>
+    </div>
+
+
+
+
+
         <div>
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/")}
-            className="mb-4 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-3xl font-bold tracking-tight text-center">Profile Settings</h1>
-          <p className="text-muted-foreground text-center mt-4">
+
+          <h1 className="text-3xl font-extrabold tracking-tight text-center">Profile Settings</h1>
+          <p className="text-muted-foreground font-bold text-center mt-4">
             Manage your account, preferences, and subscription.
           </p>
         </div>
@@ -305,7 +314,8 @@ const Profile: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Personal Information</CardTitle>
-                  <CardDescription>
+                  <CardDescription
+                  className="mt-2">
                     Update your personal details and preferences.
                   </CardDescription>
                 </CardHeader>
@@ -343,6 +353,7 @@ const Profile: React.FC = () => {
                         id="company"
                         value={formData.company}
                         onChange={handleInputChange}
+                         placeholder="Optional"
                         className="pl-10"
                       />
                     </div>
@@ -355,6 +366,7 @@ const Profile: React.FC = () => {
                         id="country"
                         value={formData.country}
                         onChange={handleInputChange}
+                        disabled
                         className="pl-10"
                       />
                     </div>
@@ -407,11 +419,18 @@ const Profile: React.FC = () => {
                       {planWordsUsed.toLocaleString()} / {wordsLimit.toLocaleString()}
                     </span>
                   </div>
-                  <Progress value={usagePercentage} />
+                  <Progress value={usagePercentage} className="h-2" />
+
+
                   <p className="text-xs text-muted-foreground mt-1 text-right">
                     {(100 - usagePercentage).toFixed(1)}% remaining this month
                   </p>
                 </div>
+
+
+
+
+
                 <Separator />
                 <div className="space-y-2">
                   <h4 className="font-semibold">Plan Features</h4>

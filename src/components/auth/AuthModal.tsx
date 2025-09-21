@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, MapPin, CheckCircle } from "lucide-react";
+import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, LogIn, UserPlus } from "lucide-react";
 import { AuthError } from '@supabase/supabase-js';
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
@@ -33,15 +33,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   useEffect(() => {
     if (open) {
-      // Reset form state on open
       setEmail('');
       setPassword('');
       setConfirmPassword('');
       setFullName('');
       setAgreeToTerms(false);
       setIsClosing(false);
-
-      // Get location safely from cache
       LocationCacheService.getLocation().then(location => {
         setIsIndianUser(location.isIndian);
       });
@@ -75,7 +72,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setIsLoading(true);
 
-    // Location check for signup
     if (type === 'signup') {
       const location = await LocationCacheService.getLocation();
       if (!location.isIndian) {
@@ -97,30 +93,25 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           }
         });
         if (error) throw error;
-
         if (data.user) {
           const location = await LocationCacheService.getLocation();
           await LocationCacheService.saveUserLocation(data.user.id, location);
         }
-
         toast.success('Account created! Please check your email to confirm your account.');
         setTimeout(() => {
-          navigate("/tool", { replace: true }); // Redirect to tool page
+          navigate("/tool", { replace: true });
           setIsClosing(true);
           setTimeout(() => onOpenChange(false), 300);
         }, 2000);
-
       } else { // Signin
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-
         if (data.user) {
           const location = await LocationCacheService.getLocation();
           await LocationCacheService.saveUserLocation(data.user.id, location);
         }
-
         toast.success('Successfully signed in!');
-        navigate("/tool", { replace: true }); // Redirect to tool page
+        navigate("/tool", { replace: true });
         onOpenChange(false);
       }
     } catch (error) {
@@ -139,11 +130,15 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`sm:max-w-[425px] transition-all duration-300 ${isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+      <DialogContent
+        className={`sm:max-w-[425px] max-h-[90vh] overflow-auto transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-orange-500" />
-            Welcome to Voice AI
+            <div className="w-8 h-8 bg-white/70 rounded-lg flex items-center justify-center shadow-sm">
+              <Mic className="h-5 w-5 text-black" />
+            </div>
+            Tone2Vibe
           </DialogTitle>
           <DialogDescription>
             Sign in to your account or create a new one
@@ -159,80 +154,84 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {/* Sign In */}
-            <TabsContent value="signin" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+            {/* Sign In Form */}
+            <TabsContent value="signin">
+              <form onSubmit={(e) => { e.preventDefault(); handleSubmit('signin'); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input id="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                  <button type="button" className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
+                    <button type="button" className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <Button onClick={() => handleSubmit('signin')} className="w-full" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign In
-              </Button>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In <LogIn className="h-4 w-4 ml-2" />
+                </Button>
+              </form>
             </TabsContent>
 
-            {/* Sign Up */}
-            <TabsContent value="signup" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="fullName" type="text" placeholder="Enter your full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="pl-10" disabled={isLoading} />
+            {/* Sign Up Form */}
+            <TabsContent value="signup">
+              <form onSubmit={(e) => { e.preventDefault(); handleSubmit('signup'); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input id="fullName" type="text" placeholder="Enter your full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="pl-10" disabled={isLoading} />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="signup-email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input id="signup-email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="signup-password" type={showPassword ? "text" : "password"} placeholder="Create a password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                  <button type="button" className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input id="signup-password" type={showPassword ? "text" : "password"} placeholder="Create a password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
+                    <button type="button" className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
-                <div className="relative">
-                  <CheckCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                  <button type="button" className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <CheckCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
+                    <button type="button" className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {confirmPassword && password !== confirmPassword && (
+                    <p className="text-xs text-destructive">Passwords do not match</p>
+                  )}
                 </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="text-xs text-destructive">Passwords do not match</p>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox id="agreeToTerms" checked={agreeToTerms} onCheckedChange={(checked) => setAgreeToTerms(!!checked)} disabled={isLoading} />
-                <Label htmlFor="agreeToTerms">
-                  I agree to the <a href="/terms" className="text-gray-500 underline">Terms of Service</a> and <a href="/privacy" className="text-gray-500 underline">Privacy Policy</a>.
-                </Label>
-              </div>
-              <Button onClick={() => handleSubmit('signup')} className="w-full" disabled={isLoading || !agreeToTerms}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign Up
-              </Button>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="agreeToTerms" checked={agreeToTerms} onCheckedChange={(checked) => setAgreeToTerms(!!checked)} disabled={isLoading} />
+                  <Label htmlFor="agreeToTerms">
+                    I agree to the <a href="/terms" className="text-gray-500 underline">Terms of Service</a> and <a href="/privacy" className="text-gray-500 underline">Privacy Policy</a>.
+                  </Label>
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading || !agreeToTerms}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign Up <UserPlus className="h-4 w-4 ml-2" />
+                </Button>
+              </form>
             </TabsContent>
           </Tabs>
         ) : null}

@@ -161,7 +161,7 @@ useEffect(() => {
                 If you have any questions about this Privacy Policy or our data practices:
               </p>
               <div className="space-y-2 text-gray-600 text-sm md:text-base">
-                <p><strong>Email:</strong> support@voicesynthesis.app</p>
+                <p><strong>Email:</strong> support@vtone2vibe.in</p>
 
               </div>
               <Button

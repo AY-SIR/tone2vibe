@@ -102,7 +102,7 @@ useEffect(() => {
 
       {/* Hero Section */}
       <section className="py-16 px-4">
-        <div className="container mx-auto max-w-4xl">
+        <div className="container mx-auto max-w-5xl">
           <div className="text-center mb-12 animate-fade-in">
             <Mail className="h-16 w-16 text-black mx-auto mb-6" />
             <h1 className="text-4xl md:text-5xl font-bold mb-4 text-black">Get in Touch</h1>
@@ -245,7 +245,7 @@ useEffect(() => {
                   <div className="space-y-4">
                     <div className="flex items-center space-x-3">
                       <Mail className="h-5 w-5 text-gray-600" />
-                      <span className="text-gray-600">support@tone2vibe.com</span>
+                      <span className="text-gray-600">support@tone2vibe.in</span>
                     </div>
                   </div>
                 </CardContent>

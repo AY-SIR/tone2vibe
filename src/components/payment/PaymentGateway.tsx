@@ -44,7 +44,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       features: [
         "10,000 words/month base limit",
         "Buy up to 36,000 additional words",
-        "25MB upload limit", 
+        "25MB upload limit",
         "High quality audio",
         "30 days history",
         "Priority support",
@@ -54,7 +54,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       color: "bg-gray-700"
     },
     premium: {
-      name: "Premium", 
+      name: "Premium",
       price: pricing.plans.premium.price,
       originalPrice: pricing.plans.premium.originalPrice,
       features: [
@@ -62,7 +62,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         "Buy up to 49,000 additional words",
         "100MB upload limit",
         "Ultra-high quality",
-        "90 days history", 
+        "90 days history",
         "24/7 support",
         "Advanced Analytics",
       ],
@@ -74,7 +74,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
   const plan = planDetails[selectedPlan];
   const baseAmount = plan.price;
   const finalAmount = Math.max(0, baseAmount - couponValidation.discount);
-  
+
   const currentPlan = profile?.plan;
   const isUpgrade = currentPlan === 'pro' && selectedPlan === 'premium';
   const isDowngrade = currentPlan === 'premium' && selectedPlan === 'pro';
@@ -116,9 +116,9 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
       }
     } catch (error) {
       console.error('Payment error:', error);
-      
+
       let userFriendlyMessage = "We're having trouble processing your payment right now. Please try again in a moment.";
-      
+
       if (error instanceof Error) {
         if (error.message.includes('network') || error.message.includes('fetch')) {
           userFriendlyMessage = "Please check your internet connection and try again.";
@@ -128,7 +128,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           userFriendlyMessage = "This service is only available for users in India.";
         }
       }
-      
+
       toast({
         title: "Payment Issue",
         description: userFriendlyMessage,
@@ -154,7 +154,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             You're currently enjoying all {plan.name} features
           </p>
-          <Button 
+          <Button
             onClick={() => window.location.href = '/'}
             className="w-full text-xs sm:text-sm"
             variant="outline"
@@ -180,7 +180,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Current plan: <Badge variant="outline" className="text-xs">{currentPlan}</Badge>
           </p>
-          <Button 
+          <Button
             onClick={() => window.location.href = '/payment'}
             className="w-full text-xs sm:text-sm"
             variant="outline"
@@ -202,7 +202,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
           {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}
         </CardTitle>
         <CardDescription className="text-xs sm:text-sm">
-          {isChange 
+          {isChange
             ? `Change your ${currentPlan} plan to ${selectedPlan} plan`
             : 'Choose your subscription plan and start creating amazing voice content'
           }
@@ -233,9 +233,9 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         </div>
 
         <Separator />
-        
+
         {/* Coupon Section */}
-        <CouponInput 
+        <CouponInput
           amount={baseAmount}
           type="subscription"
           onCouponApplied={handleCouponApplied}
@@ -247,26 +247,26 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         {/* Pricing Breakdown */}
         <div className="space-y-2">
           <h4 className="font-medium text-xs sm:text-sm text-gray-900">Pricing Details:</h4>
-          
+
           <div className="flex justify-between text-xs">
             <span>Plan Price</span>
             <span>{pricing.symbol}{baseAmount}</span>
           </div>
-          
+
           {couponValidation.isValid && (
             <div className="flex justify-between text-xs text-green-600">
               <span>Coupon Discount</span>
               <span>-{pricing.symbol}{couponValidation.discount}</span>
             </div>
           )}
-          
+
           <Separator />
-          
+
           <div className="flex justify-between font-medium text-xs sm:text-sm">
             <span>Total Amount</span>
             <span>{pricing.symbol}{finalAmount}</span>
           </div>
-          
+
           <div className="text-xs text-gray-500 text-center">
             Billed monthly • Cancel anytime • INR Currency Only
           </div>
@@ -275,14 +275,14 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         {/* Payment Confirmation */}
         <div className="space-y-3">
           <div className="flex items-start space-x-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
-            <Checkbox 
+            <Checkbox
               id="confirm-payment"
               checked={confirmPayment}
               onCheckedChange={(checked) => setConfirmPayment(checked as boolean)}
             />
             <div className="text-xs text-gray-600">
               <label htmlFor="confirm-payment" className="cursor-pointer">
-                I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong> 
+                I confirm the payment of <strong>{pricing.symbol}{finalAmount}</strong>
                 for the {plan.name} plan. This amount will be charged to my selected payment method.
               </label>
             </div>
@@ -290,7 +290,7 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
         </div>
 
         {/* Payment Button */}
-        <Button 
+        <Button
           onClick={handlePayment}
           disabled={isProcessing || !confirmPayment}
           className={`w-full bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm`}
@@ -306,8 +306,8 @@ export function PaymentGateway({ selectedPlan, onPayment, isProcessing }: Paymen
             <div className="flex items-center space-x-2">
               <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>
-                {isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` : 
-                 isDowngrade ? `Downgrade for ${pricing.symbol}${finalAmount}` : 
+                {isUpgrade ? `Upgrade for ${pricing.symbol}${finalAmount}` :
+                 isDowngrade ? `Downgrade for ${pricing.symbol}${finalAmount}` :
                  `Subscribe for ${pricing.symbol}${finalAmount}`}
               </span>
             </div>
