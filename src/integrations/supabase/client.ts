@@ -13,46 +13,5 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  },
-  global: {
-    headers: {
-      'x-client-info': 'tone2vibe-app'
-    }
   }
 });
-
-// Disable console logging in production
-if (import.meta.env.PROD) {
-  const originalLog = console.log;
-  const originalError = console.error;
-  const originalWarn = console.warn;
-  
-  const sensitiveKeywords = ['supabase', 'database', 'query', 'rpc', 'session', 'auth', 'token', 'api_key'];
-  
-  console.log = (...args: any[]) => {
-    const hasKeyword = args.some(arg => 
-      typeof arg === 'string' && sensitiveKeywords.some(keyword => 
-        arg.toLowerCase().includes(keyword)
-      )
-    );
-    if (!hasKeyword) originalLog.apply(console, args);
-  };
-  
-  console.error = (...args: any[]) => {
-    const hasKeyword = args.some(arg => 
-      typeof arg === 'string' && sensitiveKeywords.some(keyword => 
-        arg.toLowerCase().includes(keyword)
-      )
-    );
-    if (!hasKeyword) originalError.apply(console, args);
-  };
-  
-  console.warn = (...args: any[]) => {
-    const hasKeyword = args.some(arg => 
-      typeof arg === 'string' && sensitiveKeywords.some(keyword => 
-        arg.toLowerCase().includes(keyword)
-      )
-    );
-    if (!hasKeyword) originalWarn.apply(console, args);
-  };
-}

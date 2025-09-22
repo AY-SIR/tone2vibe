@@ -83,6 +83,39 @@ export type Database = {
         }
         Relationships: []
       }
+      coupons: {
+        Row: {
+          code: string
+          created_at: string | null
+          discount_amount: number | null
+          discount_percentage: number
+          expires_at: string | null
+          id: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number
+          expires_at?: string | null
+          id?: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number
+          expires_at?: string | null
+          id?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       expiry_notifications: {
         Row: {
           id: string
