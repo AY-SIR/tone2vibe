@@ -20,9 +20,11 @@ import {
   LogOut,
   Settings
 } from 'lucide-react';
+import { useRealTimeWordCount } from '@/hooks/useRealTimeWordCount';
 
 export function ProfileDropdown() {
   const { user, profile, signOut } = useAuth();
+  const { realTimeWordsUsed, realTimePurchasedWords } = useRealTimeWordCount();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -49,10 +51,10 @@ export function ProfileDropdown() {
       .slice(0, 2);
   };
 
-  const planWordsUsed = profile.plan_words_used || 0;
+  // Use real-time values when available
+  const planWordsUsed = realTimeWordsUsed || profile.plan_words_used || 0;
   const planLimit = profile.words_limit || 0;
-  // For Pro/Premium users, only show purchased words if they actually bought extra words
-  const purchasedWords = (profile.plan !== 'free' && (profile.word_balance || 0) > 0) ? (profile.word_balance || 0) : 0;
+  const purchasedWords = realTimePurchasedWords || profile.word_balance || 0;
   const planWordsRemaining = Math.max(0, planLimit - planWordsUsed);
   const totalAvailable = planWordsRemaining + purchasedWords;
   const wordsPercentage = planLimit > 0 ? (planWordsUsed / planLimit) * 100 : 0;

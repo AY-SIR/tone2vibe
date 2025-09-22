@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // adjust path if needed
 import { CouponInput } from "@/components/payment/couponInput"; // use real CouponInput
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PaymentGatewayProps {
   selectedPlan: 'pro' | 'premium';
@@ -16,6 +18,8 @@ interface PaymentGatewayProps {
 
 export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing = false }: PaymentGatewayProps) {
   const { profile } = useAuth();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [couponValidation, setCouponValidation] = useState({
@@ -89,11 +93,41 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
     setIsActivating(true);
 
     try {
-      // Call your payment API or subscription activation here
-      console.log("Payment/Activation initiated for plan:", selectedPlan, "Final Amount:", finalAmount);
-      onPayment(selectedPlan);
+      if (finalAmount === 0) {
+        // Handle free activation with coupon
+        const { data, error } = await supabase.functions.invoke('activate-free-plan', {
+          body: {
+            plan: selectedPlan,
+            user_id: user?.id,
+            coupon_code: couponValidation.code
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast({
+            title: "Plan Activated!",
+            description: `Your ${selectedPlan} plan has been activated for free!`,
+          });
+          
+          // Redirect to success page
+          window.location.href = `/payment-success?plan=${selectedPlan}&type=subscription&amount=0&coupon=${couponValidation.code}`;
+        } else {
+          throw new Error(data.error || 'Free activation failed');
+        }
+      } else {
+        // Handle paid activation
+        console.log("Payment/Activation initiated for plan:", selectedPlan, "Final Amount:", finalAmount);
+        onPayment(selectedPlan);
+      }
     } catch (error) {
       console.error("Payment failed:", error);
+      toast({
+        title: "Activation Failed",
+        description: error instanceof Error ? error.message : "Failed to activate plan",
+        variant: "destructive"
+      });
     } finally {
       setIsActivating(false);
     }

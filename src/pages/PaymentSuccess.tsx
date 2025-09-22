@@ -27,6 +27,17 @@ const PaymentSuccess = () => {
   useEffect(() => {
     const verifyPayment = async () => {
       if (!paymentId && !paymentRequestId) {
+        // Check for free activation
+        const freeActivation = searchParams.get("amount") === "0" && searchParams.get("coupon");
+        if (freeActivation && plan) {
+          setVerified(true);
+          setSuccessTitle("Plan Activated!");
+          setSuccessDescription(`Your ${plan} plan has been activated for free using coupon code.`);
+          await refreshProfile();
+          setIsVerifying(false);
+          return;
+        }
+        
         navigate("/payment");
         return;
       }
@@ -45,6 +56,10 @@ const PaymentSuccess = () => {
             setSuccessTitle("Words Added!");
             const added = count ? Number(count).toLocaleString() : undefined;
             setSuccessDescription(added ? `${added} words have been added to your account.` : `Your purchased words have been added to your account.`);
+            
+            // Clear any pending transaction data
+            sessionStorage.removeItem('pending_transaction');
+            
             await refreshProfile();
             toast({
               title: "Words Added",
@@ -65,6 +80,10 @@ const PaymentSuccess = () => {
             setVerified(true);
             setSuccessTitle("Payment Successful!");
             setSuccessDescription(`Your ${plan} plan has been activated.`);
+            
+            // Clear any pending transaction data
+            sessionStorage.removeItem('pending_transaction');
+            
             await refreshProfile();
             toast({
               title: "Payment Successful!",

@@ -2,21 +2,21 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealTimeWordCount } from '@/hooks/useRealTimeWordCount';
 
 export function MobileWordCounter() {
   const { profile } = useAuth();
+  const { realTimeWordsUsed, realTimePurchasedWords } = useRealTimeWordCount();
   const [showFull, setShowFull] = useState(false);
 
   if (!profile) return null;
 
-  // Use the new word system: plan words + purchased words
-  const planWordsUsed = profile.plan_words_used || 0;
+  // Use real-time values when available, fallback to profile
+  const planWordsUsed = realTimeWordsUsed || profile.plan_words_used || 0;
   const planWordsLimit = profile.words_limit || 0;
-  // For Pro/Premium users, only show purchased words if they actually bought extra words
-  const purchasedWords = (profile.plan !== 'free' && (profile.word_balance || 0) > 0) ? (profile.word_balance || 0) : 0;
+  const purchasedWords = realTimePurchasedWords || profile.word_balance || 0;
   const planWordsRemaining = Math.max(0, planWordsLimit - planWordsUsed);
   const totalAvailable = planWordsRemaining + purchasedWords;
-  const totalLimit = planWordsLimit + purchasedWords;
 
   const formatWords = (count: number): string => {
     if (count >= 1000) {

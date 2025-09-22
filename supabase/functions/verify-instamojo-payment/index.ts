@@ -94,14 +94,19 @@ serve(async (req) => {
     }
 
     // Update order status
-    await supabaseService
+    const { error: orderUpdateError } = await supabaseService
       .from("orders")
       .update({
         status: "paid",
         payment_id: payment_id,
-        updated_at: new Date().toISOString()
+        amount: parseFloat(payment.amount),
       })
       .eq("id", order.id);
+    
+    if (orderUpdateError) {
+      console.error("Failed to update order:", orderUpdateError);
+      throw new Error("Failed to update order status");
+    }
 
     // Process based on order type
     if (order.order_type === "subscription" && order.plan) {
@@ -110,17 +115,26 @@ serve(async (req) => {
       expiryDate.setMonth(expiryDate.getMonth() + 1);
 
       const wordsLimit = order.plan === 'pro' ? 10000 : 50000;
+      const uploadLimit = order.plan === 'pro' ? 25 : 100;
 
-      await supabaseService
+      const { error: profileUpdateError } = await supabaseService
         .from("profiles")
         .update({
           plan: order.plan,
           plan_expires_at: expiryDate.toISOString(),
+          plan_start_date: new Date().toISOString(),
+          plan_end_date: expiryDate.toISOString(),
           words_limit: wordsLimit,
+          upload_limit_mb: uploadLimit,
           plan_words_used: 0,
           updated_at: new Date().toISOString()
         })
         .eq("user_id", user.id);
+
+      if (profileUpdateError) {
+        console.error("Failed to update profile:", profileUpdateError);
+    const { error: paymentRecordError } = await supabaseService
+      }
 
     } else if (order.order_type === "word_purchase" && order.word_count) {
       // Add purchased words
@@ -129,9 +143,33 @@ serve(async (req) => {
         words_to_add: order.word_count,
         payment_id_param: payment_id
       });
+    
+    if (paymentRecordError) {
+      console.error("Failed to record payment:", paymentRecordError);
+      // Don't throw error as the main transaction succeeded
+    }
 
       if (error) {
+        console.error("Failed to add purchased words:", error);
         throw new Error("Failed to add purchased words");
+      }
+
+      // Record word purchase in word_purchases table
+      const { error: wordPurchaseError } = await supabaseService
+        .from("word_purchases")
+        .insert({
+          user_id: user.id,
+          words_purchased: order.words_purchased || order.word_count,
+          amount_paid: parseFloat(payment.amount),
+          currency: payment.currency || "INR",
+          payment_id: payment_id,
+          status: "completed",
+          payment_method: "instamojo"
+        });
+      
+      if (wordPurchaseError) {
+        console.error("Failed to record word purchase:", wordPurchaseError);
+        // Don't throw error as words were already added
       }
     }
 

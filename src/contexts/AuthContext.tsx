@@ -92,7 +92,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error || !data) return;
 
-      setProfile({ ...data, ip_address: (data.ip_address as string | null) || null });
+      const updatedProfile = { 
+        ...data, 
+        ip_address: (data.ip_address as string | null) || null 
+      };
+      
+      // Only update if profile actually changed to prevent unnecessary re-renders
+      setProfile(prevProfile => {
+        if (!prevProfile) return updatedProfile;
+        
+        const hasChanged = Object.keys(updatedProfile).some(key => 
+          prevProfile[key as keyof Profile] !== updatedProfile[key as keyof Profile]
+        );
+        
+        return hasChanged ? updatedProfile : prevProfile;
+      });
 
       if (data.country) {
         const location = { country: data.country, currency: "INR" };

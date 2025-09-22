@@ -132,21 +132,36 @@ export function WordPurchase() {
         return;
       }
 
-      const result = await InstamojoService.createWordPayment(
-        wordsAmount,
-        user!.email || '',
-        user!.user_metadata?.full_name || 'User'
-      );
+      try {
+        const result = await InstamojoService.createWordPayment(
+          wordsAmount,
+          user!.email || '',
+          user!.user_metadata?.full_name || 'User'
+        );
 
-      if (result.success && result.payment_request?.longurl) {
-        window.location.href = result.payment_request.longurl;
-        toast({
-          title: "Payment Initiated",
-          description: "Redirecting to secure payment page...",
-        });
-        setShowPaymentGateway(false);
-      } else {
-        throw new Error(result.message || 'Failed to create payment');
+        if (result.success && result.payment_request?.longurl) {
+          // Store pending transaction before redirect
+          const pendingTransaction = {
+            type: 'word_purchase',
+            amount: finalAmount,
+            words: wordsAmount,
+            payment_request_id: result.payment_request.id,
+            timestamp: Date.now()
+          };
+          sessionStorage.setItem('pending_transaction', JSON.stringify(pendingTransaction));
+          
+          window.location.href = result.payment_request.longurl;
+          toast({
+            title: "Payment Initiated",
+            description: "Redirecting to secure payment page...",
+          });
+          setShowPaymentGateway(false);
+        } else {
+          throw new Error(result.message || 'Failed to create payment');
+        }
+      } catch (paymentError) {
+        console.error('Payment creation failed:', paymentError);
+        throw new Error('Unable to process payment. Please try again.');
       }
     } catch (error) {
       let friendlyMessage = "Something went wrong with your payment. Please try again.";
@@ -155,6 +170,8 @@ export function WordPurchase() {
           friendlyMessage = "This service is only available for users in India.";
         } else if (error.message.includes('create payment')) {
           friendlyMessage = "Unable to start payment process. Please try again.";
+        } else if (error.message.includes('Unable to process payment')) {
+          friendlyMessage = error.message;
         }
       }
       toast({

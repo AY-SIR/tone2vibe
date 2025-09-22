@@ -79,17 +79,24 @@ serve(async (req) => {
     const orderData: any = {
       user_id: user.id,
       payment_request_id: responseData.payment_request.id,
-      amount: amount,
+      amount: parseInt(amount),
       currency: "INR",
       status: "pending",
       payment_method: "instamojo",
-      order_type: type || "subscription"
+      order_type: type || "subscription",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
     if (plan) orderData.plan = plan;
-    if (word_count) orderData.word_count = word_count;
+    if (word_count) orderData.words_purchased = parseInt(word_count);
 
-    await supabaseService.from("orders").insert([orderData]);
+    const { error: orderError } = await supabaseService.from("orders").insert([orderData]);
+    
+    if (orderError) {
+      console.error("Failed to save order:", orderError);
+      throw new Error("Failed to save order details");
+    }
 
     console.log(`Instamojo payment request created: ${responseData.payment_request.id}`);
 
