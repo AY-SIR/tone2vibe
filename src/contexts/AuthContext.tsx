@@ -63,9 +63,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth error");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 };
 
@@ -82,9 +80,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const authSubscriptionRef = useRef<any>(null);
   const profileChannelRef = useRef<any>(null);
 
-  /** -------------------
-   * Load User Profile
-   * ------------------- */
+  // Prevent duplicate popup in development (React 18 StrictMode)
+  const [hasShownPopup, setHasShownPopup] = useState(false);
+  const shouldShowPopup = expiryData.show_popup && !hasShownPopup;
+  useEffect(() => {
+    if (shouldShowPopup) setHasShownPopup(true);
+  }, [shouldShowPopup]);
+
+  /** ------------------- Load User Profile ------------------- */
   const loadUserProfile = async (userId?: string) => {
     if (!userId) return;
     try {
@@ -94,21 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq("user_id", userId)
         .single();
 
-      if (error || !data) {
-        console.debug("Profile not found:", error);
-        return;
-      }
+      if (error || !data) return;
 
-      setProfile({
-        ...data,
-        ip_address: (data.ip_address as string | null) || null,
-      });
+      setProfile({ ...data, ip_address: (data.ip_address as string | null) || null });
 
       if (data.country) {
-        const location = {
-          country: data.country,
-          currency: "INR", // Only INR now
-        };
+        const location = { country: data.country, currency: "INR" };
         setLocationData(location);
         try {
           localStorage.setItem(`user_location_${userId}`, JSON.stringify(location));
@@ -119,9 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  /** -------------------
-   * Initialize Auth Session
-   * ------------------- */
+  /** ------------------- Initialize Auth Session ------------------- */
   useEffect(() => {
     let mounted = true;
 
@@ -152,26 +144,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
-      if (authSubscriptionRef.current) {
-        try {
-          authSubscriptionRef.current.unsubscribe?.();
-        } catch {
-          supabase.removeChannel?.(authSubscriptionRef.current);
-        }
-      }
+      authSubscriptionRef.current?.unsubscribe?.();
     };
   }, []);
 
-  /** -------------------
-   * Profile Subscription
-   * ------------------- */
+  /** ------------------- Profile Subscription ------------------- */
   useEffect(() => {
     if (profileChannelRef.current) {
-      try {
-        supabase.removeChannel?.(profileChannelRef.current);
-      } catch {
-        profileChannelRef.current.unsubscribe?.();
-      }
+      profileChannelRef.current.unsubscribe?.();
       profileChannelRef.current = null;
     }
 
@@ -192,12 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .channel(`profile-updates-${user.id}`)
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "profiles",
-          filter: `user_id=eq.${user.id}`,
-        },
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
         (payload) => setProfile(payload.new as Profile)
       )
       .subscribe();
@@ -205,19 +180,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     profileChannelRef.current = channel;
 
     return () => {
-      if (profileChannelRef.current) {
-        try {
-          supabase.removeChannel?.(profileChannelRef.current);
-        } catch {
-          profileChannelRef.current.unsubscribe?.();
-        }
-      }
+      profileChannelRef.current?.unsubscribe?.();
     };
   }, [user?.id]);
 
-  /** -------------------
-   * Track IP & Location
-   * ------------------- */
+  /** ------------------- Track IP & Location ------------------- */
   useEffect(() => {
     const trackLoginIP = async () => {
       if (!session?.access_token || !user) return;
@@ -229,10 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (data?.country) {
-          const location = {
-            country: data.country,
-            currency: "INR", // Only INR now
-          };
+          const location = { country: data.country, currency: "INR" };
           setLocationData(location);
           localStorage.setItem(`ip_tracked_${user.id}`, "true");
           localStorage.setItem(`user_location_${user.id}`, JSON.stringify(location));
@@ -245,9 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     trackLoginIP();
   }, [session?.access_token, user?.id]);
 
-  /** -------------------
-   * Auth Actions
-   * ------------------- */
+  /** ------------------- Auth Actions ------------------- */
   const signUp = async (
     email: string,
     password: string,
@@ -255,88 +217,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     try {
       const geoCheck = await IndiaOnlyService.checkIndianAccess();
-      if (!geoCheck.isAllowed)
-        return { data: null, error: new Error(geoCheck.message) };
-
-      // Check if email already exists
-      const { data: existing } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (existing) {
-        return {
-          data: null,
-          error: new Error("An account with this email already exists. Please sign in."),
-        };
-      }
+      if (!geoCheck.isAllowed) return { data: null, error: new Error(geoCheck.message) };
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo:
-            options?.emailRedirectTo || `${window.location.origin}/email-confirmation`,
-          data: {
-            full_name: options?.fullName || "",
-            name: options?.fullName || "",
-          },
+          emailRedirectTo: options?.emailRedirectTo || `${window.location.origin}/email-confirmation`,
+          data: { full_name: options?.fullName || "", name: options?.fullName || "" },
         },
       });
 
-      if (error) {
-        const msg = error.message || "";
-        if (
-          msg.includes("already registered") ||
-          msg.includes("User already registered")
-        ) {
-          return {
-            data: null,
-            error: new Error("This email is already registered. Please sign in."),
-          };
-        }
-        return { data: null, error };
-      }
-
+      if (error) return { data: null, error };
       return { data, error: null };
     } catch (err) {
-      return {
-        data: null,
-        error: err instanceof Error ? err : new Error("Signup failed"),
-      };
+      return { data: null, error: err instanceof Error ? err : new Error("Signup failed") };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
       const geoCheck = await IndiaOnlyService.checkIndianAccess();
-      if (!geoCheck.isAllowed)
-        return { data: null, error: new Error(geoCheck.message) };
+      if (!geoCheck.isAllowed) return { data: null, error: new Error(geoCheck.message) };
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        const msg = error.message || "";
-        if (msg.includes("Invalid login credentials"))
-          return { data: null, error: new Error("Invalid email or password.") };
-        if (msg.includes("Email not confirmed"))
-          return {
-            data: null,
-            error: new Error("Please verify your email before signing in."),
-          };
-        return { data: null, error };
-      }
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { data: null, error };
       return { data, error: null };
     } catch (err) {
-      return {
-        data: null,
-        error: err instanceof Error ? err : new Error("Sign in failed"),
-      };
+      return { data: null, error: err instanceof Error ? err : new Error("Sign in failed") };
     }
   };
 
@@ -354,14 +262,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (uid) {
         localStorage.removeItem(`ip_tracked_${uid}`);
         localStorage.removeItem(`user_location_${uid}`);
-        localStorage.removeItem(`user_currency_${uid}`);
       }
 
       return { error: null };
     } catch (err) {
-      return {
-        error: err instanceof Error ? err : new Error("Sign out failed"),
-      };
+      return { error: err instanceof Error ? err : new Error("Sign out failed") };
     }
   };
 
@@ -372,10 +277,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user) throw new Error("No user found");
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update(data)
-        .eq("user_id", user.id);
+      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
       if (error) throw error;
       await loadUserProfile(user.id);
     } catch (err) {
@@ -384,9 +286,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  /** -------------------
-   * Context Value
-   * ------------------- */
+  /** ------------------- Context Value ------------------- */
   const value: AuthContextType = {
     user,
     session,
@@ -408,7 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         <>
           {children}
           <PlanExpiryPopup
-            isOpen={expiryData.show_popup}
+            isOpen={shouldShowPopup}
             onClose={dismissPopup}
             daysUntilExpiry={expiryData.days_until_expiry || 0}
             plan={expiryData.plan || ""}

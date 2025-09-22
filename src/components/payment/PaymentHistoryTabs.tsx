@@ -104,14 +104,27 @@ export function PaymentHistoryTabs() {
   };
 
   if (loading) {
-    return (
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardContent className="p-6">
-          <div className="text-center">Loading payment history...</div>
-        </CardContent>
-      </Card>
-    );
-  }
+  return (
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardContent className="p-6 space-y-4">
+        {/* Header Skeleton */}
+        <div className="h-6 bg-gray-200 rounded w-1/3 mx-auto animate-pulse"></div>
+
+        {/* Row Skeletons */}
+        {[...Array(5)].map((_, index) => (
+          <div key={index} className="flex items-center justify-between animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+          </div>
+        ))}
+
+        {/* Footer Skeleton */}
+        <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto animate-pulse"></div>
+      </CardContent>
+    </Card>
+  );
+}
+
 
   return (
     <Card className="w-full max-w-4xl mx-auto">

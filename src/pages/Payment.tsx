@@ -249,13 +249,14 @@ const Payment = () => {
           <div className="container mx-auto px-4 py-8">
             <div className="mb-8 text-center">
               <Button
-                variant="ghost"
-                onClick={() => setShowPaymentGateway(false)}
-                className="flex items-center space-x-2 mx-auto text-sm"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back to Plans</span>
-              </Button>
+  variant="ghost"
+  onClick={() => setShowPaymentGateway(false)}
+  className="flex items-center space-x-2 text-sm justify-start"
+>
+  <ArrowLeft className="h-4 w-4" />
+  <span>Back to Plans</span>
+</Button>
+
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">

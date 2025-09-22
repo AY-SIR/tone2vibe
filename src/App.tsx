@@ -1,3 +1,4 @@
+
 import React from "react";
 import Blog from "@/components/sections/blog";
 import { Toaster } from "@/components/ui/toaster";
@@ -37,24 +38,22 @@ function App() {
         <TooltipProvider>
           <ResponsiveGuard>
             <AuthProvider>
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
-                  <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                  <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-                  <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-                  <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/terms" element={<Terms />} />
-                  <Route path="/cookies" element={<Cookies />} />
-                  <Route path="/email-confirmation" element={<EmailConfirmation />} />
-                  <Route path="/email-confirmed" element={<EmailConfirmed />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
+                <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+                <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+                <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/cookies" element={<Cookies />} />
+                <Route path="/email-confirmation" element={<EmailConfirmation />} />
+                <Route path="/email-confirmed" element={<EmailConfirmed />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
               {/* Popups will be managed by their own contexts */}
               <Toaster />
               <Sonner />

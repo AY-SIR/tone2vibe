@@ -1,20 +1,20 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import App from "./App.tsx";
-import EmailConfirmation from "./pages/EmailConfirmation.tsx";
-import { AuthProvider } from "./context/AuthContext.tsx"; // <-- add this
+import App from "./App";
+import EmailConfirmation from "./pages/EmailConfirmation";
+import { AuthProvider } from "./contexts/AuthContext";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>  {/* <-- Only one router */}
+      <AuthProvider>
         <Routes>
           <Route path="/email-confirmation" element={<EmailConfirmation />} />
           <Route path="/*" element={<App />} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </StrictMode>
 );

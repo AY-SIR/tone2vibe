@@ -2,13 +2,14 @@ import type { Config } from "tailwindcss";
 import animatePlugin from "tailwindcss-animate";
 
 const config: Config = {
-  darkMode: false, // completely disable dark mode
+  // List all paths where Tailwind should look for class usage
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
   ],
+
   theme: {
     container: {
       center: true,
