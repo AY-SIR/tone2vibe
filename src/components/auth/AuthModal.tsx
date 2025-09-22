@@ -224,7 +224,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 <div className="flex items-center space-x-2">
                   <Checkbox id="agreeToTerms" checked={agreeToTerms} onCheckedChange={(checked) => setAgreeToTerms(!!checked)} disabled={isLoading} />
                   <Label htmlFor="agreeToTerms">
-                    I agree to the <a href="/terms" className="text-gray-500 underline">Terms of Service</a> and <a href="/privacy" className="text-gray-500 underline">Privacy Policy</a>.
+                    I agree to the <a href="/terms" className="text-gray-500 underline">Terms of Service</a> and <a href="/privacy" className=\"text-gray-500 underline">Privacy Policy</a>.
                   </Label>
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading || !agreeToTerms}>
