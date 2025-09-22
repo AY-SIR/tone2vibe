@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
-
+import { useAuth } from "@/context/AuthContext"; // adjust path if needed
 // Mock components for demo
 const CouponInput = ({ amount, type, onCouponApplied, disabled }) => (
   <div className="space-y-2">
