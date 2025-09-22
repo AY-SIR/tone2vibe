@@ -50,10 +50,7 @@ interface AuthContextType {
     password: string,
     options?: { emailRedirectTo?: string; fullName?: string }
   ) => Promise<{ data: any; error: Error | null }>;
-  signIn: (
-    email: string,
-    password: string
-  ) => Promise<{ data: any; error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
@@ -80,9 +77,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const authSubscriptionRef = useRef<any>(null);
   const profileChannelRef = useRef<any>(null);
 
-  // Prevent duplicate popup in development (React 18 StrictMode)
+  // Prevent duplicate popup in development or multiple renders
   const [hasShownPopup, setHasShownPopup] = useState(false);
   const shouldShowPopup = expiryData.show_popup && !hasShownPopup;
+
   useEffect(() => {
     if (shouldShowPopup) setHasShownPopup(true);
   }, [shouldShowPopup]);
@@ -125,6 +123,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setSession(data?.session || null);
         setUser(data?.session?.user || null);
+
+        if (data?.session?.user?.id) {
+          await loadUserProfile(data.session.user.id);
+        }
       } catch (err) {
         console.error("Session init error:", err);
       } finally {
@@ -135,9 +137,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     init();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setUser(newSession?.user || null);
-      setSession(newSession || null);
-      setLoading(false);
+      setUser((prev) => (prev?.id !== newSession?.user?.id ? newSession?.user : prev));
+      setSession((prev) =>
+        prev?.access_token !== newSession?.access_token ? newSession : prev
+      );
     });
 
     authSubscriptionRef.current = authListener?.subscription;
@@ -242,6 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { data: null, error };
+      if (data.user?.id) await loadUserProfile(data.user.id);
       return { data, error: null };
     } catch (err) {
       return { data: null, error: err instanceof Error ? err : new Error("Sign in failed") };
@@ -300,9 +304,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProfile,
   };
 
+  const isReady = !loading && (!user || profile);
+
   return (
     <AuthContext.Provider value={value}>
-      {loading ? (
+      {!isReady ? (
         <LoadingScreen />
       ) : (
         <>
