@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CreditCard, Package, AlertCircle, Globe, IndianRupee } from "lucide-react";
+import { CreditCard, Package, AlertCircle, IndianRupee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,52 +15,61 @@ import { CouponInput } from "@/components/payment/CouponInput";
 import type { CouponValidation } from "@/services/couponService";
 
 export function WordPurchase() {
-  const { user, profile, locationData } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
+
   const [wordsAmount, setWordsAmount] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
   const [pricing] = useState({ currency: 'INR', pricePerThousand: 31, symbol: '₹' });
-  const [couponValidation, setCouponValidation] = useState<CouponValidation>({ isValid: false, discount: 0, message: '', code: '' });
-  const [finalAmount, setFinalAmount] = useState<number>(0);
+  const [couponValidation, setCouponValidation] = useState<CouponValidation>({
+    isValid: false,
+    discount: 0,
+    message: '',
+    code: ''
+  });
+  const [finalAmount, setFinalAmount] = useState<number>(() => 1000 / 1000 * 31); // Initialize correctly
 
-  // Removed pricing loading - fixed to INR only
-
+  // Function to check if user can purchase words
   const canPurchaseWords = () => {
     if (!profile) return false;
     return profile.plan === 'pro' || profile.plan === 'premium';
   };
 
+  // Calculate price based on wordsAmount
   const calculatePrice = (words: number) => {
     const cost = (words / 1000) * pricing.pricePerThousand;
-    return Math.ceil(cost); // Always round up for INR
+    return Math.ceil(cost);
   };
 
+  // Handle coupon applied
   const handleCouponApplied = (validation: CouponValidation) => {
     setCouponValidation(validation);
+    if (!profile) return;
+
     const baseAmount = calculatePrice(wordsAmount);
     const discountAmount = validation.isValid ? validation.discount : 0;
     setFinalAmount(Math.max(0, baseAmount - discountAmount));
   };
 
+  // Recalculate final amount whenever wordsAmount, coupon, or profile changes
   useEffect(() => {
+    if (!profile) return;
+
     const baseAmount = calculatePrice(wordsAmount);
     const discountAmount = couponValidation.isValid ? couponValidation.discount : 0;
     setFinalAmount(Math.max(0, baseAmount - discountAmount));
-  }, [wordsAmount, couponValidation]);
+  }, [wordsAmount, couponValidation, profile]);
 
+  // Max purchase limit based on plan
   const getMaxPurchaseLimit = () => {
     if (!profile) return 0;
-    // Max purchase limits: Pro can buy up to 36k, Premium up to 49k
     const maxPurchaseLimit = profile.plan === 'pro' ? 36000 : profile.plan === 'premium' ? 49000 : 0;
     const currentlyPurchased = profile.word_balance || 0;
     return Math.max(0, maxPurchaseLimit - currentlyPurchased);
   };
 
-  const isIndianUser = () => {
-    return pricing.currency === 'INR';
-  };
-
+  // Handle word purchase button click
   const handlePurchase = () => {
     if (!user || !profile) {
       toast({
@@ -103,11 +111,10 @@ export function WordPurchase() {
     setShowPaymentGateway(true);
   };
 
+  // Handle payment through Instamojo
   const handlePaymentGateway = async () => {
     setLoading(true);
-
     try {
-      // Verify user is in India
       const location = await LocationCacheService.getLocation();
       if (!location.isIndian) {
         toast({
@@ -120,13 +127,11 @@ export function WordPurchase() {
         return;
       }
 
-      // If amount is zero due to coupon, bypass payment
       if (finalAmount === 0) {
         await handleFreeWordPurchase();
         return;
       }
 
-      // Create Instamojo payment for word purchase
       const result = await InstamojoService.createWordPayment(
         wordsAmount,
         user!.email || '',
@@ -134,7 +139,6 @@ export function WordPurchase() {
       );
 
       if (result.success && result.payment_request?.longurl) {
-        // Redirect to Instamojo payment page
         window.location.href = result.payment_request.longurl;
         toast({
           title: "Payment Initiated",
@@ -146,7 +150,6 @@ export function WordPurchase() {
       }
     } catch (error) {
       let friendlyMessage = "Something went wrong with your payment. Please try again.";
-
       if (error instanceof Error) {
         if (error.message.includes('India')) {
           friendlyMessage = "This service is only available for users in India.";
@@ -154,7 +157,6 @@ export function WordPurchase() {
           friendlyMessage = "Unable to start payment process. Please try again.";
         }
       }
-
       toast({
         title: "Payment Issue",
         description: friendlyMessage,
@@ -165,21 +167,18 @@ export function WordPurchase() {
     }
   };
 
+  // Handle free word purchase (coupon)
   const handleFreeWordPurchase = async () => {
     try {
-      // Generate auto ID for free purchase
       const autoGeneratedId = `FREE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Add words to user balance
       const { error: updateError } = await supabase.rpc('add_purchased_words', {
         user_id_param: user!.id,
         words_to_add: wordsAmount,
         payment_id_param: autoGeneratedId
       });
-
       if (updateError) throw updateError;
 
-      // Record purchase in history
       const { error: historyError } = await supabase
         .from('word_purchases')
         .insert({
@@ -191,7 +190,6 @@ export function WordPurchase() {
           payment_id: autoGeneratedId,
           payment_method: 'coupon'
         });
-
       if (historyError) throw historyError;
 
       toast({
@@ -202,8 +200,7 @@ export function WordPurchase() {
       setShowPaymentGateway(false);
       setWordsAmount(1000);
       setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
-      
-      // Refresh user profile
+
       window.location.reload();
     } catch (error) {
       toast({
@@ -216,12 +213,13 @@ export function WordPurchase() {
     }
   };
 
+  // Render loading if profile is not loaded yet
   if (!user || !profile) {
     return (
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="text-center">
-          <CardTitle className="text-base sm:text-lg md:text-xl">Authentication Required</CardTitle>
-          <CardDescription className="text-xs sm:text-sm">Please log in to purchase additional words</CardDescription>
+          <CardTitle className="text-base sm:text-lg md:text-xl">Loading...</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Fetching your profile...</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -280,7 +278,6 @@ export function WordPurchase() {
               </div>
             </div>
 
-            {/* Only show purchased words if user actually has some */}
             {(profile.word_balance || 0) > 0 && (
               <div className="mt-2 pt-2 border-t">
                 <div className="flex justify-between text-xs">
@@ -307,7 +304,7 @@ export function WordPurchase() {
                   id="words-input"
                   type="number"
                   placeholder="Minimum 1000 words"
-                  min="1000"
+                  min={1000}
                   max={maxAvailable}
                   value={wordsAmount}
                   onChange={(e) => {
@@ -375,50 +372,50 @@ export function WordPurchase() {
         </CardContent>
       </Card>
 
+      {/* Payment Gateway Dialog */}
+      <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
+        <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-center text-base sm:text-lg font-semibold">
+              Choose Payment Method
+            </DialogTitle>
+          </DialogHeader>
 
-  {/* Payment Gateway Selection Dialog */}
-  <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
-    <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6">
-      <DialogHeader className="pb-4">
-        <DialogTitle className="text-center text-base sm:text-lg font-semibold">
-          Choose Payment Method
-        </DialogTitle>
-      </DialogHeader>
+          <div className="space-y-4">
+            {/* Purchase Summary */}
+            <div className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="font-medium text-sm">Purchase Summary</p>
+              <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
+              <p className="text-base sm:text-lg font-bold">
+                ₹{finalAmount}
+                {couponValidation.isValid && finalAmount === 0 && ' - FREE!'}
+              </p>
+            </div>
 
-      <div className="space-y-4">
-        {/* Purchase Summary */}
-        <div className="text-center p-3 bg-gray-50 rounded-lg">
-          <p className="font-medium text-sm">Purchase Summary</p>
-          <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
-          <p className="text-base sm:text-lg font-bold">
-            ₹{finalAmount}
-            {couponValidation.isValid && finalAmount === 0 && ' - FREE!'}
-          </p>
-        </div>
+            {/* Instamojo Payment */}
+            <div className="space-y-2 px-2 sm:px-0">
+              <Button
+                onClick={handlePaymentGateway}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm px-3 py-2 sm:py-3 rounded-md"
+                size="lg"
+              >
+                <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate text-center">
+                  {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words FREE` : `Pay ₹${finalAmount} - Secure Payment`}
+                </span>
+                <Badge className="ml-2 bg-green-500 text-[10px] sm:text-xs px-1.5 py-0.5 rounded">
+                  Safe & Fast
+                </Badge>
+              </Button>
 
-        {/* Instamojo Payment (India Only) */}
-        <div className="space-y-2 px-2 sm:px-0">
-          <Button
-            onClick={handlePaymentGateway}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm px-3 py-2 sm:py-3 rounded-md"
-            size="lg"
-          >
-            <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <span className="truncate text-center">
-              {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words FREE` : `Pay ₹${finalAmount} - Secure Payment`}
-            </span>
-            <Badge className="ml-2 bg-green-500 text-[10px] sm:text-xs px-1.5 py-0.5 rounded">
-              Safe & Fast
-            </Badge>
-          </Button>
-
-          <p className="text-[10px] sm:text-xs text-gray-500 text-center px-1 sm:px-0">
-            Secure payment processing for India • No additional fees
-          </p>
-        </div>
-      </div>
-    </DialogContent>
-  </Dialog>
-</>
-); }
+              <p className="text-[10px] sm:text-xs text-gray-500 text-center px-1 sm:px-0">
+                Secure payment processing for India • No additional fees
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

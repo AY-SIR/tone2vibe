@@ -105,7 +105,7 @@ export function PaymentHistoryTabs() {
 
   if (loading) {
   return (
-    <Card className="w-full max-w-4xl mx-auto">
+    <Card className="w-full max-w-8xl mx-auto">
       <CardContent className="p-6 space-y-4">
         {/* Header Skeleton */}
         <div className="h-6 bg-gray-200 rounded w-1/3 mx-auto animate-pulse"></div>
@@ -127,7 +127,7 @@ export function PaymentHistoryTabs() {
 
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
+    <Card className="w-full max-w-8xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Calendar className="h-5 w-5" />

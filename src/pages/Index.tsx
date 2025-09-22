@@ -224,15 +224,26 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+
+
+
   // Render content based on current section
   const renderContent = () => {
     switch (currentSection) {
       case "home":
+
+
+
         return (
-          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-screen flex items-center">
-            <div className="absolute inset-0  [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10]">
-              <GridPattern rows={15} columns={50} cellSize={32} />
-            </div>
+          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-screen flex items-center
+"
+
+>
+          <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block ">
+  <GridPattern rows={15} columns={50} cellSize={32} />
+</div>
+
+
             <div className="relative z-10 container mx-auto max-w-4xl">
               <div className="animate-fade-in">
                 <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
@@ -404,7 +415,10 @@ const Index = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-white font-modern overflow-x-hidden">
+       <div className="relative  min-h-screen bg-white font-modern overflow-x-hidden">
+
+
+
       {/* Navigation */}
       <nav className="fixed top-2 left-6 right-6 z-50 rounded-2xl border border-white/20 bg-white/40 backdrop-blur-md shadow-lg transition-transform duration-300">
         <div className="px-6 py-4 flex items-center justify-between">

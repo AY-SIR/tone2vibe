@@ -117,7 +117,7 @@ export const FloatingNavigation = ({
 
               {/* Separator */}
               {index < sections.length - 1 && (
-                <div className="w-px h-4 bg-gray-300 hidden sm:block" />
+                <div className="w-2px h-4 bg-gray-300 hidden sm:block" />
               )}
             </div>
           ))}
