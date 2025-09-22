@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { CouponInput } from "@/components/payment/CouponInput"; // ✅ exact case
+import { couponInput } from "@/components/payment/couponInput"; // ✅ exact case
 import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentGatewayProps {

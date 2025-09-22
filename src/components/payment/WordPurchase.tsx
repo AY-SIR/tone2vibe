@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
-import { CouponInput } from "@/components/payment/CouponInput";
+import { couponInput } from "@/components/payment/couponInput";
 import type { CouponValidation } from "@/services/couponService";
 
 export function WordPurchase() {
