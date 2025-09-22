@@ -9,7 +9,7 @@ export const useRealTimeWordCount = () => {
   useEffect(() => {
     if (!user || !profile) return;
 
-    console.log('Setting up real-time word count for user:', user.id, 'Plan words used:', profile.plan_words_used);
+    // Removed sensitive logging
     
     // Set initial value - show plan words used (not total)
     setRealTimeWordsUsed(profile.plan_words_used || 0);
@@ -26,9 +26,7 @@ export const useRealTimeWordCount = () => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Real-time word count update:', payload);
           if (payload.new && typeof payload.new.plan_words_used === 'number') {
-            console.log('Updating real-time plan words used to:', payload.new.plan_words_used);
             setRealTimeWordsUsed(payload.new.plan_words_used);
             // Always refresh profile to keep context in sync
             setTimeout(() => {
@@ -40,7 +38,6 @@ export const useRealTimeWordCount = () => {
       .subscribe();
 
     return () => {
-      console.log('Cleaning up real-time word count subscription');
       supabase.removeChannel(channel);
     };
   }, [user?.id, profile?.plan_words_used, refreshProfile]);

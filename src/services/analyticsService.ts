@@ -73,7 +73,7 @@ export interface DetailedAnalytics {
 export class AnalyticsService {
   static async getUserAnalytics(userId: string, plan?: string): Promise<ProAnalytics | PremiumAnalytics> {
     try {
-      console.log('Fetching analytics for user:', userId, 'plan:', plan);
+      // Removed sensitive logging
       
       // Fetch project data from history table, excluding samples
       const { data: projects, error: projectsError } = await supabase
@@ -85,7 +85,6 @@ export class AnalyticsService {
         .order('created_at', { ascending: false });
 
       if (projectsError) {
-        console.error('Projects fetch error:', projectsError);
         throw projectsError;
       }
 
@@ -97,12 +96,10 @@ export class AnalyticsService {
         .single();
 
       if (profileError) {
-        console.error('Profile fetch error:', profileError);
         throw profileError;
       }
 
       const projectsArray = projects || [];
-      console.log('Found projects:', projectsArray.length);
 
       // Calculate basic stats using new word system
       const totalProjects = projectsArray.length;
@@ -113,14 +110,6 @@ export class AnalyticsService {
       const purchasedWords = profile?.word_balance || 0;
       const wordsRemaining = planWordsRemaining + purchasedWords; // Total available
       
-      console.log('Word calculation:', {
-        totalWordsProcessed,
-        planWordsRemaining,
-        purchasedWords,
-        wordsRemaining,
-        planWordsUsed: profile?.plan_words_used,
-        wordsLimit: profile?.words_limit
-      });
       const totalAudioGenerated = projectsArray.length;
 
       // Recent activity (last 30 days)

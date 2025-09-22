@@ -18,9 +18,11 @@ interface Profile {
 export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const [expiryData, setExpiryData] = useState<PlanExpiryData>({ show_popup: false });
   const [isLoading, setIsLoading] = useState(false);
+  const [hasChecked, setHasChecked] = useState(false);
+  const [popupDismissed, setPopupDismissed] = useState(false);
 
   const checkPlanExpiry = async () => {
-    if (!user || !profile) return;
+    if (!user || !profile || hasChecked || popupDismissed) return;
     
     setIsLoading(true);
     try {
@@ -29,30 +31,60 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
       });
 
       if (error) {
-        console.error('Error checking plan expiry:', error);
+        console.warn('Plan expiry check failed');
         return;
       }
 
       const response = data as unknown as PlanExpiryData;
-      setExpiryData(response || { show_popup: false });
+      const expiryResult = response || { show_popup: false };
+      
+      // Only show popup if it should be shown and hasn't been dismissed
+      if (expiryResult.show_popup && !popupDismissed) {
+        setExpiryData(expiryResult);
+      }
+      
+      setHasChecked(true);
     } catch (error) {
-      console.error('Error in plan expiry check:', error);
+      console.warn('Plan expiry check failed');
+      setHasChecked(true);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user && profile) {
+    if (user && profile && !hasChecked && !popupDismissed) {
       if (profile.plan !== 'free' && profile.plan_expires_at) {
         checkPlanExpiry();
       }
     }
-  }, [user?.id, profile?.plan, profile?.plan_expires_at]);
+  }, [user?.id, profile?.plan, profile?.plan_expires_at, hasChecked, popupDismissed]);
 
   const dismissPopup = () => {
     setExpiryData({ show_popup: false });
+    setPopupDismissed(true);
+    
+    // Store dismissal in session storage to prevent showing again this session
+    try {
+      sessionStorage.setItem(`plan_expiry_dismissed_${user?.id}`, 'true');
+    } catch (error) {
+      // Ignore storage errors
+    }
   };
+
+  // Check if popup was already dismissed this session
+  useEffect(() => {
+    if (user?.id) {
+      try {
+        const dismissed = sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`);
+        if (dismissed === 'true') {
+          setPopupDismissed(true);
+        }
+      } catch (error) {
+        // Ignore storage errors
+      }
+    }
+  }, [user?.id]);
 
   return {
     expiryData,

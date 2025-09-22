@@ -97,7 +97,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           const location = await LocationCacheService.getLocation();
           await LocationCacheService.saveUserLocation(data.user.id, location);
         }
-        toast.success('Account created! Please check your email to confirm your account.');
+        toast.success('Account created successfully!');
         setTimeout(() => {
           navigate("/tool", { replace: true });
           setIsClosing(true);
@@ -110,18 +110,18 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           const location = await LocationCacheService.getLocation();
           await LocationCacheService.saveUserLocation(data.user.id, location);
         }
-        toast.success('Successfully signed in!');
+        toast.success('Welcome back!');
         navigate("/tool", { replace: true });
         onOpenChange(false);
       }
     } catch (error) {
       const authError = error as AuthError;
       if (authError.message.includes('Email not confirmed')) {
-        toast.error('Please check your email and confirm your account before signing in.');
+        toast.error('Please confirm your email address to continue.');
       } else if (authError.message.includes('Invalid login credentials')) {
-        toast.error('Invalid email or password. Please check your credentials.');
+        toast.error('Invalid credentials. Please try again.');
       } else {
-        toast.error(authError.message || 'An error occurred.');
+        toast.error('Authentication failed. Please try again.');
       }
     } finally {
       setIsLoading(false);

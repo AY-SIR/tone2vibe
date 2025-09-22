@@ -16,34 +16,52 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Security: Disable sensitive console logs in production
-if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+// Security: Disable all sensitive console logs in production
+if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1')) {
   const originalLog = console.log;
   const originalError = console.error;
   const originalWarn = console.warn;
+  const originalInfo = console.info;
+  const originalDebug = console.debug;
   
-  const sensitiveKeywords = ['supabase', 'database', 'query', 'rpc', 'session', 'auth', 'token', 'api', 'key', 'secret'];
+  const sensitiveKeywords = [
+    'supabase', 'database', 'query', 'rpc', 'session', 'auth', 'token', 'api', 'key', 'secret',
+    'password', 'email', 'user_id', 'profile', 'payment', 'instamojo', 'sql', 'insert', 'update',
+    'delete', 'select', 'from', 'where', 'analytics', 'tracking', 'ip_address', 'location'
+  ];
   
-  const filterLogs = (originalFn: Function) => (...args: any[]) => {
-    const hasKeyword = args.some(arg => {
+  const shouldFilter = (args: any[]): boolean => {
+    return args.some(arg => {
       if (typeof arg === 'string') {
         return sensitiveKeywords.some(keyword => 
           arg.toLowerCase().includes(keyword)
         );
       }
       if (typeof arg === 'object' && arg !== null) {
-        const stringified = JSON.stringify(arg).toLowerCase();
-        return sensitiveKeywords.some(keyword => stringified.includes(keyword));
+        try {
+          const stringified = JSON.stringify(arg).toLowerCase();
+          return sensitiveKeywords.some(keyword => stringified.includes(keyword));
+        } catch {
+          return false;
+        }
       }
       return false;
     });
-    
-    if (!hasKeyword) {
+  };
+  
+  const createFilteredLogger = (originalFn: Function) => (...args: any[]) => {
+    if (!shouldFilter(args)) {
       originalFn.apply(console, args);
     }
   };
   
-  console.log = filterLogs(originalLog);
-  console.error = filterLogs(originalError); 
-  console.warn = filterLogs(originalWarn);
+  console.log = createFilteredLogger(originalLog);
+  console.error = createFilteredLogger(originalError);
+  console.warn = createFilteredLogger(originalWarn);
+  console.info = createFilteredLogger(originalInfo);
+  console.debug = createFilteredLogger(originalDebug);
+  
+  // Also override console.table and console.dir for complete security
+  console.table = () => {};
+  console.dir = () => {};
 }

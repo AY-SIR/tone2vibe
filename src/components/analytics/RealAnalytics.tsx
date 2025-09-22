@@ -36,9 +36,7 @@ const RealAnalytics = () => {
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
 
-      console.log('Fetching analytics for user:', user.id, 'plan:', profile?.plan);
       const result = await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
-      console.log('Analytics result:', result);
       return result;
     },
     enabled: !!user && profile?.plan !== 'free',
@@ -49,7 +47,6 @@ const RealAnalytics = () => {
   // Handle errors with toast
   useEffect(() => {
     if (error) {
-      console.error('Analytics fetch error:', error);
       toast({
         title: "Error loading data",
         description: "Unable to load analytics",

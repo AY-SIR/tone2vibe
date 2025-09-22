@@ -13,7 +13,6 @@ const Cookies = () => {
 
   useEffect(() => {
     const status = localStorage.getItem('cookie-consent');
-    console.log('Cookie page loaded, current status:', status);
     setCookieStatus(status);
   }, []);
 
@@ -22,7 +21,6 @@ const Cookies = () => {
     
     // Listen for cookie consent updates from popup
     const handleConsentUpdate = (e: CustomEvent) => {
-      console.log('Cookie page received consent update:', e.detail);
       const status = localStorage.getItem('cookie-consent');
       setCookieStatus(status);
       if (e.detail.source === 'popup') {
@@ -39,7 +37,6 @@ const Cookies = () => {
   }, []);
 
   const handleAcceptCookies = () => {
-    console.log('Accept clicked from cookies page');
     localStorage.setItem('cookie-consent', 'accepted');
     setCookieStatus('accepted');
     setShowSuccess(true);
@@ -52,7 +49,6 @@ const Cookies = () => {
   };
 
   const handleDeclineCookies = () => {
-    console.log('Decline clicked from cookies page');
     localStorage.setItem('cookie-consent', 'declined');
     setCookieStatus('declined');
     setShowSuccess(true);

@@ -101,7 +101,7 @@ export const useVoiceHistory = () => {
       const generatedLimit = getVoiceLimit('generated');
       const recordedLimit = getVoiceLimit('recorded');
       
-      console.log(`Fetching voice history for ${profile.plan} plan, filter: ${filterType}`);
+      // Removed sensitive logging
 
       let query = supabase
         .from('history')
@@ -124,12 +124,11 @@ export const useVoiceHistory = () => {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error fetching voice history:', error);
         setError('Failed to load voice history');
         return;
       }
 
-      console.log(`Loaded ${data?.length || 0} voice projects for ${profile.plan} plan`);
+      // Removed sensitive logging
       
       // Map history data to VoiceProject format and remove duplicates + samples
       const mappedProjects = (data || [])
@@ -166,7 +165,6 @@ export const useVoiceHistory = () => {
       
       setProjects(uniqueProjects);
     } catch (err) {
-      console.error('Error in fetchVoiceHistory:', err);
       setError('Failed to load voice history');
     } finally {
       setLoading(false);
@@ -189,7 +187,6 @@ export const useVoiceHistory = () => {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('New history entry added:', payload.new);
             fetchVoiceHistory(); // Refresh the history
           }
         )
@@ -202,7 +199,6 @@ export const useVoiceHistory = () => {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('History entry deleted:', payload.old);
             setProjects(prev => prev.filter(p => p.id !== payload.old.id));
           }
         )

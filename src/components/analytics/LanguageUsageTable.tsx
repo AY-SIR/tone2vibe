@@ -38,7 +38,6 @@ export function LanguageUsageTable() {
         .limit(50);
 
       if (error) {
-        console.error('Error fetching language usage data:', error);
         return;
       }
 
@@ -52,7 +51,7 @@ export function LanguageUsageTable() {
 
       setData(formattedData);
     } catch (error) {
-      console.error('Error fetching language usage data:', error);
+      // Silent fail for analytics
     } finally {
       setLoading(false);
     }

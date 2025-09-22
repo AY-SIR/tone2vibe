@@ -8,6 +8,9 @@ import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // adjust path if needed
 import { CouponInput } from "@/components/payment/couponInput"; // use real CouponInput
 
+import { supabase } from "@/integrations/supabase/client";
+import { InstamojoService } from "@/services/instamojo";
+
 interface PaymentGatewayProps {
   selectedPlan: 'pro' | 'premium';
   onPayment: (plan: 'pro' | 'premium') => void;
@@ -24,6 +27,8 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
     message: '',
     code: ''
   });
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const pricing = {
     currency: 'INR',
@@ -89,11 +94,62 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
     setIsActivating(true);
 
     try {
-      // Call your payment API or subscription activation here
-      console.log("Payment/Activation initiated for plan:", selectedPlan, "Final Amount:", finalAmount);
-      onPayment(selectedPlan);
+      if (finalAmount === 0) {
+        // Handle free activation with coupon
+        const { data, error } = await supabase.functions.invoke('activate-free-plan', {
+          body: {
+            plan: selectedPlan,
+            coupon_code: couponValidation.code,
+            user_id: user?.id
+          }
+        });
+
+        if (error) throw error;
+        
+        toast({
+          title: "Plan Activated!",
+          description: `Your ${selectedPlan} plan has been activated for free!`,
+        });
+        
+        // Refresh page to update profile
+        setTimeout(() => {
+          window.location.href = '/payment-success?plan=' + selectedPlan + '&type=free_activation';
+        }, 1000);
+      } else {
+        // Handle paid subscription
+        const result = await InstamojoService.createPlanPayment(
+          selectedPlan,
+          user?.email || '',
+          user?.user_metadata?.full_name || 'User',
+          couponValidation.code || undefined
+        );
+
+        if (result.success && result.payment_request?.longurl) {
+          window.location.href = result.payment_request.longurl;
+        } else {
+          throw new Error(result.message || 'Payment creation failed');
+        }
+      }
+          body: {
+            plan: selectedPlan,
+            coupon_code: couponValidation.code,
+            user_id: user?.id
+          }
+        });
+
+        if (error) throw error;
+        
+        onPayment(selectedPlan);
+      } else {
+        // Handle paid subscription
+        onPayment(selectedPlan);
+      }
     } catch (error) {
-      console.error("Payment failed:", error);
+      toast({
+        title: "Payment Failed",
+        description: "Unable to process payment. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsActivating(false);
     }

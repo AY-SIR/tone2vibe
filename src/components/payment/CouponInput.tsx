@@ -139,7 +139,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
           </div>
           <div className="flex justify-between items-center text-sm font-medium border-t border-green-200 pt-2 mt-2">
             <span className="text-green-800">Final Amount:</span>
-            <span className="text-green-800">₹{amount - validationResult.discount}</span>
+            <span className="text-green-800">₹{Math.max(0, amount - validationResult.discount)}</span>
           </div>
         </div>
       )}

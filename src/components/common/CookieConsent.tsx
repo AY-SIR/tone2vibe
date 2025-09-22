@@ -16,7 +16,6 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
   useEffect(() => {
     // Check if user has already made a choice
     const consent = localStorage.getItem('cookie-consent');
-    console.log('Cookie consent status on load:', consent);
     
     if (!consent) {
       setIsVisible(true);
@@ -24,7 +23,6 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
 
     // Listen for storage changes to hide consent when updated from cookies page
     const handleStorageChange = (e: StorageEvent) => {
-      console.log('Storage change detected:', e.key, e.newValue);
       if (e.key === 'cookie-consent' && e.newValue) {
         setIsVisible(false);
       }
@@ -32,7 +30,6 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
 
     // Listen for custom events from the cookies page
     const handleConsentUpdate = (e: CustomEvent) => {
-      console.log('Cookie consent custom event:', e.detail);
       const consent = localStorage.getItem('cookie-consent');
       if (consent) {
         setIsVisible(false);

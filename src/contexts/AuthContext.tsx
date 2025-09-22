@@ -77,13 +77,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const authSubscriptionRef = useRef<any>(null);
   const profileChannelRef = useRef<any>(null);
 
-  // Prevent duplicate popup in development or multiple renders
-  const [hasShownPopup, setHasShownPopup] = useState(false);
-  const shouldShowPopup = expiryData.show_popup && !hasShownPopup;
-
-  useEffect(() => {
-    if (shouldShowPopup) setHasShownPopup(true);
-  }, [shouldShowPopup]);
+  // Use the expiry data directly from the hook which now handles duplicates
+  const shouldShowPopup = expiryData.show_popup;
 
   /** ------------------- Load User Profile ------------------- */
   const loadUserProfile = async (userId?: string) => {

@@ -251,7 +251,7 @@ const ModernStepFour = ({
         
         toast({
           title: "Audio generated successfully!",
-          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio. Words deducted: ${data.wordsUsed || wordCount}`,
+          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio.`,
         });
 
         // Auto-advance after a short delay
@@ -262,7 +262,6 @@ const ModernStepFour = ({
         throw new Error("No audio content received");
       }
     } catch (error) {
-      console.error('Audio generation failed:', error);
       clearInterval(progressInterval);
       
       // User-friendly error messages

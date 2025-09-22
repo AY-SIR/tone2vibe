@@ -144,7 +144,7 @@ export class LocationCacheService {
         }, { onConflict: 'user_id' });
       } catch {}
     } catch (err) {
-      console.error('Error saving user location:', err);
+      // Silent fail for location saving
     }
   }
 
