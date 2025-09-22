@@ -73,7 +73,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
             type="text"
             placeholder="Enter coupon code"
             value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+            onChange={(e) => setCouponCode(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={disabled || isValidating || validationResult?.isValid}
             className="text-sm"

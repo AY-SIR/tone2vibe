@@ -44,7 +44,7 @@ const Payment = () => {
       const userPricing = LocationService.getPricing();
       setPricing(userPricing);
     } catch (error) {
-      console.error('Failed to load pricing:', error);
+      // Silent fail for pricing
     }
   };
 
@@ -189,7 +189,6 @@ const Payment = () => {
       setSelectedPlan(planId as 'pro' | 'premium');
       setShowPaymentGateway(true);
     } catch (error) {
-      console.error('Error initiating plan purchase:', error);
       toast({
         title: "Error",
         description: "Failed to initiate payment. Please try again.",
@@ -221,23 +220,85 @@ const Payment = () => {
 
   if (showPaymentGateway) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="mb-6 text-center">
-            <Button
-              variant="ghost"
-              onClick={() => setShowPaymentGateway(false)}
-              className="flex items-center space-x-2 mx-auto text-sm"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span>Back to Plans</span>
-            </Button>
+      <div className="min-h-screen bg-white">
+        {/* Mobile Layout */}
+        <div className="block lg:hidden">
+          <div className="flex items-center justify-center p-4">
+            <div className="w-full max-w-md">
+              <div className="mb-6 text-center">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowPaymentGateway(false)}
+                  className="flex items-center space-x-2 mx-auto text-sm"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Back to Plans</span>
+                </Button>
+              </div>
+              <PaymentGateway
+                selectedPlan={selectedPlan}
+                onPayment={() => {}}
+                isProcessing={loading !== null}
+              />
+            </div>
           </div>
-          <PaymentGateway
-            selectedPlan={selectedPlan}
-            onPayment={() => {}}
-            isProcessing={loading !== null}
-          />
+        </div>
+
+        {/* Desktop & Tablet Layout */}
+        <div className="hidden lg:block">
+          <div className="container mx-auto px-4 py-8">
+            <div className="mb-8 text-center">
+              <Button
+                variant="ghost"
+                onClick={() => setShowPaymentGateway(false)}
+                className="flex items-center space-x-2 mx-auto text-sm"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Plans</span>
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+              {/* Left Side - Plan Details */}
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      {getPlanIcon(selectedPlan)}
+                      <span className="capitalize">{selectedPlan} Plan</span>
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedPlan === 'pro' ? 'Best for content creators and professionals' : 'For teams and heavy users'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="text-3xl font-bold">
+                        {pricing.symbol}{pricing.plans[selectedPlan].price}/month
+                      </div>
+                      <ul className="space-y-2">
+                        {plans.find(p => p.id === selectedPlan)?.features.map((feature, index) => (
+                          <li key={index} className="flex items-start space-x-2">
+                            <Check className="h-4 w-4 text-green-600 mt-1 flex-shrink-0" />
+                            <span className="text-sm">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right Side - Payment Gateway */}
+              <div>
+                <PaymentGateway
+                  selectedPlan={selectedPlan}
+                  onPayment={() => {}}
+                  isProcessing={loading !== null}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

@@ -581,7 +581,6 @@ const Index = () => {
       <AuthModal
         open={showAuthModal}
         onOpenChange={setShowAuthModal}
-        onSuccess={handleAuthSuccess}
       />
       <VideoModal open={showVideoModal} onOpenChange={setShowVideoModal} />
 

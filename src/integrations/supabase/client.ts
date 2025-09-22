@@ -15,3 +15,35 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Security: Disable sensitive console logs in production
+if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+  const originalLog = console.log;
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  
+  const sensitiveKeywords = ['supabase', 'database', 'query', 'rpc', 'session', 'auth', 'token', 'api', 'key', 'secret'];
+  
+  const filterLogs = (originalFn: Function) => (...args: any[]) => {
+    const hasKeyword = args.some(arg => {
+      if (typeof arg === 'string') {
+        return sensitiveKeywords.some(keyword => 
+          arg.toLowerCase().includes(keyword)
+        );
+      }
+      if (typeof arg === 'object' && arg !== null) {
+        const stringified = JSON.stringify(arg).toLowerCase();
+        return sensitiveKeywords.some(keyword => stringified.includes(keyword));
+      }
+      return false;
+    });
+    
+    if (!hasKeyword) {
+      originalFn.apply(console, args);
+    }
+  };
+  
+  console.log = filterLogs(originalLog);
+  console.error = filterLogs(originalError); 
+  console.warn = filterLogs(originalWarn);
+}

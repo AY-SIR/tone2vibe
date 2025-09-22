@@ -4,12 +4,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
-import { SecurityProvider } from "@/components/common/SecurityProvider";
+import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
+import { WelcomePopup } from "@/components/common/WelcomePopup";
+import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { Suspense, useEffect } from "react";
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
@@ -24,101 +26,41 @@ import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import EmailConfirmed from "./pages/EmailConfirmed";
+import EmailConfirmation from "./pages/EmailConfirmation";
 
 const queryClient = new QueryClient();
 
-import { DatabaseSecurity } from "@/lib/secureDatabase";
-
 function App() {
-  useEffect(() => {
-    // Initialize enhanced security measures
-    DatabaseSecurity.initializeSecurityMeasures();
-    
-    // Additional production security
-    if (import.meta.env.PROD) {
-      // Disable right-click in production
-      document.addEventListener('contextmenu', (e) => e.preventDefault());
-      
-      // Clear console periodically in production
-      setInterval(() => {
-        if (typeof console.clear === 'function') {
-          console.clear();
-        }
-      }, 30000); // Clear every 30 seconds
-    }
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <ResponsiveGuard>
-          <SecurityProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <AuthProvider>
+        <TooltipProvider>
+          <ResponsiveGuard>
+            <AuthProvider>
+              <BrowserRouter>
                 <Routes>
                   <Route path="/" element={<Index />} />
-                  <Route 
-                     path="/tool" 
-                     element={
-                       <ProtectedRoute>
-                         <Tool />
-                       </ProtectedRoute>
-                     }
-                  />
-                  <Route 
-                    path="/payment" 
-                    element={
-                      <ProtectedRoute>
-                        <Payment />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/payment-success" 
-                    element={
-                      <ProtectedRoute>
-                        <PaymentSuccess />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/history" 
-                    element={
-                      <ProtectedRoute>
-                        <History />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/analytics" 
-                    element={
-                      <ProtectedRoute>
-                        <Analytics />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/profile" 
-                    element={
-                      <ProtectedRoute>
-                        <Profile />
-                      </ProtectedRoute>
-                    } 
-                  />
+                  <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
+                  <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+                  <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+                  <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                  <Route path="/contact" element={<Contact />} />
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/terms" element={<Terms />} />
-                  <Route path="/contact" element={<Contact />} />
                   <Route path="/cookies" element={<Cookies />} />
-                  <Route path="/blog" element={<Blog />} />
+                  <Route path="/email-confirmation" element={<EmailConfirmation />} />
                   <Route path="/email-confirmed" element={<EmailConfirmed />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-              </AuthProvider>
-            </TooltipProvider>
-          </SecurityProvider>
-        </ResponsiveGuard>
+              </BrowserRouter>
+              {/* Popups will be managed by their own contexts */}
+              <Toaster />
+              <Sonner />
+            </AuthProvider>
+          </ResponsiveGuard>
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

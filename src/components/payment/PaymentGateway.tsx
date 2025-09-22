@@ -26,6 +26,7 @@ interface PaymentGatewayProps {
 }
 
 export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing = false }: PaymentGatewayProps) {
+  const { profile } = useAuth();
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [couponValidation, setCouponValidation] = useState({
@@ -82,7 +83,7 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
   const baseAmount = plan.price;
   const finalAmount = Math.max(0, baseAmount - couponValidation.discount);
 
-  const currentPlan = 'free'; // Mock current plan
+  const currentPlan = profile?.plan || 'free';
   const isUpgrade = currentPlan === 'pro' && selectedPlan === 'premium';
   const isDowngrade = currentPlan === 'premium' && selectedPlan === 'pro';
   const isChange = isUpgrade || isDowngrade;
@@ -262,7 +263,6 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
               onClick={handlePayment}
               disabled={isProcessing || isActivating || !confirmPayment}
               className={`w-full ${finalAmount === 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'} text-white text-sm sm:text-base py-3 sm:py-4`}
-            >
             >
               {isProcessing || isActivating ? (
                 <div className="flex items-center space-x-2">
