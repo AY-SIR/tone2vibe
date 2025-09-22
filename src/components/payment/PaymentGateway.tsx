@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext"; // adjust path if needed
-import { CouponInput } from "@/components/payment/couponInput"; // use real CouponInput
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { CouponInput } from "@/components/payment/CouponInput"; // ✅ exact case
+import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentGatewayProps {
   selectedPlan: 'pro' | 'premium';
@@ -17,8 +17,7 @@ interface PaymentGatewayProps {
 }
 
 export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing = false }: PaymentGatewayProps) {
-  const { profile } = useAuth();
-  const { user } = useAuth();
+  const { profile, user } = useAuth();
   const { toast } = useToast();
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
@@ -94,28 +93,19 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
 
     try {
       if (finalAmount === 0) {
-        // Handle free activation with coupon
-        const { data, error } = await supabase.functions.invoke('activate-free-plan', {
-          body: {
-            plan: selectedPlan,
-            user_id: user?.id,
-            coupon_code: couponValidation.code
-          }
-        });
-
-        if (error) throw error;
-
-        if (data.success) {
+        // Validate coupon before proceeding with free activation
+        if (!couponValidation.isValid || !couponValidation.code) {
           toast({
-            title: "Plan Activated!",
-            description: `Your ${selectedPlan} plan has been activated for free!`,
+            title: "Invalid Coupon",
+            description: "A valid coupon is required for free plan activation.",
+            variant: "destructive"
           });
-          
-          // Redirect to success page
-          window.location.href = `/payment-success?plan=${selectedPlan}&type=subscription&amount=0&coupon=${couponValidation.code}`;
-        } else {
-          throw new Error(data.error || 'Free activation failed');
+          setIsActivating(false);
+          return;
         }
+
+        // Handle free activation with coupon
+        await handleFreeActivation();
       } else {
         // Handle paid activation
         console.log("Payment/Activation initiated for plan:", selectedPlan, "Final Amount:", finalAmount);
@@ -133,23 +123,117 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
     }
   };
 
+  const handleFreeActivation = async () => {
+    try {
+      // Generate unique transaction ID for free activation
+      const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Step 1: Verify coupon is still valid
+      const { data: couponCheck, error: couponError } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponValidation.code)
+        .eq('active', true)
+        .eq('type', 'subscription') // Ensure it's a subscription coupon
+        .single();
+
+      if (couponError || !couponCheck) {
+        throw new Error('Coupon is no longer valid for subscription');
+      }
+
+      // Step 2: Check coupon usage limits
+      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
+        throw new Error('Coupon usage limit exceeded');
+      }
+
+      // Step 3: Update user plan
+      const { error: planUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          plan: selectedPlan,
+          subscription_status: 'active',
+          subscription_end_date: null, // Free plans don't have end dates
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user?.id);
+
+      if (planUpdateError) {
+        console.error('Error updating plan:', planUpdateError);
+        throw new Error('Failed to activate plan');
+      }
+
+      // Step 4: Record the subscription in history
+      const { error: historyError } = await supabase
+        .from('subscription_history')
+        .insert({
+          user_id: user!.id,
+          plan: selectedPlan,
+          amount_paid: 0, // Free activation
+          currency: 'INR',
+          status: 'completed',
+          payment_id: freeTransactionId,
+          payment_method: 'coupon',
+          coupon_code: couponValidation.code,
+          activated_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        });
+
+      if (historyError) {
+        console.error('Error recording subscription history:', historyError);
+        // Don't throw here as plan was already activated
+        console.warn('Plan activated but history recording failed');
+      }
+
+      // Step 5: Update coupon usage
+      const { error: couponUpdateError } = await supabase
+        .from('coupons')
+        .update({
+          used_count: (couponCheck.used_count || 0) + 1,
+          last_used_at: new Date().toISOString()
+        })
+        .eq('id', couponCheck.id);
+
+      if (couponUpdateError) {
+        console.error('Error updating coupon usage:', couponUpdateError);
+        // Don't throw here as the activation was successful
+      }
+
+      // Success feedback
+      toast({
+        title: "Plan Activated Successfully!",
+        description: `Your ${selectedPlan} plan has been activated for free using coupon ${couponValidation.code}!`,
+      });
+
+      // Redirect to success page with proper parameters
+      window.location.href = `/payment-success?plan=${selectedPlan}&type=subscription&amount=0&coupon=${couponValidation.code}&method=free`;
+
+    } catch (error) {
+      console.error('Free activation error:', error);
+
+      let errorMessage = "Failed to activate plan. Please try again.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      throw new Error(errorMessage);
+    }
+  };
+
   // Already subscribed card
   if (!canPurchase && currentPlan === selectedPlan) {
     return (
       <Card className="w-full max-w-md mx-auto border-orange-200">
-       <CardHeader className="text-center p-3 sm:p-6">
-  <div
-    className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}
-  >
-    {plan.icon}
-  </div>
-  <CardTitle className="text-base sm:text-lg md:text-2xl">Already Subscribed</CardTitle>
-  <CardDescription className="text-xs sm:text-sm">
-    You're already on the {plan.name} plan
-  </CardDescription>
-</CardHeader>
-
-
+        <CardHeader className="text-center p-3 sm:p-6">
+          <div
+            className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}
+          >
+            {plan.icon}
+          </div>
+          <CardTitle className="text-base sm:text-lg md:text-2xl">Already Subscribed</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            You're already on the {plan.name} plan
+          </CardDescription>
+        </CardHeader>
 
         <CardContent className="text-center p-3 sm:p-6">
           <Badge className="mb-4 text-xs">Current Plan</Badge>
@@ -192,20 +276,19 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center p-6 block lg:hidden">
-  <div className={`${plan.color} w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
-    {plan.icon}
-  </div>
-  <CardTitle className="text-lg lg:text-xl">
-    {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}
-  </CardTitle>
-  <CardDescription className="text-sm">
-    {isChange
-      ? `Change your ${currentPlan} plan to ${selectedPlan} plan`
-      : 'Embark on your voice creation adventure.'
-    }
-  </CardDescription>
-</CardHeader>
-
+          <div className={`${plan.color} w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
+            {plan.icon}
+          </div>
+          <CardTitle className="text-lg lg:text-xl">
+            {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}
+          </CardTitle>
+          <CardDescription className="text-sm">
+            {isChange
+              ? `Change your ${currentPlan} plan to ${selectedPlan} plan`
+              : 'Embark on your voice creation adventure.'
+            }
+          </CardDescription>
+        </CardHeader>
 
         <CardContent className="space-y-6 p-6">
           {/* Current Plan Badge */}
@@ -267,9 +350,21 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
               </span>
             </div>
             <div className="text-xs text-gray-500 text-center">
-              No Billed monthly • INR Currency Only
+              {finalAmount === 0 ? 'Free activation with coupon' : 'Billed monthly • INR Currency Only'}
             </div>
           </div>
+
+          {/* Warning for zero amount without valid coupon */}
+          {finalAmount === 0 && !couponValidation.isValid && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600 font-medium">
+                ⚠️ Invalid Free Activation
+              </p>
+              <p className="text-xs text-red-500 mt-1">
+                A valid coupon code is required for free plan activation.
+              </p>
+            </div>
+          )}
 
           {/* Payment Confirmation */}
           <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
@@ -277,11 +372,13 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
               id="confirm-payment"
               checked={confirmPayment}
               onCheckedChange={(checked) => setConfirmPayment(checked as boolean)}
+              disabled={finalAmount === 0 && !couponValidation.isValid}
             />
             <div className="text-sm text-gray-600 flex-1">
               <label htmlFor="confirm-payment" className="cursor-pointer">
-                I confirm {finalAmount === 0 ? 'the activation' : `the payment of ${pricing.symbol}${finalAmount}`} for the {plan.name} plan.
+                I confirm {finalAmount === 0 ? 'the free activation' : `the payment of ${pricing.symbol}${finalAmount}`} for the {plan.name} plan.
                 {finalAmount > 0 && ' This amount will be charged to my selected payment method.'}
+                {finalAmount === 0 && couponValidation.isValid && ` Using coupon code: ${couponValidation.code}`}
               </label>
             </div>
           </div>
@@ -289,8 +386,15 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
           {/* Payment Button */}
           <Button
             onClick={handlePayment}
-            disabled={isProcessing || isActivating || !confirmPayment}
-            className={`w-full ${finalAmount === 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'} text-white py-3 text-sm`}
+            disabled={
+              isProcessing ||
+              isActivating ||
+              !confirmPayment ||
+              (finalAmount === 0 && !couponValidation.isValid)
+            }
+            className={`w-full ${
+              finalAmount === 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'
+            } text-white py-3 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
             size="lg"
           >
             {isProcessing || isActivating ? (
@@ -300,6 +404,8 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
               </div>
             ) : !confirmPayment ? (
               <span>Confirm to Continue</span>
+            ) : (finalAmount === 0 && !couponValidation.isValid) ? (
+              <span>Valid Coupon Required</span>
             ) : (
               <div className="flex items-center justify-center space-x-2">
                 <Zap className="h-4 w-4" />
@@ -317,10 +423,13 @@ export function PaymentGateway({ selectedPlan = 'pro', onPayment, isProcessing =
           <div className="text-sm text-gray-500 text-center">
             <div className="flex items-center justify-center space-x-2">
               <span>🔒</span>
-              <span>Secure payment processing</span>
+              <span>{finalAmount === 0 ? 'Secure free activation' : 'Secure payment processing'}</span>
             </div>
             <div className="mt-1 text-xs">
-              Your payment information is encrypted and secure
+              {finalAmount === 0
+                ? 'Your account will be upgraded immediately upon confirmation'
+                : 'Your payment information is encrypted and secure'
+              }
             </div>
           </div>
         </CardContent>

@@ -15,7 +15,10 @@ serve(async (req) => {
     const { plan, coupon_code, user_id } = await req.json();
 
     if (!plan || !user_id) {
-      throw new Error("Plan and user_id are required");
+      return new Response(JSON.stringify({ success: false, error: "Plan and user_id are required" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
 
     const supabaseService = createClient(
@@ -27,34 +30,45 @@ serve(async (req) => {
     // Validate coupon if provided
     if (coupon_code) {
       const { data: coupon, error: couponError } = await supabaseService
-        .from('coupons')
-        .select('*')
-        .eq('code', coupon_code.toUpperCase())
+        .from("coupons")
+        .select("*")
+        .eq("code", coupon_code.toUpperCase())
         .single();
 
       if (couponError || !coupon) {
-        throw new Error("Invalid coupon code");
+        return new Response(JSON.stringify({ success: false, error: "Invalid coupon code" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
       }
 
       if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-        throw new Error("Coupon has expired");
+        return new Response(JSON.stringify({ success: false, error: "Coupon has expired" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
       }
 
-      if (coupon.type !== 'subscription' && coupon.type !== 'both') {
-        throw new Error("Coupon not applicable to subscriptions");
+      if (!["subscription", "both"].includes(coupon.type)) {
+        return new Response(JSON.stringify({ success: false, error: "Coupon not applicable to subscriptions" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
       }
 
-      // Check if coupon provides 100% discount
       if (coupon.discount_percentage !== 100) {
-        throw new Error("Coupon does not provide free activation");
+        return new Response(JSON.stringify({ success: false, error: "Coupon does not provide free activation" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
       }
     }
 
-    // Activate plan for free
+    // Activate plan
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 1);
 
-    const wordsLimit = plan === 'pro' ? 10000 : 50000;
+    const wordsLimit = plan === "pro" ? 10000 : 50000;
 
     const { error: updateError } = await supabaseService
       .from("profiles")
@@ -63,40 +77,50 @@ serve(async (req) => {
         plan_expires_at: expiryDate.toISOString(),
         words_limit: wordsLimit,
         plan_words_used: 0,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq("user_id", user_id);
 
     if (updateError) {
-      throw new Error("Failed to activate plan");
+      return new Response(JSON.stringify({ success: false, error: "Failed to activate plan" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
 
     // Record the free activation
     await supabaseService.from("payments").insert({
       user_id: user_id,
-      payment_id: `FREE_${Date.now()}_${coupon_code || 'ACTIVATION'}`,
+      payment_id: `FREE_${Date.now()}_${coupon_code ?? "ACTIVATION"}`,
       amount: 0,
       currency: "INR",
       status: "completed",
-      plan: plan
+      plan: plan,
+      created_at: new Date().toISOString(),
     });
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: `${plan} plan activated successfully with coupon`,
-      expires_at: expiryDate.toISOString()
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
-
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `${plan} plan activated successfully${coupon_code ? " with coupon" : ""}`,
+        expires_at: expiryDate.toISOString(),
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
   } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    console.error("Activation error:", error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      }
+    );
   }
 });
