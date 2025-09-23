@@ -13,6 +13,7 @@ import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
 import { CouponInput } from "@/components/payment/couponInput";
 import type { CouponValidation } from "@/services/couponService";
+import { v4 as uuidv4 } from 'uuid';
 
 export function WordPurchase() {
   const { user, profile } = useAuth();
@@ -177,95 +178,89 @@ export function WordPurchase() {
     }
   };
 
-  const handleFreeWordPurchase = async () => {
-    try {
-      const freeTransactionId = `COUPON_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Verify coupon is still valid
-      const { data: couponCheck, error: couponError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponValidation.code)
-        .single();
 
-      if (couponError || !couponCheck) {
-        throw new Error('Coupon is no longer valid');
-      }
 
-      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
-        throw new Error('Coupon usage limit exceeded');
-      }
+const handleFreeWordPurchase = async () => {
+  try {
+    setLoading(true);
 
-      // Add words to user balance
-      const { error: updateError } = await supabase.rpc('add_purchased_words', {
-        user_id_param: user!.id,
-        words_to_add: wordsAmount,
-        payment_id_param: freeTransactionId
+    const freeTransactionId = `COUPON_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Verify coupon
+    const { data: couponCheck, error: couponError } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('code', couponValidation.code)
+      .single();
+
+    if (couponError || !couponCheck) throw new Error('Coupon is no longer valid');
+    if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses)
+      throw new Error('Coupon usage limit exceeded');
+
+    // Get current balance
+    const { data: currentProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('word_balance')
+      .eq('user_id', user!.id)
+      .single();
+    if (profileError) throw new Error('Failed to fetch current balance');
+
+    const newBalance = (currentProfile?.word_balance || 0) + wordsAmount;
+
+    // Update balance
+    const { data: updateResult, error: updateError } = await supabase
+      .from('profiles')
+      .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('user_id', user!.id)
+      .select('word_balance');
+    if (updateError) throw new Error(`Failed to add words: ${updateError.message}`);
+
+    // Record purchase
+    const { error: historyError } = await supabase
+      .from('word_purchases')
+      .insert({
+        user_id: user!.id,
+        words_purchased: wordsAmount,
+        amount_paid: 0,
+        currency: 'INR',
+        status: 'completed',
+        payment_id: freeTransactionId,
+        payment_method: 'coupon',
+        created_at: new Date().toISOString(),
       });
+    if (historyError) console.warn('Purchase history failed:', historyError);
 
-      if (updateError) {
-        throw new Error('Failed to add words to your account');
-      }
+    // Update coupon usage
+    await supabase
+      .from('coupons')
+      .update({ used_count: (couponCheck.used_count || 0) + 1, last_used_at: new Date().toISOString() })
+      .eq('id', couponCheck.id);
 
-      // Record the purchase
-      const { error: historyError } = await supabase
-        .from('word_purchases')
-        .insert({
-          user_id: user!.id,
-          words_purchased: wordsAmount,
-          amount_paid: 0,
-          currency: 'INR',
-          status: 'completed',
-          payment_id: freeTransactionId,
-          payment_method: 'coupon',
-          created_at: new Date().toISOString()
-        });
+    toast({
+      title: 'Words Added Successfully!',
+      description: `${wordsAmount.toLocaleString()} words have been added to your account using coupon ${couponValidation.code}`,
+    });
 
-      if (historyError) {
-        console.warn('Words were added but history recording failed');
-      }
+    setWordsAmount(1000);
+    setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
 
-      // Update coupon usage
-      const { error: couponUpdateError } = await supabase
-        .from('coupons')
-        .update({
-          used_count: (couponCheck.used_count || 0) + 1,
-          last_used_at: new Date().toISOString()
-        })
-        .eq('id', couponCheck.id);
+    // Redirect
+    window.location.href = `/payment-success?type=words&count=${wordsAmount}&amount=0&coupon=${couponValidation.code}&method=free`;
+  } catch (error) {
+    console.error(error);
+    toast({
+      title: 'Error Processing Free Purchase',
+      description: error instanceof Error ? error.message : 'Something went wrong',
+      variant: 'destructive',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
-      if (couponUpdateError) {
-        console.warn('Coupon update failed but words were added');
-      }
 
-      toast({
-        title: "Words Added Successfully!",
-        description: `${wordsAmount.toLocaleString()} words have been added to your account using coupon ${couponValidation.code}`,
-      });
 
-      // Reset form state
-      setShowPaymentGateway(false);
-      setWordsAmount(1000);
-      setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
-
-      // Redirect to success page
-      window.location.href = `/payment-success?type=words&count=${wordsAmount}&amount=0&coupon=${couponValidation.code}&method=free`;
-
-    } catch (error) {
-      let errorMessage = "Failed to add words to your account. Please try again.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-
-      toast({
-        title: "Error Processing Free Purchase",
-        description: errorMessage,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (!user || !profile) {
     return (
