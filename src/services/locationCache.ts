@@ -42,7 +42,6 @@ export class LocationCacheService {
         return null;
       }
 
-      if (data.sessionId !== this.getSessionId()) return null;
       return data;
     } catch {
       this.clearCache();
@@ -50,7 +49,7 @@ export class LocationCacheService {
     }
   }
 
-  // Cache location locally
+  // Cache location locally and in cookies
   static async cacheLocation(ip: string, countryCode: string, country: string): Promise<LocationCache> {
     const locationCache: LocationCache = {
       countryCode: countryCode.toUpperCase(),
@@ -63,9 +62,14 @@ export class LocationCacheService {
 
     try {
       localStorage.setItem(this.CACHE_KEY, JSON.stringify(locationCache));
-      document.cookie = `user_country=${locationCache.countryCode}; path=/; max-age=${Math.floor(this.CACHE_DURATION / 1000)}; secure; samesite=strict`;
+      
+      // Set secure cookies for location verification
+      const maxAge = Math.floor(this.CACHE_DURATION / 1000);
+      document.cookie = `user_country=${locationCache.countryCode}; path=/; max-age=${maxAge}; secure; samesite=strict`;
+      document.cookie = `user_ip_verified=${this.maskIP(ip)}; path=/; max-age=${maxAge}; secure; samesite=strict`;
+      document.cookie = `location_verified=true; path=/; max-age=${maxAge}; secure; samesite=strict`;
     } catch (err) {
-      console.warn('Error caching location:', err);
+      // Silent fail for storage errors
     }
 
     return locationCache;
@@ -75,29 +79,29 @@ export class LocationCacheService {
   static async fetchLocation(): Promise<LocationCache> {
     const apis = [
       async () => {
-        const res = await fetch('https://ipapi.co/json/', { headers: { Accept: 'application/json' } });
+        const res = await fetch('https://ipapi.co/json/', { 
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(5000)
+        });
         if (!res.ok) throw new Error('ipapi.co failed');
         const data = await res.json();
         return { ip: data.ip, countryCode: data.country_code, country: data.country_name };
       },
       async () => {
-        const token = '';
-        const res = await fetch(`https://ipinfo.io/json?token=${token}`);
-        if (!res.ok) throw new Error('ipinfo.io failed');
-        const data = await res.json();
-        return { ip: data.ip, countryCode: data.country, country: data.country };
-      },
-      async () => {
-        const res = await fetch('https://geolocation-db.com/json/');
-        if (!res.ok) throw new Error('geolocation-db failed');
-        const data = await res.json();
-        return { ip: data.IPv4, countryCode: data.country_code, country: data.country_name };
-      },
-      async () => {
-        const res = await fetch('https://ipwho.is/');
+        const res = await fetch('https://ipwho.is/', {
+          signal: AbortSignal.timeout(5000)
+        });
         if (!res.ok) throw new Error('ipwho.is failed');
         const data = await res.json();
         return { ip: data.ip, countryCode: data.country_code, country: data.country };
+      },
+      async () => {
+        const res = await fetch('https://geolocation-db.com/json/', {
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!res.ok) throw new Error('geolocation-db failed');
+        const data = await res.json();
+        return { ip: data.IPv4, countryCode: data.country_code, country: data.country_name };
       },
     ];
 
@@ -108,7 +112,7 @@ export class LocationCacheService {
           return await this.cacheLocation(ip, countryCode, country);
         }
       } catch (err) {
-        console.warn('Location API failed, trying next...', err);
+        // Continue to next API
       }
     }
 
@@ -123,17 +127,35 @@ export class LocationCacheService {
     return await this.fetchLocation();
   }
 
+  // Check location from cookies (fast check)
+  static getLocationFromCookies(): { isIndian: boolean; country: string | null; ipVerified: string | null } {
+    try {
+      const cookies = document.cookie.split(';');
+      const countryCode = cookies.find(c => c.trim().startsWith('user_country='))?.split('=')[1]?.trim();
+      const ipVerified = cookies.find(c => c.trim().startsWith('user_ip_verified='))?.split('=')[1]?.trim();
+      const locationVerified = cookies.find(c => c.trim().startsWith('location_verified='))?.split('=')[1]?.trim();
+      
+      return {
+        isIndian: countryCode === 'IN' && locationVerified === 'true',
+        country: countryCode || null,
+        ipVerified: ipVerified || null
+      };
+    } catch {
+      return { isIndian: false, country: null, ipVerified: null };
+    }
+  }
+
   // Save location to Supabase
   static async saveUserLocation(userId: string, locationData: LocationCache): Promise<void> {
     try {
       await supabase.from('profiles').upsert({
         user_id: userId,
         country: locationData.country,
-        country_code: locationData.countryCode,
+        ip_address: locationData.partialIP,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
-      // Optional: user_locations table
+      // Also save to user_locations table
       try {
         await supabase.from('user_locations').upsert({
           user_id: userId,
@@ -152,15 +174,8 @@ export class LocationCacheService {
     try {
       localStorage.removeItem(this.CACHE_KEY);
       document.cookie = 'user_country=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'user_ip_verified=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'location_verified=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     } catch {}
-  }
-
-  static getCountryFromCookie(): string | null {
-    try {
-      const cookie = document.cookie.split(';').find(c => c.trim().startsWith('user_country='));
-      return cookie ? cookie.split('=')[1].trim() : null;
-    } catch {
-      return null;
-    }
   }
 }

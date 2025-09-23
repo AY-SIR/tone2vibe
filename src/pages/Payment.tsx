@@ -11,6 +11,7 @@ import { PaymentGateway } from "@/components/payment/PaymentGateway";
 import { WordPurchase } from "@/components/payment/WordPurchase";
 import { PaymentHistory } from "@/components/payment/PaymentHistory";
 import { LocationService } from "@/services/locationService";
+import { LocationCacheService } from "@/services/locationCache";
 
 const Payment = () => {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ const Payment = () => {
     },
     words: { pricePerThousand: 31 }
   });
+  const [locationVerified, setLocationVerified] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -36,6 +38,7 @@ const Payment = () => {
       return;
     }
     loadPricing();
+    verifyLocation();
   }, [user, navigate]);
 
   const loadPricing = async () => {
@@ -45,6 +48,39 @@ const Payment = () => {
       setPricing(userPricing);
     } catch (error) {
       // Silent fail for pricing
+    }
+  };
+
+  const verifyLocation = async () => {
+    try {
+      // First check cookies for fast verification
+      const cookieLocation = LocationCacheService.getLocationFromCookies();
+      
+      if (cookieLocation.isIndian && cookieLocation.ipVerified) {
+        setLocationVerified(true);
+        return;
+      }
+
+      // If not in cookies, perform full location check
+      const location = await LocationCacheService.getLocation();
+      
+      if (!location.isIndian) {
+        toast({
+          title: "Access Restricted",
+          description: `This service is only available in India. Your location: ${location.country}`,
+          variant: "destructive"
+        });
+        setTimeout(() => navigate('/'), 3000);
+        return;
+      }
+
+      setLocationVerified(true);
+    } catch (error) {
+      toast({
+        title: "Location Verification Failed",
+        description: "Unable to verify your location. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -62,7 +98,7 @@ const Payment = () => {
         '1,000 words/month',
         '10MB upload limit',
         'Basic voice quality',
-        '24 Hours History',
+        '7 Days History',
         'Last 3 voices in History',
         'AI-generated voices',
         'Email support'
@@ -80,7 +116,7 @@ const Payment = () => {
       period: '/month',
       features: [
         '10,000 words/month base limit',
-        'Buy up to 41,000 total words',
+        'Buy up to 36,000 additional words',
         `${pricing.symbol}${pricing.words.pricePerThousand} per 1,000 additional words`,
         '25MB upload limit',
         'High quality audio',
@@ -105,7 +141,7 @@ const Payment = () => {
       period: '/month',
       features: [
         '50,000 words/month base limit',
-        'Buy up to 99,000 total words',
+        'Buy up to 49,000 additional words',
         `${pricing.symbol}${pricing.words.pricePerThousand} per 1,000 additional words`,
         '100MB upload limit',
         'Ultra-high quality',
@@ -126,6 +162,15 @@ const Payment = () => {
   ];
 
   const handlePlanSelect = async (planId: string) => {
+    if (!locationVerified) {
+      toast({
+        title: "Location Not Verified",
+        description: "Please wait while we verify your location.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (planId === 'free') {
       if (isFreePlanActive) {
         toast({
@@ -249,14 +294,13 @@ const Payment = () => {
           <div className="container mx-auto px-4 py-8">
             <div className="mb-8 text-center">
               <Button
-  variant="ghost"
-  onClick={() => setShowPaymentGateway(false)}
-  className="flex items-center space-x-2 text-sm justify-start"
->
-  <ArrowLeft className="h-4 w-4" />
-  <span>Back to Plans</span>
-</Button>
-
+                variant="ghost"
+                onClick={() => setShowPaymentGateway(false)}
+                className="flex items-center space-x-2 text-sm justify-start"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Plans</span>
+              </Button>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
@@ -333,7 +377,7 @@ const Payment = () => {
           <TabsContent value="plans" className="space-y-6 sm:space-y-8">
             <div className="text-center mb-6 sm:mb-12">
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4">Choose Your Plan</h1>
-              <p className="text-base sm:text-lg md:text-xl  text-gray-600 max-w-3xl mx-auto px-4">
+              <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
                 Unlock the full potential of AI voice cloning with our flexible pricing plans.
               </p>
             </div>
@@ -393,7 +437,7 @@ const Payment = () => {
                     <div className="space-y-2">
                       <Button
                         onClick={() => handlePlanSelect(plan.id)}
-                        disabled={loading === plan.id || (plan.current && plan.canUpgrade === false)}
+                        disabled={loading === plan.id || (plan.current && plan.canUpgrade === false) || !locationVerified}
                         className={`w-full text-sm ${plan.current ? 'bg-gray-100 text-gray-800 cursor-not-allowed' : plan.popular ? 'bg-black hover:bg-gray-800 text-white' : 'bg-gray-800 hover:bg-black text-white'}`}
                         variant={plan.current ? "outline" : "default"}
                       >
@@ -414,7 +458,7 @@ const Payment = () => {
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
               <p className="mb-4 text-xs sm:text-sm md:text-base px-4">
                 All paid plans include the ability to purchase additional words at {pricing.symbol}{pricing.words.pricePerThousand} per 1,000 words.
-                <br/>Pro users can buy up to 41,000 total words, Premium users can buy up to 99,000 total words.
+                <br/>Pro users can buy up to 36,000 additional words, Premium users can buy up to 49,000 additional words.
               </p>
               <div className="text-xs sm:text-sm">
                 Location: भारत | India • Currency: ₹ INR Only

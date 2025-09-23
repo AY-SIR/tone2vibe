@@ -5,9 +5,6 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zYm15aXFob2h0amRmYmpteGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0MDk2MzIsImV4cCI6MjA2OTk4NTYzMn0.TkCDTkST4CNAEvMOC08GI7jvS0mlJ5hhMsKxw7heDak";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
@@ -16,52 +13,54 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Security: Disable all sensitive console logs in production
+// Enhanced security: Completely disable all console logging in production
 if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1')) {
-  const originalLog = console.log;
-  const originalError = console.error;
-  const originalWarn = console.warn;
-  const originalInfo = console.info;
-  const originalDebug = console.debug;
+  // Store original console methods
+  const originalConsole = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info,
+    debug: console.debug,
+    table: console.table,
+    dir: console.dir,
+    trace: console.trace,
+    group: console.group,
+    groupEnd: console.groupEnd,
+    time: console.time,
+    timeEnd: console.timeEnd
+  };
   
-  const sensitiveKeywords = [
-    'supabase', 'database', 'query', 'rpc', 'session', 'auth', 'token', 'api', 'key', 'secret',
-    'password', 'email', 'user_id', 'profile', 'payment', 'instamojo', 'sql', 'insert', 'update',
-    'delete', 'select', 'from', 'where', 'analytics', 'tracking', 'ip_address', 'location'
-  ];
+  // Override all console methods to prevent any sensitive data leakage
+  const noOp = () => {};
   
-  const shouldFilter = (args: any[]): boolean => {
-    return args.some(arg => {
-      if (typeof arg === 'string') {
-        return sensitiveKeywords.some(keyword => 
-          arg.toLowerCase().includes(keyword)
-        );
-      }
-      if (typeof arg === 'object' && arg !== null) {
-        try {
-          const stringified = JSON.stringify(arg).toLowerCase();
-          return sensitiveKeywords.some(keyword => stringified.includes(keyword));
-        } catch {
-          return false;
-        }
-      }
-      return false;
+  console.log = noOp;
+  console.error = noOp;
+  console.warn = noOp;
+  console.info = noOp;
+  console.debug = noOp;
+  console.table = noOp;
+  console.dir = noOp;
+  console.trace = noOp;
+  console.group = noOp;
+  console.groupEnd = noOp;
+  console.time = noOp;
+  console.timeEnd = noOp;
+  
+  // Also override any potential console access through window
+  if (window.console) {
+    Object.keys(originalConsole).forEach(key => {
+      (window.console as any)[key] = noOp;
     });
-  };
+  }
   
-  const createFilteredLogger = (originalFn: Function) => (...args: any[]) => {
-    if (!shouldFilter(args)) {
-      originalFn.apply(console, args);
-    }
-  };
-  
-  console.log = createFilteredLogger(originalLog);
-  console.error = createFilteredLogger(originalError);
-  console.warn = createFilteredLogger(originalWarn);
-  console.info = createFilteredLogger(originalInfo);
-  console.debug = createFilteredLogger(originalDebug);
-  
-  // Also override console.table and console.dir for complete security
-  console.table = () => {};
-  console.dir = () => {};
+  // Prevent access to console through developer tools
+  Object.defineProperty(window, 'console', {
+    value: new Proxy({}, {
+      get() { return noOp; },
+      set() { return true; }
+    }),
+    writable: false,
+    configurable: false
+  });
 }

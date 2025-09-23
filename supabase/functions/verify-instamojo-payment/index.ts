@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { payment_id, payment_request_id } = await req.json();
+    const { payment_id, payment_request_id, type, plan } = await req.json();
     
     if (!payment_id || !payment_request_id) {
       throw new Error("Payment ID and Payment Request ID are required");
@@ -36,7 +36,7 @@ serve(async (req) => {
     const testMode = Deno.env.get("INSTAMOJO_TEST_MODE") === "true";
 
     if (!apiKey || !authToken) {
-      throw new Error("Instamojo API credentials not configured");
+      throw new Error("Payment gateway not configured");
     }
 
     const baseUrl = testMode 
@@ -74,15 +74,18 @@ serve(async (req) => {
     const { data: order } = await supabaseService
       .from("orders")
       .select("*")
-      .eq("payment_request_id", payment_request_id)
       .eq("user_id", user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single();
 
     if (!order) {
       throw new Error("Order not found");
     }
 
-    if (order.status === "paid") {
+    // Check if already processed
+    if (order.status === "completed") {
       return new Response(JSON.stringify({
         success: true,
         message: "Payment already processed",
@@ -97,20 +100,18 @@ serve(async (req) => {
     const { error: orderUpdateError } = await supabaseService
       .from("orders")
       .update({
-        status: "paid",
-        payment_id: payment_id,
-        amount: parseFloat(payment.amount),
+        status: "completed",
+        updated_at: new Date().toISOString()
       })
       .eq("id", order.id);
     
     if (orderUpdateError) {
-      console.error("Failed to update order:", orderUpdateError);
       throw new Error("Failed to update order status");
     }
 
     // Process based on order type
-    if (order.order_type === "subscription" && order.plan) {
-      // Update user profile for subscription
+    if (order.plan) {
+      // Subscription payment
       const expiryDate = new Date();
       expiryDate.setMonth(expiryDate.getMonth() + 1);
 
@@ -132,48 +133,56 @@ serve(async (req) => {
         .eq("user_id", user.id);
 
       if (profileUpdateError) {
-        console.error("Failed to update profile:", profileUpdateError);
-    const { error: paymentRecordError } = await supabaseService
+        throw new Error("Failed to update subscription");
       }
 
-    } else if (order.order_type === "word_purchase" && order.word_count) {
-      // Add purchased words
+      // Record payment
+      const { error: paymentRecordError } = await supabaseService
+        .from("payments")
+        .insert({
+          user_id: user.id,
+          payment_id: payment_id,
+          amount: parseFloat(payment.amount),
+          currency: payment.currency || "INR",
+          status: "completed",
+          plan: order.plan,
+          created_at: new Date().toISOString()
+        });
+
+      if (paymentRecordError) {
+        console.warn("Payment recorded but history update failed");
+      }
+
+    } else if (order.words_purchased) {
+      // Word purchase payment
       const { error } = await supabaseService.rpc('add_purchased_words', {
         user_id_param: user.id,
-        words_to_add: order.word_count,
+        words_to_add: order.words_purchased,
         payment_id_param: payment_id
       });
-    
-    if (paymentRecordError) {
-      console.error("Failed to record payment:", paymentRecordError);
-      // Don't throw error as the main transaction succeeded
-    }
 
       if (error) {
-        console.error("Failed to add purchased words:", error);
         throw new Error("Failed to add purchased words");
       }
 
-      // Record word purchase in word_purchases table
+      // Record word purchase
       const { error: wordPurchaseError } = await supabaseService
         .from("word_purchases")
         .insert({
           user_id: user.id,
-          words_purchased: order.words_purchased || order.word_count,
+          words_purchased: order.words_purchased,
           amount_paid: parseFloat(payment.amount),
           currency: payment.currency || "INR",
           payment_id: payment_id,
           status: "completed",
-          payment_method: "instamojo"
+          payment_method: "instamojo",
+          created_at: new Date().toISOString()
         });
       
       if (wordPurchaseError) {
-        console.error("Failed to record word purchase:", wordPurchaseError);
-        // Don't throw error as words were already added
+        console.warn("Words added but history update failed");
       }
     }
-
-    console.log(`Payment verified and processed: ${payment_id}`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -183,8 +192,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
+
   } catch (error) {
-    console.error("Payment verification error:", error);
     return new Response(JSON.stringify({
       success: false,
       error: error.message

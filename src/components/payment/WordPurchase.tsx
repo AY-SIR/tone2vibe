@@ -1,17 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CreditCard, Package, AlertCircle, IndianRupee } from "lucide-react";
+import { CreditCard, Package, AlertTriangle, IndianRupee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
-import { couponInput } from "@/components/payment/couponInput";
+import { CouponInput } from "@/components/payment/couponInput";
 import type { CouponValidation } from "@/services/couponService";
 
 export function WordPurchase() {
@@ -28,40 +28,20 @@ export function WordPurchase() {
     message: '',
     code: ''
   });
-  const [finalAmount, setFinalAmount] = useState<number>(() => 1000 / 1000 * 31);
 
-  // Function to check if user can purchase words
-  const canPurchaseWords = () => {
-    if (!profile) return false;
-    return profile.plan === 'pro' || profile.plan === 'premium';
-  };
-
-  // Calculate price based on wordsAmount
   const calculatePrice = (words: number) => {
     const cost = (words / 1000) * pricing.pricePerThousand;
     return Math.ceil(cost);
   };
 
-  // Handle coupon applied
-  const handleCouponApplied = (validation: CouponValidation) => {
-    setCouponValidation(validation);
-    if (!profile) return;
+  const baseAmount = calculatePrice(wordsAmount);
+  const finalAmount = Math.max(0, baseAmount - (couponValidation.isValid ? couponValidation.discount : 0));
 
-    const baseAmount = calculatePrice(wordsAmount);
-    const discountAmount = validation.isValid ? validation.discount : 0;
-    setFinalAmount(Math.max(0, baseAmount - discountAmount));
+  const canPurchaseWords = () => {
+    if (!profile) return false;
+    return profile.plan === 'pro' || profile.plan === 'premium';
   };
 
-  // Recalculate final amount whenever wordsAmount, coupon, or profile changes
-  useEffect(() => {
-    if (!profile) return;
-
-    const baseAmount = calculatePrice(wordsAmount);
-    const discountAmount = couponValidation.isValid ? couponValidation.discount : 0;
-    setFinalAmount(Math.max(0, baseAmount - discountAmount));
-  }, [wordsAmount, couponValidation, profile]);
-
-  // Max purchase limit based on plan
   const getMaxPurchaseLimit = () => {
     if (!profile) return 0;
     const maxPurchaseLimit = profile.plan === 'pro' ? 36000 : profile.plan === 'premium' ? 49000 : 0;
@@ -69,7 +49,10 @@ export function WordPurchase() {
     return Math.max(0, maxPurchaseLimit - currentlyPurchased);
   };
 
-  // Handle word purchase button click
+  const handleCouponApplied = (validation: CouponValidation) => {
+    setCouponValidation(validation);
+  };
+
   const handlePurchase = () => {
     if (!user || !profile) {
       toast({
@@ -111,7 +94,6 @@ export function WordPurchase() {
     setShowPaymentGateway(true);
   };
 
-  // Handle payment through Instamojo
   const handlePaymentGateway = async () => {
     setLoading(true);
     try {
@@ -127,9 +109,8 @@ export function WordPurchase() {
         return;
       }
 
-      // Check if this is a free purchase (zero amount after coupon)
       if (finalAmount === 0) {
-        // Validate coupon before proceeding with free purchase
+        // Handle free word purchase with coupon
         if (!couponValidation.isValid || !couponValidation.code) {
           toast({
             title: "Invalid Coupon",
@@ -144,6 +125,7 @@ export function WordPurchase() {
         return;
       }
 
+      // Handle paid word purchase
       try {
         const result = await InstamojoService.createWordPayment(
           wordsAmount,
@@ -152,7 +134,6 @@ export function WordPurchase() {
         );
 
         if (result.success && result.payment_request?.longurl) {
-          // Store pending transaction before redirect
           const pendingTransaction = {
             type: 'word_purchase',
             amount: finalAmount,
@@ -173,7 +154,6 @@ export function WordPurchase() {
           throw new Error(result.message || 'Failed to create payment');
         }
       } catch (paymentError) {
-        console.error('Payment creation failed:', paymentError);
         throw new Error('Unable to process payment. Please try again.');
       }
     } catch (error) {
@@ -197,30 +177,26 @@ export function WordPurchase() {
     }
   };
 
-  // Handle free word purchase (coupon) - FIXED VERSION
   const handleFreeWordPurchase = async () => {
     try {
-      // Generate a unique transaction ID for free purchases
       const freeTransactionId = `COUPON_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Step 1: Verify coupon is still valid before processing
+      // Verify coupon is still valid
       const { data: couponCheck, error: couponError } = await supabase
         .from('coupons')
         .select('*')
         .eq('code', couponValidation.code)
-        .eq('active', true)
         .single();
 
       if (couponError || !couponCheck) {
         throw new Error('Coupon is no longer valid');
       }
 
-      // Step 2: Check if coupon has usage limits
       if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
         throw new Error('Coupon usage limit exceeded');
       }
 
-      // Step 3: Add words to user balance using transaction
+      // Add words to user balance
       const { error: updateError } = await supabase.rpc('add_purchased_words', {
         user_id_param: user!.id,
         words_to_add: wordsAmount,
@@ -228,32 +204,28 @@ export function WordPurchase() {
       });
 
       if (updateError) {
-        console.error('Error adding words:', updateError);
         throw new Error('Failed to add words to your account');
       }
 
-      // Step 4: Record the purchase in history with correct data
+      // Record the purchase
       const { error: historyError } = await supabase
         .from('word_purchases')
         .insert({
           user_id: user!.id,
           words_purchased: wordsAmount,
-          amount_paid: 0, // This should be 0 for free purchases
+          amount_paid: 0,
           currency: 'INR',
           status: 'completed',
           payment_id: freeTransactionId,
           payment_method: 'coupon',
-          coupon_code: couponValidation.code,
           created_at: new Date().toISOString()
         });
 
       if (historyError) {
-        console.error('Error recording purchase history:', historyError);
-        // Don't throw here as words were already added - just log the error
         console.warn('Words were added but history recording failed');
       }
 
-      // Step 5: Update coupon usage count
+      // Update coupon usage
       const { error: couponUpdateError } = await supabase
         .from('coupons')
         .update({
@@ -263,11 +235,9 @@ export function WordPurchase() {
         .eq('id', couponCheck.id);
 
       if (couponUpdateError) {
-        console.error('Error updating coupon usage:', couponUpdateError);
-        // Don't throw here as the purchase was successful
+        console.warn('Coupon update failed but words were added');
       }
 
-      // Success feedback
       toast({
         title: "Words Added Successfully!",
         description: `${wordsAmount.toLocaleString()} words have been added to your account using coupon ${couponValidation.code}`,
@@ -278,14 +248,10 @@ export function WordPurchase() {
       setWordsAmount(1000);
       setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
 
-      // Refresh the page to update balance display
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // Redirect to success page
+      window.location.href = `/payment-success?type=words&count=${wordsAmount}&amount=0&coupon=${couponValidation.code}&method=free`;
 
     } catch (error) {
-      console.error('Free word purchase error:', error);
-
       let errorMessage = "Failed to add words to your account. Please try again.";
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -301,7 +267,6 @@ export function WordPurchase() {
     }
   };
 
-  // Render loading if profile is not loaded yet
   if (!user || !profile) {
     return (
       <Card className="w-full max-w-md mx-auto">
@@ -318,7 +283,7 @@ export function WordPurchase() {
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="text-center">
           <CardTitle className="text-base sm:text-lg md:text-xl flex items-center justify-center space-x-2">
-            <AlertCircle className="h-4 w-4 text-orange-500" />
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
             <span>Upgrade Required</span>
           </CardTitle>
           <CardDescription className="text-xs sm:text-sm">
@@ -408,7 +373,7 @@ export function WordPurchase() {
 
               {/* Coupon Input */}
               <CouponInput
-                amount={calculatePrice(wordsAmount)}
+                amount={baseAmount}
                 type="words"
                 onCouponApplied={handleCouponApplied}
                 disabled={loading}
@@ -441,15 +406,15 @@ export function WordPurchase() {
             </>
           ) : (
             <div className="text-center py-4">
-              <AlertCircle className="h-8 w-8 sm:h-12 sm:w-12 text-orange-500 mx-auto mb-2" />
+              <AlertTriangle className="h-8 w-8 sm:h-12 sm:w-12 text-orange-500 mx-auto mb-2" />
               <p className="text-gray-600 font-medium text-xs sm:text-sm">Word Purchase Limit Reached</p>
               <p className="text-xs text-gray-500 mt-1">
                 You've reached the maximum word limit for your {profile.plan} plan.
               </p>
               {profile.plan === 'pro' && (
-              <p className="text-xs text-gray-500 mt-2">
-                Upgrade to Premium for higher purchase limits (49k additional words).
-              </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Upgrade to Premium for higher purchase limits (49k additional words).
+                </p>
               )}
             </div>
           )}

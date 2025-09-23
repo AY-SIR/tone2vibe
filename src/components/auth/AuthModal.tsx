@@ -92,7 +92,17 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             data: { full_name: fullName.trim(), display_name: fullName.trim() }
           }
         });
-        if (error) throw error;
+        
+        if (error) {
+          // Handle specific error cases
+          if (error.message.includes('User already registered')) {
+            toast.error('An account with this email already exists. Please sign in instead.');
+            setIsLoading(false);
+            return;
+          }
+          throw error;
+        }
+        
         if (data.user) {
           const location = await LocationCacheService.getLocation();
           await LocationCacheService.saveUserLocation(data.user.id, location);
@@ -105,7 +115,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }, 2000);
       } else { // Signin
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            toast.error('Invalid email or password. Please check your credentials and try again.');
+          } else if (error.message.includes('Email not confirmed')) {
+            toast.error('Please confirm your email address to continue.');
+          } else {
+            toast.error('Sign in failed. Please try again.');
+          }
+          setIsLoading(false);
+          return;
+        }
+        
         if (data.user) {
           const location = await LocationCacheService.getLocation();
           await LocationCacheService.saveUserLocation(data.user.id, location);
@@ -120,6 +142,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         toast.error('Please confirm your email address to continue.');
       } else if (authError.message.includes('Invalid login credentials')) {
         toast.error('Invalid credentials. Please try again.');
+      } else if (authError.message.includes('User already registered')) {
+        toast.error('An account with this email already exists. Please sign in instead.');
       } else {
         toast.error('Authentication failed. Please try again.');
       }

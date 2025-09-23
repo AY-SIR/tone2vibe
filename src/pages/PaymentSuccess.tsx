@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, ArrowRight } from "lucide-react";
+import { CheckCircle, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,32 +17,42 @@ const PaymentSuccess = () => {
   const [successTitle, setSuccessTitle] = useState("Payment Successful!");
   const [successDescription, setSuccessDescription] = useState("");
 
-  // Get URL parameters (removed sessionId as it's Stripe specific)
+  // Get URL parameters
   const plan = searchParams.get("plan");
   const type = searchParams.get("type");
   const count = searchParams.get("count");
+  const amount = searchParams.get("amount");
+  const coupon = searchParams.get("coupon");
+  const method = searchParams.get("method");
   const paymentId = searchParams.get("payment_id");
   const paymentRequestId = searchParams.get("payment_request_id");
 
   useEffect(() => {
     const verifyPayment = async () => {
-      if (!paymentId && !paymentRequestId) {
-        // Check for free activation
-        const freeActivation = searchParams.get("amount") === "0" && searchParams.get("coupon");
-        if (freeActivation && plan) {
-          setVerified(true);
-          setSuccessTitle("Plan Activated!");
-          setSuccessDescription(`Your ${plan} plan has been activated for free using coupon code.`);
+      try {
+        // Handle free activations (amount = 0)
+        if (amount === "0" && (coupon || method === "free")) {
+          if (type === "subscription" && plan) {
+            setVerified(true);
+            setSuccessTitle("Plan Activated!");
+            setSuccessDescription(`Your ${plan} plan has been activated for free${coupon ? ` using coupon ${coupon}` : ''}.`);
+          } else if (type === "words" && count) {
+            setVerified(true);
+            setSuccessTitle("Words Added!");
+            setSuccessDescription(`${parseInt(count).toLocaleString()} words have been added to your account${coupon ? ` using coupon ${coupon}` : ''}.`);
+          }
+          
           await refreshProfile();
           setIsVerifying(false);
           return;
         }
-        
-        navigate("/payment");
-        return;
-      }
 
-      try {
+        // Handle paid transactions
+        if (!paymentId && !paymentRequestId) {
+          navigate("/payment");
+          return;
+        }
+
         if (type === 'words' && paymentId) {
           // Instamojo word purchase verification
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
@@ -54,16 +64,15 @@ const PaymentSuccess = () => {
           if (data.success) {
             setVerified(true);
             setSuccessTitle("Words Added!");
-            const added = count ? Number(count).toLocaleString() : undefined;
-            setSuccessDescription(added ? `${added} words have been added to your account.` : `Your purchased words have been added to your account.`);
+            const added = count ? Number(count).toLocaleString() : "Your purchased words";
+            setSuccessDescription(`${added} have been added to your account.`);
             
-            // Clear any pending transaction data
             sessionStorage.removeItem('pending_transaction');
-            
             await refreshProfile();
+            
             toast({
               title: "Words Added",
-              description: added ? `${added} words credited to your balance.` : `Words credited to your balance.`,
+              description: `${added} credited to your balance.`,
             });
           } else {
             throw new Error(data.error || 'Verification failed');
@@ -81,10 +90,9 @@ const PaymentSuccess = () => {
             setSuccessTitle("Payment Successful!");
             setSuccessDescription(`Your ${plan} plan has been activated.`);
             
-            // Clear any pending transaction data
             sessionStorage.removeItem('pending_transaction');
-            
             await refreshProfile();
+            
             toast({
               title: "Payment Successful!",
               description: `Your ${plan} plan has been activated.`,
@@ -93,7 +101,7 @@ const PaymentSuccess = () => {
             throw new Error(data.error || 'Payment verification failed');
           }
         } else if (paymentId && paymentRequestId) {
-          // New Instamojo verification
+          // Generic Instamojo verification
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
             body: { payment_id: paymentId, payment_request_id: paymentRequestId }
           });
@@ -105,8 +113,8 @@ const PaymentSuccess = () => {
             setSuccessTitle("Payment Successful!");
             setSuccessDescription("Your payment has been processed successfully.");
             
-            // Refresh user profile to show updated plan/words
             await refreshProfile();
+            
             toast({
               title: "Payment Successful!",
               description: "Your payment has been processed successfully.",
@@ -119,27 +127,28 @@ const PaymentSuccess = () => {
           return;
         }
       } catch (error) {
-        console.error("Payment verification failed:", error);
         toast({
           title: "Verification Failed",
           description: "Please contact support if this issue persists.",
           variant: "destructive"
         });
+        setVerified(false);
       } finally {
         setIsVerifying(false);
       }
     };
 
     verifyPayment();
-  }, [paymentId, paymentRequestId, plan, type, count, navigate, refreshProfile, toast]);
+  }, [paymentId, paymentRequestId, plan, type, count, amount, coupon, method, navigate, refreshProfile, toast]);
 
   if (isVerifying) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin text-primary" />
             <p>Verifying your payment...</p>
+            <p className="text-sm text-muted-foreground mt-2">Please wait while we confirm your transaction</p>
           </CardContent>
         </Card>
       </div>

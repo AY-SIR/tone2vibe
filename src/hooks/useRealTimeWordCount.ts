@@ -1,33 +1,36 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { throttle } from 'lodash'; // npm install lodash
 
 export const useRealTimeWordCount = () => {
   const { user, profile, refreshProfile } = useAuth();
-  const [realTimeWordsUsed, setRealTimeWordsUsed] = useState(0);
+  const [realTimeWordsUsed, setRealTimeWordsUsed] = useState<number | null>(null);
+  const [realTimePurchasedWords, setRealTimePurchasedWords] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const channelRef = useRef(null);
+  const channelRef = useRef<any>(null);
 
-  // Throttle profile refresh to once every 1 second
+  // Throttled refresh to prevent excessive API calls
   const throttledRefresh = useRef(
-    throttle(() => {
-      console.log('Refreshing profile after word count change');
-      refreshProfile();
-    }, 1000)
+    (() => {
+      let timeout: NodeJS.Timeout | null = null;
+      return () => {
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          refreshProfile();
+        }, 1000);
+      };
+    })()
   ).current;
 
   useEffect(() => {
-    if (!user) {
+    if (!user || user.id === 'guest') {
       setIsLoading(false);
       return;
     }
 
-    console.log('Setting up real-time word count for user:', user.id);
-
-    // Set initial value
-    const initialWordsUsed = profile?.plan_words_used || 0;
-    setRealTimeWordsUsed(initialWordsUsed);
+    // Set initial values
+    setRealTimeWordsUsed(profile?.plan_words_used || 0);
+    setRealTimePurchasedWords(profile?.word_balance || 0);
     setIsLoading(false);
 
     // Subscribe to real-time changes
@@ -42,63 +45,45 @@ export const useRealTimeWordCount = () => {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Real-time word count update received:', payload);
-
-          if (payload.new && typeof payload.new.plan_words_used === 'number') {
+          if (payload.new) {
             const newWordsUsed = payload.new.plan_words_used;
+            const newPurchasedWords = payload.new.word_balance;
 
-            setRealTimeWordsUsed((prevWordsUsed) => {
-              if (prevWordsUsed !== newWordsUsed) {
-                console.log('Word count changed from', prevWordsUsed, 'to', newWordsUsed);
-                throttledRefresh();
-                return newWordsUsed;
-              }
-              return prevWordsUsed;
-            });
-          } else {
-            console.warn('Invalid payload received in real-time update:', payload);
+            if (typeof newWordsUsed === 'number') {
+              setRealTimeWordsUsed(newWordsUsed);
+            }
+            
+            if (typeof newPurchasedWords === 'number') {
+              setRealTimePurchasedWords(newPurchasedWords);
+            }
+
+            // Throttled refresh to update context
+            throttledRefresh();
           }
         }
       )
-      .on('subscribe', (status) => {
-        console.log('Word count subscription status:', status);
-      })
-      .on('error', (error) => {
-        console.error('Word count subscription error:', error);
-      })
       .subscribe();
 
     channelRef.current = channel;
 
-    // Cleanup function
     return () => {
-      console.log('Cleaning up real-time word count subscription for user:', user.id);
       if (channelRef.current) {
         channelRef.current.unsubscribe();
       }
     };
-  }, [user?.id, refreshProfile]); // Only re-run when user ID changes
+  }, [user?.id]);
 
-  // Sync with profile changes (fallback mechanism)
+  // Sync with profile changes
   useEffect(() => {
-    if (profile?.plan_words_used !== undefined) {
-      setRealTimeWordsUsed(profile.plan_words_used);
+    if (profile) {
+      setRealTimeWordsUsed(profile.plan_words_used || 0);
+      setRealTimePurchasedWords(profile.word_balance || 0);
     }
-  }, [profile?.plan_words_used]);
-
-  // Helper functions
-  const getTotalWordsAvailable = () =>
-    Math.max(0, (profile?.words_limit || 0) - realTimeWordsUsed + (profile?.word_balance || 0));
-
-  const getPlanWordsRemaining = () => Math.max(0, (profile?.words_limit || 0) - realTimeWordsUsed);
-
-  const getPurchasedWordsBalance = () => profile?.word_balance || 0;
+  }, [profile?.plan_words_used, profile?.word_balance]);
 
   return {
     realTimeWordsUsed,
+    realTimePurchasedWords,
     isLoading,
-    getTotalWordsAvailable,
-    getPlanWordsRemaining,
-    getPurchasedWordsBalance,
   };
 };

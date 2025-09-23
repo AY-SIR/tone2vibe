@@ -223,6 +223,35 @@ html { scroll-behavior: smooth;}
   }
 }
 
+/* Performance optimizations */
+* {
+  box-sizing: border-box;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Reduce layout shifts */
+.container {
+  contain: layout style;
+}
+
+/* Optimize animations for performance */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    will-change: transform, opacity;
+  }
+}
+
+/* Optimize scrolling */
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 
 
 /* Force autofill inputs to have white background and black text */
