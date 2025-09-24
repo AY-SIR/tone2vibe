@@ -406,7 +406,7 @@ export function WordPurchase() {
               <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
               <p className="text-base sm:text-lg font-bold">
                 ₹{finalAmount}
-                {couponValidation.isValid && finalAmount === 0 && ' - FREE!'}
+                {couponValidation.isValid && finalAmount === 0 && ' '}
               </p>
               {couponValidation.isValid && (
                 <p className="text-xs text-green-600 mt-1">
@@ -444,5 +444,5 @@ export function WordPurchase() {
       </Dialog>
     </>
   );
-              }
+}
     

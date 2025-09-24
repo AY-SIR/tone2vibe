@@ -30,12 +30,12 @@ const PaymentSuccess = () => {
     const verifyPayment = async () => {
       try {
         const toastKey = `toast_shown_${paymentId || paymentRequestId || txId}`;
-        
+
         // THIS IS THE UPDATED LOGIC
         if (sessionStorage.getItem(toastKey)) {
           setIsVerifying(false);
           setVerified(true);
-          
+
           // Always show the correct success details based on URL
           if (type === 'words' && count) {
             setSuccessTitle("Words Purchased!");
@@ -122,7 +122,7 @@ const PaymentSuccess = () => {
   const handleNavigate = (path: string) => {
     window.location.href = path;
   };
-  
+
   if (isVerifying) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -177,4 +177,4 @@ const PaymentSuccess = () => {
 };
 
 export default PaymentSuccess;
-                                                      
+

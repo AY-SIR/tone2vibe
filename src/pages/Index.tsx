@@ -176,15 +176,18 @@ const Index = () => {
     }
   };
 
+  // ✅ UPDATED FUNCTION TO PREVENT RELOAD
   const handleAuthSuccess = () => {
-    if (redirectTo) {
-      navigate(redirectTo, { replace: true });
-      setRedirectTo(null);
-      const url = new URL(window.location.href);
-      url.searchParams.delete('auth');
-      url.searchParams.delete('redirect');
-      window.history.replaceState({}, '', url.toString());
-    }
+    const finalRedirectTo = redirectTo || "/tool"; // Default to /tool if no redirect is set
+
+    // Clear the search parameters from the URL without a page reload.
+    // We do this BEFORE navigating away to ensure a clean state.
+    navigate('.', { replace: true });
+
+    // Now, navigate to the intended page.
+    navigate(finalRedirectTo, { replace: true });
+
+    setRedirectTo(null); // Clear the state
   };
 
   const handleCookieAccept = () => {
@@ -224,32 +227,20 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-
-
-
   // Render content based on current section
   const renderContent = () => {
     switch (currentSection) {
       case "home":
-
-
-
         return (
-          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-screen flex items-center
-"
-
->
-          <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block ">
-  <GridPattern rows={15} columns={50} cellSize={32} />
-</div>
-
-
+          <section className="relative pt-12 pb-16 sm:pt-20 sm:pb-24 px-4 text-center overflow-hidden min-h-screen flex items-center">
+            <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block ">
+              <GridPattern rows={15} columns={50} cellSize={32} />
+            </div>
             <div className="relative z-10 container mx-auto max-w-4xl">
               <div className="animate-fade-in">
                 <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
                   ✨ Now with 50+ language support
                 </Badge>
-
                 <h1 className="text-4xl md:text-6xl font-bold mb-6 text-black leading-tight">
                   Clone Your Voice with{" "}
                   <span className="block bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
@@ -259,13 +250,11 @@ const Index = () => {
                     Precision
                   </span>
                 </h1>
-
                 <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-center">
                   Transform any text into speech that sounds exactly like you.
                   <br/>Perfect for content creators, educators, and anyone who wants
                   personalized voice synthesis.
                 </p>
-
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Button
                     size="lg"
@@ -275,7 +264,6 @@ const Index = () => {
                     {user ? "Go to Tool" : "Start Cloning Now"}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
-
                   <Button
                     size="lg"
                     variant="outline"
@@ -290,7 +278,6 @@ const Index = () => {
             </div>
           </section>
         );
-
       case "features":
         return (
           <section className="relative py-28 px-6 bg-white text-black min-h-screen">
@@ -303,7 +290,6 @@ const Index = () => {
                   Minimal. Bold. Powerful. Everything you need, nothing you don't.
                 </p>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
                 {features.map((feature, index) => (
                   <div
@@ -313,27 +299,22 @@ const Index = () => {
                     <div className="w-14 h-14 flex items-center justify-center rounded-xl text-black mb-6 transition-colors duration-500">
                       {feature.icon}
                     </div>
-
                     <h3 className="text-2xl font-bold mb-3 text-black">
                       {feature.title}
                     </h3>
-
                     <p className="text-gray-600 leading-relaxed">
                       {feature.description}
                     </p>
-
                     <div className="absolute bottom-0 left-0 w-0 h-[2px] bg-black group-hover:w-full transition-all duration-500"></div>
                   </div>
                 ))}
               </div>
-
               <div className="mt-24">
                 <WorkflowSection />
               </div>
             </div>
           </section>
         );
-
       case "pricing":
         return (
           <section className="py-28 px-4 min-h-screen">
@@ -346,7 +327,6 @@ const Index = () => {
                   Choose the perfect plan for your voice cloning needs
                 </p>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                 {pricingPlans.map((plan, index) => (
                   <Card
@@ -376,7 +356,6 @@ const Index = () => {
                           <span className="text-gray-600">{plan.period}</span>
                         </div>
                       </div>
-
                       <ul className="space-y-3 mb-8">
                         {plan.features.map((feature, featureIndex) => (
                           <li
@@ -390,7 +369,6 @@ const Index = () => {
                           </li>
                         ))}
                       </ul>
-
                       <Button
                         className={`w-full ${
                           plan.popular
@@ -408,17 +386,13 @@ const Index = () => {
             </div>
           </section>
         );
-
       default:
         return null;
     }
   };
 
   return (
-       <div className="relative  min-h-screen bg-white font-modern overflow-x-hidden">
-
-
-
+    <div className="relative  min-h-screen bg-white font-modern overflow-x-hidden">
       {/* Navigation */}
       <nav className="fixed top-2 left-6 right-6 z-50 rounded-2xl border border-white/20 bg-white/40 backdrop-blur-md shadow-lg transition-transform duration-300">
         <div className="px-6 py-4 flex items-center justify-between">
@@ -433,7 +407,6 @@ const Index = () => {
               Tone2Vibe
             </span>
           </button>
-
           <div className="flex items-center space-x-4">
             {profile?.plan && (
               <>
@@ -448,7 +421,6 @@ const Index = () => {
                 </Badge>
               </>
             )}
-
             {user ? (
               <ProfileDropdown />
             ) : (
@@ -499,7 +471,6 @@ const Index = () => {
                "Transform words into moods"
               </p>
             </div>
-
             <div>
               <h4 className="font-bold mb-4 text-black">Product</h4>
               <ul className="space-y-2 text-gray-600">
@@ -521,7 +492,6 @@ const Index = () => {
                 </li>
               </ul>
             </div>
-
             <div>
               <h4 className="font-bold mb-4 text-black">Company</h4>
               <ul className="space-y-2 text-gray-600">
@@ -548,7 +518,6 @@ const Index = () => {
                 </li>
               </ul>
             </div>
-
             <div>
               <h4 className="font-bold mb-4 text-black">Legal</h4>
               <ul className="space-y-2 text-gray-600">
@@ -595,6 +564,7 @@ const Index = () => {
       <AuthModal
         open={showAuthModal}
         onOpenChange={setShowAuthModal}
+        onAuthSuccess={handleAuthSuccess}
       />
       <VideoModal open={showVideoModal} onOpenChange={setShowVideoModal} />
 

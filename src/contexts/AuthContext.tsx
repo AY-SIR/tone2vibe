@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { IndiaOnlyService } from "@/services/indiaOnlyService";
@@ -74,14 +74,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const { toast } = useToast();
 
-  const authSubscriptionRef = useRef<any>(null);
   const profileChannelRef = useRef<any>(null);
 
-  // Use the expiry data directly from the hook which now handles duplicates
   const shouldShowPopup = expiryData.show_popup;
 
   /** ------------------- Load User Profile ------------------- */
-  const loadUserProfile = async (userId?: string) => {
+  const loadUserProfile = useCallback(async (userId?: string) => {
     if (!userId) return;
     try {
       const { data, error } = await supabase
@@ -92,19 +90,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error || !data) return;
 
-      const updatedProfile = { 
-        ...data, 
-        ip_address: (data.ip_address as string | null) || null 
+      const updatedProfile = {
+        ...data,
+        ip_address: (data.ip_address as string | null) || null
       };
-      
-      // Only update if profile actually changed to prevent unnecessary re-renders
+
       setProfile(prevProfile => {
         if (!prevProfile) return updatedProfile;
-        
-        const hasChanged = Object.keys(updatedProfile).some(key => 
+        const hasChanged = Object.keys(updatedProfile).some(key =>
           prevProfile[key as keyof Profile] !== updatedProfile[key as keyof Profile]
         );
-        
         return hasChanged ? updatedProfile : prevProfile;
       });
 
@@ -118,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error("Load profile error:", err);
     }
-  };
+  }, []);
 
   /** ------------------- Initialize Auth Session ------------------- */
   useEffect(() => {
@@ -130,11 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data } = await supabase.auth.getSession();
         if (!mounted) return;
 
+        const sessionUser = data?.session?.user || null;
         setSession(data?.session || null);
-        setUser(data?.session?.user || null);
+        setUser(sessionUser);
 
-        if (data?.session?.user?.id) {
-          await loadUserProfile(data.session.user.id);
+        if (sessionUser?.id) {
+          await loadUserProfile(sessionUser.id);
         }
       } catch (err) {
         console.error("Session init error:", err);
@@ -145,20 +141,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     init();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setUser((prev) => (prev?.id !== newSession?.user?.id ? newSession?.user : prev));
-      setSession((prev) =>
-        prev?.access_token !== newSession?.access_token ? newSession : prev
-      );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
     });
-
-    authSubscriptionRef.current = authListener?.subscription;
 
     return () => {
       mounted = false;
-      authSubscriptionRef.current?.unsubscribe?.();
+      subscription?.unsubscribe();
     };
-  }, []);
+  }, [loadUserProfile]);
 
   /** ------------------- Profile Subscription ------------------- */
   useEffect(() => {
@@ -167,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileChannelRef.current = null;
     }
 
-    if (!user) {
+    if (!user?.id) {
       setProfile(null);
       setLocationData(null);
       return;
@@ -194,12 +186,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       profileChannelRef.current?.unsubscribe?.();
     };
-  }, [user?.id]);
+  }, [user?.id, loadUserProfile]);
 
   /** ------------------- Track IP & Location ------------------- */
   useEffect(() => {
     const trackLoginIP = async () => {
-      if (!session?.access_token || !user) return;
+      if (!session?.access_token || !user?.id) return;
       if (localStorage.getItem(`ip_tracked_${user.id}`)) return;
 
       try {
@@ -219,7 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     trackLoginIP();
-  }, [session?.access_token, user?.id]);
+  }, [session?.access_token, user?.id, loadUserProfile]);
 
   /** ------------------- Auth Actions ------------------- */
   const signUp = async (
@@ -252,9 +244,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const geoCheck = await IndiaOnlyService.checkIndianAccess();
       if (!geoCheck.isAllowed) return { data: null, error: new Error(geoCheck.message) };
 
+      // The onAuthStateChange listener will handle setting the user/session and triggering the profile load.
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
       if (error) return { data: null, error };
-      if (data.user?.id) await loadUserProfile(data.user.id);
       return { data, error: null };
     } catch (err) {
       return { data: null, error: err instanceof Error ? err : new Error("Sign in failed") };
@@ -263,10 +256,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      const uid = user?.id;
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
-      const uid = user?.id;
+      // Clear all local state
       setUser(null);
       setSession(null);
       setProfile(null);

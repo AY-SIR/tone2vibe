@@ -269,7 +269,7 @@ const Profile: React.FC = () => {
         <div>
 
           <h1 className="text-3xl font-extrabold tracking-tight text-center">Profile Settings</h1>
-          <p className="text-muted-foreground font-bold text-center mt-4">
+          <p className="text-muted-foreground  text-center mt-4">
             Manage your account, preferences, and subscription.
           </p>
         </div>
