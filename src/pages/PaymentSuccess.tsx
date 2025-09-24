@@ -30,35 +30,55 @@ const PaymentSuccess = () => {
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        // Handle free activations (amount = 0)
+        // Prevent duplicate toast
+        const toastKey = sessionStorage.getItem("toast_shown");
+
+        // Free activations
         if (amount === "0" && (coupon || method === "free")) {
           if (type === "subscription" && plan) {
             setVerified(true);
             setSuccessTitle("Plan Activated!");
             setSuccessDescription(`Your ${plan} plan has been activated for free${coupon ? ` using coupon ${coupon}` : ''}.`);
+
+            if (!toastKey) {
+              toast({
+                title: "Plan Activated",
+                description: `Your ${plan} plan is now active 🎉`,
+              });
+              sessionStorage.setItem("toast_shown", "1");
+            }
+
           } else if (type === "words" && count) {
             setVerified(true);
             setSuccessTitle("Words Added!");
-            setSuccessDescription(`${parseInt(count).toLocaleString()} words have been added to your account${coupon ? ` using coupon ${coupon}` : ''}.`);
+            const addedWords = parseInt(count).toLocaleString();
+            setSuccessDescription(`${addedWords} words have been added to your account${coupon ? ` using coupon ${coupon}` : ''}.`);
+
+            if (!toastKey) {
+              toast({
+                title: "Words Added",
+                description: `${addedWords} words credited to your balance 🎉`,
+              });
+              sessionStorage.setItem("toast_shown", "1");
+            }
           }
-          
+
           await refreshProfile();
           setIsVerifying(false);
           return;
         }
 
-        // Handle paid transactions
+        // Paid transactions
         if (!paymentId && !paymentRequestId) {
           navigate("/payment");
           return;
         }
 
+        // Word purchase verification
         if (type === 'words' && paymentId) {
-          // Instamojo word purchase verification
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
             body: { payment_id: paymentId, payment_request_id: paymentRequestId, type: 'words' }
           });
-
           if (error) throw error;
 
           if (data.success) {
@@ -66,59 +86,63 @@ const PaymentSuccess = () => {
             setSuccessTitle("Words Added!");
             const added = count ? Number(count).toLocaleString() : "Your purchased words";
             setSuccessDescription(`${added} have been added to your account.`);
-            
+
             sessionStorage.removeItem('pending_transaction');
+
+            if (!toastKey) {
+              toast({ title: "Words Added", description: `${added} credited to your balance.` });
+              sessionStorage.setItem("toast_shown", "1");
+            }
+
             await refreshProfile();
-            
-            toast({
-              title: "Words Added",
-              description: `${added} credited to your balance.`,
-            });
           } else {
             throw new Error(data.error || 'Verification failed');
           }
-        } else if (plan && paymentId) {
-          // Instamojo subscription verification
+        }
+
+        // Subscription verification
+        else if (plan && paymentId) {
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
             body: { payment_id: paymentId, payment_request_id: paymentRequestId, type: 'subscription', plan }
           });
-
           if (error) throw error;
 
           if (data.success) {
             setVerified(true);
             setSuccessTitle("Payment Successful!");
             setSuccessDescription(`Your ${plan} plan has been activated.`);
-            
+
             sessionStorage.removeItem('pending_transaction');
+
+            if (!toastKey) {
+              toast({ title: "Payment Successful!", description: `Your ${plan} plan has been activated.` });
+              sessionStorage.setItem("toast_shown", "1");
+            }
+
             await refreshProfile();
-            
-            toast({
-              title: "Payment Successful!",
-              description: `Your ${plan} plan has been activated.`,
-            });
           } else {
             throw new Error(data.error || 'Payment verification failed');
           }
-        } else if (paymentId && paymentRequestId) {
-          // Generic Instamojo verification
+        }
+
+        // Generic verification
+        else if (paymentId && paymentRequestId) {
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
             body: { payment_id: paymentId, payment_request_id: paymentRequestId }
           });
-
           if (error) throw error;
 
           if (data.success) {
             setVerified(true);
             setSuccessTitle("Payment Successful!");
             setSuccessDescription("Your payment has been processed successfully.");
-            
+
+            if (!toastKey) {
+              toast({ title: "Payment Successful!", description: "Your payment has been processed successfully." });
+              sessionStorage.setItem("toast_shown", "1");
+            }
+
             await refreshProfile();
-            
-            toast({
-              title: "Payment Successful!",
-              description: "Your payment has been processed successfully.",
-            });
           } else {
             throw new Error(data.error || 'Payment verification failed');
           }
@@ -126,6 +150,7 @@ const PaymentSuccess = () => {
           navigate("/payment");
           return;
         }
+
       } catch (error) {
         toast({
           title: "Verification Failed",
@@ -167,9 +192,7 @@ const PaymentSuccess = () => {
         <CardContent className="text-center space-y-4">
           {verified ? (
             <>
-              <p className="text-muted-foreground">
-                {successDescription}
-              </p>
+              <p className="text-muted-foreground">{successDescription}</p>
               <div className="space-y-2">
                 <Button onClick={() => navigate("/tool")} className="w-full">
                   Start Creating
