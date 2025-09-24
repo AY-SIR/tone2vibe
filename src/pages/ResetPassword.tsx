@@ -72,13 +72,15 @@ export default function ResetPassword() {
             variant: "destructive"
           });
         } else if (data.session) {
-          console.log('Password reset session established successfully');
-          setIsValid(true);
-          toast({
-            title: "Reset Link Verified",
-            navigate('/', { replace: true });
-          });
-        }
+  console.log('Password reset session established successfully');
+  setIsValid(true);
+  // Show a toast to confirm verification is complete
+  toast({
+    title: "Reset Link Verified",
+    description: "You can now set your new password below.",
+  });
+  // Do NOT navigate away. The user needs to see the form.
+}
       } else {
         setIsValid(false);
         toast({

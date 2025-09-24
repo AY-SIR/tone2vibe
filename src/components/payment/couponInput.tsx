@@ -66,7 +66,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
         <Tag className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium">Have a coupon code?</span>
       </div>
-      
+
       <div className="flex gap-2">
         <div className="flex-1">
           <Input
@@ -79,7 +79,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
             className="text-sm"
           />
         </div>
-        
+
         {validationResult?.isValid ? (
           <Button
             type="button"

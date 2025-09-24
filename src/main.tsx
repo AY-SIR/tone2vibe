@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
 import EmailConfirmation from "./pages/EmailConfirmation";
 import EmailConfirmed from "./pages/EmailConfirmed";
-
+import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider } from "./contexts/AuthContext";
 import "./index.css";
 
