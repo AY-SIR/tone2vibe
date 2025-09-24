@@ -43,7 +43,6 @@ export function PaymentHistoryTabs() {
     try {
       setLoading(true);
 
-      // Fetch plan payments
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('payments')
         .select('*')
@@ -52,7 +51,6 @@ export function PaymentHistoryTabs() {
 
       if (paymentsError) throw paymentsError;
 
-      // Fetch word purchases
       const { data: wordPurchasesData, error: wordPurchasesError } = await supabase
         .from('word_purchases')
         .select('*')
@@ -104,27 +102,21 @@ export function PaymentHistoryTabs() {
   };
 
   if (loading) {
-  return (
-    <Card className="w-full max-w-8xl mx-auto">
-      <CardContent className="p-6 space-y-4">
-        {/* Header Skeleton */}
-        <div className="h-6 bg-gray-200 rounded w-1/3 mx-auto animate-pulse"></div>
-
-        {/* Row Skeletons */}
-        {[...Array(5)].map((_, index) => (
-          <div key={index} className="flex items-center justify-between animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-          </div>
-        ))}
-
-        {/* Footer Skeleton */}
-        <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto animate-pulse"></div>
-      </CardContent>
-    </Card>
-  );
-}
-
+    return (
+      <Card className="w-full max-w-8xl mx-auto">
+        <CardContent className="p-6 space-y-4">
+          <div className="h-6 bg-gray-200 rounded w-1/3 mx-auto animate-pulse"></div>
+          {[...Array(5)].map((_, index) => (
+            <div key={index} className="flex items-center justify-between animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+            </div>
+          ))}
+          <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto animate-pulse"></div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-8xl mx-auto">
@@ -235,10 +227,11 @@ export function PaymentHistoryTabs() {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-2 text-xs text-gray-400">
-                        Payment ID: {purchase.payment_id}
+                      {/* --- THIS IS THE FIXED BLOCK --- */}
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-400">
+                        <span>Payment ID: {purchase.payment_id}</span>
                         {purchase.payment_method && (
-                          <span className="ml-4">Method: {purchase.payment_method}</span>
+                          <span>Method: {purchase.payment_method}</span>
                         )}
                       </div>
                     </CardContent>
