@@ -49,14 +49,14 @@ export default function ResetPassword() {
         setIsValid(false);
         toast({
           title: "Reset Link Error",
-          description: error_description || "Invalid or expired reset link.",
+          description: error_description || "This reset link has expired. Please request a new one.",
           variant: "destructive"
         });
         return;
       }
 
       // Verify this is a password recovery request
-      if (type === 'recovery' && access_token && refresh_token) {
+      if ((type === 'recovery' || type === 'password_recovery') && access_token && refresh_token) {
         // Set the session for password reset
         const { data, error } = await supabase.auth.setSession({
           access_token,
@@ -68,7 +68,7 @@ export default function ResetPassword() {
           setIsValid(false);
           toast({
             title: "Invalid Reset Link",
-            description: "This password reset link is invalid or has expired. Please request a new one.",
+            description: "Your password has been updated successfully. You can now sign in with your new password.",
             variant: "destructive"
           });
         } else if (data.session) {
@@ -76,14 +76,14 @@ export default function ResetPassword() {
           setIsValid(true);
           toast({
             title: "Reset Link Verified",
-            description: "You can now set your new password.",
+            navigate('/', { replace: true });
           });
         }
       } else {
         setIsValid(false);
         toast({
           title: "Invalid Reset Link",
-          description: "This link is not a valid password reset link. Please request a new one.",
+          description: "Failed to update password. Please try again or request a new reset link.",
           variant: "destructive"
         });
       }
@@ -92,7 +92,7 @@ export default function ResetPassword() {
       setIsValid(false);
       toast({
         title: "Verification Failed",
-        description: "Unable to verify reset link. Please try again.",
+        description: "Unable to verify reset link. Please request a new password reset email.",
         variant: "destructive"
       });
     } finally {
@@ -179,7 +179,7 @@ export default function ResetPassword() {
       console.error('Password reset error:', error);
       toast({
         title: "Unexpected Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: "Something went wrong. Please try again or request a new reset link.",
         variant: "destructive"
       });
     } finally {
@@ -188,7 +188,7 @@ export default function ResetPassword() {
   };
 
   const requestNewResetLink = async () => {
-    const email = prompt('Please enter your email address to request a new reset link:');
+    const email = prompt('Enter your email address to get a new password reset link:');
     if (!email) return;
 
     try {
@@ -199,19 +199,21 @@ export default function ResetPassword() {
       if (error) {
         toast({
           title: "Request Failed",
-          description: "Failed to send new reset email. Please try again.",
+          description: error.message.includes('rate limit') 
+            ? "Too many requests. Please wait a few minutes before trying again."
+            : "Failed to send reset email. Please check your email address and try again.",
           variant: "destructive"
         });
       } else {
         toast({
           title: "Reset Email Sent",
-          description: "A new password reset email has been sent to your inbox.",
+          description: "A new password reset email has been sent. Check your inbox and spam folder.",
         });
       }
     } catch (error) {
       toast({
         title: "Request Failed",
-        description: "Unable to send reset email. Please try again later.",
+        description: "Unable to send reset email. Please check your internet connection and try again.",
         variant: "destructive"
       });
     }

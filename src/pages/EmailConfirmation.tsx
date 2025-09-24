@@ -84,7 +84,7 @@ export default function EmailConfirmation() {
           if (data.session && data.user) {
             console.log('Email confirmed successfully, user logged in');
             setStatus('success');
-            setMessage('Email confirmed successfully! Welcome to Tone2Vibe.');
+            setMessage('Email confirmed successfully! Your account is now active.');
             
             // Show success toast
             toast({
@@ -98,7 +98,7 @@ export default function EmailConfirmation() {
             }, 2000);
           } else {
             setStatus('error');
-            setMessage('Email confirmation completed but session creation failed. Please try signing in manually.');
+            setMessage('Email confirmed but login failed. Please try signing in with your credentials.');
           }
         } else if (token_hash) {
           // Handle token hash verification
@@ -109,14 +109,19 @@ export default function EmailConfirmation() {
 
           if (error) {
             console.error('OTP verification error:', error);
-            setStatus('error');
-            setMessage('Email confirmation failed. The link may be expired or invalid.');
+            if (error.message.includes('expired')) {
+              setStatus('expired');
+              setMessage('This confirmation link has expired. Please request a new confirmation email.');
+            } else {
+              setStatus('error');
+              setMessage('Email confirmation failed. The link may be expired or invalid.');
+            }
             return;
           }
 
           if (data.session) {
             setStatus('success');
-            setMessage('Email confirmed successfully!');
+            setMessage('Email confirmed successfully! Your account is now active.');
             
             toast({
               title: "Email Confirmed!",
@@ -129,7 +134,7 @@ export default function EmailConfirmation() {
           }
         } else {
           setStatus('error');
-          setMessage('Invalid confirmation link. Missing required parameters.');
+          setMessage('Invalid confirmation link. Please check your email and try clicking the link again.');
         }
       } else if (type === 'recovery' || type === 'password_recovery') {
         // Handle password recovery
@@ -142,28 +147,28 @@ export default function EmailConfirmation() {
           if (error) {
             console.error('Password recovery session error:', error);
             setStatus('error');
-            setMessage('Password reset link is invalid or expired. Please request a new one.');
+            setMessage('Password reset link has expired. Please request a new password reset email.');
             return;
           }
 
           setStatus('success');
-          setMessage('Password reset link verified! Redirecting to reset password page...');
+          setMessage('Reset link verified! Redirecting to password reset page...');
           
           setTimeout(() => {
             navigate('/reset-password', { replace: true });
           }, 2000);
         } else {
           setStatus('error');
-          setMessage('Invalid password reset link. Please request a new one.');
+          setMessage('Invalid password reset link. Please request a new reset email.');
         }
       } else {
         setStatus('error');
-        setMessage('Invalid confirmation link type. Please check your email and try again.');
+        setMessage('Invalid link type. Please check your email and try clicking the correct link.');
       }
     } catch (error) {
       console.error('Confirmation error:', error);
       setStatus('error');
-      setMessage('An unexpected error occurred during confirmation. Please try again.');
+      setMessage('Something went wrong during confirmation. Please try again or contact support.');
     }
   };
 

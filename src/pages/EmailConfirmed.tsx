@@ -32,13 +32,13 @@ export default function EmailConfirmed() {
       user?.email_confirmed_at;
 
     if (emailConfirmed) {
-      // Show success message for exactly 5 seconds, then redirect
+      // Show success message for 3 seconds, then redirect to tool
       setTimeout(() => {
         setIsRedirecting(true);
         setTimeout(() => {
-          window.location.href = redirectTo;
+          window.location.href = '/tool';
         }, 2000); // 2 seconds for redirect animation
-      }, 5000); // Show confirmation for 5 seconds
+      }, 3000); // Show confirmation for 3 seconds
     } else if (user && !user.email_confirmed_at) {
       // Logged in but email not confirmed - redirect after 3 seconds
       setTimeout(() => {

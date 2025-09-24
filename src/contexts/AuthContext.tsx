@@ -141,9 +141,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      
+      // Handle email confirmation events
+      if (event === 'SIGNED_IN' && newSession?.user) {
+        await loadUserProfile(newSession.user.id);
+      }
+      
+      // Handle token refresh
+      if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+        await loadUserProfile(newSession.user.id);
+      }
     });
 
     return () => {

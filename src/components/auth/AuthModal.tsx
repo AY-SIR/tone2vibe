@@ -87,7 +87,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     try {
       if (type === 'signup') {
-        const redirectUrl = `${window.location.origin}/email-confirmation`;
+        const redirectUrl = `${window.location.origin}/email-confirmed`;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -99,7 +99,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
         if (error) {
           if (error.message.includes('User already registered')) {
-            toast.error('An account with this email already exists. Please sign in instead.');
+            toast.error('This email is already registered. Please sign in to your existing account instead.');
+            setIsLoading(false);
+            return;
+          }
+          if (error.message.includes('already registered') || error.message.includes('already exists')) {
+            toast.error('This email is already registered. Please sign in to your existing account instead.');
             setIsLoading(false);
             return;
           }
@@ -107,7 +112,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }
 
         if (data.user && !data.user.email_confirmed_at) {
-          toast.success('Account created! Please check your email to confirm your account before signing in.', {
+          toast.success('Account created successfully! Please check your email and click the confirmation link to activate your account.', {
             duration: 5000,
           });
           onOpenChange(false);
@@ -125,7 +130,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please check your credentials and try again.');
           } else if (error.message.includes('Email not confirmed')) {
-            toast.error('Please confirm your email address before signing in. Check your inbox for the confirmation email.');
+            toast.error('Please confirm your email address first. Check your inbox for the confirmation email and click the link.');
           } else {
             toast.error('Sign in failed. Please try again.');
           }
@@ -144,11 +149,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     } catch (error) {
       const authError = error as AuthError;
       if (authError.message.includes('Email not confirmed')) {
-        toast.error('Please confirm your email address before signing in. Check your inbox for the confirmation email.');
+        toast.error('Please confirm your email address first. Check your inbox for the confirmation email and click the link.');
       } else if (authError.message.includes('Invalid login credentials')) {
         toast.error('Invalid credentials. Please try again.');
       } else if (authError.message.includes('User already registered')) {
-        toast.error('An account with this email already exists. Please sign in instead.');
+        toast.error('This email is already registered. Please sign in to your existing account instead.');
+      } else if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+        toast.error('This email is already registered. Please sign in to your existing account instead.');
       } else {
         toast.error('Authentication failed. Please try again.');
         console.error('Auth error:', authError);
@@ -171,10 +178,16 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       });
 
       if (error) {
-        toast.error('Failed to send reset email. Please try again.');
+        if (error.message.includes('rate limit')) {
+          toast.error('Too many reset attempts. Please wait a few minutes before trying again.');
+        } else if (error.message.includes('not found')) {
+          toast.error('No account found with this email address. Please check your email or sign up for a new account.');
+        } else {
+          toast.error('Failed to send reset email. Please try again.');
+        }
         console.error('Reset password error:', error);
       } else {
-        toast.success('Password reset email sent! Check your inbox for instructions.');
+        toast.success('Password reset email sent! Check your inbox and spam folder for the reset link.');
         setCurrentView('auth');
         setResetEmail('');
       }
