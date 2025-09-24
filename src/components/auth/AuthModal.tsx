@@ -153,7 +153,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} className="z-[9999]">
       <DialogContent
         className={`sm:max-w-[425px] max-h-[90vh] overflow-auto transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
       >
