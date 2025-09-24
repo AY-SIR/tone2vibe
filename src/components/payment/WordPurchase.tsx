@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom"; // 1. Import useNavigate
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 export function WordPurchase() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate(); // 2. Initialize useNavigate
 
   const [wordsAmount, setWordsAmount] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
@@ -123,6 +125,7 @@ export function WordPurchase() {
         }
 
         await handleFreeWordPurchase();
+        // Return here to prevent falling through to paid purchase logic
         return;
       }
 
@@ -145,6 +148,7 @@ export function WordPurchase() {
           };
           sessionStorage.setItem('pending_transaction', JSON.stringify(pendingTransaction));
 
+          // NOTE: This is correct. Redirecting to an external URL requires window.location.href.
           window.location.href = result.payment_request.longurl;
           toast({
             title: "Payment Initiated",
@@ -178,89 +182,87 @@ export function WordPurchase() {
     }
   };
 
+  const handleFreeWordPurchase = async () => {
+    try {
+      setLoading(true);
 
+      const freeTransactionId = `COUPON_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+      // Verify coupon
+      const { data: couponCheck, error: couponError } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponValidation.code)
+        .single();
 
-const handleFreeWordPurchase = async () => {
-  try {
-    setLoading(true);
+      if (couponError || !couponCheck) throw new Error('Coupon is no longer valid');
+      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses)
+        throw new Error('Coupon usage limit exceeded');
 
-    const freeTransactionId = `COUPON_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Get current balance
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('word_balance')
+        .eq('user_id', user!.id)
+        .single();
+      if (profileError) throw new Error('Failed to fetch current balance');
 
-    // Verify coupon
-    const { data: couponCheck, error: couponError } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', couponValidation.code)
-      .single();
+      const newBalance = (currentProfile?.word_balance || 0) + wordsAmount;
 
-    if (couponError || !couponCheck) throw new Error('Coupon is no longer valid');
-    if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses)
-      throw new Error('Coupon usage limit exceeded');
+      // Update balance
+      const { data: updateResult, error: updateError } = await supabase
+        .from('profiles')
+        .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('user_id', user!.id)
+        .select('word_balance');
+      if (updateError) throw new Error(`Failed to add words: ${updateError.message}`);
 
-    // Get current balance
-    const { data: currentProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('word_balance')
-      .eq('user_id', user!.id)
-      .single();
-    if (profileError) throw new Error('Failed to fetch current balance');
+      // Record purchase
+      const { error: historyError } = await supabase
+        .from('word_purchases')
+        .insert({
+          user_id: user!.id,
+          words_purchased: wordsAmount,
+          amount_paid: 0,
+          currency: 'INR',
+          status: 'completed',
+          payment_id: freeTransactionId,
+          payment_method: 'coupon',
+          created_at: new Date().toISOString(),
+        });
+      if (historyError) console.warn('Purchase history failed:', historyError);
 
-    const newBalance = (currentProfile?.word_balance || 0) + wordsAmount;
+      // Update coupon usage
+      await supabase
+        .from('coupons')
+        .update({ used_count: (couponCheck.used_count || 0) + 1, last_used_at: new Date().toISOString() })
+        .eq('id', couponCheck.id);
 
-    // Update balance
-    const { data: updateResult, error: updateError } = await supabase
-      .from('profiles')
-      .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('user_id', user!.id)
-      .select('word_balance');
-    if (updateError) throw new Error(`Failed to add words: ${updateError.message}`);
-
-    // Record purchase
-    const { error: historyError } = await supabase
-      .from('word_purchases')
-      .insert({
-        user_id: user!.id,
-        words_purchased: wordsAmount,
-        amount_paid: 0,
-        currency: 'INR',
-        status: 'completed',
-        payment_id: freeTransactionId,
-        payment_method: 'coupon',
-        created_at: new Date().toISOString(),
+      toast({
+        title: 'Words Added Successfully!',
+        description: `${wordsAmount.toLocaleString()} words have been added to your account using coupon ${couponValidation.code}`,
       });
-    if (historyError) console.warn('Purchase history failed:', historyError);
 
-    // Update coupon usage
-    await supabase
-      .from('coupons')
-      .update({ used_count: (couponCheck.used_count || 0) + 1, last_used_at: new Date().toISOString() })
-      .eq('id', couponCheck.id);
+      setWordsAmount(1000);
+      setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
+      setShowPaymentGateway(false);
 
-    toast({
-      title: 'Words Added Successfully!',
-      description: `${wordsAmount.toLocaleString()} words have been added to your account using coupon ${couponValidation.code}`,
-    });
-
-    setWordsAmount(1000);
-    setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
-
-    // Redirect
-    window.location.href = `/payment-success?type=words&count=${wordsAmount}&amount=0&coupon=${couponValidation.code}&method=free`;
-  } catch (error) {
-    console.error(error);
-    toast({
-      title: 'Error Processing Free Purchase',
-      description: error instanceof Error ? error.message : 'Something went wrong',
-      variant: 'destructive',
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-
+      // 3. Replace window.location.href with navigate for internal redirect
+      navigate(
+        `/payment-success?type=words&count=${wordsAmount}&amount=0&coupon=${couponValidation.code}&method=free`,
+        { replace: true }
+      );
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error Processing Free Purchase',
+        description: error instanceof Error ? error.message : 'Something went wrong',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!user || !profile) {
     return (
@@ -286,7 +288,11 @@ const handleFreeWordPurchase = async () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-          <Button className="bg-black hover:bg-gray-800 text-white text-xs sm:text-sm">
+          {/* Bonus: Made this button functional */}
+          <Button
+            onClick={() => navigate('/payment')}
+            className="bg-black hover:bg-gray-800 text-white text-xs sm:text-sm"
+          >
             Upgrade to Pro Plan
           </Button>
         </CardContent>
