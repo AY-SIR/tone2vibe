@@ -30,8 +30,17 @@ const PaymentSuccess = () => {
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        // Prevent duplicate toast
-        const toastKey = sessionStorage.getItem("toast_shown");
+        // FIXED: Improved key for preventing duplicate toasts
+        const toastKey = `toast_shown_${paymentId || paymentRequestId || coupon || 'free'}`;
+        if (sessionStorage.getItem(toastKey)) {
+          setIsVerifying(false);
+          // NOTE: We assume success if the toast was already shown to prevent re-processing.
+          // You might want to fetch the final state and display it here instead of a blank screen.
+          setVerified(true);
+          setSuccessTitle("Action Previously Completed");
+          setSuccessDescription("This transaction has already been verified and processed.");
+          return;
+        }
 
         // Free activations
         if (amount === "0" && (coupon || method === "free")) {
@@ -40,27 +49,23 @@ const PaymentSuccess = () => {
             setSuccessTitle("Plan Activated!");
             setSuccessDescription(`Your ${plan} plan has been activated for free${coupon ? ` using coupon ${coupon}` : ''}.`);
 
-            if (!toastKey) {
-              toast({
-                title: "Plan Activated",
-                description: `Your ${plan} plan is now active 🎉`,
-              });
-              sessionStorage.setItem("toast_shown", "1");
-            }
+            toast({
+              title: "Plan Activated",
+              description: `Your ${plan} plan is now active.`, // CHANGED: Emoji removed
+            });
+            sessionStorage.setItem(toastKey, "1");
 
           } else if (type === "words" && count) {
             setVerified(true);
-            setSuccessTitle("Words Added!");
+            setSuccessTitle("Words Purchased!"); // CHANGED: Text updated
             const addedWords = parseInt(count).toLocaleString();
             setSuccessDescription(`${addedWords} words have been added to your account${coupon ? ` using coupon ${coupon}` : ''}.`);
 
-            if (!toastKey) {
-              toast({
-                title: "Words Added",
-                description: `${addedWords} words credited to your balance 🎉`,
-              });
-              sessionStorage.setItem("toast_shown", "1");
-            }
+            toast({
+              title: "Words Purchased", // CHANGED: Text updated
+              description: `${addedWords} words credited to your balance.`, // CHANGED: Emoji removed
+            });
+            sessionStorage.setItem(toastKey, "1");
           }
 
           await refreshProfile();
@@ -68,8 +73,7 @@ const PaymentSuccess = () => {
           return;
         }
 
-        // Paid transactions
-        if (!paymentId && !paymentRequestId) {
+        if (!paymentId || !paymentRequestId) {
           navigate("/payment");
           return;
         }
@@ -83,23 +87,30 @@ const PaymentSuccess = () => {
 
           if (data.success) {
             setVerified(true);
-            setSuccessTitle("Words Added!");
-            const added = count ? Number(count).toLocaleString() : "Your purchased words";
-            setSuccessDescription(`${added} have been added to your account.`);
+            setSuccessTitle("Words Purchased!"); // CHANGED: Text updated
 
-            sessionStorage.removeItem('pending_transaction');
-
-            if (!toastKey) {
-              toast({ title: "Words Added", description: `${added} credited to your balance.` });
-              sessionStorage.setItem("toast_shown", "1");
+            // FIXED: Reliably get word count from sessionStorage
+            let purchasedWords = count;
+            const pendingTx = sessionStorage.getItem('pending_transaction');
+            if (pendingTx) {
+              const txData = JSON.parse(pendingTx);
+              if (txData.payment_request_id === paymentRequestId) {
+                purchasedWords = txData.words?.toString();
+              }
             }
-
+            
+            const added = purchasedWords ? Number(purchasedWords).toLocaleString() : "Your purchased";
+            setSuccessDescription(`${added} words have been added to your account.`);
+            
+            toast({ title: "Words Purchased", description: `${added} words credited to your balance.` }); // CHANGED: Text updated
+            sessionStorage.setItem(toastKey, "1");
+            
+            sessionStorage.removeItem('pending_transaction');
             await refreshProfile();
           } else {
             throw new Error(data.error || 'Verification failed');
           }
         }
-
         // Subscription verification
         else if (plan && paymentId) {
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
@@ -111,37 +122,12 @@ const PaymentSuccess = () => {
             setVerified(true);
             setSuccessTitle("Payment Successful!");
             setSuccessDescription(`Your ${plan} plan has been activated.`);
-
+            
             sessionStorage.removeItem('pending_transaction');
-
-            if (!toastKey) {
-              toast({ title: "Payment Successful!", description: `Your ${plan} plan has been activated.` });
-              sessionStorage.setItem("toast_shown", "1");
-            }
-
-            await refreshProfile();
-          } else {
-            throw new Error(data.error || 'Payment verification failed');
-          }
-        }
-
-        // Generic verification
-        else if (paymentId && paymentRequestId) {
-          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
-            body: { payment_id: paymentId, payment_request_id: paymentRequestId }
-          });
-          if (error) throw error;
-
-          if (data.success) {
-            setVerified(true);
-            setSuccessTitle("Payment Successful!");
-            setSuccessDescription("Your payment has been processed successfully.");
-
-            if (!toastKey) {
-              toast({ title: "Payment Successful!", description: "Your payment has been processed successfully." });
-              sessionStorage.setItem("toast_shown", "1");
-            }
-
+            
+            toast({ title: "Payment Successful!", description: `Your ${plan} plan has been activated.` });
+            sessionStorage.setItem(toastKey, "1");
+            
             await refreshProfile();
           } else {
             throw new Error(data.error || 'Payment verification failed');
@@ -150,7 +136,6 @@ const PaymentSuccess = () => {
           navigate("/payment");
           return;
         }
-
       } catch (error) {
         toast({
           title: "Verification Failed",
@@ -173,7 +158,7 @@ const PaymentSuccess = () => {
           <CardContent className="p-8 text-center">
             <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin text-primary" />
             <p>Verifying your payment...</p>
-            <p className="text-sm text-muted-foreground mt-2">Please wait while we confirm your transaction</p>
+            <p className="text-sm text-muted-foreground mt-2">Please wait while we confirm your transaction.</p>
           </CardContent>
         </Card>
       </div>
