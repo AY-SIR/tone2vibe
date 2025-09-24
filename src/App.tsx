@@ -27,7 +27,6 @@ import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import EmailConfirmed from "./pages/EmailConfirmed";
 import EmailConfirmation from "./pages/EmailConfirmation";
-import ResetPassword from './pages/ResetPassword'; 
 const queryClient = new QueryClient();
 
 function App() {
@@ -49,9 +48,6 @@ function App() {
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/cookies" element={<Cookies />} />
-                <Route path="/email-confirmation" element={<EmailConfirmation />} />
-                <Route path="/email-confirmed" element={<EmailConfirmed />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
               {/* Popups will be managed by their own contexts */}
