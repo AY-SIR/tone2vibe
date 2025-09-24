@@ -10,10 +10,11 @@ export default function EmailConfirmation() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
   const [message, setMessage] = useState('Please wait while we verify your email...');
 
+  // Step 1: Yeh useEffect sirf ek baar chalega aur email confirmation handle karega.
+  // HINDI: Yeh useEffect sirf email check karke status set karega (success/error).
   useEffect(() => {
     const handleEmailConfirmation = async () => {
       try {
-        // We will parse the URL hash fragment to get the tokens or error
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
 
@@ -21,17 +22,13 @@ export default function EmailConfirmation() {
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
 
-        // Priority 1: Check for an explicit error from Supabase
         if (errorDescription) {
-          console.error('Supabase confirmation error:', errorDescription);
-          setStatus('expired'); // Use 'expired' status for a more specific UI
-          // Decode the message to make it human-readable (replaces '+' with spaces)
+          setStatus('expired');
           const decodedMessage = decodeURIComponent(errorDescription.replace(/\+/g, ' '));
           setMessage(`Link is invalid or has expired. Error: ${decodedMessage}`);
-          return; // Stop execution
+          return;
         }
 
-        // Priority 2: Check for success (presence of tokens)
         if (accessToken && refreshToken) {
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -39,23 +36,17 @@ export default function EmailConfirmation() {
           });
 
           if (sessionError) {
-            console.error('Error setting session:', sessionError);
             setStatus('error');
             setMessage('Failed to set your session. Please try logging in.');
           } else {
-            // This is the successful path!
-            console.log('Email confirmed successfully, user session set.');
+            // SUCCESS! Sirf status set karein. Navigate yahan nahi karna hai.
+            // HINDI: Safal hone par sirf status badal do. Agle page par yahan se nahi jaana hai.
             setStatus('success');
             setMessage('Email confirmed successfully! Redirecting...');
-            
-            setTimeout(() => {
-              navigate('/email-confirmed'); // Navigate to your dedicated success page
-            }, 2000);
           }
-          return; // Stop execution
+          return;
         }
         
-        // Priority 3: Fallback for any other case (e.g., no tokens, no error)
         setStatus('error');
         setMessage('Invalid confirmation link. Necessary information is missing.');
 
@@ -67,9 +58,24 @@ export default function EmailConfirmation() {
     };
 
     handleEmailConfirmation();
-  }, [navigate]); // No other dependencies needed
+  }, []); // Empty array ensures this runs only once on mount
 
-  // The rest of your component for rendering the UI is perfect and doesn't need changes.
+  // Step 2: Yeh naya useEffect status ko dekhta rahega.
+  // HINDI: Yeh naya useEffect 'status' state par nazar rakhega.
+  useEffect(() => {
+    // Jab status 'success' hoga, tabhi yeh code chalega.
+    if (status === 'success') {
+      console.log("Status is success, preparing to redirect...");
+      const timer = setTimeout(() => {
+        navigate('/email-confirmed');
+      }, 2000); // 2 second ke liye 'tick' dikhega
+
+      // Cleanup function to clear the timer if the component unmounts
+      return () => clearTimeout(timer);
+    }
+  }, [status, navigate]); // Yeh tabhi chalega jab 'status' ya 'navigate' badlega.
+
+  // --- UI PART (NO CHANGES NEEDED HERE) ---
   const getIcon = () => {
     switch (status) {
       case 'loading':
