@@ -1,88 +1,80 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { useAuth } from '@/contexts/AuthContext';
+import { CheckCircle, Mic, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function EmailConfirmed() {
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   useEffect(() => {
-    // Parse hash and search parameters
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const searchParams = new URLSearchParams(window.location.search);
+    // Auto-redirect after 5 seconds
+    const timer = setTimeout(() => {
+      navigate('/tool', { replace: true });
+    }, 5000);
 
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token');
-    const type = hashParams.get('type');
-
-    const confirmationType = searchParams.get('type');
-    const token = searchParams.get('token');
-    const redirectTo = searchParams.get('redirect_to') || '/'; // fallback to home
-
-    // Determine if email is confirmed
-    const emailConfirmed =
-      (accessToken && refreshToken) ||
-      type === 'signup' ||
-      type === 'email_confirmation' ||
-      confirmationType === 'email_confirmation' ||
-      token ||
-      user?.email_confirmed_at;
-
-    if (emailConfirmed) {
-      // Show success message for exactly 5 seconds, then redirect
-      setTimeout(() => {
-        setIsRedirecting(true);
-        setTimeout(() => {
-          window.location.href = redirectTo;
-        }, 2000); // 2 seconds for redirect animation
-      }, 5000); // Show confirmation for 5 seconds
-    } else if (user && !user.email_confirmed_at) {
-      // Logged in but email not confirmed - redirect after 3 seconds
-      setTimeout(() => {
-        setIsRedirecting(true);
-        setTimeout(() => {
-          navigate('/', { replace: true });
-        }, 1500);
-      }, 3000);
-    } else {
-      // No user, no token — redirect to home after 3 seconds
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 3000);
-    }
-  }, [navigate, user]);
+    return () => clearTimeout(timer);
+  }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
-        <CardContent className="p-8 text-center">
-          {!isRedirecting ? (
-            <>
-              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-6" />
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Email Confirmed!
-              </h1>
-              <p className="text-gray-600 mb-6">
-                Your email has been successfully verified. You can now access all features.
-              </p>
-              <div className="text-sm text-gray-500">
-                Redirecting you in a moment...
+        <CardContent className="p-8 text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="relative">
+              <CheckCircle className="h-16 w-16 text-green-600" />
+              <div className="absolute -top-2 -right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
+                <Mic className="h-4 w-4 text-primary" />
               </div>
-            </>
-          ) : (
-            <>
-              <Loader2 className="h-16 w-16 text-blue-500 mx-auto mb-6 animate-spin" />
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Redirecting...
-              </h1>
-              <p className="text-gray-600">
-                Taking you to the home page now
-              </p>
-            </>
-          )}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h1 className="text-3xl font-bold text-green-600">
+              Welcome to Tone2Vibe!
+            </h1>
+            
+            <p className="text-lg font-medium">
+              Your email has been confirmed successfully!
+            </p>
+            
+            <p className="text-muted-foreground">
+              You're all set to start using our voice tone conversion tool. 
+              Let's transform your audio content with AI-powered tone adjustments.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Button 
+              onClick={() => navigate('/tool', { replace: true })} 
+              className="w-full text-lg py-6"
+              size="lg"
+            >
+              Start Using Tone2Vibe
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+            
+            <p className="text-sm text-muted-foreground">
+              Automatically redirecting in 5 seconds...
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-border">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="space-y-1">
+                <div className="text-2xl">🎵</div>
+                <p className="text-xs text-muted-foreground">Voice Conversion</p>
+              </div>
+              <div className="space-y-1">
+                <div className="text-2xl">🎯</div>
+                <p className="text-xs text-muted-foreground">Tone Adjustment</p>
+              </div>
+              <div className="space-y-1">
+                <div className="text-2xl">⚡</div>
+                <p className="text-xs text-muted-foreground">AI Powered</p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
