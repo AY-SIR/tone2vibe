@@ -1,3 +1,6 @@
+// src/pages/EmailConfirmation.jsx
+// THIS IS THE COMPLETE, FULL FILE.
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,17 +13,15 @@ export default function EmailConfirmation() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
   const [message, setMessage] = useState('Please wait while we verify your email...');
 
-  // Step 1: Yeh useEffect sirf ek baar chalega aur email confirmation handle karega.
-  // HINDI: Yeh useEffect sirf email check karke status set karega (success/error).
+  // Effect 1: Handles the email confirmation logic
   useEffect(() => {
     const handleEmailConfirmation = async () => {
       try {
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
-
-        const errorDescription = params.get('error_description');
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
+        const errorDescription = params.get('error_description');
 
         if (errorDescription) {
           setStatus('expired');
@@ -39,8 +40,6 @@ export default function EmailConfirmation() {
             setStatus('error');
             setMessage('Failed to set your session. Please try logging in.');
           } else {
-            // SUCCESS! Sirf status set karein. Navigate yahan nahi karna hai.
-            // HINDI: Safal hone par sirf status badal do. Agle page par yahan se nahi jaana hai.
             setStatus('success');
             setMessage('Email confirmed successfully! Redirecting...');
           }
@@ -51,31 +50,26 @@ export default function EmailConfirmation() {
         setMessage('Invalid confirmation link. Necessary information is missing.');
 
       } catch (error) {
-        console.error('An unexpected error occurred during confirmation:', error);
         setStatus('error');
         setMessage('An unexpected error occurred. Please try again.');
       }
     };
 
     handleEmailConfirmation();
-  }, []); // Empty array ensures this runs only once on mount
+  }, []); // Runs only once
 
-  // Step 2: Yeh naya useEffect status ko dekhta rahega.
-  // HINDI: Yeh naya useEffect 'status' state par nazar rakhega.
+  // Effect 2: Handles the redirect logic after success
   useEffect(() => {
-    // Jab status 'success' hoga, tabhi yeh code chalega.
     if (status === 'success') {
-      console.log("Status is success, preparing to redirect...");
       const timer = setTimeout(() => {
-        navigate('/email-confirmed');
-      }, 2000); // 2 second ke liye 'tick' dikhega
+        navigate('/email-confirmed', { replace: true });
+      }, 2000); 
 
-      // Cleanup function to clear the timer if the component unmounts
       return () => clearTimeout(timer);
     }
-  }, [status, navigate]); // Yeh tabhi chalega jab 'status' ya 'navigate' badlega.
+  }, [status, navigate]);
 
-  // --- UI PART (NO CHANGES NEEDED HERE) ---
+  // --- UI HELPER FUNCTIONS ---
   const getIcon = () => {
     switch (status) {
       case 'loading':
@@ -105,6 +99,7 @@ export default function EmailConfirmation() {
     }
   };
 
+  // --- RENDER JSX ---
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
