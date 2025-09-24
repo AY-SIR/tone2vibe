@@ -88,7 +88,7 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[9999] p-4">
+    <div className="fixed bottom-0 left-0 right-0 z-[100] p-4">
       <Card className="max-w-4xl mx-auto shadow-2xl border-gray-300 bg-white">
         <CardContent className="p-4 sm:p-6">
           <div className="flex items-start space-x-3">
