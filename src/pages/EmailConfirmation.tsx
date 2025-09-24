@@ -1,105 +1,141 @@
-// src/pages/EmailConfirmation.jsx
-
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function EmailConfirmation() {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
-  const [message, setMessage] = useState('Please wait while we verify your email...');
+  const [message, setMessage] = useState('');
 
-  // Effect 1: Handles the email confirmation logic
   useEffect(() => {
     const handleEmailConfirmation = async () => {
-      const hash = window.location.hash.substring(1);
-      if (!hash) {
-        setStatus('error');
-        setMessage('Invalid confirmation link. No information found.');
-        return;
-      }
+      try {
+        const access_token = searchParams.get('access_token');
+        const refresh_token = searchParams.get('refresh_token');
+        const type = searchParams.get('type');
+        const token = searchParams.get('token');
 
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      const errorDescription = params.get('error_description');
+        console.log('Email confirmation params:', { type, hasToken: !!token, hasAccessToken: !!access_token });
 
-      if (errorDescription) {
-        setStatus('expired');
-        const decodedMessage = decodeURIComponent(errorDescription.replace(/\+/g, ' '));
-        setMessage(`Link is invalid or has expired. Error: ${decodedMessage}`);
-        return;
-      }
+        if (type === 'signup' && access_token && refresh_token) {
+          // Set the session using the tokens
+          const { data, error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token
+          });
 
-      if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
+          if (error) {
+            console.error('Error setting session:', error);
+            setStatus('error');
+            setMessage('Failed to confirm email. Please try again or contact support.');
+            return;
+          }
 
-        if (sessionError) {
-          setStatus('error');
-          setMessage('Failed to set your session. Please try logging in.');
-        } else {
+          if (data.session) {
+            console.log('Email confirmed successfully, user logged in');
+            setStatus('success');
+            setMessage('Email confirmed successfully! Redirecting to your dashboard...');
+            
+            // Redirect to email-confirmed page
+            setTimeout(() => {
+              navigate('/email-confirmed');
+            }, 2000);
+          }
+        } else if (type === 'recovery') {
           setStatus('success');
-          setMessage('Email confirmed successfully! Redirecting...');
+          setMessage('Password reset confirmed! You can now set a new password.');
+          
+          setTimeout(() => {
+            navigate('/');
+          }, 2000);
+        } else {
+          setStatus('error');
+          setMessage('Invalid confirmation link. Please check your email and try again.');
         }
-      } else {
+      } catch (error) {
+        console.error('Confirmation error:', error);
         setStatus('error');
-        setMessage('Invalid confirmation link. Necessary tokens are missing.');
+        setMessage('An error occurred during confirmation. Please try again.');
       }
     };
 
     handleEmailConfirmation();
-  }, []); // Runs only once
+  }, [searchParams, navigate]);
 
-  // Effect 2: Handles the redirect logic after success
-  useEffect(() => {
-    if (status === 'success') {
-      const timer = setTimeout(() => {
-        navigate('/email-confirmed', { replace: true });
-      }, 2000); 
-
-      return () => clearTimeout(timer);
-    }
-  }, [status, navigate]);
-
-  // UI Helper Functions
   const getIcon = () => {
     switch (status) {
-      case 'loading': return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
-      case 'success': return <CheckCircle className="h-12 w-12 text-green-600" />;
-      default: return <AlertCircle className="h-12 w-12 text-destructive" />;
+      case 'loading':
+        return <Loader2 className="h-12 w-12 text-primary animate-spin" />;
+      case 'success':
+        return <CheckCircle className="h-12 w-12 text-green-600" />;
+      case 'error':
+      case 'expired':
+        return <AlertCircle className="h-12 w-12 text-destructive" />;
+      default:
+        return <Loader2 className="h-12 w-12 text-primary animate-spin" />;
     }
   };
 
   const getTitle = () => {
     switch (status) {
-      case 'loading': return 'Confirming Your Email...';
-      case 'success': return 'Email Confirmed!';
-      case 'expired': return 'Link Expired or Invalid';
-      default: return 'Confirmation Failed';
+      case 'loading':
+        return 'Confirming Email...';
+      case 'success':
+        return 'Email Confirmed!';
+      case 'error':
+        return 'Confirmation Failed';
+      case 'expired':
+        return 'Link Expired';
+      default:
+        return 'Processing...';
     }
   };
 
-  // Render JSX
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
         <CardContent className="p-8 text-center space-y-6">
-          <div className="flex justify-center">{getIcon()}</div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold">{getTitle()}</h1>
-            <p className="text-muted-foreground">{message}</p>
+          <div className="flex justify-center">
+            {getIcon()}
           </div>
-          {(status === 'error' || status === 'expired') && (
-            <div className="space-y-4">
-              <Button onClick={() => navigate('/')} className="w-full">
+          
+          <div className="space-y-3">
+            <h1 className="text-2xl font-bold">
+              {getTitle()}
+            </h1>
+            
+            <p className="text-muted-foreground">
+              {message}
+            </p>
+          </div>
+
+          {status === 'error' && (
+            <div className="space-y-3">
+              <Button 
+                onClick={() => navigate('/')}
+                className="w-full"
+              >
                 Return to Home
               </Button>
+              
+              <p className="text-xs text-muted-foreground">
+                Need help? Contact our support team for assistance.
+              </p>
+            </div>
+          )}
+
+          {status === 'loading' && (
+            <div className="space-y-2">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-primary rounded-full animate-pulse w-2/3"></div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Please wait while we confirm your email address...
+              </p>
             </div>
           )}
         </CardContent>
