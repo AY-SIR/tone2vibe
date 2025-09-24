@@ -1,4 +1,6 @@
+
 import { useState } from "react";
+import { useNavigate } from "react-router-dom"; // 1. Import useNavigate
 import {
   Card,
   CardContent,
@@ -29,6 +31,7 @@ export function PaymentGateway({
 }: PaymentGatewayProps) {
   const { profile, user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate(); // 2. Initialize useNavigate
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [couponValidation, setCouponValidation] = useState({
@@ -138,116 +141,119 @@ export function PaymentGateway({
     }
   };
 
-const handleFreeActivation = async () => {
-  try {
-    if (!user) throw new Error('User not logged in');
+  const handleFreeActivation = async () => {
+    try {
+      if (!user) throw new Error('User not logged in');
 
-    const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 1️⃣ Verify coupon
-    const { data: couponCheck, error: couponError } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', couponValidation.code)
-      .eq('type', 'subscription')
-      .single();
+      // 1️⃣ Verify coupon
+      const { data: couponCheck, error: couponError } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponValidation.code)
+        .eq('type', 'subscription')
+        .single();
 
-    if (couponError || !couponCheck) throw new Error('Coupon is no longer valid for subscription');
-    if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
-      throw new Error('Coupon usage limit exceeded');
-    }
+      if (couponError || !couponCheck) throw new Error('Coupon is no longer valid for subscription');
+      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
+        throw new Error('Coupon usage limit exceeded');
+      }
 
-    // 2️⃣ Plan limits
-    const planLimits = {
-      pro: { words_limit: 10000, upload_limit_mb: 25, plan_words_used: 0 },
-      premium: { words_limit: 50000, upload_limit_mb: 100, plan_words_used: 0 }
-    };
+      // 2️⃣ Plan limits
+      const planLimits = {
+        pro: { words_limit: 10000, upload_limit_mb: 25, plan_words_used: 0 },
+        premium: { words_limit: 50000, upload_limit_mb: 100, plan_words_used: 0 }
+      };
 
-    const limits = planLimits[selectedPlan];
-    if (!limits) throw new Error('Invalid plan selected');
+      const limits = planLimits[selectedPlan];
+      if (!limits) throw new Error('Invalid plan selected');
 
-    const now = new Date();
-    const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      const now = new Date();
+      const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-   const updateData = {
-  plan: selectedPlan,
-  words_limit: limits.words_limit, // plan base limit
-  word_balance: 0,   // reset balance to plan base
-  plan_words_used: 0, // reset plan usage
-  upload_limit_mb: limits.upload_limit_mb,
-  plan_start_date: now.toISOString(),
-  plan_end_date: planEndDate.toISOString(),
-  plan_expires_at: planEndDate.toISOString(),
-  last_payment_amount: 0,
-  last_payment_id: freeTransactionId
-};
-
-    console.log('Updating profile with data:', updateData);
-
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('user_id', user.id)
-      .select()
-      .single();
-
-    if (profileError) {
-      console.error('Profile update error details:', profileError);
-      throw new Error(`Failed to update user profile: ${profileError.message}`);
-    }
-
-    console.log('Profile updated successfully:', profileData);
-
-    // 4️⃣ Record payment in existing payments table
-    const { error: paymentError } = await supabase
-      .from('payments')
-      .insert({
-        user_id: user.id,
+      const updateData = {
         plan: selectedPlan,
-        amount: 0,                  // Free activation
-        currency: 'INR',
-        status: 'completed',
-        payment_id: freeTransactionId,
-        payment_method: 'coupon',
-        coupon_code: couponValidation.code,
-        created_at: now.toISOString()
+        words_limit: limits.words_limit, // plan base limit
+        word_balance: 0,   // reset balance to plan base
+        plan_words_used: 0, // reset plan usage
+        upload_limit_mb: limits.upload_limit_mb,
+        plan_start_date: now.toISOString(),
+        plan_end_date: planEndDate.toISOString(),
+        plan_expires_at: planEndDate.toISOString(),
+        last_payment_amount: 0,
+        last_payment_id: freeTransactionId
+      };
+
+      console.log('Updating profile with data:', updateData);
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error('Profile update error details:', profileError);
+        throw new Error(`Failed to update user profile: ${profileError.message}`);
+      }
+
+      console.log('Profile updated successfully:', profileData);
+
+      // 4️⃣ Record payment in existing payments table
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          user_id: user.id,
+          plan: selectedPlan,
+          amount: 0,                  // Free activation
+          currency: 'INR',
+          status: 'completed',
+          payment_id: freeTransactionId,
+          payment_method: 'coupon',
+          coupon_code: couponValidation.code,
+          created_at: now.toISOString()
+        });
+
+      if (paymentError) {
+        console.error('Payment insert error:', paymentError);
+        throw new Error(`Failed to record free activation: ${paymentError.message}`);
+      }
+
+      // 5️⃣ Update coupon usage count
+      const { error: couponUpdateError } = await supabase
+        .from('coupons')
+        .update({
+          used_count: (couponCheck.used_count || 0) + 1,
+          last_used_at: now.toISOString()
+        })
+        .eq('id', couponCheck.id);
+
+      if (couponUpdateError) {
+        console.error('Coupon update error:', couponUpdateError);
+        throw new Error(`Failed to update coupon usage: ${couponUpdateError.message}`);
+      }
+
+      // 6️⃣ Show success toast & redirect
+      toast({
+        title: 'Plan Activated Successfully!',
+        description: `Your ${selectedPlan} plan has been activated for free using coupon ${couponValidation.code}!`,
       });
 
-    if (paymentError) {
-      console.error('Payment insert error:', paymentError);
-      throw new Error(`Failed to record free activation: ${paymentError.message}`);
+      // 3. Replace window.location.href with navigate
+      navigate(
+        `/payment-success?plan=${selectedPlan}&type=subscription&amount=0&coupon=${couponValidation.code}&method=free`,
+        { replace: true } // 'replace: true' prevents user from navigating back to the payment page
+      );
+
+    } catch (error) {
+      console.error('Free activation error:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to activate plan');
     }
+  };
 
-    // 5️⃣ Update coupon usage count
-    const { error: couponUpdateError } = await supabase
-      .from('coupons')
-      .update({
-        used_count: (couponCheck.used_count || 0) + 1,
-        last_used_at: now.toISOString()
-      })
-      .eq('id', couponCheck.id);
-
-    if (couponUpdateError) {
-      console.error('Coupon update error:', couponUpdateError);
-      throw new Error(`Failed to update coupon usage: ${couponUpdateError.message}`);
-    }
-
-    // 6️⃣ Show success toast & redirect
-    toast({
-      title: 'Plan Activated Successfully!',
-      description: `Your ${selectedPlan} plan has been activated for free using coupon ${couponValidation.code}!`,
-    });
-
-    window.location.href = `/payment-success?plan=${selectedPlan}&type=subscription&amount=0&coupon=${couponValidation.code}&method=free`;
-
-  } catch (error) {
-    console.error('Free activation error:', error);
-    throw new Error(error instanceof Error ? error.message : 'Failed to activate plan');
-  }
-};
-
-
-
+  // ... rest of your component code remains the same ...
 
   // Already subscribed card
   if (!canPurchase && currentPlan === selectedPlan) {
@@ -267,7 +273,7 @@ const handleFreeActivation = async () => {
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             You're currently enjoying all {plan.name} features
           </p>
-          <Button onClick={() => window.location.href = '/'} className="w-full text-xs sm:text-sm" variant="outline">
+          <Button onClick={() => navigate('/')} className="w-full text-xs sm:text-sm" variant="outline">
             Back to Dashboard
           </Button>
         </CardContent>
@@ -290,7 +296,7 @@ const handleFreeActivation = async () => {
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Current plan: <Badge variant="outline" className="text-xs">{currentPlan}</Badge>
           </p>
-          <Button onClick={() => window.location.href = '/payment'} className="w-full text-xs sm:text-sm" variant="outline">
+          <Button onClick={() => navigate('/payment')} className="w-full text-xs sm:text-sm" variant="outline">
             View Available Plans
           </Button>
         </CardContent>
@@ -436,3 +442,4 @@ const handleFreeActivation = async () => {
 }
 
 export default PaymentGateway;
+            
