@@ -1,16 +1,23 @@
-// src/main.jsx
-
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
+import EmailConfirmation from "./pages/EmailConfirmation";
+import EmailConfirmated from "./pages/EmailConfirmated";
+
+import { AuthProvider } from "./contexts/AuthContext";
 import "./index.css";
 
-// Bas itna hi! Simple aur saaf.
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
+    <BrowserRouter>  {/* <-- Only one router */}
+      <AuthProvider>
+        <Routes>
+          <Route path="/email-confirmation" element={<EmailConfirmation />} />
+           <Route path="/email-confirmated" element={<EmailConfirmated />} />
+          <Route path="/*" element={<App />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>
 );
