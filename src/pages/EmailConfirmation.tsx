@@ -1,27 +1,64 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export default function EmailConfirmation() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
   const [message, setMessage] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    const handleEmailConfirmation = async () => {
-      try {
-        const access_token = searchParams.get('access_token');
-        const refresh_token = searchParams.get('refresh_token');
-        const type = searchParams.get('type');
-        const token = searchParams.get('token');
+    handleEmailConfirmation();
+  }, [searchParams]);
 
-        console.log('Email confirmation params:', { type, hasToken: !!token, hasAccessToken: !!access_token });
+  const handleEmailConfirmation = async () => {
+    try {
+      setStatus('loading');
+      setMessage('Confirming your email...');
 
-        if (type === 'signup' && access_token && refresh_token) {
+      // Get URL parameters from both hash and search params
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const access_token = hashParams.get('access_token') || searchParams.get('access_token');
+      const refresh_token = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+      const type = hashParams.get('type') || searchParams.get('type');
+      const token_hash = hashParams.get('token_hash') || searchParams.get('token_hash');
+      const error_code = hashParams.get('error_code') || searchParams.get('error_code');
+      const error_description = hashParams.get('error_description') || searchParams.get('error_description');
+
+      console.log('Email confirmation params:', { 
+        type, 
+        hasAccessToken: !!access_token, 
+        hasRefreshToken: !!refresh_token,
+        hasTokenHash: !!token_hash,
+        errorCode: error_code,
+        errorDescription: error_description
+      });
+
+      // Check for errors first
+      if (error_code) {
+        console.error('Email confirmation error:', error_code, error_description);
+        setStatus('error');
+        
+        if (error_code === 'signup_disabled') {
+          setMessage('Account registration is currently disabled. Please try again later.');
+        } else if (error_code === 'email_not_confirmed') {
+          setMessage('Email confirmation failed. Please check your email and try clicking the confirmation link again.');
+        } else {
+          setMessage(error_description || 'Email confirmation failed. Please try again.');
+        }
+        return;
+      }
+
+      // Handle different confirmation types
+      if (type === 'signup' || type === 'email_confirmation') {
+        if (access_token && refresh_token) {
           // Set the session using the tokens
           const { data, error } = await supabase.auth.setSession({
             access_token,
@@ -30,41 +67,118 @@ export default function EmailConfirmation() {
 
           if (error) {
             console.error('Error setting session:', error);
+            
+            if (error.message.includes('expired')) {
+              setStatus('expired');
+              setMessage('This confirmation link has expired. Please request a new confirmation email.');
+            } else if (error.message.includes('invalid')) {
+              setStatus('error');
+              setMessage('Invalid confirmation link. Please check your email and try again.');
+            } else {
+              setStatus('error');
+              setMessage('Failed to confirm email. Please try again or contact support.');
+            }
+            return;
+          }
+
+          if (data.session && data.user) {
+            console.log('Email confirmed successfully, user logged in');
+            setStatus('success');
+            setMessage('Email confirmed successfully! Welcome to Tone2Vibe.');
+            
+            // Show success toast
+            toast({
+              title: "Email Confirmed!",
+              description: "Your account has been verified successfully.",
+            });
+            
+            // Redirect to email-confirmed page after a short delay
+            setTimeout(() => {
+              navigate('/email-confirmed', { replace: true });
+            }, 2000);
+          } else {
             setStatus('error');
-            setMessage('Failed to confirm email. Please try again or contact support.');
+            setMessage('Email confirmation completed but session creation failed. Please try signing in manually.');
+          }
+        } else if (token_hash) {
+          // Handle token hash verification
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash,
+            type: 'email'
+          });
+
+          if (error) {
+            console.error('OTP verification error:', error);
+            setStatus('error');
+            setMessage('Email confirmation failed. The link may be expired or invalid.');
             return;
           }
 
           if (data.session) {
-            console.log('Email confirmed successfully, user logged in');
             setStatus('success');
-            setMessage('Email confirmed successfully! Redirecting to your dashboard...');
+            setMessage('Email confirmed successfully!');
             
-            // Redirect to email-confirmed page
+            toast({
+              title: "Email Confirmed!",
+              description: "Your account has been verified successfully.",
+            });
+            
             setTimeout(() => {
-              navigate('/email-confirmed');
+              navigate('/email-confirmed', { replace: true });
             }, 2000);
           }
-        } else if (type === 'recovery') {
+        } else {
+          setStatus('error');
+          setMessage('Invalid confirmation link. Missing required parameters.');
+        }
+      } else if (type === 'recovery' || type === 'password_recovery') {
+        // Handle password recovery
+        if (access_token && refresh_token) {
+          const { error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token
+          });
+
+          if (error) {
+            console.error('Password recovery session error:', error);
+            setStatus('error');
+            setMessage('Password reset link is invalid or expired. Please request a new one.');
+            return;
+          }
+
           setStatus('success');
-          setMessage('Password reset confirmed! You can now set a new password.');
+          setMessage('Password reset link verified! Redirecting to reset password page...');
           
           setTimeout(() => {
-            navigate('/');
+            navigate('/reset-password', { replace: true });
           }, 2000);
         } else {
           setStatus('error');
-          setMessage('Invalid confirmation link. Please check your email and try again.');
+          setMessage('Invalid password reset link. Please request a new one.');
         }
-      } catch (error) {
-        console.error('Confirmation error:', error);
+      } else {
         setStatus('error');
-        setMessage('An error occurred during confirmation. Please try again.');
+        setMessage('Invalid confirmation link type. Please check your email and try again.');
       }
-    };
+    } catch (error) {
+      console.error('Confirmation error:', error);
+      setStatus('error');
+      setMessage('An unexpected error occurred during confirmation. Please try again.');
+    }
+  };
 
-    handleEmailConfirmation();
-  }, [searchParams, navigate]);
+  const handleRetry = () => {
+    if (retryCount < 3) {
+      setRetryCount(prev => prev + 1);
+      handleEmailConfirmation();
+    } else {
+      toast({
+        title: "Too many retries",
+        description: "Please request a new confirmation email.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const getIcon = () => {
     switch (status) {
@@ -113,8 +227,19 @@ export default function EmailConfirmation() {
             </p>
           </div>
 
-          {status === 'error' && (
+          {(status === 'error' || status === 'expired') && (
             <div className="space-y-3">
+              {retryCount < 3 && (
+                <Button 
+                  onClick={handleRetry}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry Confirmation
+                </Button>
+              )}
+              
               <Button 
                 onClick={() => navigate('/')}
                 className="w-full"
@@ -123,7 +248,7 @@ export default function EmailConfirmation() {
               </Button>
               
               <p className="text-xs text-muted-foreground">
-                Need help? Contact our support team for assistance.
+                Still having issues? Contact our support team for assistance.
               </p>
             </div>
           )}
