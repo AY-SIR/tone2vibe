@@ -218,9 +218,7 @@ export function PaymentHistoryTabs() {
                         <div className="text-right">
                           <div className="font-bold">
                             ₹{purchase.amount_paid.toFixed(2)}
-                            {purchase.amount_paid === 0 && (
-                              <span className="text-sm text-green-600 ml-2">FREE</span>
-                            )}
+                            
                           </div>
                           <div className="flex items-center space-x-2 mt-1">
                             {getStatusBadge(purchase.status)}
