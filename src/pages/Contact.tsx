@@ -267,7 +267,7 @@ useEffect(() => {
                   <ul className="text-gray-600 space-y-2">
                     <li>• Detailed description of your question or issue</li>
                     <li>• Your account email (if applicable)</li>
-                    <li>• Screenshots or error messages (if relevant)</li>
+                   <li>• Screenshots or error messages (if relevant)</li>
                     <li>• Steps you've already tried</li>
                   </ul>
                 </CardContent>

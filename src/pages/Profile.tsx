@@ -444,8 +444,8 @@ const Profile: React.FC = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Days remaining:</span>
                       <span className={`text-sm font-medium ${
-                        Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7 
-                          ? 'text-red-600' 
+                        Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7
+                          ? 'text-red-600'
                           : 'text-green-600'
                       }`}>
                         {Math.max(0, Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days

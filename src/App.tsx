@@ -1,4 +1,3 @@
-
 // src/App.tsx
 
 import React, { Suspense } from "react";
@@ -23,8 +22,9 @@ import Contact from "./pages/Contact";
 import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
-// Import the new confirmation page
 import EmailConfirmation from "./pages/EmailConfirmation";
+// ✅ 1. Import the ResetPassword component
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -53,8 +53,10 @@ function App() {
                   <Route path="/terms" element={<Terms />} />
                   <Route path="/cookies" element={<Cookies />} />
 
-                  {/* ADD THIS ROUTE FOR EMAIL CONFIRMATION */}
                   <Route path="/email-confirmation" element={<EmailConfirmation />} />
+
+
+                  <Route path="/reset-password" element={<ResetPassword />} />
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>

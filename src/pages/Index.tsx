@@ -26,7 +26,7 @@ import {
   LogIn,
 } from "lucide-react";
 
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { VideoModal } from "@/components/common/VideoModal";
@@ -39,6 +39,7 @@ import { LocationService } from "@/services/locationService";
 const Index = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
@@ -133,11 +134,10 @@ const Index = () => {
     },
   ];
 
-  // Auth and cookies handlers
+  // Handle URL parameters for auth modal
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const authParam = urlParams.get('auth');
-    const redirectParam = urlParams.get('redirect');
+    const authParam = searchParams.get('auth');
+    const redirectParam = searchParams.get('redirect');
 
     if (authParam === 'open') {
       const consentStatus = localStorage.getItem("cookie-consent");
@@ -149,7 +149,7 @@ const Index = () => {
         if (redirectParam) setRedirectTo(decodeURIComponent(redirectParam));
       }
     }
-  }, []);
+  }, [searchParams]);
 
   const handleGetStarted = () => {
     const consentStatus = localStorage.getItem("cookie-consent");
@@ -176,18 +176,37 @@ const Index = () => {
     }
   };
 
-  // ✅ UPDATED FUNCTION TO PREVENT RELOAD
+  // Handle auth modal state changes
+  const handleAuthModalChange = (open: boolean) => {
+    setShowAuthModal(open);
+    if (!open) {
+      // Clear URL parameters when modal is closed
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('auth');
+      newSearchParams.delete('view');
+      newSearchParams.delete('redirect');
+      setSearchParams(newSearchParams, { replace: true });
+      setRedirectTo(null);
+    }
+  };
+
+  // Handle successful authentication
   const handleAuthSuccess = () => {
-    const finalRedirectTo = redirectTo || "/tool"; // Default to /tool if no redirect is set
+    const finalRedirectTo = redirectTo || "/tool";
 
-    // Clear the search parameters from the URL without a page reload.
-    // We do this BEFORE navigating away to ensure a clean state.
-    navigate('.', { replace: true });
+    // Clear auth modal and redirect
+    setShowAuthModal(false);
+    setRedirectTo(null);
 
-    // Now, navigate to the intended page.
+    // Clear URL parameters
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.delete('auth');
+    newSearchParams.delete('view');
+    newSearchParams.delete('redirect');
+    setSearchParams(newSearchParams, { replace: true });
+
+    // Navigate to intended destination
     navigate(finalRedirectTo, { replace: true });
-
-    setRedirectTo(null); // Clear the state
   };
 
   const handleCookieAccept = () => {
@@ -563,8 +582,7 @@ const Index = () => {
       {/* Modals */}
       <AuthModal
         open={showAuthModal}
-        onOpenChange={setShowAuthModal}
-        onAuthSuccess={handleAuthSuccess}
+        onOpenChange={handleAuthModalChange}
       />
       <VideoModal open={showVideoModal} onOpenChange={setShowVideoModal} />
 
