@@ -17,7 +17,8 @@ import type { CouponValidation } from "@/services/couponService";
 import { v4 as uuidv4 } from 'uuid';
 
 export function WordPurchase() {
-  const { user, profile } = useAuth();
+  // --- FIX 1: Added refreshProfile ---
+  const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -158,8 +159,8 @@ export function WordPurchase() {
     }
   };
 
+  // --- FIX 2: Updated this entire function ---
   const handleFreeWordPurchase = async () => {
-    // Store values before they are changed to ensure correct data is used for navigation
     const wordsPurchased = wordsAmount;
     const couponCode = couponValidation.code;
 
@@ -167,7 +168,6 @@ export function WordPurchase() {
       setLoading(true);
       const freeTransactionId = `COUPON_${couponCode}_${Date.now()}_${uuidv4().slice(0, 8)}`;
 
-      // Verify coupon
       const { data: couponCheck, error: couponError } = await supabase
         .from('coupons')
         .select('*')
@@ -178,7 +178,6 @@ export function WordPurchase() {
       if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses)
         throw new Error('Coupon usage limit exceeded');
 
-      // Get current balance
       const { data: currentProfile, error: profileError } = await supabase
         .from('profiles')
         .select('word_balance')
@@ -188,14 +187,12 @@ export function WordPurchase() {
 
       const newBalance = (currentProfile?.word_balance || 0) + wordsPurchased;
 
-      // Update balance
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('user_id', user!.id);
-
       if (updateError) throw new Error('Failed to update word balance');
-      // Record purchase
+
       const { error: purchaseError } = await supabase
         .from('word_purchases')
         .insert({
@@ -207,32 +204,32 @@ export function WordPurchase() {
           payment_id: freeTransactionId,
           payment_method: 'coupon',
         });
-
       if (purchaseError) throw new Error('Failed to record purchase');
-      // Update coupon usage
+
       const { error: couponUpdateError } = await supabase
         .from('coupons')
         .update({ used_count: (couponCheck.used_count || 0) + 1, last_used_at: new Date().toISOString() })
         .eq('id', couponCheck.id);
-
       if (couponUpdateError) throw new Error('Failed to update coupon usage');
-      // NOTE: The extra toast notification has been removed from here.
+      
+      console.log("Free purchase successful in DB. Refreshing profile state now...");
+      await refreshProfile();
+      console.log("Profile state refreshed.");
 
-      // Reset the form state
-      setWordsAmount(1000);
-      setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
-      setShowPaymentGateway(false);
-
-      // Show success toast
       toast({
         title: 'Words Purchased Successfully!',
         description: `${wordsPurchased.toLocaleString()} words have been added to your account for free!`,
       });
-      // Navigate to the success page with the stored values
+
       navigate(
-        `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
+        `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&txId=${freeTransactionId}`,
         { replace: true }
       );
+      
+      setWordsAmount(1000);
+      setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
+      setShowPaymentGateway(false);
+
     } catch (error) {
       toast({
         title: 'Error Processing Free Purchase',
@@ -452,5 +449,4 @@ export function WordPurchase() {
       </Dialog>
     </>
   );
-}
-    
+              }
