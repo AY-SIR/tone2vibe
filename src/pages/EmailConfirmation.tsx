@@ -10,7 +10,7 @@ export default function EmailConfirmation() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired' | 'already_confirmed'>('loading');
   const [message, setMessage] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
@@ -32,24 +32,16 @@ export default function EmailConfirmation() {
       const error_code = hashParams.get('error_code') || searchParams.get('error_code');
       const error_description = hashParams.get('error_description') || searchParams.get('error_description');
 
-      console.log('Email confirmation params:', { 
-        type, 
-        hasAccessToken: !!access_token, 
-        hasRefreshToken: !!refresh_token,
-        hasTokenHash: !!token_hash,
-        errorCode: error_code,
-        errorDescription: error_description
-      });
-
       // Check for errors first
       if (error_code) {
-        console.error('Email confirmation error:', error_code, error_description);
         setStatus('error');
         
         if (error_code === 'signup_disabled') {
           setMessage('Account registration is currently disabled. Please try again later.');
         } else if (error_code === 'email_not_confirmed') {
           setMessage('Email confirmation failed. Please check your email and try clicking the confirmation link again.');
+        } else if (error_code === 'invalid_request') {
+          setMessage('Invalid confirmation link. Please request a new confirmation email.');
         } else {
           setMessage(error_description || 'Email confirmation failed. Please try again.');
         }
@@ -66,7 +58,6 @@ export default function EmailConfirmation() {
           });
 
           if (error) {
-            console.error('Error setting session:', error);
             
             if (error.message.includes('expired')) {
               setStatus('expired');
@@ -74,6 +65,9 @@ export default function EmailConfirmation() {
             } else if (error.message.includes('invalid')) {
               setStatus('error');
               setMessage('Invalid confirmation link. Please check your email and try again.');
+            } else if (error.message.includes('already_confirmed')) {
+              setStatus('already_confirmed');
+              setMessage('Your email is already confirmed. You can sign in to your account.');
             } else {
               setStatus('error');
               setMessage('Failed to confirm email. Please try again or contact support.');
@@ -82,7 +76,6 @@ export default function EmailConfirmation() {
           }
 
           if (data.session && data.user) {
-            console.log('Email confirmed successfully, user logged in');
             setStatus('success');
             setMessage('Email confirmed successfully! Your account is now active.');
             
@@ -108,7 +101,6 @@ export default function EmailConfirmation() {
           });
 
           if (error) {
-            console.error('OTP verification error:', error);
             if (error.message.includes('expired')) {
               setStatus('expired');
               setMessage('This confirmation link has expired. Please request a new confirmation email.');
@@ -145,7 +137,6 @@ export default function EmailConfirmation() {
           });
 
           if (error) {
-            console.error('Password recovery session error:', error);
             setStatus('error');
             setMessage('Password reset link has expired. Please request a new password reset email.');
             return;
@@ -166,7 +157,6 @@ export default function EmailConfirmation() {
         setMessage('Invalid link type. Please check your email and try clicking the correct link.');
       }
     } catch (error) {
-      console.error('Confirmation error:', error);
       setStatus('error');
       setMessage('Something went wrong during confirmation. Please try again or contact support.');
     }
@@ -193,6 +183,7 @@ export default function EmailConfirmation() {
         return <CheckCircle className="h-12 w-12 text-green-600" />;
       case 'error':
       case 'expired':
+      case 'already_confirmed':
         return <AlertCircle className="h-12 w-12 text-destructive" />;
       default:
         return <Loader2 className="h-12 w-12 text-primary animate-spin" />;
@@ -209,6 +200,8 @@ export default function EmailConfirmation() {
         return 'Confirmation Failed';
       case 'expired':
         return 'Link Expired';
+      case 'already_confirmed':
+        return 'Already Confirmed';
       default:
         return 'Processing...';
     }
@@ -232,9 +225,9 @@ export default function EmailConfirmation() {
             </p>
           </div>
 
-          {(status === 'error' || status === 'expired') && (
+          {(status === 'error' || status === 'expired' || status === 'already_confirmed') && (
             <div className="space-y-3">
-              {retryCount < 3 && (
+              {retryCount < 3 && status !== 'already_confirmed' && (
                 <Button 
                   onClick={handleRetry}
                   variant="outline"
@@ -242,6 +235,15 @@ export default function EmailConfirmation() {
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Retry Confirmation
+                </Button>
+              )}
+              
+              {status === 'already_confirmed' && (
+                <Button 
+                  onClick={() => navigate('/?auth=open')}
+                  className="w-full"
+                >
+                  Sign In to Your Account
                 </Button>
               )}
               

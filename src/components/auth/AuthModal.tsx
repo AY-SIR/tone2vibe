@@ -87,7 +87,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     try {
       if (type === 'signup') {
-        const redirectUrl = `${window.location.origin}/email-confirmed`;
+        const redirectUrl = `${window.location.origin}/email-confirmation`;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -103,6 +103,11 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             setIsLoading(false);
             return;
           }
+          if (error.message.includes('already_confirmed')) {
+            toast.error('This email is already confirmed. Please sign in to your existing account.');
+            setIsLoading(false);
+            return;
+          }
           if (error.message.includes('already registered') || error.message.includes('already exists')) {
             toast.error('This email is already registered. Please sign in to your existing account instead.');
             setIsLoading(false);
@@ -112,8 +117,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }
 
         if (data.user && !data.user.email_confirmed_at) {
-          toast.success('Account created successfully! Please check your email and click the confirmation link to activate your account.', {
-            duration: 5000,
+          toast.success('Account created! Please check your email (including spam folder) and click the confirmation link.', {
+            duration: 8000,
           });
           onOpenChange(false);
         } else if (data.user && data.user.email_confirmed_at) {
@@ -129,6 +134,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please check your credentials and try again.');
+          } else if (error.message.includes('too_many_requests')) {
+            toast.error('Too many login attempts. Please wait a few minutes before trying again.');
           } else if (error.message.includes('Email not confirmed')) {
             toast.error('Please confirm your email address first. Check your inbox for the confirmation email and click the link.');
           } else {
@@ -148,6 +155,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       }
     } catch (error) {
       const authError = error as AuthError;
+      if (authError.message.includes('too_many_requests')) {
+        toast.error('Too many attempts. Please wait a few minutes before trying again.');
+      } else
       if (authError.message.includes('Email not confirmed')) {
         toast.error('Please confirm your email address first. Check your inbox for the confirmation email and click the link.');
       } else if (authError.message.includes('Invalid login credentials')) {

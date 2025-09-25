@@ -152,7 +152,7 @@ export function PaymentGateway({
         .from('coupons')
         .select('*')
         .eq('code', couponValidation.code)
-        .eq('type', 'subscription')
+        .in('type', ['subscription', 'both'])
         .single();
 
       if (couponError || !couponCheck) throw new Error('Coupon is no longer valid for subscription');
@@ -175,17 +175,17 @@ export function PaymentGateway({
       const updateData = {
         plan: selectedPlan,
         words_limit: limits.words_limit, // plan base limit
-        word_balance: 0,   // reset balance to plan base
+        word_balance: profile?.word_balance || 0, // Keep existing purchased words
         plan_words_used: 0, // reset plan usage
         upload_limit_mb: limits.upload_limit_mb,
         plan_start_date: now.toISOString(),
         plan_end_date: planEndDate.toISOString(),
         plan_expires_at: planEndDate.toISOString(),
         last_payment_amount: 0,
-        last_payment_id: freeTransactionId
+        last_payment_id: freeTransactionId,
+        updated_at: now.toISOString()
       };
 
-      console.log('Updating profile with data:', updateData);
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -195,11 +195,9 @@ export function PaymentGateway({
         .single();
 
       if (profileError) {
-        console.error('Profile update error details:', profileError);
         throw new Error(`Failed to update user profile: ${profileError.message}`);
       }
 
-      console.log('Profile updated successfully:', profileData);
 
       // 4️⃣ Record payment in existing payments table
       const { error: paymentError } = await supabase
@@ -217,7 +215,6 @@ export function PaymentGateway({
         });
 
       if (paymentError) {
-        console.error('Payment insert error:', paymentError);
         throw new Error(`Failed to record free activation: ${paymentError.message}`);
       }
 
@@ -231,7 +228,6 @@ export function PaymentGateway({
         .eq('id', couponCheck.id);
 
       if (couponUpdateError) {
-        console.error('Coupon update error:', couponUpdateError);
         throw new Error(`Failed to update coupon usage: ${couponUpdateError.message}`);
       }
 
@@ -248,7 +244,6 @@ export function PaymentGateway({
       );
 
     } catch (error) {
-      console.error('Free activation error:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to activate plan');
     }
   };

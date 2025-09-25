@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { IndiaOnlyService } from "@/services/indiaOnlyService";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
 import { useToast } from "@/hooks/use-toast";
+import { LocationCacheService } from "@/services/locationCache";
 
 export interface Profile {
   id: string;
@@ -69,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
 
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
@@ -81,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /** ------------------- Load User Profile ------------------- */
   const loadUserProfile = useCallback(async (userId?: string) => {
     if (!userId) return;
+    
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -88,7 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq("user_id", userId)
         .single();
 
-      if (error || !data) return;
+      if (error || !data) {
+        console.error("Profile load error:", error);
+        return;
+      }
 
       const updatedProfile = {
         ...data,
@@ -96,11 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setProfile(prevProfile => {
-        if (!prevProfile) return updatedProfile;
-        const hasChanged = Object.keys(updatedProfile).some(key =>
-          prevProfile[key as keyof Profile] !== updatedProfile[key as keyof Profile]
-        );
-        return hasChanged ? updatedProfile : prevProfile;
+        // Always update profile to ensure fresh data
+        return updatedProfile;
       });
 
       if (data.country) {
@@ -120,7 +122,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
 
     const init = async () => {
-      setLoading(true);
       try {
         const { data } = await supabase.auth.getSession();
         if (!mounted) return;
@@ -132,27 +133,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (sessionUser?.id) {
           await loadUserProfile(sessionUser.id);
         }
+        
+        setAuthInitialized(true);
       } catch (err) {
         console.error("Session init error:", err);
+        setAuthInitialized(true);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!mounted) return;
+      
       setSession(newSession);
       setUser(newSession?.user ?? null);
       
       // Handle email confirmation events
       if (event === 'SIGNED_IN' && newSession?.user) {
         await loadUserProfile(newSession.user.id);
+        setAuthInitialized(true);
       }
       
       // Handle token refresh
       if (event === 'TOKEN_REFRESHED' && newSession?.user) {
         await loadUserProfile(newSession.user.id);
+      }
+      
+      // Handle sign out
+      if (event === 'SIGNED_OUT') {
+        setProfile(null);
+        setLocationData(null);
+        setAuthInitialized(true);
       }
     });
 
@@ -230,14 +246,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     options?: { emailRedirectTo?: string; fullName?: string }
   ) => {
     try {
-      const geoCheck = await IndiaOnlyService.checkIndianAccess();
-      if (!geoCheck.isAllowed) return { data: null, error: new Error(geoCheck.message) };
+      const location = await LocationCacheService.getLocation();
+      if (!location.isIndian) {
+        return { data: null, error: new Error(`Service only available in India. Your location: ${location.country}`) };
+      }
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: options?.emailRedirectTo || `${window.location.origin}/email-confirmation`,
+          emailRedirectTo: options?.emailRedirectTo || `${window.location.origin}/email-confirmed`,
           data: { full_name: options?.fullName || "", name: options?.fullName || "" },
         },
       });
@@ -251,8 +269,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const geoCheck = await IndiaOnlyService.checkIndianAccess();
-      if (!geoCheck.isAllowed) return { data: null, error: new Error(geoCheck.message) };
+      const location = await LocationCacheService.getLocation();
+      if (!location.isIndian) {
+        return { data: null, error: new Error(`Service only available in India. Your location: ${location.country}`) };
+      }
 
       // The onAuthStateChange listener will handle setting the user/session and triggering the profile load.
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -308,7 +328,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     profile,
-    loading,
+    loading: loading || !authInitialized,
     locationData,
     signUp,
     signIn,
@@ -317,7 +337,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProfile,
   };
 
-  const isReady = !loading && (!user || profile);
+  const isReady = authInitialized && !loading && (!user || (user && profile));
 
   return (
     <AuthContext.Provider value={value}>

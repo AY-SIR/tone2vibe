@@ -31,7 +31,7 @@ const PaymentSuccess = () => {
       try {
         const toastKey = `toast_shown_${paymentId || paymentRequestId || txId}`;
 
-        // THIS IS THE UPDATED LOGIC
+        // Check if already processed to prevent duplicate toasts
         if (sessionStorage.getItem(toastKey)) {
           setIsVerifying(false);
           setVerified(true);
@@ -47,13 +47,12 @@ const PaymentSuccess = () => {
             setSuccessTitle("Action Completed");
             setSuccessDescription("This transaction was already successfully processed.");
           }
-          return; // IMPORTANT: Still return to prevent re-processing
+          return;
         }
 
-        // --- The rest of the verification logic runs only ONCE ---
 
         if (amount === "0" && (coupon || txId)) {
-          // Free activations logic...
+          // Free activations
           if (type === 'words' && count) {
             setVerified(true);
             setSuccessTitle("Words Purchased!");
@@ -64,17 +63,30 @@ const PaymentSuccess = () => {
             });
             sessionStorage.setItem(toastKey, "1");
             await refreshProfile();
+          } else if (type === 'subscription' && plan) {
+            setVerified(true);
+            setSuccessTitle("Plan Activated!");
+            setSuccessDescription(`Your ${plan} plan has been activated for free using coupon ${coupon}.`);
+            toast({
+              title: "Plan Activated",
+              description: `Your ${plan} plan is now active!`,
+            });
+            sessionStorage.setItem(toastKey, "1");
+            await refreshProfile();
           }
           setIsVerifying(false);
           return;
         }
 
         if (!paymentId || !paymentRequestId) {
+          setVerified(false);
+          setSuccessTitle("Payment Verification Failed");
+          setSuccessDescription("Missing payment information. Please contact support.");
           navigate("/payment");
           return;
         }
 
-        // Paid word purchase verification...
+        // Paid purchase verification
         if (type === 'words' && paymentId) {
           const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
             body: { payment_id: paymentId, payment_request_id: paymentRequestId, type: 'words' }
@@ -101,14 +113,32 @@ const PaymentSuccess = () => {
           } else {
             throw new Error(data.error || 'Verification failed');
           }
+        } else if (type === 'subscription' && paymentId) {
+          // Plan subscription verification
+          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
+            body: { payment_id: paymentId, payment_request_id: paymentRequestId, type: 'subscription', plan }
+          });
+          if (error) throw error;
+
+          if (data.success) {
+            setVerified(true);
+            setSuccessTitle("Plan Activated!");
+            setSuccessDescription(`Your ${plan} plan has been activated successfully.`);
+            toast({ title: "Plan Activated", description: `Your ${plan} plan is now active!` });
+            sessionStorage.setItem(toastKey, "1");
+            await refreshProfile();
+          } else {
+            throw new Error(data.error || 'Plan activation failed');
+          }
         }
-        // ... other verification logic ...
 
       } catch (error) {
         setVerified(false);
+        setSuccessTitle("Verification Failed");
+        setSuccessDescription("Unable to verify your payment. Please contact support if this issue persists.");
         toast({
           title: "Verification Failed",
-          description: "Please contact support if this issue persists.",
+          description: error instanceof Error ? error.message : "Payment verification failed",
           variant: "destructive"
         });
       } finally {
@@ -117,7 +147,7 @@ const PaymentSuccess = () => {
     };
 
     verifyPayment();
-  }, [searchParams]);
+  }, [searchParams, refreshProfile]);
 
   const handleNavigate = (path: string) => {
     window.location.href = path;

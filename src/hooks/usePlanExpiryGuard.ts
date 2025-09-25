@@ -18,16 +18,37 @@ interface Profile {
 export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const [expiryData, setExpiryData] = useState<PlanExpiryData>({ show_popup: false });
   const [isLoading, setIsLoading] = useState(false);
-  const [popupDismissed, setPopupDismissed] = useState(false);
+  const [popupDismissed, setPopupDismissed] = useState(() => {
+    // Check if popup was dismissed in this session
+    if (user?.id) {
+      try {
+        return sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`) === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
   const [lastCheckTime, setLastCheckTime] = useState<number>(0);
 
   const checkPlanExpiry = async () => {
-    // Prevent multiple checks within 10 minutes and if popup was dismissed
+    // Prevent multiple checks within 30 minutes and if popup was dismissed
     const now = Date.now();
-    if (!user || !profile || popupDismissed || (now - lastCheckTime < 10 * 60 * 1000)) return;
+    if (!user || !profile || popupDismissed || (now - lastCheckTime < 30 * 60 * 1000)) return;
     
     // Only check for paid plans with expiry dates
     if (profile.plan === 'free' || !profile.plan_expires_at) return;
+    
+    // Check if popup was already dismissed this session
+    try {
+      const dismissed = sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`);
+      if (dismissed === 'true') {
+        setPopupDismissed(true);
+        return;
+      }
+    } catch {
+      // Ignore storage errors
+    }
     
     setIsLoading(true);
     setLastCheckTime(now);
@@ -36,7 +57,7 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
       const expiryDate = new Date(profile.plan_expires_at);
       const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       
-      // Only show popup if expiring within 7 days or already expired
+      // Only show popup if expiring within 7 days or already expired, and not dismissed
       const shouldShow = daysUntilExpiry <= 7;
       
       if (shouldShow && !popupDismissed) {
@@ -58,27 +79,13 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
     }
   };
 
+  // Single effect to handle plan expiry checking
   useEffect(() => {
-    if (user?.id) {
-      // Check if popup was already dismissed this session
-      try {
-        const dismissed = sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`);
-        if (dismissed === 'true') {
-          setPopupDismissed(true);
-          return;
-        }
-      } catch (error) {
-        // Ignore storage errors
-      }
-    }
-
-    if (user && profile && !popupDismissed) {
-      // Check immediately and then every hour
+    if (user?.id && profile && !popupDismissed) {
+      // Only check once when user/profile changes, not on interval
       checkPlanExpiry();
-      const interval = setInterval(checkPlanExpiry, 60 * 60 * 1000);
-      return () => clearInterval(interval);
     }
-  }, [user?.id, profile?.plan, profile?.plan_expires_at, popupDismissed]);
+  }, [user?.id, profile?.plan, profile?.plan_expires_at]);
 
   const dismissPopup = () => {
     setExpiryData({ show_popup: false });

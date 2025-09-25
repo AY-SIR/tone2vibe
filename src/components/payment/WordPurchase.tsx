@@ -172,6 +172,7 @@ export function WordPurchase() {
         .from('coupons')
         .select('*')
         .eq('code', couponCode)
+        .in('type', ['words', 'both'])
         .single();
       if (couponError || !couponCheck) throw new Error('Coupon is no longer valid');
       if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses)
@@ -188,13 +189,14 @@ export function WordPurchase() {
       const newBalance = (currentProfile?.word_balance || 0) + wordsPurchased;
 
       // Update balance
-      await supabase
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('user_id', user!.id);
 
+      if (updateError) throw new Error('Failed to update word balance');
       // Record purchase
-      await supabase
+      const { error: purchaseError } = await supabase
         .from('word_purchases')
         .insert({
           user_id: user!.id,
@@ -206,12 +208,14 @@ export function WordPurchase() {
           payment_method: 'coupon',
         });
 
+      if (purchaseError) throw new Error('Failed to record purchase');
       // Update coupon usage
-      await supabase
+      const { error: couponUpdateError } = await supabase
         .from('coupons')
         .update({ used_count: (couponCheck.used_count || 0) + 1, last_used_at: new Date().toISOString() })
         .eq('id', couponCheck.id);
 
+      if (couponUpdateError) throw new Error('Failed to update coupon usage');
       // NOTE: The extra toast notification has been removed from here.
 
       // Reset the form state
@@ -219,13 +223,17 @@ export function WordPurchase() {
       setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
       setShowPaymentGateway(false);
 
+      // Show success toast
+      toast({
+        title: 'Words Purchased Successfully!',
+        description: `${wordsPurchased.toLocaleString()} words have been added to your account for free!`,
+      });
       // Navigate to the success page with the stored values
       navigate(
         `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
         { replace: true }
       );
     } catch (error) {
-      console.error(error);
       toast({
         title: 'Error Processing Free Purchase',
         description: error instanceof Error ? error.message : 'Something went wrong.',

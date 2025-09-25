@@ -25,8 +25,7 @@ import Contact from "./pages/Contact";
 import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
-import EmailConfirmed from "./pages/EmailConfirmed";
-import EmailConfirmation from "./pages/EmailConfirmation";
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -36,21 +35,26 @@ function App() {
         <TooltipProvider>
           <ResponsiveGuard>
             <AuthProvider>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
-                <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-                <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-                <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/privacy" element={<Privacy />} />
-                <Route path="/terms" element={<Terms />} />
-                <Route path="/cookies" element={<Cookies />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              {/* Popups will be managed by their own contexts */}
+              <Suspense fallback={
+                <div className="min-h-screen flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              }>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
+                  <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+                  <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+                  <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/terms" element={<Terms />} />
+                  <Route path="/cookies" element={<Cookies />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
               <Toaster />
               <Sonner />
             </AuthProvider>

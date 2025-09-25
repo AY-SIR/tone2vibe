@@ -10,8 +10,30 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>  {/* <-- Only one router */}
-      <AuthProvider>
+    <BrowserRouter>
+      {/* Separate auth provider for email confirmation routes */}
+      <Routes>
+        <Route path="/email-confirmation" element={
+          <AuthProvider>
+            <EmailConfirmation />
+          </AuthProvider>
+        } />
+        <Route path="/email-confirmed" element={
+          <AuthProvider>
+            <EmailConfirmed />
+          </AuthProvider>
+        } />
+        <Route path="/reset-password" element={
+          <AuthProvider>
+            <ResetPassword />
+          </AuthProvider>
+        } />
+        <Route path="/*" element={<App />} />
+      </Routes>
+    </BrowserRouter>
+  </StrictMode>
+);
+
         <Routes>
           <Route path="/email-confirmation" element={<EmailConfirmation />} />
           <Route path="/email-confirmed" element={<EmailConfirmed />} />
