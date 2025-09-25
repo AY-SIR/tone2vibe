@@ -18,6 +18,14 @@ const PaymentSuccess = () => {
   const [description, setDescription] = useState("Please wait while we confirm your transaction.");
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiKey, setConfettiKey] = useState(0); // To trigger burst once
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  // Handle window resize for confetti
+  useEffect(() => {
+    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const paymentId = searchParams.get("payment_id");
@@ -43,7 +51,7 @@ const PaymentSuccess = () => {
           setTitle(successTitle);
           setDescription(successDescription);
 
-          // Fire confetti once
+          // Fireworks for all success cases
           setConfettiKey((prev) => prev + 1);
           setShowConfetti(true);
 
@@ -58,7 +66,7 @@ const PaymentSuccess = () => {
           setTimeout(() => navigate("/tool"), 5000);
         };
 
-        // If already processed
+        // Already processed transactions
         if (sessionStorage.getItem(toastKey)) {
           if (type === 'words' && count) {
             await onVerificationSuccess(
@@ -155,7 +163,15 @@ const PaymentSuccess = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
-      {showConfetti && <Confetti key={confettiKey} recycle={false} numberOfPieces={200} />}
+      {showConfetti && (
+        <Confetti
+          key={confettiKey}
+          recycle={false}
+          numberOfPieces={200}
+          width={windowSize.width}
+          height={windowSize.height}
+        />
+      )}
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="text-center">
           {status === 'success' ? (
