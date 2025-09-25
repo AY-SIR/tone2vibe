@@ -1,48 +1,69 @@
-import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, ArrowRight, Loader2, XCircle } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import Confetti from "react-confetti";
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSearchParams, useNavigate } from "react-router-dom"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, ArrowRight, Loader2, XCircle } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/integrations/supabase/client"
+import { toast } from "sonner"
+import confetti from "canvas-confetti"
 
 const PaymentSuccess = () => {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
-  const [isVerifying, setIsVerifying] = useState(true);
-  const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
-  const [title, setTitle] = useState("Verifying Payment...");
-  const [description, setDescription] = useState("Please wait while we confirm your transaction.");
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [confettiKey, setConfettiKey] = useState(0);
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { refreshProfile } = useAuth()
+  const [isVerifying, setIsVerifying] = useState(true)
+  const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
+  const [title, setTitle] = useState("Verifying Payment...")
+  const [description, setDescription] = useState("Please wait while we confirm your transaction.")
+  const [redirectCountdown, setRedirectCountdown] = useState(5) // 5 seconds countdown
 
-  // Handle window size for confetti
-  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-      const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-      window.addEventListener("resize", handleResize);
-      return () => window.removeEventListener("resize", handleResize);
+  // Function to fire side cannons confetti
+  const fireConfetti = () => {
+    const end = Date.now() + 3 * 1000 // 3 seconds
+    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"]
+
+    const frame = () => {
+      if (Date.now() > end) return
+
+      confetti({
+        particleCount: 2,
+        angle: 60,
+        spread: 55,
+        startVelocity: 60,
+        origin: { x: 0, y: 0.5 },
+        colors,
+      })
+      confetti({
+        particleCount: 2,
+        angle: 120,
+        spread: 55,
+        startVelocity: 60,
+        origin: { x: 1, y: 0.5 },
+        colors,
+      })
+
+      requestAnimationFrame(frame)
     }
-  }, []);
+
+    frame()
+  }
 
   useEffect(() => {
-    const paymentId = searchParams.get("payment_id");
-    const paymentRequestId = searchParams.get("payment_request_id");
-    const txId = searchParams.get("txId");
-    const type = searchParams.get("type");
-    const plan = searchParams.get("plan");
-    const count = searchParams.get("count");
-    const amount = searchParams.get("amount");
-    const coupon = searchParams.get("coupon");
+    const paymentId = searchParams.get("payment_id")
+    const paymentRequestId = searchParams.get("payment_request_id")
+    const txId = searchParams.get("txId")
+    const type = searchParams.get("type")
+    const plan = searchParams.get("plan")
+    const count = searchParams.get("count")
+    const amount = searchParams.get("amount")
+    const coupon = searchParams.get("coupon")
 
     const verifyPayment = async () => {
       try {
-        const toastKey = `toast_shown_${paymentId || paymentRequestId || txId}`;
+        const toastKey = `toast_shown_${paymentId || paymentRequestId || txId}`
 
         const onVerificationSuccess = async (
           successTitle: string,
@@ -50,24 +71,32 @@ const PaymentSuccess = () => {
           toastTitle: string,
           toastDescription: string
         ) => {
-          setStatus('success');
-          setTitle(successTitle);
-          setDescription(successDescription);
+          setStatus('success')
+          setTitle(successTitle)
+          setDescription(successDescription)
 
-          // Fireworks for all success cases
-          setConfettiKey(prev => prev + 1);
-          setShowConfetti(true);
+          // Fire confetti
+          fireConfetti()
 
           if (!sessionStorage.getItem(toastKey)) {
-            toast.success(toastTitle, { description: toastDescription });
-            sessionStorage.setItem(toastKey, "1");
+            toast.success(toastTitle, { description: toastDescription })
+            sessionStorage.setItem(toastKey, "1")
           }
 
-          await refreshProfile();
+          await refreshProfile()
 
-          // Auto redirect after 5 seconds
-          setTimeout(() => navigate("/tool"), 5000);
-        };
+          // Start countdown for redirect
+          const interval = setInterval(() => {
+            setRedirectCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(interval)
+                navigate("/tool")
+                return 0
+              }
+              return prev - 1
+            })
+          }, 1000)
+        }
 
         // Already processed
         if (sessionStorage.getItem(toastKey)) {
@@ -77,16 +106,16 @@ const PaymentSuccess = () => {
               `${Number(count).toLocaleString()} words added to your account.`,
               "Purchase Processed",
               "This transaction was already successfully processed."
-            );
+            )
           } else if (type === 'subscription' && plan) {
             await onVerificationSuccess(
               "Plan Activated!",
               `Your ${plan} plan is active.`,
               "Plan Processed",
               "This transaction was already successfully processed."
-            );
+            )
           }
-          return;
+          return
         }
 
         // Free activations
@@ -97,58 +126,58 @@ const PaymentSuccess = () => {
               `${Number(count).toLocaleString()} words added using coupon ${coupon}.`,
               "Words Purchased",
               `${Number(count).toLocaleString()} words credited.`
-            );
+            )
           } else if (type === 'subscription' && plan) {
             await onVerificationSuccess(
               "Plan Activated!",
               `Your ${plan} plan is active using coupon ${coupon}.`,
               "Plan Activated",
               `Your ${plan} plan is now active!`
-            );
+            )
           }
-          return;
+          return
         }
 
-        if (!paymentId || !paymentRequestId) throw new Error("Missing payment information.");
+        if (!paymentId || !paymentRequestId) throw new Error("Missing payment information.")
 
         // Paid purchases
         const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
           body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan }
-        });
+        })
 
-        if (error) throw error;
-        if (!data.success) throw new Error(data.error || 'Verification failed');
+        if (error) throw error
+        if (!data.success) throw new Error(data.error || 'Verification failed')
 
         if (type === 'words') {
-          const added = count ? Number(count).toLocaleString() : "Your purchased";
+          const added = count ? Number(count).toLocaleString() : "Your purchased"
           await onVerificationSuccess(
             "Words Purchased!",
             `${added} words added to your account.`,
             "Words Purchased",
             `${added} words credited.`
-          );
+          )
         } else if (type === 'subscription') {
           await onVerificationSuccess(
             "Plan Activated!",
             `Your ${plan} plan has been activated successfully.`,
             "Plan Activated",
             `Your ${plan} plan is now active!`
-          );
+          )
         }
 
       } catch (error) {
-        setStatus('error');
-        setTitle("Verification Failed");
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-        setDescription(`Unable to verify your payment. Reason: ${errorMessage}`);
-        toast.error("Verification Failed", { description: errorMessage });
+        setStatus('error')
+        setTitle("Verification Failed")
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
+        setDescription(`Unable to verify your payment. Reason: ${errorMessage}`)
+        toast.error("Verification Failed", { description: errorMessage })
       } finally {
-        setIsVerifying(false);
+        setIsVerifying(false)
       }
-    };
+    }
 
-    verifyPayment();
-  }, [searchParams, refreshProfile, navigate]);
+    verifyPayment()
+  }, [searchParams, refreshProfile, navigate])
 
   if (isVerifying) {
     return (
@@ -161,23 +190,11 @@ const PaymentSuccess = () => {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
-      {/* Fireworks */}
-      {showConfetti && typeof window !== "undefined" && (
-        <Confetti
-          key={confettiKey}
-          recycle={false}
-          numberOfPieces={200}
-          width={windowSize.width}
-          height={windowSize.height}
-          style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}
-        />
-      )}
-
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="text-center">
           {status === 'success' ? (
@@ -189,6 +206,11 @@ const PaymentSuccess = () => {
         </CardHeader>
         <CardContent className="text-center space-y-4">
           <p className="text-muted-foreground">{description}</p>
+          {status === 'success' && redirectCountdown > 0 && (
+            <div className="mt-2 p-2 bg-black text-white rounded">
+              Redirecting in {redirectCountdown}s...
+            </div>
+          )}
           <div className="space-y-2 pt-4">
             {status === 'success' ? (
               <>
@@ -209,7 +231,7 @@ const PaymentSuccess = () => {
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}
 
-export default PaymentSuccess;
+export default PaymentSuccess
