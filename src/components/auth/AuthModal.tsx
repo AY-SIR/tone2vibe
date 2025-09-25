@@ -396,7 +396,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       disabled={isLoading}
                     />
                     <Label htmlFor="agreeToTerms" className="text-sm">
-                      I agree to the <a href="/terms" className="text-primary underline">Terms of Service</a> and <a href="/privacy" className="text-primary underline">Privacy Policy</a>.
+                      I agree to the <a href="/terms" className="text-primary underline">Terms of Service</a> and <a href="/privacy" className=\"text-primary underline">Privacy Policy</a>.
                     </Label>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading || !agreeToTerms}>
