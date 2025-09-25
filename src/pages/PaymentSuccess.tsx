@@ -17,10 +17,10 @@ const PaymentSuccess = () => {
   const [title, setTitle] = useState("Verifying Payment...");
   const [description, setDescription] = useState("Please wait while we confirm your transaction.");
   const [showConfetti, setShowConfetti] = useState(false);
-  const [confettiKey, setConfettiKey] = useState(0); // To trigger burst once
-  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [confettiKey, setConfettiKey] = useState(0);
 
-  // Handle window resize for confetti
+  // Handle window size for confetti
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   useEffect(() => {
     const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", handleResize);
@@ -52,7 +52,7 @@ const PaymentSuccess = () => {
           setDescription(successDescription);
 
           // Fireworks for all success cases
-          setConfettiKey((prev) => prev + 1);
+          setConfettiKey(prev => prev + 1);
           setShowConfetti(true);
 
           if (!sessionStorage.getItem(toastKey)) {
@@ -66,12 +66,12 @@ const PaymentSuccess = () => {
           setTimeout(() => navigate("/tool"), 5000);
         };
 
-        // Already processed transactions
+        // Already processed
         if (sessionStorage.getItem(toastKey)) {
           if (type === 'words' && count) {
             await onVerificationSuccess(
               "Words Purchased!",
-              `${Number(count).toLocaleString()} words have been added to your account.`,
+              `${Number(count).toLocaleString()} words added to your account.`,
               "Purchase Processed",
               "This transaction was already successfully processed."
             );
@@ -108,7 +108,7 @@ const PaymentSuccess = () => {
 
         if (!paymentId || !paymentRequestId) throw new Error("Missing payment information.");
 
-        // Paid purchases verification
+        // Paid purchases
         const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
           body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan }
         });
@@ -120,9 +120,9 @@ const PaymentSuccess = () => {
           const added = count ? Number(count).toLocaleString() : "Your purchased";
           await onVerificationSuccess(
             "Words Purchased!",
-            `${added} words have been added to your account.`,
+            `${added} words added to your account.`,
             "Words Purchased",
-            `${added} words credited to your balance.`
+            `${added} words credited.`
           );
         } else if (type === 'subscription') {
           await onVerificationSuccess(
@@ -137,7 +137,7 @@ const PaymentSuccess = () => {
         setStatus('error');
         setTitle("Verification Failed");
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-        setDescription(`Unable to verify your payment. Please contact support if this issue persists. Reason: ${errorMessage}`);
+        setDescription(`Unable to verify your payment. Reason: ${errorMessage}`);
         toast.error("Verification Failed", { description: errorMessage });
       } finally {
         setIsVerifying(false);
