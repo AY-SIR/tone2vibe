@@ -49,41 +49,77 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   }, [open]);
 
+  const validatePassword = (password: string) => {
+    const requirements = [];
+
+    if (password.length < 8) {
+      requirements.push('at least 8 characters');
+    }
+
+    if (!/[a-z]/.test(password)) {
+      requirements.push('one lowercase letter');
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      requirements.push('one uppercase letter');
+    }
+
+    if (!/[0-9]/.test(password)) {
+      requirements.push('one digit');
+    }
+
+    return requirements;
+  };
+
   const handleSubmit = async (type: 'signin' | 'signup') => {
+    // Basic validation
     if (!email || !password) {
       toast.error('Please fill in all required fields.');
       return;
     }
 
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
     if (type === 'signup') {
+      // Full name validation
       if (!fullName.trim()) {
         toast.error('Please enter your full name.');
         return;
       }
+
+      // Password validation with detailed requirements
+      const passwordRequirements = validatePassword(password);
+      if (passwordRequirements.length > 0) {
+        toast.error(`Password must include: ${passwordRequirements.join(', ')}.`);
+        return;
+      }
+
+      // Password confirmation validation
       if (password !== confirmPassword) {
         toast.error('Passwords do not match.');
         return;
       }
-      if (password.length < 6) {
-        toast.error('Password must be at least 6 characters long.');
-        return;
-      }
+
+      // Terms agreement validation
       if (!agreeToTerms) {
         toast.error('You must agree to the Terms of Service and Privacy Policy.');
+        return;
+      }
+
+      // Location validation for signup
+      const location = await LocationCacheService.getLocation();
+      if (!location.isIndian) {
+        toast.error(`Signup failed: Service is only available in India. Your location: ${location.country || 'Unknown'}`);
         return;
       }
     }
 
     setIsLoading(true);
-
-    if (type === 'signup') {
-      const location = await LocationCacheService.getLocation();
-      if (!location.isIndian) {
-        toast.error(`Signup failed: Service is only available in India. Your location: ${location.country || 'Unknown'}`);
-        setIsLoading(false);
-        return;
-      }
-    }
 
     try {
       if (type === 'signup') {
@@ -98,22 +134,39 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         });
 
         if (error) {
-          if (error.message.includes('User already registered')) {
+          console.error('Signup error:', error);
+
+          // Handle specific signup errors - Check for user already exists
+          const errorMessage = error.message.toLowerCase();
+
+          if (errorMessage.includes('user already registered') ||
+              errorMessage.includes('already registered') ||
+              errorMessage.includes('already exists') ||
+              errorMessage.includes('email already exists') ||
+              errorMessage.includes('email already registered') ||
+              errorMessage.includes('user already exists') ||
+              errorMessage.includes('account already exists') ||
+              errorMessage.includes('already_confirmed') ||
+              errorMessage.includes('email address already exists')) {
             toast.error('This email is already registered. Please sign in to your existing account instead.');
-            setIsLoading(false);
-            return;
+          } else if (errorMessage.includes('password should be at least') ||
+                     errorMessage.includes('password is too weak') ||
+                     errorMessage.includes('weak password')) {
+            const passwordRequirements = validatePassword(password);
+            if (passwordRequirements.length > 0) {
+              toast.error(`Password must include: ${passwordRequirements.join(', ')}.`);
+            } else {
+              toast.error('Password is too weak. Please choose a stronger password.');
+            }
+          } else if (errorMessage.includes('invalid email')) {
+            toast.error('Please enter a valid email address.');
+          } else if (errorMessage.includes('too_many_requests')) {
+            toast.error('Too many attempts. Please wait a few minutes before trying again.');
+          } else {
+            toast.error(`Signup failed: ${error.message}`);
           }
-          if (error.message.includes('already_confirmed')) {
-            toast.error('This email is already confirmed. Please sign in to your existing account.');
-            setIsLoading(false);
-            return;
-          }
-          if (error.message.includes('already registered') || error.message.includes('already exists')) {
-            toast.error('This email is already registered. Please sign in to your existing account instead.');
-            setIsLoading(false);
-            return;
-          }
-          throw error;
+          setIsLoading(false);
+          return;
         }
 
         if (data.user && !data.user.email_confirmed_at) {
@@ -132,6 +185,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
+          console.error('Signin error:', error);
+
           if (error.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please check your credentials and try again.');
           } else if (error.message.includes('too_many_requests')) {
@@ -139,7 +194,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           } else if (error.message.includes('Email not confirmed')) {
             toast.error('Please confirm your email address first. Check your inbox for the confirmation email and click the link.');
           } else {
-            toast.error('Sign in failed. Please try again.');
+            toast.error(`Sign in failed: ${error.message}`);
           }
           setIsLoading(false);
           return;
@@ -154,21 +209,39 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         onOpenChange(false);
       }
     } catch (error) {
+      console.error('Auth error:', error);
       const authError = error as AuthError;
-      if (authError.message.includes('too_many_requests')) {
+
+      // Handle catch block errors
+      const errorMessage = authError.message.toLowerCase();
+
+      if (errorMessage.includes('too_many_requests')) {
         toast.error('Too many attempts. Please wait a few minutes before trying again.');
-      } else
-      if (authError.message.includes('Email not confirmed')) {
+      } else if (errorMessage.includes('email not confirmed')) {
         toast.error('Please confirm your email address first. Check your inbox for the confirmation email and click the link.');
-      } else if (authError.message.includes('Invalid login credentials')) {
+      } else if (errorMessage.includes('invalid login credentials')) {
         toast.error('Invalid credentials. Please try again.');
-      } else if (authError.message.includes('User already registered')) {
+      } else if (errorMessage.includes('user already registered') ||
+                 errorMessage.includes('already registered') ||
+                 errorMessage.includes('already exists') ||
+                 errorMessage.includes('email already exists') ||
+                 errorMessage.includes('email already registered') ||
+                 errorMessage.includes('user already exists') ||
+                 errorMessage.includes('account already exists') ||
+                 errorMessage.includes('already_confirmed') ||
+                 errorMessage.includes('email address already exists')) {
         toast.error('This email is already registered. Please sign in to your existing account instead.');
-      } else if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
-        toast.error('This email is already registered. Please sign in to your existing account instead.');
+      } else if (errorMessage.includes('password should be at least') ||
+                 errorMessage.includes('password is too weak') ||
+                 errorMessage.includes('weak password')) {
+        const passwordRequirements = validatePassword(password);
+        if (passwordRequirements.length > 0) {
+          toast.error(`Password must include: ${passwordRequirements.join(', ')}.`);
+        } else {
+          toast.error('Password is too weak. Please choose a stronger password.');
+        }
       } else {
-        toast.error('Authentication failed. Please try again.');
-        console.error('Auth error:', authError);
+        toast.error(`Authentication failed: ${authError.message || 'Please try again.'}`);
       }
     } finally {
       setIsLoading(false);
@@ -181,6 +254,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(resetEmail)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
@@ -188,22 +267,23 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       });
 
       if (error) {
+        console.error('Reset password error:', error);
+
         if (error.message.includes('rate limit')) {
           toast.error('Too many reset attempts. Please wait a few minutes before trying again.');
         } else if (error.message.includes('not found')) {
           toast.error('No account found with this email address. Please check your email or sign up for a new account.');
         } else {
-          toast.error('Failed to send reset email. Please try again.');
+          toast.error(`Failed to send reset email: ${error.message}`);
         }
-        console.error('Reset password error:', error);
       } else {
         toast.success('Password reset email sent! Check your inbox and spam folder for the reset link.');
         setCurrentView('auth');
         setResetEmail('');
       }
     } catch (error) {
-      toast.error('An error occurred. Please try again.');
       console.error('Reset password error:', error);
+      toast.error('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -233,12 +313,15 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             </div>
             Tone2Vibe
           </DialogTitle>
-          <DialogDescription>
-            {currentView === 'auth' 
-              ? 'Sign in to your account or create a new one'
-              : 'Reset your password'
-            }
-          </DialogDescription>
+       <DialogDescription>
+  {currentView === 'auth'
+    ? 'Hello! Access your account or get started.'
+    : ''
+  }
+</DialogDescription>
+
+
+
         </DialogHeader>
 
         {!isIndianUser && <IndiaOnlyAlert />}
@@ -348,7 +431,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       <Input
                         id="signup-password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Create a password"
+                        placeholder="Create a password (min 8 chars, uppercase, lowercase, digit)"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="pl-10 pr-10"
@@ -362,6 +445,11 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {password && validatePassword(password).length > 0 && (
+                      <p className="text-xs text-destructive">
+                        Password must include: {validatePassword(password).join(', ')}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirm-password">Confirm Password</Label>
