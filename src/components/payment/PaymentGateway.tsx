@@ -368,9 +368,10 @@ export function PaymentGateway({
             <Separator />
             <div className="flex justify-between text-sm font-semibold">
               <span>Total Amount</span>
-              <span className={finalAmount === 0 ? 'text-green-600' : ''}>
-                {pricing.symbol}{finalAmount}{finalAmount === 0 && <span className="text-xs font-normal ml-2">(FREE!)</span>}
-              </span>
+             <span className={finalAmount === 0 ? 'text-green-600' : ''}>
+  {pricing.symbol}{finalAmount}
+</span>
+
             </div>
             <div className="text-xs text-gray-500 text-center">
               {finalAmount === 0 ? 'Free activation with coupon' : 'Billed monthly • INR Currency Only'}
@@ -379,7 +380,7 @@ export function PaymentGateway({
 
           {finalAmount === 0 && !couponValidation.isValid && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 font-medium">⚠️ Invalid Free Activation</p>
+              <p className="text-sm text-red-600 font-medium"> Invalid Free Activation</p>
               <p className="text-xs text-red-500 mt-1">A valid coupon code is required for free plan activation.</p>
             </div>
           )}

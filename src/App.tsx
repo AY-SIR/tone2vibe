@@ -1,17 +1,16 @@
-import React from "react";
-// Removed unused Blog, Popups, and useEffect imports for cleanup
+
+// src/App.tsx
+
+import React, { Suspense } from "react";
+import { Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
-import { Suspense } from "react";
-
-// Page Imports
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -24,11 +23,8 @@ import Contact from "./pages/Contact";
 import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
-// --- ADDED MISSING PAGE IMPORTS ---
+// Import the new confirmation page
 import EmailConfirmation from "./pages/EmailConfirmation";
-import EmailConfirmed from "./pages/EmailConfirmed";
-import ResetPassword from './pages/ResetPassword';
-
 
 const queryClient = new QueryClient();
 
@@ -45,12 +41,6 @@ function App() {
                 </div>
               }>
                 <Routes>
-                  {/* --- ADDED MISSING ROUTES --- */}
-                  <Route path="/email-confirmation" element={<EmailConfirmation />} />
-                  <Route path="/email-confirmed" element={<EmailConfirmed />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                
-                  {/* --- Existing Routes --- */}
                   <Route path="/" element={<Index />} />
                   <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
                   <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
@@ -62,6 +52,10 @@ function App() {
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/terms" element={<Terms />} />
                   <Route path="/cookies" element={<Cookies />} />
+
+                  {/* ADD THIS ROUTE FOR EMAIL CONFIRMATION */}
+                  <Route path="/email-confirmation" element={<EmailConfirmation />} />
+
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

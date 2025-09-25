@@ -232,7 +232,7 @@ const Index = () => {
     switch (currentSection) {
       case "home":
         return (
-          <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden min-h-screen flex items-center">
+          <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
           <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block ">
               <GridPattern rows={15} columns={50} cellSize={32} />
             </div>

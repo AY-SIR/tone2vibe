@@ -1,11 +1,17 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+// src/contexts/AuthContext.tsx
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
-import { useToast } from "@/hooks/use-toast";
-import { LocationCacheService } from "@/services/locationCache";
 
 export interface Profile {
   id: string;
@@ -50,7 +56,10 @@ interface AuthContextType {
     password: string,
     options?: { emailRedirectTo?: string; fullName?: string }
   ) => Promise<{ data: any; error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ data: any; error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
@@ -64,112 +73,102 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
-
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
-  const { toast } = useToast();
-
   const profileChannelRef = useRef<any>(null);
 
   const shouldShowPopup = expiryData.show_popup;
 
-  /** ------------------- Load User Profile ------------------- */
-  const loadUserProfile = useCallback(async (userId?: string) => {
+  // Load user profile
+  const loadUserProfile = useCallback(async (userId?: string, retries = 3) => {
     if (!userId) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
 
-      if (error || !data) {
-        console.error("Profile load error:", error);
+    for (let i = 0; i < retries; i++) {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", userId)
+          .single();
+
+        if (data && !error) {
+          const updatedProfile = {
+            ...data,
+            ip_address: (data.ip_address as string | null) || null,
+          };
+          setProfile(updatedProfile);
+
+          if (data.country) {
+            const location = { country: data.country, currency: "INR" };
+            setLocationData(location);
+            try {
+              localStorage.setItem(
+                `user_location_${userId}`,
+                JSON.stringify(location)
+              );
+            } catch {}
+          }
+          return;
+        }
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Critical profile load error:", error);
+          return;
+        }
+
+        console.warn(
+          `Profile for user ${userId} not found. Attempt ${i + 1}/${retries}. Retrying...`
+        );
+        if (i < retries - 1) {
+          await new Promise((res) => setTimeout(res, 1000 * (i + 1)));
+        }
+      } catch (err) {
+        console.error("Exception during profile load:", err);
         return;
       }
-
-      const updatedProfile = {
-        ...data,
-        ip_address: (data.ip_address as string | null) || null
-      };
-
-      setProfile(prevProfile => {
-        // Always update profile to ensure fresh data
-        return updatedProfile;
-      });
-
-      if (data.country) {
-        const location = { country: data.country, currency: "INR" };
-        setLocationData(location);
-        try {
-          localStorage.setItem(`user_location_${userId}`, JSON.stringify(location));
-        } catch {}
-      }
-    } catch (err) {
-      console.error("Load profile error:", err);
     }
+    console.error(`Failed to load profile for user ${userId} after ${retries} attempts.`);
   }, []);
 
-  /** ------------------- Initialize Auth Session ------------------- */
+  // Handle session + user
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
+    const handleSession = async (currentSession: Session | null) => {
+      if (!mounted) return;
 
-        const sessionUser = data?.session?.user || null;
-        setSession(data?.session || null);
-        setUser(sessionUser);
+      const currentUser = currentSession?.user ?? null;
+      setSession(currentSession);
+      setUser(currentUser);
 
-        if (sessionUser?.id) {
-          await loadUserProfile(sessionUser.id);
-        }
-        
-        setAuthInitialized(true);
-      } catch (err) {
-        console.error("Session init error:", err);
-        setAuthInitialized(true);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+      if (currentUser) {
+        await loadUserProfile(currentUser.id);
+      } else {
+        setProfile(null);
       }
     };
 
-    init();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session).finally(() => {
+        if (mounted) {
+          setLoading(false);
+          setAuthInitialized(true);
+        }
+      });
+    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return;
-      
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      
-      // Handle email confirmation events
-      if (event === 'SIGNED_IN' && newSession?.user) {
-        await loadUserProfile(newSession.user.id);
-        setAuthInitialized(true);
-      }
-      
-      // Handle token refresh
-      if (event === 'TOKEN_REFRESHED' && newSession?.user) {
-        await loadUserProfile(newSession.user.id);
-      }
-      
-      // Handle sign out
-      if (event === 'SIGNED_OUT') {
-        setProfile(null);
-        setLocationData(null);
-        setAuthInitialized(true);
-      }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
     });
 
     return () => {
@@ -178,43 +177,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [loadUserProfile]);
 
-  /** ------------------- Profile Subscription ------------------- */
+  // Listen to profile updates
   useEffect(() => {
     if (profileChannelRef.current) {
       profileChannelRef.current.unsubscribe?.();
-      profileChannelRef.current = null;
     }
 
-    if (!user?.id) {
-      setProfile(null);
-      setLocationData(null);
-      return;
+    if (user?.id) {
+      const channel = supabase
+        .channel(`profile-updates-${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            setProfile(payload.new as Profile);
+          }
+        )
+        .subscribe();
+      profileChannelRef.current = channel;
     }
-
-    loadUserProfile(user.id);
-
-    try {
-      const savedLocation = localStorage.getItem(`user_location_${user.id}`);
-      if (savedLocation) setLocationData(JSON.parse(savedLocation));
-    } catch {}
-
-    const channel = supabase
-      .channel(`profile-updates-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
-        (payload) => setProfile(payload.new as Profile)
-      )
-      .subscribe();
-
-    profileChannelRef.current = channel;
 
     return () => {
       profileChannelRef.current?.unsubscribe?.();
     };
-  }, [user?.id, loadUserProfile]);
+  }, [user?.id]);
 
-  /** ------------------- Track IP & Location ------------------- */
+  // Track login IP
   useEffect(() => {
     const trackLoginIP = async () => {
       if (!session?.access_token || !user?.id) return;
@@ -229,7 +222,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const location = { country: data.country, currency: "INR" };
           setLocationData(location);
           localStorage.setItem(`ip_tracked_${user.id}`, "true");
-          localStorage.setItem(`user_location_${user.id}`, JSON.stringify(location));
+          localStorage.setItem(
+            `user_location_${user.id}`,
+            JSON.stringify(location)
+          );
           await loadUserProfile(user.id);
         }
       } catch (err) {
@@ -239,71 +235,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     trackLoginIP();
   }, [session?.access_token, user?.id, loadUserProfile]);
 
-  /** ------------------- Auth Actions ------------------- */
+  // ------------------------
+  // Auth Actions
+  // ------------------------
   const signUp = async (
     email: string,
     password: string,
     options?: { emailRedirectTo?: string; fullName?: string }
   ) => {
-    try {
-      const location = await LocationCacheService.getLocation();
-      if (!location.isIndian) {
-        return { data: null, error: new Error(`Service only available in India. Your location: ${location.country}`) };
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: options?.emailRedirectTo || `${window.location.origin}/email-confirmed`,
-          data: { full_name: options?.fullName || "", name: options?.fullName || "" },
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: options?.emailRedirectTo,
+        data: {
+          full_name: options?.fullName || "",
         },
-      });
-
-      if (error) return { data: null, error };
-      return { data, error: null };
-    } catch (err) {
-      return { data: null, error: err instanceof Error ? err : new Error("Signup failed") };
-    }
+      },
+    });
+    return { data, error };
   };
 
   const signIn = async (email: string, password: string) => {
-    try {
-      const location = await LocationCacheService.getLocation();
-      if (!location.isIndian) {
-        return { data: null, error: new Error(`Service only available in India. Your location: ${location.country}`) };
-      }
-
-      // The onAuthStateChange listener will handle setting the user/session and triggering the profile load.
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (error) return { data: null, error };
-      return { data, error: null };
-    } catch (err) {
-      return { data: null, error: err instanceof Error ? err : new Error("Sign in failed") };
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { data, error };
   };
 
   const signOut = async () => {
     try {
-      const uid = user?.id;
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      // Clear all local state
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setLocationData(null);
-
-      if (uid) {
-        localStorage.removeItem(`ip_tracked_${uid}`);
-        localStorage.removeItem(`user_location_${uid}`);
+      if (!error) {
+        setUser(null);
+        setSession(null);
+        setProfile(null);
       }
-
-      return { error: null };
+      return { error };
     } catch (err) {
-      return { error: err instanceof Error ? err : new Error("Sign out failed") };
+      console.error("Exception during signOut:", err);
+      return { error: err as Error };
     }
   };
 
@@ -312,18 +284,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
-    if (!user) throw new Error("No user found");
-    try {
-      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (error) throw error;
+    if (!user?.id) return;
+    const { error } = await supabase
+      .from("profiles")
+      .update(data)
+      .eq("user_id", user.id);
+    if (!error) {
       await loadUserProfile(user.id);
-    } catch (err) {
-      console.error("Profile update error:", err);
-      throw err;
+    } else {
+      console.error("Failed to update profile:", error);
     }
   };
 
-  /** ------------------- Context Value ------------------- */
+  // Context value
   const value: AuthContextType = {
     user,
     session,
