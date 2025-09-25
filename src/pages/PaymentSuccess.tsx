@@ -20,11 +20,14 @@ const PaymentSuccess = () => {
   const [confettiKey, setConfettiKey] = useState(0);
 
   // Handle window size for confetti
-  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
-    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    if (typeof window !== "undefined") {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
   }, []);
 
   useEffect(() => {
@@ -163,15 +166,18 @@ const PaymentSuccess = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
-      {showConfetti && (
+      {/* Fireworks */}
+      {showConfetti && typeof window !== "undefined" && (
         <Confetti
           key={confettiKey}
           recycle={false}
           numberOfPieces={200}
           width={windowSize.width}
           height={windowSize.height}
+          style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}
         />
       )}
+
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="text-center">
           {status === 'success' ? (
