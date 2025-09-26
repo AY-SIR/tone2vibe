@@ -108,12 +108,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       if (type === 'signup') {
         const location = await LocationCacheService.getLocation();
         if (!location.isIndian) {
-          toast.error(`Signup failed: Service is only available in India.`);
+          toast.error('Signup failed: Service is only available in India.');
           setIsLoading(false);
           return;
         }
 
-        // ✅ REMOVED the flawed pre-flight check. Let's call signUp directly.
+        // Call signUp directly
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -125,19 +125,32 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
         if (error) {
           const authError = error as AuthError;
-          // ✅ This is the correct way to check for an existing user.
-          if (authError.status === 409 || authError.message.toLowerCase().includes('user already registered')) {
-            toast.error('An account with this email already exists. Please sign in instead.');
+          // Handle existing user error properly
+          if (authError.message.toLowerCase().includes('user already registered') || 
+              authError.message.toLowerCase().includes('already been registered')) {
+            toast.error('An account with this email already exists. Please sign in instead.', {
+              duration: 5000
+            });
           } else if (authError.message.toLowerCase().includes('weak password')) {
             toast.error('Password is too weak. Please choose a stronger one.');
           } else {
             toast.error(`Signup failed: ${authError.message}`);
           }
-          return; // Stop execution on error
+          setIsLoading(false);
+          return;
         }
 
-        if (data.user) {
-          toast.success('Account created! Please check your email to complete registration.', { duration: 8000 });
+        // Check if user was created or already exists
+        if (data.user && data.user.identities && data.user.identities.length === 0) {
+          // User already exists but not confirmed
+          toast.error('An account with this email already exists. Please sign in or check your email for a confirmation link.', {
+            duration: 6000
+          });
+        } else if (data.user) {
+          // New user created successfully
+          toast.success('Account created! Please check your email to complete registration.', { 
+            duration: 8000 
+          });
           onOpenChange(false);
         }
 
@@ -149,10 +162,11 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           if (errorMessage.includes('invalid login credentials')) {
             toast.error('Invalid email or password. Please check your credentials.');
           } else if (errorMessage.includes('email not confirmed')) {
-            toast.error('Please confirm your email address first. Check your inbox for the link.');
+            toast.error('Please confirm your email address first. Check your inbox for the confirmation link.');
           } else {
             toast.error(`Sign in failed: ${error.message}`);
           }
+          setIsLoading(false);
           return;
         }
 
@@ -162,8 +176,11 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       }
     } catch (err) {
       toast.error('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
+    } finally {
+      if (type === 'signin') {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -179,23 +196,23 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setIsLoading(true);
     try {
-      // ✅ REMOVED the flawed pre-flight check. Let resetPasswordForEmail handle it.
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) {
         const errorMessage = error.message.toLowerCase();
-        // ✅ Supabase provides a clear error for this case.
         if (errorMessage.includes('user not found')) {
           toast.error('No account found with this email address.');
         } else if (errorMessage.includes('rate limit')) {
           toast.error('Too many attempts. Please wait a moment before trying again.');
         } else {
-          toast.error(`Failed to send email: ${error.message}`);
+          toast.error(`Failed to send reset email: ${error.message}`);
         }
       } else {
-        toast.success('Password reset email sent! Please check your inbox.', { duration: 8000 });
+        toast.success('Password reset email sent! Please check your inbox and spam folder.', { 
+          duration: 8000 
+        });
         setCurrentView('auth');
         setResetEmail('');
       }
@@ -206,11 +223,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
-  // The JSX part of your component remains the same...
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {/* ... DIALOG HEADER ... */}
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentView === 'forgot-password' && (
