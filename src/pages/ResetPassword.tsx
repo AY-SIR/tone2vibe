@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Home } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ export default function ResetPassword() {
   const [isTokenValid, setIsTokenValid] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [passwordRequirements, setPasswordRequirements] = useState<string[]>([]);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const validatePassword = (pwd: string) => {
     const requirements = [];
@@ -67,9 +68,7 @@ export default function ResetPassword() {
       // Check for errors first
       if (errorCode) {
         console.error('Reset link error:', errorCode, errorDescription);
-        toast.error("Reset Link Error", {
-          description: errorDescription || "This password reset link has expired or is invalid.",
-        });
+        toast.error(errorDescription || "This password reset link has expired or is invalid.");
         setIsTokenValid(false);
         setIsVerifying(false);
         return;
@@ -87,9 +86,7 @@ export default function ResetPassword() {
 
         if (error) {
           console.error('Session error:', error);
-          toast.error("Invalid Reset Link", {
-            description: "This reset link is invalid, expired, or has already been used. Please request a new one.",
-          });
+          toast.error("This reset link is invalid, expired, or has already been used. Please request a new one.");
           setIsTokenValid(false);
         } else {
           console.log('Session set successfully for password reset:', data);
@@ -97,23 +94,17 @@ export default function ResetPassword() {
           // Clear URL parameters to prevent refresh issues
           window.history.replaceState({}, document.title, window.location.pathname);
 
-          toast.success("Reset Link Verified", {
-            description: "Please set your new password below. You are not logged in yet.",
-          });
+          toast.success("Reset link verified! Please set your new password below.");
           setIsTokenValid(true);
         }
       } else {
         console.error('Missing required parameters:', { type, accessToken: !!accessToken, refreshToken: !!refreshToken });
-        toast.error("Invalid Access", {
-          description: "No valid password reset token found. Please use the link from your reset email.",
-        });
+        toast.error("No valid password reset token found. Please use the link from your reset email.");
         setIsTokenValid(false);
       }
     } catch (error) {
       console.error('Token verification error:', error);
-      toast.error("Verification Failed", {
-        description: "Could not verify the reset link. Please try again or request a new reset link.",
-      });
+      toast.error("Could not verify the reset link. Please try again or request a new reset link.");
       setIsTokenValid(false);
     } finally {
       setIsVerifying(false);
@@ -136,16 +127,12 @@ export default function ResetPassword() {
     e.preventDefault();
 
     if (!validatePassword(password)) {
-      toast.error("Weak Password", {
-        description: `Your password must contain: ${passwordRequirements.join(', ')}.`,
-      });
+      toast.error(`Your password must contain: ${passwordRequirements.join(', ')}.`);
       return;
     }
 
     if (password !== confirmPassword) {
-      toast.error("Passwords Don't Match", {
-        description: "Please make sure both passwords are identical.",
-      });
+      toast.error("Please make sure both passwords are identical.");
       return;
     }
 
@@ -156,9 +143,7 @@ export default function ResetPassword() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        toast.error("Session Expired", {
-          description: "Your reset session has expired. Please request a new password reset link.",
-        });
+        toast.error("Your reset session has expired. Please request a new password reset link.");
         setIsTokenValid(false);
         setIsLoading(false);
         return;
@@ -172,23 +157,20 @@ export default function ResetPassword() {
         console.error('Password update error:', error);
 
         if (error.message.includes('session_not_found')) {
-          toast.error("Session Expired", {
-            description: "Your reset session has expired. Please request a new password reset link.",
-          });
+          toast.error("Your reset session has expired. Please request a new password reset link.");
           setIsTokenValid(false);
         } else if (error.message.includes('same_password')) {
-          toast.error("Same Password", {
-            description: "Please choose a different password from your current one.",
-          });
+          toast.error("Please choose a different password from your current one.");
         } else {
-          toast.error("Reset Failed", {
-            description: error.message || "Could not update your password. Please try again.",
-          });
+          toast.error(error.message || "Could not update your password. Please try again.");
         }
       } else {
         console.log('Password updated successfully');
-        toast.success("Password Reset Complete!", {
-          description: "Your password has been updated. You can now sign in with your new password.",
+        
+        // Set success state
+        setResetSuccess(true);
+        
+        toast.success("Password reset complete! You can now sign in with your new password.", {
           duration: 5000,
         });
 
@@ -199,25 +181,21 @@ export default function ResetPassword() {
         // Clear any session data
         localStorage.removeItem('supabase.auth.token');
         sessionStorage.clear();
-
-        // Redirect to home with auth modal open after a delay
-        setTimeout(() => {
-          navigate('/?auth=open', { replace: true });
-        }, 2000);
       }
     } catch (error) {
       console.error('Unexpected error during password reset:', error);
-      toast.error("Unexpected Error", {
-        description: "Something went wrong. Please try again or request a new reset link.",
-      });
+      toast.error("Something went wrong. Please try again or request a new reset link.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const requestNewLink = () => {
-    // Navigate to home and trigger the auth modal in the 'forgot password' state
-    navigate('/?auth=open&view=forgot-password', { replace: true });
+  const handleGoToHome = () => {
+    navigate('/', { replace: true });
+  };
+
+  const handleSignIn = () => {
+    navigate('/?auth=open', { replace: true });
   };
 
   if (isVerifying) {
@@ -228,6 +206,31 @@ export default function ResetPassword() {
             <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary" />
             <h1 className="text-xl font-semibold">Verifying Reset Link</h1>
             <p className="text-muted-foreground">Please wait while we verify your password reset link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (resetSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+            <CardTitle className="text-2xl">Password Reset Complete!</CardTitle>
+            <CardDescription>
+              Your password has been successfully updated. You can now sign in with your new password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={handleSignIn} className="w-full">
+              Sign In Now
+            </Button>
+            <Button variant="ghost" onClick={handleGoToHome} className="w-full">
+              <Home className="mr-2 h-4 w-4" />
+              Return to Home
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -247,10 +250,8 @@ export default function ResetPassword() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={requestNewLink} className="w-full">
-              Request a New Reset Link
-            </Button>
-            <Button variant="ghost" onClick={() => navigate('/')} className="w-full">
+            <Button onClick={handleGoToHome} className="w-full">
+              <Home className="mr-2 h-4 w-4" />
               Return to Home
             </Button>
           </CardContent>
@@ -361,15 +362,16 @@ export default function ResetPassword() {
           <div className="mt-6 text-center">
             <Button
               variant="link"
-              onClick={requestNewLink}
+              onClick={handleGoToHome}
               className="text-sm text-muted-foreground hover:text-foreground"
               disabled={isLoading}
             >
-              Need a new reset link?
+              <Home className="mr-2 h-3 w-3" />
+              Return to Home
             </Button>
           </div>
         </CardContent>
       </Card>
     </div>
   );
-}
+              }
