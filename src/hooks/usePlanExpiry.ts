@@ -18,42 +18,91 @@ interface Profile {
 export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const [expiryData, setExpiryData] = useState<PlanExpiryData>({ show_popup: false });
   const [isLoading, setIsLoading] = useState(false);
+  const [popupDismissed, setPopupDismissed] = useState(() => {
+    if (user?.id) {
+      try {
+        return sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`) === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+  const [lastCheckTime, setLastCheckTime] = useState<number>(0);
 
   const checkPlanExpiry = async () => {
-    if (!user || !profile) return;
-    
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('check_plan_expiry', {
-        user_id_param: user.id
-      });
+    if (!user || !profile || popupDismissed || (Date.now() - lastCheckTime < 30 * 60 * 1000)) return;
 
-      if (error) {
-        console.error('Error checking plan expiry:', error);
+    setIsLoading(true);
+    setLastCheckTime(Date.now());
+
+    try {
+      // If free plan, nothing to check
+      if (profile.plan === 'free' || !profile.plan_expires_at) {
+        setExpiryData({ show_popup: false });
         return;
       }
 
-      const response = data as unknown as PlanExpiryData;
-      setExpiryData(response || { show_popup: false });
+      const expiryDate = new Date(profile.plan_expires_at);
+      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+      // If plan expired, switch to free
+      if (daysUntilExpiry <= 0) {
+        // Update backend
+        const { error } = await supabase
+          .from('profiles')
+          .update({ plan: 'free', plan_expires_at: null })
+          .eq('id', user.id);
+
+        if (error) console.error('Error downgrading plan to free:', error);
+
+        setExpiryData({
+          show_popup: true,
+          days_until_expiry: 0,
+          plan: 'free',
+          expires_at: null,
+          is_expired: true
+        });
+        return;
+      }
+
+      // Show popup if expiring within 7 days
+      if (daysUntilExpiry <= 7 && !popupDismissed) {
+        setExpiryData({
+          show_popup: true,
+          days_until_expiry,
+          plan: profile.plan,
+          expires_at: profile.plan_expires_at,
+          is_expired: false
+        });
+      } else {
+        setExpiryData({ show_popup: false });
+      }
+
     } catch (error) {
-      console.error('Error in plan expiry check:', error);
+      console.warn('Plan expiry check failed:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Check on component mount and when user/profile changes
   useEffect(() => {
-    if (user && profile) {
-      // Only check for paid plans
-      if (profile.plan !== 'free' && profile.plan_expires_at) {
-        checkPlanExpiry();
-      }
+    if (user?.id && profile) {
+      checkPlanExpiry();
     }
   }, [user?.id, profile?.plan, profile?.plan_expires_at]);
 
   const dismissPopup = () => {
     setExpiryData({ show_popup: false });
+    setPopupDismissed(true);
+
+    try {
+      if (user?.id) {
+        sessionStorage.setItem(`plan_expiry_dismissed_${user.id}`, 'true');
+      }
+    } catch {
+      // ignore
+    }
   };
 
   return {
