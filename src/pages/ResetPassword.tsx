@@ -62,7 +62,8 @@ export default function ResetPassword() {
         refreshToken: refreshToken ? 'present' : 'missing',
         type,
         errorCode,
-        errorDescription
+        errorDescription,
+        fullUrl
       });
 
       // Check for errors first
@@ -78,7 +79,7 @@ export default function ResetPassword() {
       if (type === 'recovery' && accessToken && refreshToken) {
         console.log('Setting session with tokens...');
 
-        // Set the session temporarily for password reset
+        // Set the session for password reset
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
@@ -86,20 +87,51 @@ export default function ResetPassword() {
 
         if (error) {
           console.error('Session error:', error);
-          toast.error("This reset link is invalid, expired, or has already been used. Please request a new one.");
+          
+          // Handle specific session errors
+          if (error.message.includes('expired') || error.message.includes('invalid_token')) {
+            toast.error("This reset link has expired. Password reset links are only valid for 1 hour. Please request a new one.");
+          } else if (error.message.includes('invalid_session')) {
+            toast.error("Invalid reset session. Please request a new password reset link.");
+          } else {
+            toast.error("This reset link is invalid or has already been used. Please request a new one.");
+          }
           setIsTokenValid(false);
         } else {
           console.log('Session set successfully for password reset:', data);
 
-          // Clear URL parameters to prevent refresh issues
-          window.history.replaceState({}, document.title, window.location.pathname);
+          // Verify the session is actually valid by getting user
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          
+          if (userError || !userData.user) {
+            console.error('User verification failed:', userError);
+            toast.error("Reset session could not be verified. Please request a new reset link.");
+            setIsTokenValid(false);
+          } else {
+            // Clear URL parameters to prevent refresh issues
+            window.history.replaceState({}, document.title, window.location.pathname);
 
-          toast.success("Reset link verified! Please set your new password below.");
-          setIsTokenValid(true);
+            toast.success("Reset link verified! Please set your new password below.");
+            setIsTokenValid(true);
+          }
         }
       } else {
-        console.error('Missing required parameters:', { type, accessToken: !!accessToken, refreshToken: !!refreshToken });
-        toast.error("No valid password reset token found. Please use the link from your reset email.");
+        console.error('Missing required parameters:', { 
+          type, 
+          accessToken: !!accessToken, 
+          refreshToken: !!refreshToken,
+          actualType: type,
+          expectedType: 'recovery'
+        });
+        
+        // More specific error message
+        if (!type) {
+          toast.error("Invalid reset link format. Please use the link from your password reset email.");
+        } else if (type !== 'recovery') {
+          toast.error("This link is not for password recovery. Please use the correct password reset link from your email.");
+        } else {
+          toast.error("Reset link is missing required authentication tokens. Please request a new password reset link.");
+        }
         setIsTokenValid(false);
       }
     } catch (error) {
