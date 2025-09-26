@@ -87,8 +87,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const shouldShowPopup = expiryData.show_popup;
 
-  // Load user profile
-  const loadUserProfile = useCallback(async (userId?: string, retries = 3) => {
+  // Create default free tier profile
+  const createDefaultProfile = useCallback(async (userId: string, userEmail: string) => {
+    try {
+      const defaultProfile = {
+        user_id: userId,
+        full_name: userEmail.split('@')[0] || 'User',
+        avatar_url: '',
+        plan: 'free',
+        words_limit: 1000, // Free tier limit
+        words_used: 0,
+        plan_words_used: 0,
+        word_balance: 1000,
+        total_words_used: 0,
+        upload_limit_mb: 5,
+        plan_expires_at: null,
+        last_login_at: new Date().toISOString(),
+        ip_address: null,
+        country: null,
+        email: userEmail,
+        company: '',
+        preferred_language: 'en',
+        last_word_purchase_at: '',
+        login_count: 1,
+        plan_start_date: new Date().toISOString(),
+        plan_end_date: null,
+      };
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .insert([defaultProfile])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Failed to create default profile:", error);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error("Exception creating default profile:", err);
+      return null;
+    }
+  }, []);
+
+  // Load user profile with auto-creation for new users
+  const loadUserProfile = useCallback(async (userId: string, userEmail?: string, retries = 3) => {
     if (!userId) return;
 
     for (let i = 0; i < retries; i++) {
@@ -100,10 +145,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           .single();
 
         if (data && !error) {
+          // Calculate word balance if not already calculated
+          const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
+          
           const updatedProfile = {
             ...data,
             ip_address: (data.ip_address as string | null) || null,
+            word_balance: data.word_balance || calculatedWordBalance,
           };
+          
           setProfile(updatedProfile);
 
           if (data.country) {
@@ -117,6 +167,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             } catch {}
           }
           return;
+        }
+
+        if (error && error.code === "PGRST116") {
+          // Profile doesn't exist, create default profile
+          console.log(`Profile not found for user ${userId}, creating default profile...`);
+          
+          if (userEmail) {
+            const newProfile = await createDefaultProfile(userId, userEmail);
+            if (newProfile) {
+              const updatedProfile = {
+                ...newProfile,
+                ip_address: (newProfile.ip_address as string | null) || null,
+              };
+              setProfile(updatedProfile);
+              console.log("Default profile created successfully");
+              return;
+            }
+          }
         }
 
         if (error && error.code !== "PGRST116") {
@@ -135,8 +203,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
     }
-    console.error(`Failed to load profile for user ${userId} after ${retries} attempts.`);
-  }, []);
+    
+    // If all retries failed and we have user email, try to create default profile
+    if (userEmail) {
+      console.log("All retries failed, attempting to create default profile...");
+      const newProfile = await createDefaultProfile(userId, userEmail);
+      if (newProfile) {
+        const updatedProfile = {
+          ...newProfile,
+          ip_address: (newProfile.ip_address as string | null) || null,
+        };
+        setProfile(updatedProfile);
+        console.log("Default profile created after retries");
+        return;
+      }
+    }
+    
+    console.error(`Failed to load or create profile for user ${userId} after ${retries} attempts.`);
+  }, [createDefaultProfile]);
 
   // Handle session + user
   useEffect(() => {
@@ -150,9 +234,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(currentUser);
 
       if (currentUser) {
-        await loadUserProfile(currentUser.id);
+        // Pass user email for profile creation if needed
+        await loadUserProfile(currentUser.id, currentUser.email);
       } else {
         setProfile(null);
+        setLocationData(null);
       }
     };
 
@@ -168,7 +254,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleSession(session);
+      if (mounted) {
+        handleSession(session);
+      }
     });
 
     return () => {
@@ -195,7 +283,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            setProfile(payload.new as Profile);
+            const newProfile = payload.new as Profile;
+            // Recalculate word balance on updates
+            const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
+            setProfile({
+              ...newProfile,
+              word_balance: newProfile.word_balance || calculatedWordBalance,
+            });
           }
         )
         .subscribe();
@@ -226,14 +320,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             `user_location_${user.id}`,
             JSON.stringify(location)
           );
-          await loadUserProfile(user.id);
+          await loadUserProfile(user.id, user.email);
         }
       } catch (err) {
         console.error("IP tracking failed:", err);
       }
     };
     trackLoginIP();
-  }, [session?.access_token, user?.id, loadUserProfile]);
+  }, [session?.access_token, user?.id, user?.email, loadUserProfile]);
 
   // ------------------------
   // Auth Actions
@@ -243,25 +337,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     password: string,
     options?: { emailRedirectTo?: string; fullName?: string }
   ) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: options?.emailRedirectTo,
-        data: {
-          full_name: options?.fullName || "",
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: options?.emailRedirectTo,
+          data: {
+            full_name: options?.fullName || "",
+          },
         },
-      },
-    });
-    return { data, error };
+      });
+      
+      // If signup is successful and user is immediately available, create profile
+      if (data.user && !error) {
+        await createDefaultProfile(data.user.id, email);
+      }
+      
+      return { data, error };
+    } catch (err) {
+      console.error("Exception during signUp:", err);
+      return { data: null, error: err as Error };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { data, error };
+    } catch (err) {
+      console.error("Exception during signIn:", err);
+      return { data: null, error: err as Error };
+    }
   };
 
   const signOut = async () => {
@@ -271,6 +381,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUser(null);
         setSession(null);
         setProfile(null);
+        setLocationData(null);
+        
+        // Clear localStorage
+        if (user?.id) {
+          localStorage.removeItem(`ip_tracked_${user.id}`);
+          localStorage.removeItem(`user_location_${user.id}`);
+        }
       }
       return { error };
     } catch (err) {
@@ -280,19 +397,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const refreshProfile = async () => {
-    if (user?.id) await loadUserProfile(user.id);
+    if (user?.id) await loadUserProfile(user.id, user.email);
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
-    const { error } = await supabase
-      .from("profiles")
-      .update(data)
-      .eq("user_id", user.id);
-    if (!error) {
-      await loadUserProfile(user.id);
-    } else {
-      console.error("Failed to update profile:", error);
+    
+    try {
+      // If updating words_used, recalculate word_balance
+      if (data.words_used !== undefined && profile) {
+        data.word_balance = Math.max(0, profile.words_limit - data.words_used);
+      }
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update(data)
+        .eq("user_id", user.id);
+        
+      if (!error) {
+        await loadUserProfile(user.id, user.email);
+      } else {
+        console.error("Failed to update profile:", error);
+      }
+    } catch (err) {
+      console.error("Exception during profile update:", err);
     }
   };
 
@@ -310,7 +438,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     updateProfile,
   };
 
-  const isReady = authInitialized && !loading && (!user || (user && profile));
+  // More robust ready check
+  const isReady = authInitialized && !loading && (!user || (user && profile !== null));
 
   return (
     <AuthContext.Provider value={value}>
