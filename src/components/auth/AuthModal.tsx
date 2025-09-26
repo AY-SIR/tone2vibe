@@ -73,6 +73,16 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     return requirements;
   };
 
+  // Function to clear all form fields
+  const clearAllFields = () => {
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setFullName('');
+    setAgreeToTerms(false);
+    setResetEmail('');
+  };
+
   const handleSubmit = async (type: 'signin' | 'signup') => {
     if (!email || !password) {
       toast.error('Please fill in all required fields.');
@@ -104,12 +114,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
 
     setIsLoading(true);
+    
     try {
       if (type === 'signup') {
         const location = await LocationCacheService.getLocation();
         if (!location.isIndian) {
           toast.error('Signup failed: Service is only available in India.');
           setIsLoading(false);
+          clearAllFields();
           return;
         }
 
@@ -125,46 +137,57 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
         if (error) {
           const authError = error as AuthError;
+          setIsLoading(false);
+          
           // Handle existing user error properly
           if (authError.message.toLowerCase().includes('user already registered') || 
               authError.message.toLowerCase().includes('already been registered') ||
               authError.message.toLowerCase().includes('already registered')) {
-            toast.error('An account with this email already exists. Please sign in instead.', {
+            toast.error('This email is already registered. Please sign in instead or use the "Forgot Password" option if needed.', {
               duration: 5000
             });
+            clearAllFields(); // Clear all fields after error
           } else if (authError.message.toLowerCase().includes('weak password')) {
             toast.error('Password is too weak. Please choose a stronger one.');
+            clearAllFields(); // Clear all fields after error
           } else {
             toast.error(`Signup failed: ${authError.message}`);
+            clearAllFields(); // Clear all fields after error
           }
-          setIsLoading(false);
           return;
         }
 
         // Check if user was created successfully
         if (data.user) {
+          setIsLoading(false);
+          
           // Check if this is a new user or existing unconfirmed user
           if (data.user.identities && data.user.identities.length === 0) {
-            // Existing user but not confirmed
-            toast.error('An account with this email already exists. If you haven\'t confirmed your email yet, please check your inbox for the confirmation link.', {
-              duration: 6000
+            // Existing user - clear fields and show error
+            toast.error('This email is already registered. Please sign in instead or use the "Forgot Password" option if needed.', {
+              duration: 5000
             });
+            clearAllFields(); // Clear all fields after error
+            return;
           } else {
             // New user created successfully
             toast.success('Account created! Please check your email to complete registration.', { 
               duration: 8000 
             });
+            clearAllFields(); // Clear fields after success
             onOpenChange(false);
           }
         } else {
           // Edge case: no error but no user data
+          setIsLoading(false);
           toast.error('Something went wrong during signup. Please try again.');
+          clearAllFields(); // Clear all fields after error
         }
-
-        setIsLoading(false);
 
       } else { // Signin
         const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+        setIsLoading(false);
 
         if (error) {
           const errorMessage = error.message.toLowerCase();
@@ -175,19 +198,20 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           } else {
             toast.error(`Sign in failed: ${error.message}`);
           }
-          setIsLoading(false);
+          clearAllFields(); // Clear all fields after signin error
           return;
         }
 
         toast.success('Welcome back!');
+        clearAllFields(); // Clear fields after successful signin
         navigate("/tool", { replace: true });
         onOpenChange(false);
-        setIsLoading(false);
       }
     } catch (err) {
       console.error('Auth error:', err);
-      toast.error('An unexpected error occurred. Please try again.');
       setIsLoading(false);
+      toast.error('An unexpected error occurred. Please try again.');
+      clearAllFields(); // Clear all fields after unexpected error
     }
   };
 
@@ -202,12 +226,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
 
     setIsLoading(true);
+    
     try {
       // Supabase resetPasswordForEmail always sends an email if the user exists
-      // It doesn't throw errors for non-existent users for security reasons
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
+
+      setIsLoading(false);
 
       if (error) {
         const errorMessage = error.message.toLowerCase();
@@ -216,20 +242,20 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         } else {
           toast.error(`Failed to send reset email: ${error.message}`);
         }
+        setResetEmail(''); // Clear reset email field after error
       } else {
         // Always show success message regardless of whether user exists
-        // This is a security best practice to prevent email enumeration
         toast.success('If an account with this email exists, you will receive a password reset link. Please check your inbox and spam folder.', { 
           duration: 8000 
         });
         setCurrentView('auth');
-        setResetEmail('');
+        setResetEmail(''); // Clear reset email field after success
       }
     } catch (err) {
       console.error('Forgot password error:', err);
-      toast.error('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
+      toast.error('An unexpected error occurred. Please try again.');
+      setResetEmail(''); // Clear reset email field after error
     }
   };
 
@@ -276,13 +302,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
+                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <Button type="button" variant="link" className="px-0 h-auto text-sm text-muted-foreground hover:text-foreground" onClick={() => setCurrentView('forgot-password')}>
+                    <Button type="button" variant="link" className="px-0 h-auto text-sm text-muted-foreground hover:text-foreground" onClick={() => setCurrentView('forgot-password')} disabled={isLoading}>
                       Forgot password?
                     </Button>
                   </div>
@@ -292,6 +318,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   </Button>
               </form>
             </TabsContent>
+            
             <TabsContent value="signup">
               <form onSubmit={(e) => { e.preventDefault(); handleSubmit('signup'); }} className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -313,7 +340,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input id="signup-password" type={showPassword ? "text" : "password"} placeholder="Create a strong password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
+                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
@@ -326,7 +353,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     <div className="relative">
                       <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)} disabled={isLoading}>
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
@@ -363,4 +390,4 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       </DialogContent>
     </Dialog>
   );
-              }
+}
