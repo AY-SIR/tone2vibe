@@ -36,107 +36,104 @@ export default function ResetPassword() {
     setIsVerifying(true);
 
     try {
-      // Get the full URL including hash parameters
-      const fullUrl = window.location.href;
-      const url = new URL(fullUrl);
+      // Get the current URL
+      const currentUrl = new URL(window.location.href);
+      console.log('Current URL:', currentUrl.href);
 
-      // Try to get tokens from hash first (Supabase default)
-      const hashParams = new URLSearchParams(url.hash.substring(1));
-      let accessToken = hashParams.get('access_token');
-      let refreshToken = hashParams.get('refresh_token');
-      let type = hashParams.get('type');
-      let errorCode = hashParams.get('error_code');
-      let errorDescription = hashParams.get('error_description');
+      // Check URL hash first (most common for Supabase)
+      let params = new URLSearchParams(currentUrl.hash.substring(1));
+      let accessToken = params.get('access_token');
+      let refreshToken = params.get('refresh_token');
+      let type = params.get('type');
+      let errorCode = params.get('error_code');
+      let errorDescription = params.get('error_description');
 
-      // If not in hash, try query parameters (alternative)
+      // If not found in hash, check query parameters
       if (!accessToken) {
-        accessToken = url.searchParams.get('access_token');
-        refreshToken = url.searchParams.get('refresh_token');
-        type = url.searchParams.get('type');
-        errorCode = url.searchParams.get('error_code');
-        errorDescription = url.searchParams.get('error_description');
+        params = currentUrl.searchParams;
+        accessToken = params.get('access_token');
+        refreshToken = params.get('refresh_token');
+        type = params.get('type');
+        errorCode = params.get('error_code');
+        errorDescription = params.get('error_description');
       }
 
-      console.log('Reset token verification:', {
-        accessToken: accessToken ? 'present' : 'missing',
-        refreshToken: refreshToken ? 'present' : 'missing',
-        type,
-        errorCode,
-        errorDescription,
-        fullUrl
+      console.log('Reset parameters found:', {
+        accessToken: accessToken ? 'YES' : 'NO',
+        refreshToken: refreshToken ? 'YES' : 'NO',
+        type: type || 'NONE',
+        errorCode: errorCode || 'NONE',
+        hasHash: currentUrl.hash ? 'YES' : 'NO',
+        hasSearchParams: currentUrl.search ? 'YES' : 'NO'
       });
 
-      // Check for errors first
+      // Handle error cases first
       if (errorCode) {
-        console.error('Reset link error:', errorCode, errorDescription);
-        toast.error(errorDescription || "This password reset link has expired or is invalid.");
+        console.error('Reset link contains error:', errorCode, errorDescription);
+        toast.error(errorDescription || "Reset link error occurred");
         setIsTokenValid(false);
-        setIsVerifying(false);
         return;
       }
 
-      // Check if we have the necessary tokens for a recovery flow
+      // Check if this is a recovery type with required tokens
       if (type === 'recovery' && accessToken && refreshToken) {
-        console.log('Setting session with tokens...');
-
-        // Set the session for password reset
-        const { data, error } = await supabase.auth.setSession({
+        console.log('Processing recovery type with tokens');
+        
+        // Clear the URL to prevent issues on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // Set the session with the tokens
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
 
-        if (error) {
-          console.error('Session error:', error);
-          
-          // Handle specific session errors
-          if (error.message.includes('expired') || error.message.includes('invalid_token')) {
-            toast.error("This reset link has expired. Password reset links are only valid for 1 hour. Please request a new one.");
-          } else if (error.message.includes('invalid_session')) {
-            toast.error("Invalid reset session. Please request a new password reset link.");
+        if (sessionError) {
+          console.error('Failed to set session:', sessionError);
+          if (sessionError.message.includes('expired') || sessionError.message.includes('invalid')) {
+            toast.error("This reset link has expired. Please request a new password reset link.");
           } else {
-            toast.error("This reset link is invalid or has already been used. Please request a new one.");
+            toast.error("Reset link is invalid or has been used already.");
           }
           setIsTokenValid(false);
-        } else {
-          console.log('Session set successfully for password reset:', data);
-
-          // Verify the session is actually valid by getting user
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          
-          if (userError || !userData.user) {
-            console.error('User verification failed:', userError);
-            toast.error("Reset session could not be verified. Please request a new reset link.");
-            setIsTokenValid(false);
-          } else {
-            // Clear URL parameters to prevent refresh issues
-            window.history.replaceState({}, document.title, window.location.pathname);
-
-            toast.success("Reset link verified! Please set your new password below.");
-            setIsTokenValid(true);
-          }
+          return;
         }
+
+        // Verify the session by getting the user
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !userData.user) {
+          console.error('User verification failed:', userError);
+          toast.error("Could not verify reset session. Please request a new reset link.");
+          setIsTokenValid(false);
+          return;
+        }
+
+        console.log('Reset session verified successfully for user:', userData.user.email);
+        toast.success("Reset link verified! Set your new password below.");
+        setIsTokenValid(true);
+
       } else {
-        console.error('Missing required parameters:', { 
-          type, 
-          accessToken: !!accessToken, 
-          refreshToken: !!refreshToken,
-          actualType: type,
-          expectedType: 'recovery'
+        // Missing required parameters or wrong type
+        console.error('Invalid reset link parameters:', {
+          type,
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken
         });
         
-        // More specific error message
-        if (!type) {
-          toast.error("Invalid reset link format. Please use the link from your password reset email.");
-        } else if (type !== 'recovery') {
-          toast.error("This link is not for password recovery. Please use the correct password reset link from your email.");
+        if (!currentUrl.hash && !currentUrl.search) {
+          toast.error("This page requires a valid reset link. Please use the link from your email.");
+        } else if (type && type !== 'recovery') {
+          toast.error("This link is not for password recovery. Please use a password reset link.");
         } else {
-          toast.error("Reset link is missing required authentication tokens. Please request a new password reset link.");
+          toast.error("Invalid or incomplete reset link. Please request a new password reset.");
         }
         setIsTokenValid(false);
       }
+
     } catch (error) {
-      console.error('Token verification error:', error);
-      toast.error("Could not verify the reset link. Please try again or request a new reset link.");
+      console.error('Reset token verification error:', error);
+      toast.error("Failed to process reset link. Please try requesting a new one.");
       setIsTokenValid(false);
     } finally {
       setIsVerifying(false);
@@ -406,4 +403,4 @@ export default function ResetPassword() {
       </Card>
     </div>
   );
-              }
+}
