@@ -1,6 +1,6 @@
-// src/pages/ResetPassword.tsx
+      // src/pages/ResetPassword.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,139 +19,125 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [isTokenValid, setIsTokenValid] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
-  const [passwordRequirements, setPasswordRequirements] = useState<string[]>([]);
-  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetComplete, setResetComplete] = useState(false);
 
-  const validatePassword = (pwd: string) => {
-    const requirements = [];
-    if (pwd.length < 8) requirements.push('at least 8 characters');
-    if (!/[a-z]/.test(pwd)) requirements.push('one lowercase letter');
-    if (!/[A-Z]/.test(pwd)) requirements.push('one uppercase letter');
-    if (!/[0-9]/.test(pwd)) requirements.push('one number');
-    setPasswordRequirements(requirements);
-    return requirements.length === 0;
-  };
-
-  const verifyResetToken = useCallback(async () => {
-    setIsVerifying(true);
-    console.log('Starting reset token verification...');
-
-    try {
-      // First, ensure we're signed out completely
-      await supabase.auth.signOut();
-      
-      // Get URL parameters
-      const currentUrl = window.location.href;
-      console.log('Current URL:', currentUrl);
-      
-      // Parse URL for tokens - try hash first, then query params
-      const url = new URL(currentUrl);
-      const hashParams = new URLSearchParams(url.hash.substring(1));
-      const queryParams = url.searchParams;
-      
-      const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
-      const type = hashParams.get('type') || queryParams.get('type');
-      const errorCode = hashParams.get('error_code') || queryParams.get('error_code');
-      const errorDescription = hashParams.get('error_description') || queryParams.get('error_description');
-
-      console.log('Found parameters:', {
-        accessToken: accessToken ? 'EXISTS' : 'MISSING',
-        refreshToken: refreshToken ? 'EXISTS' : 'MISSING', 
-        type: type || 'NONE',
-        errorCode: errorCode || 'NONE',
-        urlHash: url.hash || 'NONE',
-        urlSearch: url.search || 'NONE'
-      });
-
-      // Check for explicit errors
-      if (errorCode || errorDescription) {
-        console.error('URL contains error:', errorCode, errorDescription);
-        toast.error(errorDescription || 'Reset link contains an error');
-        setIsTokenValid(false);
-        return;
-      }
-
-      // Verify we have the required recovery parameters
-      if (!type || type !== 'recovery') {
-        console.error('Invalid or missing type parameter. Expected "recovery", got:', type);
-        toast.error('This is not a valid password reset link. Please request a new one.');
-        setIsTokenValid(false);
-        return;
-      }
-
-      if (!accessToken || !refreshToken) {
-        console.error('Missing required tokens. AccessToken:', !!accessToken, 'RefreshToken:', !!refreshToken);
-        toast.error('Reset link is missing required security tokens. Please request a new reset link.');
-        setIsTokenValid(false);
-        return;
-      }
-
-      console.log('Valid recovery parameters found. Setting up session...');
-      
-      // Clear URL to prevent issues
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Set session for password reset (this does NOT log the user in)
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (sessionError) {
-        console.error('Session setup failed:', sessionError);
+  useEffect(() => {
+    const verifyAndSetSession = async () => {
+      try {
+        console.log('Starting reset password verification...');
         
-        if (sessionError.message.includes('expired') || sessionError.message.includes('invalid')) {
-          toast.error('This reset link has expired. Reset links are only valid for 1 hour.');
-        } else if (sessionError.message.includes('used') || sessionError.message.includes('consumed')) {
-          toast.error('This reset link has already been used. Please request a new one.');
-        } else {
-          toast.error('Reset link is invalid. Please request a new password reset link.');
+        // Get URL - check both hash and search params
+        const currentUrl = window.location.href;
+        const url = new URL(currentUrl);
+        
+        let accessToken = '';
+        let refreshToken = '';
+        let type = '';
+        
+        // Check URL hash first (most common)
+        if (url.hash) {
+          const hashParams = new URLSearchParams(url.hash.substring(1));
+          accessToken = hashParams.get('access_token') || '';
+          refreshToken = hashParams.get('refresh_token') || '';
+          type = hashParams.get('type') || '';
         }
+        
+        // If not found, check query params
+        if (!accessToken && url.search) {
+          accessToken = url.searchParams.get('access_token') || '';
+          refreshToken = url.searchParams.get('refresh_token') || '';
+          type = url.searchParams.get('type') || '';
+        }
+
+        console.log('URL Parameters:', {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          type: type,
+          urlHash: url.hash,
+          urlSearch: url.search
+        });
+
+        // Check if we have the required parameters
+        if (!accessToken || !refreshToken || type !== 'recovery') {
+          console.error('Missing or invalid reset parameters');
+          toast.error('Invalid reset link. Please request a new password reset.');
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        // Clean URL immediately to prevent issues
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        console.log('Setting session with recovery tokens...');
+
+        // Set session for password reset
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          console.error('Failed to set reset session:', error);
+          
+          if (error.message.includes('expired')) {
+            toast.error('Reset link has expired. Please request a new one.');
+          } else if (error.message.includes('invalid')) {
+            toast.error('Reset link is invalid. Please request a new one.');
+          } else {
+            toast.error('Unable to process reset link. Please try again.');
+          }
+          
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        // Verify the session worked
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !userData.user) {
+          console.error('Failed to verify user session:', userError);
+          toast.error('Reset session could not be verified. Please request a new reset link.');
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        console.log('Reset session verified for:', userData.user.email);
+        toast.success('Reset link verified! Please set your new password.');
+        setIsTokenValid(true);
+        setIsVerifying(false);
+
+      } catch (error) {
+        console.error('Unexpected error during verification:', error);
+        toast.error('Failed to process reset link. Please try again.');
         setIsTokenValid(false);
-        return;
+        setIsVerifying(false);
       }
+    };
 
-      // Verify user exists and session is valid
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !userData?.user) {
-        console.error('User verification failed:', userError);
-        toast.error('Could not verify reset session. Please request a new reset link.');
-        setIsTokenValid(false);
-        return;
-      }
-
-      console.log('Reset session verified for user email:', userData.user.email);
-      toast.success('Reset link verified! Please set your new password below.');
-      setIsTokenValid(true);
-
-    } catch (error) {
-      console.error('Unexpected error during token verification:', error);
-      toast.error('Failed to process reset link. Please try requesting a new one.');
-      setIsTokenValid(false);
-    } finally {
-      setIsVerifying(false);
-    }
+    verifyAndSetSession();
   }, []);
 
-  useEffect(() => {
-    verifyResetToken();
-  }, [verifyResetToken]);
+  const validatePassword = (pwd: string) => {
+    const errors = [];
+    if (pwd.length < 8) errors.push('at least 8 characters');
+    if (!/[a-z]/.test(pwd)) errors.push('one lowercase letter');
+    if (!/[A-Z]/.test(pwd)) errors.push('one uppercase letter');
+    if (!/[0-9]/.test(pwd)) errors.push('one number');
+    return errors;
+  };
 
-  useEffect(() => {
-    if (password) {
-      validatePassword(password);
-    } else {
-      setPasswordRequirements([]);
+  const handleUpdatePassword = async () => {
+    if (!password) {
+      toast.error('Please enter a new password');
+      return;
     }
-  }, [password]);
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validatePassword(password)) {
-      toast.error(`Password must contain: ${passwordRequirements.join(', ')}`);
+    const validationErrors = validatePassword(password);
+    if (validationErrors.length > 0) {
+      toast.error(`Password must include: ${validationErrors.join(', ')}`);
       return;
     }
 
@@ -163,22 +149,22 @@ export default function ResetPassword() {
     setIsLoading(true);
 
     try {
-      // Verify we still have a valid session
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('Updating password...');
 
-      if (userError || !user) {
-        console.error('Session expired during reset:', userError);
-        toast.error('Reset session has expired. Please request a new password reset link.');
+      // Double check we have a valid session
+      const { data: userData, error: sessionError } = await supabase.auth.getUser();
+      
+      if (sessionError || !userData.user) {
+        console.error('Session expired during update:', sessionError);
+        toast.error('Reset session expired. Please request a new reset link.');
         setIsTokenValid(false);
         setIsLoading(false);
         return;
       }
 
-      console.log('Updating password for user:', user.email);
-
-      // Update the password
-      const { error: updateError } = await supabase.auth.updateUser({ 
-        password: password 
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password
       });
 
       if (updateError) {
@@ -186,28 +172,20 @@ export default function ResetPassword() {
         
         if (updateError.message.includes('same_password')) {
           toast.error('New password must be different from your current password');
-        } else if (updateError.message.includes('session_not_found')) {
-          toast.error('Reset session expired. Please request a new reset link.');
-          setIsTokenValid(false);
         } else {
-          toast.error(`Failed to update password: ${updateError.message}`);
+          toast.error('Failed to update password. Please try again.');
         }
         setIsLoading(false);
         return;
       }
 
       console.log('Password updated successfully');
-      
-      // IMPORTANT: Sign out completely after password reset
-      // This ensures no auto-login happens
+
+      // Sign out completely after successful reset
       await supabase.auth.signOut();
       
-      // Clear any stored session data
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      setResetSuccess(true);
-      toast.success('Password reset complete! Please sign in with your new password.');
+      setResetComplete(true);
+      toast.success('Password updated successfully! Please sign in with your new password.');
 
     } catch (error) {
       console.error('Unexpected error during password update:', error);
@@ -218,20 +196,17 @@ export default function ResetPassword() {
     }
   };
 
-  const handleGoHome = () => {
-    // Make sure we're signed out before going home
-    supabase.auth.signOut().then(() => {
-      navigate('/', { replace: true });
-    });
+  const handleGoHome = async () => {
+    await supabase.auth.signOut(); // Ensure we're signed out
+    navigate('/', { replace: true });
   };
 
-  const handleSignIn = () => {
-    // Make sure we're signed out before opening sign in
-    supabase.auth.signOut().then(() => {
-      navigate('/?auth=open', { replace: true });
-    });
+  const handleSignIn = async () => {
+    await supabase.auth.signOut(); // Ensure we're signed out
+    navigate('/?auth=open', { replace: true });
   };
 
+  // Loading state
   if (isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -246,11 +221,13 @@ export default function ResetPassword() {
     );
   }
 
-  if (resetSuccess) {
+  // Success state
+  if (resetComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
         <Card className="w-full max-w-md text-center">
           <CardHeader>
+            
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
             <CardTitle className="text-2xl">Password Reset Complete!</CardTitle>
             <CardDescription>
