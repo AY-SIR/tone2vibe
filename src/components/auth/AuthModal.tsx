@@ -127,7 +127,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           const authError = error as AuthError;
           // Handle existing user error properly
           if (authError.message.toLowerCase().includes('user already registered') || 
-              authError.message.toLowerCase().includes('already been registered')) {
+              authError.message.toLowerCase().includes('already been registered') ||
+              authError.message.toLowerCase().includes('already registered')) {
             toast.error('An account with this email already exists. Please sign in instead.', {
               duration: 5000
             });
@@ -140,19 +141,27 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           return;
         }
 
-        // Check if user was created or already exists
-        if (data.user && data.user.identities && data.user.identities.length === 0) {
-          // User already exists but not confirmed
-          toast.error('An account with this email already exists. Please sign in or check your email for a confirmation link.', {
-            duration: 6000
-          });
-        } else if (data.user) {
-          // New user created successfully
-          toast.success('Account created! Please check your email to complete registration.', { 
-            duration: 8000 
-          });
-          onOpenChange(false);
+        // Check if user was created successfully
+        if (data.user) {
+          // Check if this is a new user or existing unconfirmed user
+          if (data.user.identities && data.user.identities.length === 0) {
+            // Existing user but not confirmed
+            toast.error('An account with this email already exists. If you haven\'t confirmed your email yet, please check your inbox for the confirmation link.', {
+              duration: 6000
+            });
+          } else {
+            // New user created successfully
+            toast.success('Account created! Please check your email to complete registration.', { 
+              duration: 8000 
+            });
+            onOpenChange(false);
+          }
+        } else {
+          // Edge case: no error but no user data
+          toast.error('Something went wrong during signup. Please try again.');
         }
+
+        setIsLoading(false);
 
       } else { // Signin
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -162,7 +171,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           if (errorMessage.includes('invalid login credentials')) {
             toast.error('Invalid email or password. Please check your credentials.');
           } else if (errorMessage.includes('email not confirmed')) {
-            toast.error('Please confirm your email address first. Check your inbox for the confirmation link.');
+            toast.error('Please confirm your email address first. Check your inbox for the link.');
           } else {
             toast.error(`Sign in failed: ${error.message}`);
           }
@@ -173,14 +182,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         toast.success('Welcome back!');
         navigate("/tool", { replace: true });
         onOpenChange(false);
-      }
-    } catch (err) {
-      toast.error('An unexpected error occurred. Please try again.');
-      setIsLoading(false);
-    } finally {
-      if (type === 'signin') {
         setIsLoading(false);
       }
+    } catch (err) {
+      console.error('Auth error:', err);
+      toast.error('An unexpected error occurred. Please try again.');
+      setIsLoading(false);
     }
   };
 
@@ -196,27 +203,30 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setIsLoading(true);
     try {
+      // Supabase resetPasswordForEmail always sends an email if the user exists
+      // It doesn't throw errors for non-existent users for security reasons
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) {
         const errorMessage = error.message.toLowerCase();
-        if (errorMessage.includes('user not found')) {
-          toast.error('No account found with this email address.');
-        } else if (errorMessage.includes('rate limit')) {
+        if (errorMessage.includes('rate limit') || errorMessage.includes('too many')) {
           toast.error('Too many attempts. Please wait a moment before trying again.');
         } else {
           toast.error(`Failed to send reset email: ${error.message}`);
         }
       } else {
-        toast.success('Password reset email sent! Please check your inbox and spam folder.', { 
+        // Always show success message regardless of whether user exists
+        // This is a security best practice to prevent email enumeration
+        toast.success('If an account with this email exists, you will receive a password reset link. Please check your inbox and spam folder.', { 
           duration: 8000 
         });
         setCurrentView('auth');
         setResetEmail('');
       }
     } catch (err) {
+      console.error('Forgot password error:', err);
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -353,4 +363,4 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       </DialogContent>
     </Dialog>
   );
-}
+              }
