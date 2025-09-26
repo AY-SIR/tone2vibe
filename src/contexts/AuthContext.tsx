@@ -98,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         words_limit: 1000, // Free tier limit
         words_used: 0,
         plan_words_used: 0,
-        word_balance: 1000,
+        word_balance: 0,
         total_words_used: 0,
         upload_limit_mb: 5,
         plan_expires_at: null,
