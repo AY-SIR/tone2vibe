@@ -34,6 +34,7 @@ import {
   Loader2,
   CheckCircle2,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -188,8 +189,11 @@ const Profile: React.FC = () => {
   }, [formData.full_name, formData.email]);
 
   const getPlanDetails = useCallback(() => {
-    const plan = profile?.plan || "free";
-    switch (plan) {
+    // Check if plan is expired
+    const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
+    const effectivePlan = isExpired ? "free" : (profile?.plan || "free");
+    
+    switch (effectivePlan) {
       case "premium":
         return {
           name: "Premium",
@@ -204,6 +208,7 @@ const Profile: React.FC = () => {
             "100MB upload limit",
           ],
           description: "Everything you need for professional voice synthesis",
+          wordsLimit: 50000,
         };
       case "pro":
         return {
@@ -219,12 +224,13 @@ const Profile: React.FC = () => {
             "Custom voices",
           ],
           description: "Perfect for content creators and businesses",
+          wordsLimit: 10000,
         };
       default:
         return {
-          name: "Free",
+          name: isExpired ? "Free (Expired)" : "Free",
           color: "from-gray-600 to-gray-700",
-          textColor: "text-gray-700",
+          textColor: isExpired ? "text-red-700" : "text-gray-700",
           icon: <Shield className="w-5 h-5" />,
           features: [
             "1,000 words/month",
@@ -233,43 +239,43 @@ const Profile: React.FC = () => {
             "7-day history",
           ],
           description: "Great for getting started with voice synthesis",
+          wordsLimit: 1000,
         };
     }
-  }, [profile?.plan]);
+  }, [profile?.plan, profile?.plan_expires_at]);
 
   const planDetails = useMemo(() => getPlanDetails(), [getPlanDetails]);
 
-  const wordsLimit =
-    profile?.words_limit && profile.words_limit > 0
-      ? profile.words_limit
-      : 1000;
+  // Calculate usage properly
+  const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
+  const effectiveWordsLimit = isExpired ? 1000 : planDetails.wordsLimit;
+  
+  // Use plan_words_used for current plan usage, not purchased words
   const planWordsUsed = profile?.plan_words_used || 0;
-  const usagePercentage = Math.min((planWordsUsed / wordsLimit) * 100, 100);
+  const usagePercentage = Math.min((planWordsUsed / effectiveWordsLimit) * 100, 100);
+  
+  // Word balance and total usage
+  const wordBalance = profile?.word_balance || 0;
+  const totalWordsUsed = profile?.total_words_used || 0;
 
   return (
-
-   <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-  <div className="flex flex-col space-y-8">
-    {/* Page Header */}
-    <div className="sticky">
-      <Button
-        variant="ghost"
-        onClick={() => navigate("/")}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Dashboard
-      </Button>
-    </div>
-
-
-
-
+    <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex flex-col space-y-8">
+        {/* Page Header */}
+        <div className="sticky">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </div>
 
         <div>
-
           <h1 className="text-3xl font-extrabold tracking-tight text-center">Profile Settings</h1>
-          <p className="text-muted-foreground  text-center mt-4">
+          <p className="text-muted-foreground text-center mt-4">
             Manage your account, preferences, and subscription.
           </p>
         </div>
@@ -291,9 +297,8 @@ const Profile: React.FC = () => {
                     {formData.full_name || "User"}
                   </h2>
                   <p className="text-xs sm:text-sm md:text-base text-muted-foreground break-words text-center max-w-[90%] mx-auto">
-  {formData.email}
-</p>
-
+                    {formData.email}
+                  </p>
                   <Badge
                     variant="outline"
                     className={`font-semibold ${planDetails.textColor}`}
@@ -314,8 +319,7 @@ const Profile: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Personal Information</CardTitle>
-                  <CardDescription
-                  className="mt-2">
+                  <CardDescription className="mt-2">
                     Update your personal details and preferences.
                   </CardDescription>
                 </CardHeader>
@@ -353,7 +357,7 @@ const Profile: React.FC = () => {
                         id="company"
                         value={formData.company}
                         onChange={handleInputChange}
-                         placeholder="Optional"
+                        placeholder="Optional"
                         className="pl-10"
                       />
                     </div>
@@ -382,7 +386,6 @@ const Profile: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="en-US">English (US)</SelectItem>
-
                       </SelectContent>
                     </Select>
                   </div>
@@ -403,6 +406,77 @@ const Profile: React.FC = () => {
               </Card>
             </form>
 
+            {/* Usage Statistics Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wallet className="w-5 h-5" />
+                  Usage Statistics
+                </CardTitle>
+                <CardDescription>Track your word usage and balance</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Plan Usage */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium">Plan Usage This Month</span>
+                    <span className="text-sm font-semibold">
+                      {planWordsUsed.toLocaleString()} / {effectiveWordsLimit.toLocaleString()}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={usagePercentage} 
+                    className={`h-3 ${isExpired ? 'bg-red-100' : ''}`} 
+                  />
+                  <p className={`text-xs mt-1 text-right ${
+                    usagePercentage >= 100 
+                      ? 'text-red-600 font-medium' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {usagePercentage >= 100 
+                      ? 'Limit exceeded' 
+                      : `${(100 - usagePercentage).toFixed(1)}% remaining`
+                    }
+                  </p>
+                </div>
+
+                <Separator />
+
+                {/* Word Balance */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Wallet className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                        Word Balance
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-800 dark:text-green-200">
+                      {wordBalance.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Available purchased words
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                    <div className="flex items-center gap-2 mb-1">
+                      <User className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        Total Used
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">
+                      {totalWordsUsed.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Lifetime word usage
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Plan Details Card */}
             <Card>
               <CardHeader>
@@ -412,28 +486,17 @@ const Profile: React.FC = () => {
                 <CardDescription>{planDetails.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div>
-                  <div className="flex justify-between items-center mb-1 text-sm font-medium">
-                    <span>Words Used</span>
-                    <span>
-                      {planWordsUsed.toLocaleString()} / {wordsLimit.toLocaleString()}
-                    </span>
-                  </div>
-                  <Progress value={usagePercentage} className="h-2" />
-
-
-                  <p className="text-xs text-muted-foreground mt-1 text-right">
-                    {(100 - usagePercentage).toFixed(1)}% remaining this month
-                  </p>
-                </div>
-
                 {/* Plan Expiry Information */}
                 {profile?.plan !== 'free' && profile?.plan_expires_at && (
                   <div className="space-y-2">
-                    <h4 className="font-semibold text-sm">Plan Expiry</h4>
+                    <h4 className="font-semibold text-sm">Plan Status</h4>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Expires on:</span>
-                      <span className="text-sm font-medium">
+                      <span className="text-sm text-muted-foreground">
+                        {isExpired ? 'Expired on:' : 'Expires on:'}
+                      </span>
+                      <span className={`text-sm font-medium ${
+                        isExpired ? 'text-red-600' : ''
+                      }`}>
                         {new Date(profile.plan_expires_at).toLocaleDateString('en-IN', {
                           year: 'numeric',
                           month: 'long',
@@ -441,21 +504,27 @@ const Profile: React.FC = () => {
                         })}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Days remaining:</span>
-                      <span className={`text-sm font-medium ${
-                        Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7
-                          ? 'text-red-600'
-                          : 'text-green-600'
-                      }`}>
-                        {Math.max(0, Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days
-                      </span>
-                    </div>
+                    {!isExpired && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Days remaining:</span>
+                        <span className={`text-sm font-medium ${
+                          Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7
+                            ? 'text-red-600'
+                            : 'text-green-600'
+                        }`}>
+                          {Math.max(0, Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days
+                        </span>
+                      </div>
+                    )}
+                    {isExpired && (
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3">
+                        <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+                          Your plan has expired. You're now on the Free plan with 1,000 words/month.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
-
-
-
 
                 <Separator />
                 <div className="space-y-2">
@@ -475,7 +544,7 @@ const Profile: React.FC = () => {
                   onClick={() => navigate("/payment")}
                   className={`w-full bg-gradient-to-r ${planDetails.color} hover:opacity-90 transition-opacity`}
                 >
-                  {profile?.plan === "free" ? "Upgrade Plan" : "Manage Plan"}
+                  {isExpired ? "Renew Plan" : profile?.plan === "free" ? "Upgrade Plan" : "Manage Plan"}
                 </Button>
               </CardFooter>
             </Card>
@@ -499,9 +568,8 @@ const Profile: React.FC = () => {
                       {formData.full_name || "User"}
                     </h2>
                     <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground break-words text-center max-w-[86%] mx-auto leading-snug">
-  {formData.email}
-</p>
-
+                      {formData.email}
+                    </p>
                     <Badge
                       variant="outline"
                       className={`font-semibold ${planDetails.textColor}`}
@@ -525,18 +593,15 @@ const Profile: React.FC = () => {
               </CardContent>
               <CardFooter>
                 <Button
-  variant="destructive"
-  onClick={() => setShowDeleteConfirm(true)}
-  className="w-full flex items-center justify-center gap-2 text-[11px] sm:text-xs md:text-sm lg:text-base py-2 sm:py-2.5 md:py-3 font-medium rounded-xl transition-all duration-200 hover:opacity-90 text-center whitespace-normal break-words leading-snug"
->
-  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-  <span className="break-words max-w-full text-center">
-    Delete My Account Forever
-  </span>
-</Button>
-
-
-
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full flex items-center justify-center gap-2 text-[11px] sm:text-xs md:text-sm lg:text-base py-2 sm:py-2.5 md:py-3 font-medium rounded-xl transition-all duration-200 hover:opacity-90 text-center whitespace-normal break-words leading-snug"
+                >
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span className="break-words max-w-full text-center">
+                    Delete My Account Forever
+                  </span>
+                </Button>
               </CardFooter>
             </Card>
           </div>
