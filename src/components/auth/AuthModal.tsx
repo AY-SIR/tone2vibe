@@ -10,8 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, LogIn, UserPlus, ArrowLeft } from "lucide-react";
-import { AuthError } from '@supabase/supabase-js';
+import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
 
@@ -35,6 +34,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [currentView, setCurrentView] = useState<'auth' | 'forgot-password'>('auth');
   const [resetEmail, setResetEmail] = useState('');
 
+  // Handle URL parameters
   useEffect(() => {
     const shouldOpen = searchParams.get('auth') === 'open';
     const view = searchParams.get('view');
@@ -43,26 +43,38 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       if (view === 'forgot-password') {
         setCurrentView('forgot-password');
       }
-      searchParams.delete('auth');
-      searchParams.delete('view');
-      setSearchParams(searchParams, { replace: true });
+      // Clean up URL
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('auth');
+      newSearchParams.delete('view');
+      setSearchParams(newSearchParams, { replace: true });
     }
   }, [searchParams, onOpenChange, setSearchParams]);
 
+  // Initialize form when modal opens
   useEffect(() => {
     if (open) {
-      if (currentView !== 'forgot-password') {
-        setCurrentView('auth');
-      }
       setEmail('');
       setPassword('');
       setConfirmPassword('');
       setFullName('');
       setResetEmail('');
       setAgreeToTerms(false);
+      if (currentView !== 'forgot-password') {
+        setCurrentView('auth');
+      }
       LocationCacheService.getLocation().then(location => setIsIndianUser(location.isIndian));
     }
   }, [open]);
+
+  const clearAllFields = () => {
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setFullName('');
+    setAgreeToTerms(false);
+    setResetEmail('');
+  };
 
   const validatePassword = (password: string) => {
     const requirements = [];
@@ -73,199 +85,212 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     return requirements;
   };
 
-  // Function to clear all form fields
-  const clearAllFields = () => {
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setFullName('');
-    setAgreeToTerms(false);
-    setResetEmail('');
-  };
-
-  const handleSubmit = async (type: 'signin' | 'signup') => {
+  const handleSignIn = async () => {
     if (!email || !password) {
-      toast.error('Please fill in all required fields.');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error('Please enter a valid email address.');
+      toast.error('Please fill in all fields');
       return;
     }
 
-    if (type === 'signup') {
-      if (!fullName.trim()) {
-        toast.error('Please enter your full name.');
-        return;
-      }
-      const passwordRequirements = validatePassword(password);
-      if (passwordRequirements.length > 0) {
-        toast.error(`Password must include: ${passwordRequirements.join(', ')}.`);
-        return;
-      }
-      if (password !== confirmPassword) {
-        toast.error('Passwords do not match.');
-        return;
-      }
-      if (!agreeToTerms) {
-        toast.error('You must agree to the Terms of Service and Privacy Policy.');
-        return;
-      }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Please enter a valid email address');
+      return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      if (type === 'signup') {
-        const location = await LocationCacheService.getLocation();
-        if (!location.isIndian) {
-          toast.error('Signup failed: Service is only available in India.');
-          setIsLoading(false);
+      console.log('Attempting sign in for:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password
+      });
+
+      if (error) {
+        console.error('Sign in error:', error);
+        
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email or password. Please check your credentials.');
+        } else if (error.message.includes('Email not confirmed')) {
+          toast.error('Please confirm your email address first. Check your inbox for the confirmation link.');
+        } else if (error.message.includes('Too many requests')) {
+          toast.error('Too many login attempts. Please wait a moment and try again.');
+        } else {
+          toast.error('Sign in failed. Please try again.');
+        }
+        clearAllFields();
+        return;
+      }
+
+      if (data.user) {
+        console.log('Sign in successful for user:', data.user.email);
+        toast.success('Welcome back!');
+        clearAllFields();
+        onOpenChange(false);
+        navigate('/tool', { replace: true });
+      }
+
+    } catch (err) {
+      console.error('Unexpected sign in error:', err);
+      toast.error('An unexpected error occurred. Please try again.');
+      clearAllFields();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!email || !password || !fullName.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    const passwordRequirements = validatePassword(password);
+    if (passwordRequirements.length > 0) {
+      toast.error(`Password must include: ${passwordRequirements.join(', ')}`);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      toast.error('You must agree to the Terms of Service and Privacy Policy');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const location = await LocationCacheService.getLocation();
+      if (!location.isIndian) {
+        toast.error('Signup is only available in India');
+        clearAllFields();
+        return;
+      }
+
+      console.log('Attempting sign up for:', email);
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password: password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/email-confirmation`,
+          data: {
+            full_name: fullName.trim()
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Sign up error:', error);
+        
+        if (error.message.includes('User already registered')) {
+          toast.error('This email is already registered. Please sign in instead.');
+        } else if (error.message.includes('Signup not allowed')) {
+          toast.error('New signups are currently disabled. Please contact support.');
+        } else if (error.message.includes('Password should be')) {
+          toast.error('Password does not meet security requirements. Please choose a stronger password.');
+        } else {
+          toast.error('Signup failed. Please try again.');
+        }
+        clearAllFields();
+        return;
+      }
+
+      if (data.user) {
+        console.log('Sign up successful for user:', data.user.email);
+        
+        // Check if user already existed
+        if (data.user.identities && data.user.identities.length === 0) {
+          toast.error('This email is already registered. Please sign in instead.');
           clearAllFields();
           return;
         }
 
-        // Call signUp directly
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/email-confirmation`,
-            data: { full_name: fullName.trim() }
-          }
+        toast.success('Account created! Please check your email to complete registration.', {
+          duration: 8000
         });
-
-        if (error) {
-          const authError = error as AuthError;
-          setIsLoading(false);
-          
-          // Handle existing user error properly
-          if (authError.message.toLowerCase().includes('user already registered') || 
-              authError.message.toLowerCase().includes('already been registered') ||
-              authError.message.toLowerCase().includes('already registered')) {
-            toast.error('This email is already registered. Please sign in instead or use the "Forgot Password" option if needed.', {
-              duration: 5000
-            });
-            clearAllFields(); // Clear all fields after error
-          } else if (authError.message.toLowerCase().includes('weak password')) {
-            toast.error('Password is too weak. Please choose a stronger one.');
-            clearAllFields(); // Clear all fields after error
-          } else {
-            toast.error(`Signup failed: ${authError.message}`);
-            clearAllFields(); // Clear all fields after error
-          }
-          return;
-        }
-
-        // Check if user was created successfully
-        if (data.user) {
-          setIsLoading(false);
-          
-          // Check if this is a new user or existing unconfirmed user
-          if (data.user.identities && data.user.identities.length === 0) {
-            // Existing user - clear fields and show error
-            toast.error('This email is already registered. Please sign in instead or use the "Forgot Password" option if needed.', {
-              duration: 5000
-            });
-            clearAllFields(); // Clear all fields after error
-            return;
-          } else {
-            // New user created successfully
-            toast.success('Account created! Please check your email to complete registration.', { 
-              duration: 8000 
-            });
-            clearAllFields(); // Clear fields after success
-            onOpenChange(false);
-          }
-        } else {
-          // Edge case: no error but no user data
-          setIsLoading(false);
-          toast.error('Something went wrong during signup. Please try again.');
-          clearAllFields(); // Clear all fields after error
-        }
-
-      } else { // Signin
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-        setIsLoading(false);
-
-        if (error) {
-          const errorMessage = error.message.toLowerCase();
-          if (errorMessage.includes('invalid login credentials')) {
-            toast.error('Invalid email or password. Please check your credentials.');
-          } else if (errorMessage.includes('email not confirmed')) {
-            toast.error('Please confirm your email address first. Check your inbox for the link.');
-          } else {
-            toast.error(`Sign in failed: ${error.message}`);
-          }
-          clearAllFields(); // Clear all fields after signin error
-          return;
-        }
-
-        toast.success('Welcome back!');
-        clearAllFields(); // Clear fields after successful signin
-        navigate("/tool", { replace: true });
+        clearAllFields();
         onOpenChange(false);
       }
+
     } catch (err) {
-      console.error('Auth error:', err);
-      setIsLoading(false);
+      console.error('Unexpected sign up error:', err);
       toast.error('An unexpected error occurred. Please try again.');
-      clearAllFields(); // Clear all fields after unexpected error
+      clearAllFields();
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleForgotPassword = async () => {
     if (!resetEmail) {
-      toast.error('Please enter your email address.');
+      toast.error('Please enter your email address');
       return;
     }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)) {
-      toast.error('Please enter a valid email address.');
+      toast.error('Please enter a valid email address');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      // Supabase resetPasswordForEmail always sends an email if the user exists
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      console.log('Sending reset email to:', resetEmail);
+
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim().toLowerCase(), {
+        redirectTo: `${window.location.origin}/reset-password`
       });
 
-      setIsLoading(false);
-
       if (error) {
-        const errorMessage = error.message.toLowerCase();
-        if (errorMessage.includes('rate limit') || errorMessage.includes('too many')) {
-          toast.error('Too many attempts. Please wait a moment before trying again.');
+        console.error('Reset password error:', error);
+        
+        if (error.message.includes('rate limit')) {
+          toast.error('Too many reset attempts. Please wait before trying again.');
         } else {
-          toast.error(`Failed to send reset email: ${error.message}`);
+          toast.error('Failed to send reset email. Please try again.');
         }
-        setResetEmail(''); // Clear reset email field after error
-      } else {
-        // Always show success message regardless of whether user exists
-        toast.success('If an account with this email exists, you will receive a password reset link. Please check your inbox and spam folder.', { 
-          duration: 8000 
-        });
-        setCurrentView('auth');
-        setResetEmail(''); // Clear reset email field after success
+        setResetEmail('');
+        return;
       }
+
+      toast.success('Password reset email sent! Please check your inbox and spam folder.', {
+        duration: 8000
+      });
+      setCurrentView('auth');
+      setResetEmail('');
+
     } catch (err) {
-      console.error('Forgot password error:', err);
-      setIsLoading(false);
+      console.error('Unexpected reset password error:', err);
       toast.error('An unexpected error occurred. Please try again.');
-      setResetEmail(''); // Clear reset email field after error
+      setResetEmail('');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentView === 'forgot-password' && (
-              <Button variant="ghost" size="sm" onClick={() => setCurrentView('auth')} className="p-1 h-8 w-8">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setCurrentView('auth')} 
+                className="p-1 h-8 w-8"
+                disabled={isLoading}
+              >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
@@ -275,85 +300,175 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             Tone2Vibe
           </DialogTitle>
           <DialogDescription>
-            {currentView === 'auth' ? 'Hello! Access your account or get started.' : 'Enter your email to get a reset link.'}
+            {currentView === 'auth' 
+              ? 'Hello! Access your account or get started.' 
+              : 'Enter your email to receive a password reset link.'}
           </DialogDescription>
         </DialogHeader>
 
         {!isIndianUser && <IndiaOnlyAlert />}
 
-        {isIndianUser && (currentView === 'auth' ? (
-          <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+        {isIndianUser && (
+          currentView === 'auth' ? (
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin" disabled={isLoading}>Sign In</TabsTrigger>
+                <TabsTrigger value="signup" disabled={isLoading}>Sign Up</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="signin">
-              <form onSubmit={(e) => { e.preventDefault(); handleSubmit('signin'); }} className="space-y-4 pt-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+              <TabsContent value="signin">
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+                      <Input
+                        id="signin-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        disabled={isLoading}
+                        autoComplete="email"
+                      />
                     </div>
                   </div>
+                  
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="signin-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="password" type={showPassword ? "text" : "password"} placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
+                      <Input
+                        id="signin-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 pr-10"
+                        disabled={isLoading}
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowPassword(!showPassword)}
+                        disabled={isLoading}
+                      >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
+                  
                   <div className="flex justify-end">
-                    <Button type="button" variant="link" className="px-0 h-auto text-sm text-muted-foreground hover:text-foreground" onClick={() => setCurrentView('forgot-password')} disabled={isLoading}>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="px-0 h-auto text-sm text-muted-foreground hover:text-foreground"
+                      onClick={() => setCurrentView('forgot-password')}
+                      disabled={isLoading}
+                    >
                       Forgot password?
                     </Button>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  
+                  <Button 
+                    onClick={handleSignIn} 
+                    className="w-full" 
+                    disabled={isLoading}
+                  >
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign In
                   </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={(e) => { e.preventDefault(); handleSubmit('signup'); }} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="signup">
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="fullName" type="text" placeholder="Enter your full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="pl-10" disabled={isLoading} />
+                      <Input
+                        id="signup-name"
+                        type="text"
+                        placeholder="Enter your full name"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="pl-10"
+                        disabled={isLoading}
+                        autoComplete="name"
+                      />
                     </div>
                   </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="signup-email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        disabled={isLoading}
+                        autoComplete="email"
+                      />
                     </div>
                   </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="signup-password" type={showPassword ? "text" : "password"} placeholder="Create a strong password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
+                      <Input
+                        id="signup-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a strong password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 pr-10"
+                        disabled={isLoading}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowPassword(!showPassword)}
+                        disabled={isLoading}
+                      >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                     {password && validatePassword(password).length > 0 && (
-                      <p className="text-xs text-destructive">Required: {validatePassword(password).join(', ')}</p>
+                      <p className="text-xs text-destructive">
+                        Required: {validatePassword(password).join(', ')}
+                      </p>
                     )}
                   </div>
+                  
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm Password</Label>
+                    <Label htmlFor="signup-confirm">Confirm Password</Label>
                     <div className="relative">
                       <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pl-10 pr-10" disabled={isLoading} />
-                      <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)} disabled={isLoading}>
+                      <Input
+                        id="signup-confirm"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10 pr-10"
+                        disabled={isLoading}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        disabled={isLoading}
+                      >
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
@@ -361,32 +476,67 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       <p className="text-xs text-destructive">Passwords do not match</p>
                     )}
                   </div>
+                  
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="agreeToTerms" checked={agreeToTerms} onCheckedChange={(checked) => setAgreeToTerms(!!checked)} disabled={isLoading} />
-                    <Label htmlFor="agreeToTerms" className="text-sm">I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">Terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">Privacy Policy</a>.</Label>
+                    <Checkbox
+                      id="terms"
+                      checked={agreeToTerms}
+                      onCheckedChange={(checked) => setAgreeToTerms(!!checked)}
+                      disabled={isLoading}
+                    />
+                    <Label htmlFor="terms" className="text-sm">
+                      I agree to the{' '}
+                      <a href="/terms" target="_blank" className="text-primary underline">
+                        Terms
+                      </a>{' '}
+                      and{' '}
+                      <a href="/privacy" target="_blank" className="text-primary underline">
+                        Privacy Policy
+                      </a>
+                    </Label>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading || !agreeToTerms}>
+                  
+                  <Button 
+                    onClick={handleSignUp} 
+                    className="w-full" 
+                    disabled={isLoading || !agreeToTerms}
+                  >
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Create Account
                   </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        ) : (
-          <form onSubmit={(e) => { e.preventDefault(); handleForgotPassword(); }} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="reset-email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input id="reset-email" type="email" placeholder="Enter your email address" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="pl-10" disabled={isLoading} />
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+         <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="pl-10"
+                    disabled={isLoading}
+                    autoComplete="email"
+                  />
+                </div>
               </div>
+              
+              <Button 
+                onClick={handleForgotPassword} 
+                className="w-full" 
+                disabled={isLoading}
+              >
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Send Reset Link
+              </Button>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Send Reset Link
-            </Button>
-          </form>
-        ))}
+          )
+        )}
       </DialogContent>
     </Dialog>
   );
