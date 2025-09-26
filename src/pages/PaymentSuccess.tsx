@@ -70,10 +70,8 @@ const PaymentSuccess = () => {
 
     await refreshProfile()
 
-    // Only auto-redirect for new purchases, not return visits
-    if (isNewPurchase) {
-      setTimeout(() => navigate("/"), 8000) // Changed from /tool to /home
-    }
+    // REMOVED: Auto-redirect functionality to prevent unwanted navigation
+    // Users will manually choose where to go next
   }
 
   useEffect(() => {
@@ -250,7 +248,7 @@ const PaymentSuccess = () => {
                   Start Creating
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button onClick={() => navigate("/home")} variant="outline" className="w-full">
+                <Button onClick={() => navigate("/")} variant="outline" className="w-full">
                   Go to Home
                   <Home className="ml-2 h-4 w-4" />
                 </Button>
