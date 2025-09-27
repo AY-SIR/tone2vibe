@@ -69,23 +69,20 @@ export default function ResetPassword() {
         // Clean URL immediately to prevent issues
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        console.log('Setting session with recovery tokens...');
+        console.log('Verifying reset tokens...');
 
-        // Set session for password reset
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-
-        if (error) {
-          console.error('Failed to set reset session:', error);
+        // Verify the tokens without setting a full session
+        const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+        
+        if (userError || !userData.user) {
+          console.error('Failed to verify reset tokens:', userError);
           
-          if (error.message.includes('expired')) {
+          if (userError?.message?.includes('expired')) {
             toast.error('Reset link has expired. Please request a new one.');
-          } else if (error.message.includes('invalid')) {
+          } else if (userError?.message?.includes('invalid')) {
             toast.error('Reset link is invalid. Please request a new one.');
           } else {
-            toast.error('Unable to process reset link. Please try again.');
+            toast.error('Unable to verify reset link. Please try again.');
           }
           
           setIsTokenValid(false);
@@ -93,18 +90,12 @@ export default function ResetPassword() {
           return;
         }
 
-        // Verify the session worked
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        console.log('Reset tokens verified for:', userData.user.email);
         
-        if (userError || !userData.user) {
-          console.error('Failed to verify user session:', userError);
-          toast.error('Reset session could not be verified. Please request a new reset link.');
-          setIsTokenValid(false);
-          setIsVerifying(false);
-          return;
-        }
-
-        console.log('Reset session verified for:', userData.user.email);
+        // Store tokens for later use in password update
+        sessionStorage.setItem('reset_access_token', accessToken);
+        sessionStorage.setItem('reset_refresh_token', refreshToken);
+        
         toast.success('Reset link verified! Please set your new password.');
         setIsTokenValid(true);
         setIsVerifying(false);
@@ -129,7 +120,11 @@ export default function ResetPassword() {
     return errors;
   };
 
-  const handleUpdatePassword = async () => {
+  const passwordRequirements = validatePassword(password);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!password) {
       toast.error('Please enter a new password');
       return;
@@ -151,11 +146,26 @@ export default function ResetPassword() {
     try {
       console.log('Updating password...');
 
-      // Double check we have a valid session
-      const { data: userData, error: sessionError } = await supabase.auth.getUser();
+      // Get stored tokens
+      const storedAccessToken = sessionStorage.getItem('reset_access_token');
+      const storedRefreshToken = sessionStorage.getItem('reset_refresh_token');
       
-      if (sessionError || !userData.user) {
-        console.error('Session expired during update:', sessionError);
+      if (!storedAccessToken || !storedRefreshToken) {
+        console.error('Reset tokens not found');
+        toast.error('Reset session expired. Please request a new reset link.');
+        setIsTokenValid(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // Set session temporarily for password update
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: storedAccessToken,
+        refresh_token: storedRefreshToken,
+      });
+      
+      if (sessionError || !sessionData.session) {
+        console.error('Failed to set reset session:', sessionError);
         toast.error('Reset session expired. Please request a new reset link.');
         setIsTokenValid(false);
         setIsLoading(false);
@@ -180,6 +190,10 @@ export default function ResetPassword() {
       }
 
       console.log('Password updated successfully');
+
+      // Clean up stored tokens
+      sessionStorage.removeItem('reset_access_token');
+      sessionStorage.removeItem('reset_refresh_token');
 
       // Sign out completely after successful reset
       await supabase.auth.signOut();
@@ -285,7 +299,7 @@ export default function ResetPassword() {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleResetPassword} className="space-y-4">
+          <form onSubmit={handleUpdatePassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
               <div className="relative">

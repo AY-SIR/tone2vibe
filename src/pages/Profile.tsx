@@ -191,7 +191,8 @@ const Profile: React.FC = () => {
   const getPlanDetails = useCallback(() => {
     // Check if plan is expired
     const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
-    const effectivePlan = isExpired ? "free" : (profile?.plan || "free");
+    // If plan is expired and user is already on free plan, don't show expired status
+    const effectivePlan = (isExpired && profile?.plan !== 'free') ? "free" : (profile?.plan || "free");
     
     switch (effectivePlan) {
       case "premium":
@@ -228,9 +229,9 @@ const Profile: React.FC = () => {
         };
       default:
         return {
-          name: isExpired ? "Free (Expired)" : "Free",
+          name: (isExpired && profile?.plan !== 'free') ? "Free (Expired)" : "Free",
           color: "from-gray-600 to-gray-700",
-          textColor: isExpired ? "text-red-700" : "text-gray-700",
+          textColor: (isExpired && profile?.plan !== 'free') ? "text-red-700" : "text-gray-700",
           icon: <Shield className="w-5 h-5" />,
           features: [
             "1,000 words/month",
@@ -523,6 +524,18 @@ const Profile: React.FC = () => {
                         </p>
                       </div>
                     )}
+                  </div>
+                )}
+                
+                {/* Show free plan info if user is on free plan */}
+                {profile?.plan === 'free' && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Plan Status</h4>
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3">
+                      <p className="text-sm text-green-700 dark:text-green-300 font-medium">
+                        You're on the Free plan with 1,000 words/month. Upgrade for more features!
+                      </p>
+                    </div>
                   </div>
                 )}
 

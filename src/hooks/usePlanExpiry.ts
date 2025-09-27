@@ -28,6 +28,16 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
     }
     return false;
   });
+  const [expiredShown, setExpiredShown] = useState(() => {
+    if (user?.id) {
+      try {
+        return sessionStorage.getItem(`expired_shown_${user.id}`) === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
   const [lastCheckTime, setLastCheckTime] = useState<number>(0);
 
   const checkPlanExpiry = async () => {
@@ -48,21 +58,43 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
 
       // If plan expired, switch to free
       if (daysUntilExpiry <= 0) {
-        // Update backend
+        // Update backend to downgrade to free tier
         const { error } = await supabase
           .from('profiles')
-          .update({ plan: 'free', plan_expires_at: null })
-          .eq('id', user.id);
+          .update({ 
+            plan: 'free', 
+            plan_expires_at: null,
+            plan_start_date: null,
+            plan_end_date: null
+          })
+          .eq('user_id', user.id);
 
-        if (error) console.error('Error downgrading plan to free:', error);
+        if (error) {
+          console.error('Error downgrading plan to free:', error);
+        } else {
+          console.log('Plan successfully downgraded to free tier');
+        }
 
-        setExpiryData({
-          show_popup: true,
-          days_until_expiry: 0,
-          plan: 'free',
-          expires_at: null,
-          is_expired: true
-        });
+        // Only show expired popup once
+        if (!expiredShown) {
+          setExpiryData({
+            show_popup: true,
+            days_until_expiry: 0,
+            plan: profile.plan, // Show original plan name
+            expires_at: profile.plan_expires_at,
+            is_expired: true
+          });
+          
+          // Mark as shown
+          setExpiredShown(true);
+          try {
+            sessionStorage.setItem(`expired_shown_${user.id}`, 'true');
+          } catch {
+            // Ignore storage errors
+          }
+        } else {
+          setExpiryData({ show_popup: false });
+        }
         return;
       }
 
@@ -99,6 +131,11 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
     try {
       if (user?.id) {
         sessionStorage.setItem(`plan_expiry_dismissed_${user.id}`, 'true');
+        // If this was an expired plan popup, mark it as shown
+        if (expiryData.is_expired) {
+          sessionStorage.setItem(`expired_shown_${user.id}`, 'true');
+          setExpiredShown(true);
+        }
       }
     } catch {
       // ignore
