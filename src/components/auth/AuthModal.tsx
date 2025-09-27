@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
+import { Loader as Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CircleCheck as CheckCircle, ArrowLeft } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Clock, CreditCard } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, Clock, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface PlanExpiryPopupProps {

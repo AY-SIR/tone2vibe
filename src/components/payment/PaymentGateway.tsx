@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, Crown, Star, Zap, AlertTriangle } from "lucide-react";
+import { Check, Crown, Star, Zap, TriangleAlert as AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { CouponInput } from "@/components/payment/couponInput";
