@@ -76,13 +76,7 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
         
         <div className="flex flex-col gap-3 mt-4">
 
-          <Button 
-            onClick={handleUpgrade}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-          >
-            <CreditCard className="h-4 w-4 mr-2" />
-            {getActionText()}
-          </Button>
+
           
           <Button 
             variant="outline" 

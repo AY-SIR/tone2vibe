@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         plan_words_used: 0,
         word_balance: 0,
         total_words_used: 0,
-        upload_limit_mb: 5,
+        upload_limit_mb: 10,
         plan_expires_at: null,
         last_login_at: new Date().toISOString(),
         ip_address: null,
@@ -137,8 +137,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!userId) return;
 
     for (let i = 0; i < retries; i++) {
-            words_limit: 1000,
-            upload_limit_mb: 10,
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -149,13 +147,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (data && !error) {
           // Calculate word balance if not already calculated
           const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
-          
+
           const updatedProfile = {
             ...data,
             ip_address: (data.ip_address as string | null) || null,
             word_balance: data.word_balance || calculatedWordBalance,
           };
-          
+
           setProfile(updatedProfile);
 
           if (data.country) {
@@ -174,7 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (error && error.code === "PGRST116") {
           // Profile doesn't exist, create default profile
           console.log(`Profile not found for user ${userId}, creating default profile...`);
-          
+
           if (userEmail) {
             const newProfile = await createDefaultProfile(userId, userEmail);
             if (newProfile) {
@@ -205,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
     }
-    
+
     // If all retries failed and we have user email, try to create default profile
     if (userEmail) {
       console.log("All retries failed, attempting to create default profile...");
@@ -220,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
     }
-    
+
     console.error(`Failed to load or create profile for user ${userId} after ${retries} attempts.`);
   }, [createDefaultProfile]);
 
@@ -276,8 +274,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (user?.id) {
       const channel = supabase
         .channel(`profile-updates-${user.id}`)
-            plan_words_used: 0, // Reset plan words for new free tier
-            updated_at: new Date().toISOString()
         .on(
           "postgres_changes",
           {
@@ -285,18 +281,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             schema: "public",
             table: "profiles",
             filter: `user_id=eq.${user.id}`,
-          // Refresh profile to get updated data
-          await loadUserProfile(user.id, user.email);
           },
           (payload) => {
-        // Show expired popup once per specific expiry date
-        const expiredShownKey = `expired_shown_${user.id}_${profile.plan_expires_at}`;
+            const newProfile = payload.new as Profile;
             const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
             setProfile({
               ...newProfile,
               word_balance: newProfile.word_balance || calculatedWordBalance,
             });
-            
+
             // If plan was downgraded to free, refresh the profile to get updated data
             if (newProfile.plan === 'free' && profile?.plan !== 'free') {
               console.log('Plan downgraded to free, refreshing profile...');
@@ -360,12 +353,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           },
         },
       });
-      
+
       // If signup is successful and user is immediately available, create profile
       if (data.user && !error) {
         await createDefaultProfile(data.user.id, email);
       }
-      
+
       return { data, error };
     } catch (err) {
       console.error("Exception during signUp:", err);
@@ -394,7 +387,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setSession(null);
         setProfile(null);
         setLocationData(null);
-        
+
         // Clear localStorage
         if (user?.id) {
           localStorage.removeItem(`ip_tracked_${user.id}`);
@@ -414,18 +407,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
-    
+
     try {
       // If updating words_used, recalculate word_balance
       if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
-      
+
       const { error } = await supabase
         .from("profiles")
         .update(data)
         .eq("user_id", user.id);
-        
+
       if (!error) {
         await loadUserProfile(user.id, user.email);
       } else {

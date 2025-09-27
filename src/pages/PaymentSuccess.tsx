@@ -70,8 +70,10 @@ const PaymentSuccess = () => {
 
     await refreshProfile()
 
-    // REMOVED: Auto-redirect functionality to prevent unwanted navigation
-    // Users will manually choose where to go next
+     // ✅ Auto-redirect after 3 seconds
+  setTimeout(() => {
+    navigate("/")  // or "/"
+  }, 3000)
   }
 
   useEffect(() => {

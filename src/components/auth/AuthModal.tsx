@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader as Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CircleCheck as CheckCircle, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
 
@@ -38,24 +38,15 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   useEffect(() => {
     const shouldOpen = searchParams.get('auth') === 'open';
     const view = searchParams.get('view');
-    const fromProtected = searchParams.get('from_protected');
-    
     if (shouldOpen) {
       onOpenChange(true);
       if (view === 'forgot-password') {
         setCurrentView('forgot-password');
       }
-      
-      // Don't show welcome popup if coming from protected route
-      if (fromProtected === 'true') {
-        localStorage.setItem("hasSeenWelcome", "true");
-      }
-      
       // Clean up URL
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('auth');
       newSearchParams.delete('view');
-      newSearchParams.delete('from_protected');
       setSearchParams(newSearchParams, { replace: true });
     }
   }, [searchParams, onOpenChange, setSearchParams]);
@@ -94,6 +85,31 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     return requirements;
   };
 
+  // Add keyboard event handlers
+  const handleSignInKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isLoading) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleSignIn();
+    }
+  };
+
+  const handleSignUpKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isLoading) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleSignUp();
+    }
+  };
+
+  const handleForgotPasswordKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isLoading) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleForgotPassword();
+    }
+  };
+
   const handleSignIn = async () => {
     if (!email || !password) {
       toast.error('Please fill in all fields');
@@ -109,7 +125,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     try {
       console.log('Attempting sign in for:', email);
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password: password
@@ -117,7 +133,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       if (error) {
         console.error('Sign in error:', error);
-        
+
         if (error.message.includes('Invalid login credentials')) {
           toast.error('Invalid email or password. Please check your credentials.');
         } else if (error.message.includes('Email not confirmed')) {
@@ -200,7 +216,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       if (error) {
         console.error('Sign up error:', error);
-        
+
         if (error.message.includes('User already registered')) {
           toast.error('This email is already registered. Please sign in instead.');
         } else if (error.message.includes('Signup not allowed')) {
@@ -216,7 +232,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       if (data.user) {
         console.log('Sign up successful for user:', data.user.email);
-        
+
         // Check if user already existed
         if (data.user.identities && data.user.identities.length === 0) {
           toast.error('This email is already registered. Please sign in instead.');
@@ -262,7 +278,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       if (error) {
         console.error('Reset password error:', error);
-        
+
         if (error.message.includes('rate limit')) {
           toast.error('Too many reset attempts. Please wait before trying again.');
         } else {
@@ -272,7 +288,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         return;
       }
 
-      toast.success('Password reset email sent! Please check your inbox and spam folder.', {
+      toast.success('Password reset email sent! Please check your Email', {
         duration: 8000
       });
       setCurrentView('auth');
@@ -287,16 +303,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+<Dialog
+  open={open} onOpenChange={onOpenChange}
+>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentView === 'forgot-password' && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setCurrentView('auth')} 
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentView('auth')}
                 className="p-1 h-8 w-8"
                 disabled={isLoading}
               >
@@ -309,9 +328,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             Tone2Vibe
           </DialogTitle>
           <DialogDescription>
-            {currentView === 'auth' 
-              ? 'Hello! Access your account or get started.' 
-              : 'Enter your email to receive a password reset link.'}
+            {currentView === 'auth'
+              ? 'Hello! Access your account or get started.'
+              : ''}
           </DialogDescription>
         </DialogHeader>
 
@@ -337,13 +356,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         placeholder="Enter your email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        onKeyDown={handleSignInKeyDown}
                         className="pl-10"
                         disabled={isLoading}
                         autoComplete="email"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signin-password">Password</Label>
                     <div className="relative">
@@ -354,6 +374,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={handleSignInKeyDown}
                         className="pl-10 pr-10"
                         disabled={isLoading}
                         autoComplete="current-password"
@@ -368,7 +389,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       </button>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-end">
                     <Button
                       type="button"
@@ -380,10 +401,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       Forgot password?
                     </Button>
                   </div>
-                  
-                  <Button 
-                    onClick={handleSignIn} 
-                    className="w-full" 
+
+                  <Button
+                    onClick={handleSignIn}
+                    className="w-full"
                     disabled={isLoading}
                   >
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -404,13 +425,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         placeholder="Enter your full name"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
+                        onKeyDown={handleSignUpKeyDown}
                         className="pl-10"
                         disabled={isLoading}
                         autoComplete="name"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
@@ -421,13 +443,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         placeholder="Enter your email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        onKeyDown={handleSignUpKeyDown}
                         className="pl-10"
                         disabled={isLoading}
                         autoComplete="email"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
@@ -438,6 +461,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         placeholder="Create a strong password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={handleSignUpKeyDown}
                         className="pl-10 pr-10"
                         disabled={isLoading}
                         autoComplete="new-password"
@@ -457,7 +481,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-confirm">Confirm Password</Label>
                     <div className="relative">
@@ -468,6 +492,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                         placeholder="Confirm your password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
+                        onKeyDown={handleSignUpKeyDown}
                         className="pl-10 pr-10"
                         disabled={isLoading}
                         autoComplete="new-password"
@@ -485,7 +510,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       <p className="text-xs text-destructive">Passwords do not match</p>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="terms"
@@ -504,10 +529,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                       </a>
                     </Label>
                   </div>
-                  
-                  <Button 
-                    onClick={handleSignUp} 
-                    className="w-full" 
+
+                  <Button
+                    onClick={handleSignUp}
+                    className="w-full"
                     disabled={isLoading || !agreeToTerms}
                   >
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -522,27 +547,33 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                 <Label htmlFor="reset-email">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-         <Input
+                  <Input
                     id="reset-email"
                     type="email"
                     placeholder="Enter your email address"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
+                    onKeyDown={handleForgotPasswordKeyDown}
                     className="pl-10"
                     disabled={isLoading}
                     autoComplete="email"
                   />
                 </div>
+                <p class="text-sm text-gray-500">
+  Enter your email to receive a password reset link.
+</p>
+
               </div>
-              
-              <Button 
-                onClick={handleForgotPassword} 
-                className="w-full" 
+
+              <Button
+                onClick={handleForgotPassword}
+                className="w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Send Reset Link
               </Button>
+
             </div>
           )
         )}

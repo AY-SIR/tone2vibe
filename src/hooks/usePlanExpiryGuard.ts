@@ -31,37 +31,38 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const [lastCheckTime, setLastCheckTime] = useState<number>(0);
 
   const checkPlanExpiry = async () => {
-    // Prevent multiple checks within 30 minutes and if popup was dismissed
-    if (!user || !profile || popupDismissed || (Date.now() - lastCheckTime < 30 * 60 * 1000)) return;
+    if (!user || !profile || popupDismissed) return;
+
+    const now = Date.now();
+    // Throttle only for subsequent checks
+    if (lastCheckTime && now - lastCheckTime < 30 * 60 * 1000) return;
+    setLastCheckTime(now);
 
     setIsLoading(true);
-    setLastCheckTime(Date.now());
 
     try {
-      // If free plan, nothing to check
+      // Free plan: nothing to do
       if (profile.plan === 'free' || !profile.plan_expires_at) {
         setExpiryData({ show_popup: false });
         return;
       }
 
       const expiryDate = new Date(profile.plan_expires_at);
-      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now) / (1000 * 60 * 60 * 24));
 
-      // If plan expired, downgrade to free
+      // Expired plan: downgrade instantly
       if (daysUntilExpiry <= 0) {
         console.log('Plan expired, downgrading to free tier...');
-        
-        // Update backend to downgrade to free tier
         const { error } = await supabase
           .from('profiles')
-          .update({ 
+          .update({
             plan: 'free',
             words_limit: 1000,
             upload_limit_mb: 10,
             plan_expires_at: null,
             plan_start_date: null,
             plan_end_date: null,
-            plan_words_used: 0, // Reset plan words for new free tier
+            plan_words_used: 0,
             updated_at: new Date().toISOString()
           })
           .eq('user_id', user.id);
@@ -72,32 +73,29 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
           console.log('Plan successfully downgraded to free tier');
         }
 
-        // Show expired popup once per session
+        // Show expired popup once per specific expiry date
         const expiredShownKey = `expired_shown_${user.id}_${profile.plan_expires_at}`;
         const expiredShown = sessionStorage.getItem(expiredShownKey) === 'true';
-        
+
         if (!expiredShown) {
           setExpiryData({
             show_popup: true,
             days_until_expiry: 0,
-            plan: profile.plan, // Show original plan name
+            plan: profile.plan,
             expires_at: profile.plan_expires_at,
             is_expired: true
           });
-          
-          // Mark as shown for this specific expiry date
           try {
             sessionStorage.setItem(expiredShownKey, 'true');
-          } catch {
-            // Ignore storage errors
-          }
+          } catch {}
         } else {
           setExpiryData({ show_popup: false });
         }
+
         return;
       }
 
-      // Show popup if expiring within 7 days
+      // Show popup if plan expiring within 7 days
       if (daysUntilExpiry <= 7 && !popupDismissed) {
         setExpiryData({
           show_popup: true,
@@ -109,7 +107,6 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
       } else {
         setExpiryData({ show_popup: false });
       }
-
     } catch (error) {
       console.warn('Plan expiry check failed:', error);
     } finally {
@@ -117,23 +114,21 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
     }
   };
 
+  // Run instantly whenever profile loads
   useEffect(() => {
-    if (user?.id && profile) {
+    if (user && profile) {
       checkPlanExpiry();
     }
-  }, [user?.id, profile?.plan, profile?.plan_expires_at]);
+  }, [user, profile]);
 
   const dismissPopup = () => {
     setExpiryData({ show_popup: false });
     setPopupDismissed(true);
-
     try {
       if (user?.id) {
         sessionStorage.setItem(`plan_expiry_dismissed_${user.id}`, 'true');
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   };
 
   return {
