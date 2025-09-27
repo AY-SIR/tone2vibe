@@ -236,8 +236,16 @@ const Index = () => {
 
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem("hasSeenWelcome");
-    if (!hasSeenWelcome && !user) setTimeout(() => setShowWelcome(true), 1000);
-  }, [user]);
+    const authParam = searchParams.get('auth');
+    
+    // Don't show welcome popup if:
+    // 1. User is logged in
+    // 2. User has already seen welcome
+    // 3. Auth modal is being opened (from protected route redirect)
+    if (!hasSeenWelcome && !user && authParam !== 'open') {
+      setTimeout(() => setShowWelcome(true), 1000);
+    }
+  }, [user, searchParams]);
 
   // Section change handler with scroll to top
   const handleSectionChange = (section: "home" | "features" | "pricing") => {

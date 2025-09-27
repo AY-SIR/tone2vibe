@@ -290,6 +290,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               ...newProfile,
               word_balance: newProfile.word_balance || calculatedWordBalance,
             });
+            
+            // If plan was downgraded to free, refresh the profile to get updated data
+            if (newProfile.plan === 'free' && profile?.plan !== 'free') {
+              console.log('Plan downgraded to free, refreshing profile...');
+              loadUserProfile(user.id, user.email);
+            }
           }
         )
         .subscribe();
@@ -299,7 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => {
       profileChannelRef.current?.unsubscribe?.();
     };
-  }, [user?.id]);
+  }, [user?.id, profile?.plan, loadUserProfile]);
 
   // Track login IP
   useEffect(() => {
