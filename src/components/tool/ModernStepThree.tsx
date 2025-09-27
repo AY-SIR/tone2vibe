@@ -435,22 +435,22 @@ export default function ModernStepThree({
                           File will be uploaded to your cloud storage and saved in history
                         </p>
                         <input
-                          type="file"
-                          accept="audio/mp3,audio/wav,audio/mpeg,audio/wave,audio/x-wav"
-                          onChange={handleAudioUpload}
-                          className="hidden"
-                          id="audio-upload"
-                          disabled={isUploadingFile}
-                        />
-                        <label htmlFor="audio-upload">
-                          <Button 
-                            variant="outline" 
-                            className="cursor-pointer"
-                            disabled={isUploadingFile}
-                          >
-                            Browse Files
-                          </Button>
-                        </label>
+  type="file"
+  accept="audio/*"
+  onChange={handleAudioUpload}
+  className="hidden"
+  id="audio-upload"
+/>
+<label htmlFor="audio-upload">
+  <Button 
+    type="button"
+    variant="outline"
+    className="cursor-pointer"
+    disabled={isUploadingFile}
+  >
+    Browse Files
+  </Button>
+</label>
                       </>
                     )}
                   </div>
