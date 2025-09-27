@@ -94,7 +94,13 @@ export function PaymentGateway({
   const isUpgrade = currentPlan === 'pro' && selectedPlan === 'premium';
   const isDowngrade = currentPlan === 'premium' && selectedPlan === 'pro';
   const isChange = isUpgrade || isDowngrade;
-  const canPurchase = currentPlan === 'free' || isChange;
+  
+  // Allow purchase if:
+  // 1. User is on free plan
+  // 2. User is upgrading (pro to premium)
+  // 3. User's plan has expired (regardless of current plan)
+  const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) <= new Date();
+  const canPurchase = currentPlan === 'free' || isUpgrade || isExpired;
 
   const handleCouponApplied = (validation: typeof couponValidation) => {
     setCouponValidation(validation);
@@ -251,7 +257,7 @@ export function PaymentGateway({
   // ... rest of your component code remains the same ...
 
   // Already subscribed card
-  if (!canPurchase && currentPlan === selectedPlan) {
+  if (!canPurchase && currentPlan === selectedPlan && !isExpired) {
     return (
       <Card className="w-full max-w-md mx-auto border-orange-200">
         <CardHeader className="text-center p-3 sm:p-6">
@@ -277,19 +283,24 @@ export function PaymentGateway({
   }
 
   // Invalid plan change card
-  if (!canPurchase) {
+  if (!canPurchase && !isExpired) {
     return (
       <Card className="w-full max-w-md mx-auto border-red-200">
         <CardHeader className="text-center p-3 sm:p-6">
           <AlertTriangle className="h-10 w-10 sm:h-12 sm:w-12 text-red-500 mx-auto mb-4" />
-          <CardTitle className="text-base sm:text-lg md:text-2xl">Invalid Plan Change</CardTitle>
+          <CardTitle className="text-base sm:text-lg md:text-2xl">Plan Change Not Allowed</CardTitle>
           <CardDescription className="text-xs sm:text-sm">
-            Plan changes are restricted based on your current subscription
+            You can only upgrade from Pro to Premium. Downgrades are not allowed during active subscription.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center p-3 sm:p-6">
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Current plan: <Badge variant="outline" className="text-xs">{currentPlan}</Badge>
+            {profile?.plan_expires_at && (
+              <span className="block mt-1">
+                Expires: {new Date(profile.plan_expires_at).toLocaleDateString()}
+              </span>
+            )}
           </p>
           <Button onClick={() => navigate('/payment')} className="w-full text-xs sm:text-sm" variant="outline">
             View Available Plans
@@ -374,7 +385,9 @@ export function PaymentGateway({
 
             </div>
             <div className="text-xs text-gray-500 text-center">
-              {finalAmount === 0 ? 'Free activation with coupon' : 'Billed monthly • INR Currency Only'}
+              {finalAmount === 0 ? 'Free activation with coupon' : 
+               isExpired ? 'Plan renewal • INR Currency Only' : 
+               'Billed monthly • INR Currency Only'}
             </div>
           </div>
 

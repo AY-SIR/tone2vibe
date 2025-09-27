@@ -76,6 +76,13 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
         
         <div className="flex flex-col gap-3 mt-4">
 
+          <Button 
+            onClick={handleUpgrade}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            <CreditCard className="h-4 w-4 mr-2" />
+            {getActionText()}
+          </Button>
           
           <Button 
             variant="outline" 
@@ -89,7 +96,7 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
         {isExpired && (
           <div className="mt-4 p-3 bg-destructive/10 rounded-md">
             <p className="text-xs text-destructive text-center">
-              Your account has been downgraded to the free plan. Premium features are no longer available.
+              Your plan has expired and you've been moved to the free tier. Purchased words never expire and are still available.
             </p>
           </div>
         )}

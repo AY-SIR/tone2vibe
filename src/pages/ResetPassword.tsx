@@ -1,7 +1,7 @@
-      // src/pages/ResetPassword.tsx
+// src/pages/ResetPassword.tsx
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,11 +23,11 @@ export default function ResetPassword() {
   const [resetComplete, setResetComplete] = useState(false);
 
   useEffect(() => {
-    const verifyAndSetSession = async () => {
+    const verifyResetToken = async () => {
       try {
         console.log('Starting reset password verification...');
         
-        // Get URL - check both hash and search params
+        // Get tokens from URL hash or search params
         const currentUrl = window.location.href;
         const url = new URL(currentUrl);
         
@@ -34,7 +35,7 @@ export default function ResetPassword() {
         let refreshToken = '';
         let type = '';
         
-        // Check URL hash first (most common)
+        // Check URL hash first (most common for Supabase)
         if (url.hash) {
           const hashParams = new URLSearchParams(url.hash.substring(1));
           accessToken = hashParams.get('access_token') || '';
@@ -52,15 +53,13 @@ export default function ResetPassword() {
         console.log('URL Parameters:', {
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
-          type: type,
-          urlHash: url.hash,
-          urlSearch: url.search
+          type: type
         });
 
         // Check if we have the required parameters
         if (!accessToken || !refreshToken || type !== 'recovery') {
           console.error('Missing or invalid reset parameters');
-          toast.error('Invalid reset link. Please request a new password reset.');
+          toast.error('Invalid or expired reset link. Please request a new password reset.');
           setIsTokenValid(false);
           setIsVerifying(false);
           return;
@@ -69,17 +68,20 @@ export default function ResetPassword() {
         // Clean URL immediately to prevent issues
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        console.log('Verifying reset tokens...');
+        console.log('Setting session with reset tokens...');
 
-        // Verify the tokens without setting a full session
-        const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+        // Set the session with the tokens
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
         
-        if (userError || !userData.user) {
-          console.error('Failed to verify reset tokens:', userError);
+        if (sessionError || !sessionData.session) {
+          console.error('Failed to set reset session:', sessionError);
           
-          if (userError?.message?.includes('expired')) {
+          if (sessionError?.message?.includes('expired')) {
             toast.error('Reset link has expired. Please request a new one.');
-          } else if (userError?.message?.includes('invalid')) {
+          } else if (sessionError?.message?.includes('invalid')) {
             toast.error('Reset link is invalid. Please request a new one.');
           } else {
             toast.error('Unable to verify reset link. Please try again.');
@@ -90,12 +92,7 @@ export default function ResetPassword() {
           return;
         }
 
-        console.log('Reset tokens verified for:', userData.user.email);
-        
-        // Store tokens for later use in password update
-        sessionStorage.setItem('reset_access_token', accessToken);
-        sessionStorage.setItem('reset_refresh_token', refreshToken);
-        
+        console.log('Reset session verified successfully');
         toast.success('Reset link verified! Please set your new password.');
         setIsTokenValid(true);
         setIsVerifying(false);
@@ -108,7 +105,7 @@ export default function ResetPassword() {
       }
     };
 
-    verifyAndSetSession();
+    verifyResetToken();
   }, []);
 
   const validatePassword = (pwd: string) => {
@@ -146,33 +143,7 @@ export default function ResetPassword() {
     try {
       console.log('Updating password...');
 
-      // Get stored tokens
-      const storedAccessToken = sessionStorage.getItem('reset_access_token');
-      const storedRefreshToken = sessionStorage.getItem('reset_refresh_token');
-      
-      if (!storedAccessToken || !storedRefreshToken) {
-        console.error('Reset tokens not found');
-        toast.error('Reset session expired. Please request a new reset link.');
-        setIsTokenValid(false);
-        setIsLoading(false);
-        return;
-      }
-
-      // Set session temporarily for password update
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: storedAccessToken,
-        refresh_token: storedRefreshToken,
-      });
-      
-      if (sessionError || !sessionData.session) {
-        console.error('Failed to set reset session:', sessionError);
-        toast.error('Reset session expired. Please request a new reset link.');
-        setIsTokenValid(false);
-        setIsLoading(false);
-        return;
-      }
-
-      // Update password
+      // Update password using current session
       const { error: updateError } = await supabase.auth.updateUser({
         password: password
       });
@@ -190,13 +161,6 @@ export default function ResetPassword() {
       }
 
       console.log('Password updated successfully');
-
-      // Clean up stored tokens
-      sessionStorage.removeItem('reset_access_token');
-      sessionStorage.removeItem('reset_refresh_token');
-
-      // Sign out completely after successful reset
-      await supabase.auth.signOut();
       
       setResetComplete(true);
       toast.success('Password updated successfully! Please sign in with your new password.');
@@ -241,7 +205,6 @@ export default function ResetPassword() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
         <Card className="w-full max-w-md text-center">
           <CardHeader>
-            
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
             <CardTitle className="text-2xl">Password Reset Complete!</CardTitle>
             <CardDescription>

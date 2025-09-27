@@ -19,7 +19,6 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const [expiryData, setExpiryData] = useState<PlanExpiryData>({ show_popup: false });
   const [isLoading, setIsLoading] = useState(false);
   const [popupDismissed, setPopupDismissed] = useState(() => {
-    // Check if popup was dismissed in this session
     if (user?.id) {
       try {
         return sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`) === 'true';
@@ -33,45 +32,84 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
 
   const checkPlanExpiry = async () => {
     // Prevent multiple checks within 30 minutes and if popup was dismissed
-    const now = Date.now();
-    if (!user || !profile || popupDismissed || (now - lastCheckTime < 30 * 60 * 1000)) return;
-    
-    // Only check for paid plans with expiry dates
-    if (profile.plan === 'free' || !profile.plan_expires_at) return;
-    
-    // Check if popup was already dismissed this session
+    if (!user || !profile || popupDismissed || (Date.now() - lastCheckTime < 30 * 60 * 1000)) return;
+
+    setIsLoading(true);
+    setLastCheckTime(Date.now());
+
     try {
-      const dismissed = sessionStorage.getItem(`plan_expiry_dismissed_${user.id}`);
-      if (dismissed === 'true') {
-        setPopupDismissed(true);
+      // If free plan, nothing to check
+      if (profile.plan === 'free' || !profile.plan_expires_at) {
+        setExpiryData({ show_popup: false });
         return;
       }
-    } catch {
-      // Ignore storage errors
-    }
-    
-    setIsLoading(true);
-    setLastCheckTime(now);
-    
-    try {
+
       const expiryDate = new Date(profile.plan_expires_at);
       const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      
-      // Only show popup if expiring within 7 days or already expired, and not dismissed
-      const shouldShow = daysUntilExpiry <= 7;
-      
-      if (shouldShow && !popupDismissed) {
+
+      // If plan expired, downgrade to free
+      if (daysUntilExpiry <= 0) {
+        console.log('Plan expired, downgrading to free tier...');
+        
+        // Update backend to downgrade to free tier
+        const { error } = await supabase
+          .from('profiles')
+          .update({ 
+            plan: 'free',
+            words_limit: 1000,
+            upload_limit_mb: 10,
+            plan_expires_at: null,
+            plan_start_date: null,
+            plan_end_date: null,
+            plan_words_used: 0, // Reset plan words for new free tier
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error downgrading plan to free:', error);
+        } else {
+          console.log('Plan successfully downgraded to free tier');
+        }
+
+        // Show expired popup once per session
+        const expiredShownKey = `expired_shown_${user.id}_${profile.plan_expires_at}`;
+        const expiredShown = sessionStorage.getItem(expiredShownKey) === 'true';
+        
+        if (!expiredShown) {
+          setExpiryData({
+            show_popup: true,
+            days_until_expiry: 0,
+            plan: profile.plan, // Show original plan name
+            expires_at: profile.plan_expires_at,
+            is_expired: true
+          });
+          
+          // Mark as shown for this specific expiry date
+          try {
+            sessionStorage.setItem(expiredShownKey, 'true');
+          } catch {
+            // Ignore storage errors
+          }
+        } else {
+          setExpiryData({ show_popup: false });
+        }
+        return;
+      }
+
+      // Show popup if expiring within 7 days
+      if (daysUntilExpiry <= 7 && !popupDismissed) {
         setExpiryData({
           show_popup: true,
-          days_until_expiry: Math.max(0, daysUntilExpiry),
+          days_until_expiry: daysUntilExpiry,
           plan: profile.plan,
           expires_at: profile.plan_expires_at,
-          is_expired: daysUntilExpiry <= 0
+          is_expired: false
         });
       } else {
         setExpiryData({ show_popup: false });
       }
-      
+
     } catch (error) {
       console.warn('Plan expiry check failed:', error);
     } finally {
@@ -79,10 +117,8 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
     }
   };
 
-  // Single effect to handle plan expiry checking
   useEffect(() => {
-    if (user?.id && profile && !popupDismissed) {
-      // Only check once when user/profile changes, not on interval
+    if (user?.id && profile) {
       checkPlanExpiry();
     }
   }, [user?.id, profile?.plan, profile?.plan_expires_at]);
@@ -90,14 +126,13 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
   const dismissPopup = () => {
     setExpiryData({ show_popup: false });
     setPopupDismissed(true);
-    
-    // Store dismissal in session storage
+
     try {
       if (user?.id) {
         sessionStorage.setItem(`plan_expiry_dismissed_${user.id}`, 'true');
       }
-    } catch (error) {
-      // Ignore storage errors
+    } catch {
+      // ignore
     }
   };
 

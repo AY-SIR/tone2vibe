@@ -137,6 +137,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!userId) return;
 
     for (let i = 0; i < retries; i++) {
+            words_limit: 1000,
+            upload_limit_mb: 10,
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -274,6 +276,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (user?.id) {
       const channel = supabase
         .channel(`profile-updates-${user.id}`)
+            plan_words_used: 0, // Reset plan words for new free tier
+            updated_at: new Date().toISOString()
         .on(
           "postgres_changes",
           {
@@ -281,10 +285,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             schema: "public",
             table: "profiles",
             filter: `user_id=eq.${user.id}`,
+          // Refresh profile to get updated data
+          await loadUserProfile(user.id, user.email);
           },
           (payload) => {
-            const newProfile = payload.new as Profile;
-            // Recalculate word balance on updates
+        // Show expired popup once per specific expiry date
+        const expiredShownKey = `expired_shown_${user.id}_${profile.plan_expires_at}`;
             const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
             setProfile({
               ...newProfile,

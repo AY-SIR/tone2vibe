@@ -288,6 +288,38 @@ const Profile: React.FC = () => {
                 </Avatar>
                 <div className="space-y-1">
                   <h2 className="text-2xl font-semibold">
+              {/* Word Balance Information */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm">Word Balance</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <div className="text-sm text-blue-700 font-medium">Plan Words</div>
+                    <div className="text-lg font-bold text-blue-900">
+                      {(profile?.plan_words_used || 0).toLocaleString()} / {(profile?.words_limit || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-blue-600">
+                      {Math.max(0, (profile?.words_limit || 0) - (profile?.plan_words_used || 0)).toLocaleString()} remaining
+                    </div>
+                  </div>
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <div className="text-sm text-green-700 font-medium">Purchased Words</div>
+                    <div className="text-lg font-bold text-green-900">
+                      {(profile?.word_balance || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-green-600">Never expire</div>
+                  </div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg border-2 border-gray-200">
+                  <div className="text-sm text-gray-700 font-medium">Total Available</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {(Math.max(0, (profile?.words_limit || 0) - (profile?.plan_words_used || 0)) + (profile?.word_balance || 0)).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-600">Plan + Purchased words</div>
+                </div>
+              </div>
+
+              <Separator />
+
                     {formData.full_name || "User"}
                   </h2>
                   <p className="text-xs sm:text-sm md:text-base text-muted-foreground break-words text-center max-w-[90%] mx-auto">
@@ -457,7 +489,7 @@ const Profile: React.FC = () => {
 
 
 
-                <Separator />
+              {profile?.plan !== 'free' && profile?.plan_expires_at && new Date(profile.plan_expires_at) > new Date() && (
                 <div className="space-y-2">
                   <h4 className="font-semibold">Plan Features</h4>
                   <ul className="space-y-2 text-sm text-muted-foreground">
@@ -582,6 +614,17 @@ const Profile: React.FC = () => {
                 </>
               ) : (
                 "Delete Account"
+              )}
+
+              {/* Show if plan has expired */}
+              {profile?.plan === 'free' && profile?.plan_expires_at && new Date(profile.plan_expires_at) <= new Date() && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <h4 className="font-semibold text-sm text-orange-800 mb-1">Plan Status</h4>
+                  <p className="text-xs text-orange-700">
+                    Your previous plan expired on {new Date(profile.plan_expires_at).toLocaleDateString('en-IN')}. 
+                    You're now on the free tier.
+                  </p>
+                </div>
               )}
             </Button>
           </AlertDialogFooter>

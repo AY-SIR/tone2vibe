@@ -138,6 +138,7 @@ const Index = () => {
   useEffect(() => {
     const authParam = searchParams.get('auth');
     const redirectParam = searchParams.get('redirect');
+    const fromProtected = searchParams.get('from_protected');
 
     if (authParam === 'open') {
       const consentStatus = localStorage.getItem("cookie-consent");
@@ -147,6 +148,11 @@ const Index = () => {
       } else {
         setShowAuthModal(true);
         if (redirectParam) setRedirectTo(decodeURIComponent(redirectParam));
+      }
+      
+      // Don't show welcome popup if coming from protected route
+      if (fromProtected === 'true') {
+        localStorage.setItem("hasSeenWelcome", "true");
       }
     }
   }, [searchParams]);
@@ -237,12 +243,14 @@ const Index = () => {
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem("hasSeenWelcome");
     const authParam = searchParams.get('auth');
+    const fromProtected = searchParams.get('from_protected');
     
     // Don't show welcome popup if:
     // 1. User is logged in
     // 2. User has already seen welcome
     // 3. Auth modal is being opened (from protected route redirect)
-    if (!hasSeenWelcome && !user && authParam !== 'open') {
+    // 4. Coming from protected route
+    if (!hasSeenWelcome && !user && authParam !== 'open' && fromProtected !== 'true') {
       setTimeout(() => setShowWelcome(true), 1000);
     }
   }, [user, searchParams]);

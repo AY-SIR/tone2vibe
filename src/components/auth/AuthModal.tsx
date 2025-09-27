@@ -38,15 +38,24 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   useEffect(() => {
     const shouldOpen = searchParams.get('auth') === 'open';
     const view = searchParams.get('view');
+    const fromProtected = searchParams.get('from_protected');
+    
     if (shouldOpen) {
       onOpenChange(true);
       if (view === 'forgot-password') {
         setCurrentView('forgot-password');
       }
+      
+      // Don't show welcome popup if coming from protected route
+      if (fromProtected === 'true') {
+        localStorage.setItem("hasSeenWelcome", "true");
+      }
+      
       // Clean up URL
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('auth');
       newSearchParams.delete('view');
+      newSearchParams.delete('from_protected');
       setSearchParams(newSearchParams, { replace: true });
     }
   }, [searchParams, onOpenChange, setSearchParams]);

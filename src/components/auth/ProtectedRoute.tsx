@@ -24,7 +24,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
   // Redirect only if auth is required and user is not logged in
   if (requireAuth && !user) {
     const redirectPath = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/?auth=open&redirect=${redirectPath}`} replace />;
+    return <Navigate to={`/?auth=open&redirect=${redirectPath}&from_protected=true`} replace />;
   }
 
   return <>{children}</>;
