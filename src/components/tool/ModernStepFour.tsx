@@ -565,7 +565,7 @@ const ModernStepFour = ({
                   <div>• Pause Timing</div>
                   <div>• Word Emphasis</div>
                   <div>• Clarity Control</div>
-                  <div>• God-Mode Features</div>
+                  <div>• Advanced Features</div>
                 </div>
               </div>
               <div className="space-y-2">
@@ -573,7 +573,7 @@ const ModernStepFour = ({
                   <Crown className="h-4 w-4 mr-2" />
                   Upgrade to Pro
                 </Button>
-                <p className="text-xs text-gray-500">Premium users get Advanced controls</p>
+                <p className="text-xs text-gray-500">Paid users get Advanced controls</p>
               </div>
             </div>
           </CardContent>

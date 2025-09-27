@@ -150,6 +150,12 @@ const Tool = () => {
     }
   };
 
+const handleTextUpdated = (updatedText: string) => {
+  setExtractedText(updatedText);
+  // Word count will recalculate via useEffect
+};
+
+
   // Reset for new generation
   const handleReset = async () => {
     setCurrentStep(1);
@@ -276,16 +282,17 @@ const Tool = () => {
                 />
               )}
               {currentStep === 2 && (
-                <ModernStepTwo
-                  extractedText={extractedText}
-                  wordCount={wordCount}
-                  onNext={handleNext}
-                  onPrevious={handlePrevious}
-                  onProcessingStart={handleProcessingStart}
-                  onProcessingEnd={handleProcessingEnd}
-                  onLanguageSelect={handleLanguageSelect}
-                />
-              )}
+  <ModernStepTwo
+    extractedText={extractedText}
+    wordCount={wordCount}
+    onNext={handleNext}
+    onPrevious={handlePrevious}
+    onTextUpdated={handleTextUpdated} // Add this
+    onProcessingStart={handleProcessingStart}
+    onProcessingEnd={handleProcessingEnd}
+    onLanguageSelect={handleLanguageSelect}
+  />
+)}
               {currentStep === 3 && (
                 <ModernStepThree
                   onNext={handleNext}

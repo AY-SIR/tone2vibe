@@ -17,6 +17,8 @@ interface ModernStepTwoProps {
   onProcessingStart: (step: string) => void;
   onProcessingEnd: () => void;
   onLanguageSelect: (language: string) => void;
+    onTextUpdated: (text: string) => void; // Add this
+
 }
 
 const ModernStepTwo = ({
@@ -204,7 +206,11 @@ const ModernStepTwo = ({
   const currentCharCount = editedText.replace(/\s/g, '').length;
   const hasChanges = editedText !== extractedText;
 
-
+// In ModernStepTwo, when text changes:
+const handleTextChange = (newText: string) => {
+  setEditedText(newText);
+  onTextUpdated(newText); // Call parent handler
+};
 
   return (
     <div className="space-y-6">

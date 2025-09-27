@@ -308,7 +308,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 <Dialog
   open={open} onOpenChange={onOpenChange}
 >
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-auto">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh]  overflow-auto no-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentView === 'forgot-password' && (

@@ -68,7 +68,7 @@ export default function ModernStepThree({
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
       if (!canUsePrebuilt) return;
-      
+
       setLoadingVoices(true);
       try {
         const voices = await PrebuiltVoiceService.getVoicesForPlan(profile?.plan || 'free');
@@ -120,7 +120,7 @@ export default function ModernStepThree({
 
     const allowedTypes = ["audio/mp3", "audio/wav", "audio/mpeg", "audio/wave", "audio/x-wav"];
     const maxSize = UploadLimitService.getUploadLimit(profile?.plan || 'free') * 1024 * 1024; // Convert MB to bytes
-    
+
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid File Type",
@@ -143,14 +143,14 @@ export default function ModernStepThree({
       // Convert file to blob properly
       const arrayBuffer = await file.arrayBuffer();
       const blob = new Blob([arrayBuffer], { type: file.type });
-      
+
       setHasVoiceData(true);
       onVoiceRecorded(blob);
       toast({
         title: "Audio Uploaded",
         description: `Successfully uploaded ${file.name}`,
       });
-      
+
       // Clear the input
       event.target.value = '';
     } catch (error) {
@@ -326,7 +326,7 @@ export default function ModernStepThree({
 
                 {/* Voice History only */}
                 <TabsContent value="history" className="space-y-4">
-                  <VoiceHistoryDropdown 
+                  <VoiceHistoryDropdown
                     onVoiceSelect={onVoiceSelect}
                     selectedVoiceId={selectedVoiceId}
                     filterType="recorded"
@@ -370,7 +370,7 @@ export default function ModernStepThree({
                         className="pl-10"
                       />
                     </div>
-                    
+
                     {/* Voice List */}
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {filteredVoices.length === 0 ? (
@@ -417,8 +417,8 @@ export default function ModernStepThree({
                                  disabled={isPlaying && playingVoiceId !== voice.voice_id}
                                  className="h-8 w-8 p-0"
                                >
-                                 {playingVoiceId === voice.voice_id && isPlaying ? 
-                                   <Pause className="h-3 w-3" /> : 
+                                 {playingVoiceId === voice.voice_id && isPlaying ?
+                                   <Pause className="h-3 w-3" /> :
                                    <Play className="h-3 w-3" />
                                  }
                                </Button>
