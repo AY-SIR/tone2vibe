@@ -40,23 +40,32 @@ const ModernStepTwo = ({
   const languages = [
 
 
-  { code: 'en-US', name: 'English (US)' },
-  { code: 'en-GB', name: 'English (UK)' },
   { code: 'hi-IN', name: 'Hindi' },
+  { code: 'bn-IN', name: 'Bengali (India)' },
   { code: 'ta-IN', name: 'Tamil' },
   { code: 'te-IN', name: 'Telugu' },
-  { code: 'bn-IN', name: 'Bengali (India)' },
-  { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
   { code: 'mr-IN', name: 'Marathi' },
   { code: 'gu-IN', name: 'Gujarati' },
-  { code: 'pa-IN', name: 'Punjabi' },
   { code: 'kn-IN', name: 'Kannada' },
   { code: 'ml-IN', name: 'Malayalam' },
-  { code: 'ur-PK', name: 'Urdu' },
-  { code: 'es-ES', name: 'Spanish (Spain)' },
-  { code: 'es-MX', name: 'Spanish (Mexico)' },
+  { code: 'pa-IN', name: 'Punjabi' },
+  { code: 'or-IN', name: 'Odia' },
+  { code: 'as-IN', name: 'Assamese' },
+  { code: 'ur-IN', name: 'Urdu (India)' },
+  { code: 'sa-IN', name: 'Sanskrit' },
+  { code: 'ne-IN', name: 'Nepali (India)' },
+  { code: 'doi-IN', name: 'Dogri' },
+  { code: 'ks-IN', name: 'Kashmiri' },
+  { code: 'mni-IN', name: 'Manipuri' },
+  { code: 'sd-IN', name: 'Sindhi' },
+  { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
+
+  { code: 'en-US', name: 'English (US)' },
+  { code: 'en-GB', name: 'English (UK)' },
   { code: 'fr-FR', name: 'French (France)' },
   { code: 'fr-CA', name: 'French (Canada)' },
+  { code: 'es-ES', name: 'Spanish (Spain)' },
+  { code: 'es-MX', name: 'Spanish (Mexico)' },
   { code: 'de-DE', name: 'German' },
   { code: 'it-IT', name: 'Italian' },
   { code: 'pt-PT', name: 'Portuguese (Portugal)' },
@@ -82,13 +91,14 @@ const ModernStepTwo = ({
   { code: 'ms-MY', name: 'Malay' },
   { code: 'fa-IR', name: 'Persian (Farsi)' },
   { code: 'uk-UA', name: 'Ukrainian' },
-  { code: 'ro-RO', name: 'Romanian'  },
+  { code: 'ro-RO', name: 'Romanian' },
   { code: 'sk-SK', name: 'Slovak' },
   { code: 'sl-SI', name: 'Slovenian' },
   { code: 'hr-HR', name: 'Croatian' },
   { code: 'sr-RS', name: 'Serbian' },
   { code: 'bg-BG', name: 'Bulgarian' },
   { code: 'lt-LT', name: 'Lithuanian' }
+
 
 
 ];

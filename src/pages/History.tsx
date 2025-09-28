@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -21,7 +21,16 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Play,
   Pause,
@@ -31,49 +40,166 @@ import {
   ArrowLeft,
   Mic,
   Volume2,
-  
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+
+type UserVoice = {
+  id: string;
+  name: string;
+  audio_url: string;
+  created_at: string;
+  duration: string | null;
+};
 
 const History = () => {
   const { user, profile } = useAuth();
-  const { projects, loading, error, retentionInfo } = useVoiceHistory();
+  const { projects: projectsFromHook, loading: projectsLoading, error: projectsError, retentionInfo } = useVoiceHistory();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
-  const [showGeneratedVoices, setShowGeneratedVoices] = useState(true);
-  const [showRecordedVoices, setShowRecordedVoices] = useState(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const [projects, setProjects] = useState(projectsFromHook || []);
+  const [userVoices, setUserVoices] = useState<UserVoice[]>([]);
+  const [voicesLoading, setVoicesLoading] = useState(true);
+  const [voicesError, setVoicesError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // Delete confirmation dialog
+  const [deleteCandidate, setDeleteCandidate] = useState<any | null>(null);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Sync projects from hook
   useEffect(() => {
-    // Cleanup effect to pause audio when component unmounts
+    setProjects(projectsFromHook || []);
+  }, [projectsFromHook]);
+
+  // Pause audio on unmount
+  useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      if (audioRef.current) audioRef.current.pause();
     };
   }, []);
 
+  // Redirect if not logged in
   useEffect(() => {
-    if (!user) {
-      navigate("/");
-    }
+    if (!user) navigate("/");
   }, [user, navigate]);
 
-  if (!user) {
-    return null;
-  }
+  // Fetch user recorded voices
+  useEffect(() => {
+    if (!user) {
+      setVoicesLoading(false);
+      return;
+    }
 
-  if (loading) {
+    const fetchUserVoices = async () => {
+      setVoicesLoading(true);
+      setVoicesError(null);
+      try {
+        const { data, error } = await supabase
+          .from("user_voices")
+          .select("id, name, audio_url, created_at, duration")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setUserVoices(data || []);
+      } catch (err: any) {
+        setVoicesError("Failed to fetch recorded voices.");
+      } finally {
+        setVoicesLoading(false);
+      }
+    };
+
+    fetchUserVoices();
+  }, [user]);
+
+  // Handle delete request
+  const handleDeleteRequest = (itemToDelete: any) => {
+    setDeleteCandidate(itemToDelete);
+  };
+
+  // Execute delete after confirmation
+  const executeDelete = async () => {
+    if (!deleteCandidate) return;
+
+    const itemToDelete = deleteCandidate;
+    const isRecorded = itemToDelete.source_type === "recorded";
+    const tableName = isRecorded ? "user_voices" : "projects";
+    const itemName = itemToDelete.title;
+
+    setIsDeleting(itemToDelete.id);
+    setDeleteCandidate(null);
+
+    try {
+      // Delete from DB
+      const { error: dbError } = await supabase.from(tableName).delete().eq("id", itemToDelete.id);
+      if (dbError) throw new Error(`Database Error: ${dbError.message}`);
+
+      // Delete from storage if applicable
+      if (itemToDelete.audio_url) {
+        const bucketName = "user-voices";
+        const url = new URL(itemToDelete.audio_url);
+        const pathParts = url.pathname.split("/");
+        const bucketIndex = pathParts.indexOf(bucketName);
+
+        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
+          const filePath = pathParts.slice(bucketIndex + 1).join("/");
+          const { error: storageError } = await supabase.storage.from(bucketName).remove([filePath]);
+          if (storageError) console.error(`Storage Error:`, storageError.message);
+        }
+      }
+
+      // Update local state
+      if (isRecorded) {
+        setUserVoices((current) => current.filter((v) => v.id !== itemToDelete.id));
+      } else {
+        setProjects((current) => current.filter((p) => p.id !== itemToDelete.id));
+      }
+
+      toast({ title: "Item Deleted", description: `"${itemName}" has been removed.` });
+    } catch (error: any) {
+      toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  // Combine generated and recorded items
+  const allItems = useMemo(() => {
+    const generatedItems = projects.map((p) => ({ ...p, source_type: "generated" }));
+    const recordedItems = userVoices.map((v) => ({
+      id: v.id,
+      title: v.name,
+      audio_url: v.audio_url,
+      created_at: v.created_at,
+      original_text: "",
+      language: "N/A",
+      word_count: 0,
+      duration: v.duration,
+      source_type: "recorded",
+    }));
+    return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [projects, userVoices]);
+
+  const loading = projectsLoading || voicesLoading;
+  const error = projectsError || voicesError;
+
+  if (!user) return null;
+  if (loading)
     return (
-      <div className="min-h-screen bg-background py-2 px-2 sm:py-4 sm:px-4 lg:px-8">
+      <div className="min-h-screen bg-background p-4">
         <div className="mx-auto space-y-6">
           <CardSkeleton />
           <CardSkeleton />
@@ -81,87 +207,76 @@ const History = () => {
         </div>
       </div>
     );
-  }
 
-  const filteredProjects = projects.filter((project) => {
-    const matchesSearch =
-      project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.original_text.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLanguage =
-      languageFilter === "all" || project.language === languageFilter;
+  // Filter items based on search and language
+  const filteredItems = allItems.filter((item) => {
+    const searchHaystack = `${item.title} ${item.original_text}`.toLowerCase();
+    const matchesSearch = searchHaystack.includes(searchTerm.toLowerCase());
+    const matchesLanguage = languageFilter === "all" || item.language === languageFilter;
     return matchesSearch && matchesLanguage;
   });
 
-  // Separate generated and recorded voices with better logic
-  const generatedVoices = filteredProjects.filter((project) => {
-    const type = project.voice_settings?.type;
-    const isAI = type === "generated" || type === "ai_generated" || type === "cloned";
-    const isFromGeneration = !type && project.audio_url && project.original_text;
-    return isAI || isFromGeneration;
-  });
+  const generatedVoices = filteredItems.filter((p) => p.source_type === "generated");
+  const recordedVoices = filteredItems.filter((p) => p.source_type === "recorded");
+  const languages = Array.from(new Set(projects.map((p) => p.language).filter(Boolean)));
 
-  const recordedVoices = filteredProjects.filter((project) => {
-    const type = project.voice_settings?.type;
-    const isUserRecorded = type === "recorded" || type === "user_recorded" || type === "uploaded";
-    const hasVoiceRecording = project.voice_settings?.has_voice_recording === true;
-    return isUserRecorded || hasVoiceRecording;
-  });
-
-  const languages = Array.from(new Set(projects.map((p) => p.language)));
-
+  // Play audio function (handles signed URLs for recorded voices)
   const playAudio = async (project: any) => {
-    try {
-      // If clicking the currently playing audio, pause it
-      if (playingAudio === project.id && audioRef.current) {
-        audioRef.current.pause();
-        setPlayingAudio(null);
-        return;
-      }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+    }
 
-      // If another audio is playing, pause it first
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-
-      if (project.audio_url) {
-        const audio = new Audio(project.audio_url);
-        audioRef.current = audio; // Store instance in ref
-        setPlayingAudio(project.id);
-
-        audio.onended = () => {
-          setPlayingAudio(null);
-          audioRef.current = null;
-        };
-
-        audio.onerror = () => {
-          setPlayingAudio(null);
-          audioRef.current = null;
-          toast({
-            title: "Playback failed",
-            description: "Could not play audio file",
-            variant: "destructive",
-          });
-        };
-
-        await audio.play();
-      } else {
-        toast({
-          title: "No audio available",
-          description: "This project doesn't have generated audio",
-          variant: "destructive",
-        });
-      }
-    } catch (err) {
+    if (playingAudio === project.id) {
       setPlayingAudio(null);
-      if (audioRef.current) audioRef.current = null;
-      toast({
-        title: "Playback error",
-        description: "Could not play audio",
-        variant: "destructive",
-      });
+      audioRef.current = null;
+      return;
+    }
+
+    if (!project.audio_url) {
+      toast({ title: "No audio available", variant: "destructive" });
+      return;
+    }
+
+    try {
+      let audioUrl = project.audio_url;
+
+      // If recorded voice, create signed URL
+      if (project.source_type === "recorded") {
+        const url = new URL(project.audio_url);
+        const bucketName = "user-voices";
+        const pathParts = url.pathname.split("/");
+        const bucketIndex = pathParts.indexOf(bucketName);
+        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
+          const filePath = pathParts.slice(bucketIndex + 1).join("/");
+          const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 60);
+          if (error) throw error;
+          audioUrl = signedData.signedUrl;
+        }
+      }
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.onended = () => {
+        setPlayingAudio(null);
+        audioRef.current = null;
+      };
+      audio.onerror = () => {
+        toast({ title: "Playback Failed", variant: "destructive" });
+        setPlayingAudio(null);
+        audioRef.current = null;
+      };
+      setPlayingAudio(project.id);
+      await audio.play();
+    } catch (err) {
+      toast({ title: "Playback Blocked", variant: "destructive" });
+      setPlayingAudio(null);
+      audioRef.current = null;
     }
   };
 
+  // Download audio
   const downloadAudio = async (project: any) => {
     try {
       if (project.audio_url) {
@@ -171,30 +286,18 @@ const History = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast({
-          title: "Download started",
-          description: "Audio file downloading",
-        });
+        toast({ title: "Download started" });
       } else {
-        toast({
-          title: "No audio to download",
-          description: "This project doesn't have generated audio",
-          variant: "destructive",
-        });
+        toast({ title: "No audio to download", variant: "destructive" });
       }
     } catch (err) {
-      toast({
-        title: "Download failed",
-        description: "Could not download audio file",
-        variant: "destructive",
-      });
+      toast({ title: "Download failed", variant: "destructive" });
     }
   };
 
   return (
     <div className="min-h-screen bg-background py-2 px-2 sm:py-4 sm:px-4 lg:px-8">
-      <div className=" mx-auto">
-        {/* Header */}
+      <div className="mx-auto">
         <div className="mb-4 sm:mb-6">
           <div className="flex items-center justify-between mb-4">
             <Button
@@ -207,40 +310,28 @@ const History = () => {
               <span>Back to Home</span>
             </Button>
             <Badge variant="outline" className="text-xs">
-              {profile?.plan?.charAt(0).toUpperCase()}
-              {profile?.plan?.slice(1)} Plan
+              {profile?.plan?.charAt(0).toUpperCase() + profile?.plan?.slice(1)} Plan
             </Badge>
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mb-4 mt-2 sm:mb-2">
-              Voice History
-            </h1>
-            <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
-              Your generated voice projects • {retentionInfo('all')} retention
-            </p>
-          </div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mb-2">Voice History</h1>
+          <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
+            Your voice projects • {retentionInfo("all")} retention
+          </p>
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
             <div className="text-xs sm:text-sm flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">
-                {profile?.plan}
-              </Badge>
-              <span>
-                Retention: {retentionInfo('all')} • {filteredProjects.length} of{" "}
-                {projects.length} projects shown
-              </span>
+              <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
+              <span>Retention: {retentionInfo("all")} • {filteredItems.length} of {allItems.length} items shown</span>
             </div>
           </div>
         </div>
 
-        {/* Filters and Tabs Card */}
         <Card className="mb-4 sm:mb-6">
           <CardContent className="p-3 sm:p-4">
-            {/* Search and Language Filter */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search projects..."
+                  placeholder="Search..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 text-xs sm:text-sm"
@@ -254,50 +345,28 @@ const History = () => {
                 <SelectContent>
                   <SelectItem value="all">All Languages</SelectItem>
                   {languages.map((lang) => (
-                    <SelectItem key={lang} value={lang}>
-                      {lang}
-                    </SelectItem>
+                    <SelectItem key={lang} value={lang}>{lang}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Enhanced Toggle Switches */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              {/* AI Voice Generation Toggle */}
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-card/50 hover:bg-card transition-colors">
-                <div className="flex items-center gap-3">
-                </div>
-               </div>
-
-             </div>
-
             <Tabs defaultValue="generated" className="w-full mt-6">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger
-  value="generated"
-  className="flex items-center gap-2"
-  disabled={!showGeneratedVoices}
->
-  <Volume2 className="h-4 w-4" />
-  <span className="hidden sm:inline">AI Voice Generation</span>
-  <span className="inline sm:hidden">AI Voice</span>
-</TabsTrigger>
-
-<TabsTrigger
-  value="recorded"
-  className="flex items-center gap-2"
-  disabled={!showRecordedVoices}
->
-  <Mic className="h-4 w-4" />
-  <span className="hidden sm:inline">User Recorded Voice</span>
-  <span className="inline sm:hidden">Recorded</span>
-</TabsTrigger>
-
+                <TabsTrigger value="generated" className="flex items-center gap-2">
+                  <Volume2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">AI Voice Generation</span>
+                  <span className="inline sm:hidden">AI Voice</span>
+                </TabsTrigger>
+                <TabsTrigger value="recorded" className="flex items-center gap-2">
+                  <Mic className="h-4 w-4" />
+                  <span className="hidden sm:inline">User Recorded Voice</span>
+                  <span className="inline sm:hidden">Recorded</span>
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="generated">
-                {showGeneratedVoices && generatedVoices.length > 0 ? (
+                {generatedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
                     <div className="flex items-center gap-2 mb-4 p-3 bg-primary/5 rounded-lg">
                       <Volume2 className="h-4 w-4 text-primary" />
@@ -310,34 +379,28 @@ const History = () => {
                         playingAudio={playingAudio}
                         onPlay={playAudio}
                         onDownload={downloadAudio}
+                        onDelete={handleDeleteRequest}
+                        isDeleting={isDeleting === project.id}
                         type="generated"
                       />
                     ))}
                   </div>
-                ) : showGeneratedVoices ? (
-                  <div className="text-center p-6 sm:p-8">
-                    <p className="text-muted-foreground mb-4 text-sm sm:text-base">
-                      No generated voice projects found matching your filters.
-                    </p>
-                    <Button onClick={() => navigate("/tool")} size="sm">
-                      Create a New Voice
-                    </Button>
-                  </div>
                 ) : (
                   <div className="text-center p-6 sm:p-8">
-                    <p className="text-muted-foreground text-sm sm:text-base">
-                      AI Voice Generation is currently disabled. Enable it using the toggle above.
+                    <p className="text-muted-foreground mb-4 text-sm sm:text-base">
+                      No generated voice projects found.
                     </p>
+                    <Button onClick={() => navigate("/tool")} size="sm">Create a New Voice</Button>
                   </div>
                 )}
               </TabsContent>
 
               <TabsContent value="recorded">
-                {showRecordedVoices && recordedVoices.length > 0 ? (
+                {recordedVoices.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 mt-4">
                     <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/5 rounded-lg">
                       <Mic className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">User Recorded Voice </span>
+                      <span className="text-sm font-medium">User Recorded Voice</span>
                     </div>
                     {recordedVoices.map((project) => (
                       <ProjectCard
@@ -346,27 +409,22 @@ const History = () => {
                         playingAudio={playingAudio}
                         onPlay={playAudio}
                         onDownload={downloadAudio}
+                        onDelete={handleDeleteRequest}
+                        isDeleting={isDeleting === project.id}
                         type="recorded"
                       />
                     ))}
                   </div>
-                ) : showRecordedVoices ? (
-                  <p className="text-muted-foreground text-sm text-center p-6 sm:p-8">
-                    No recorded voices found matching your filters.
-                  </p>
                 ) : (
-                  <div className="text-center p-6 sm:p-8">
-                    <p className="text-muted-foreground text-sm sm:text-base">
-                      User Recorded Voice is currently disabled. Enable it using the toggle above.
-                    </p>
-                  </div>
+                  <p className="text-muted-foreground text-sm text-center p-6 sm:p-8">
+                    No recorded voices found.
+                  </p>
                 )}
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
-        {/* Error State */}
         {error && (
           <Card className="mb-4 sm:mb-6 border-destructive/50 bg-destructive/5">
             <CardContent className="p-3 sm:p-4">
@@ -375,102 +433,106 @@ const History = () => {
           </Card>
         )}
       </div>
+
+      {/* AlertDialog for delete confirmation */}
+      <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the item titled <span className="font-semibold text-foreground">"{deleteCandidate?.title}"</span> and remove its data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, delete it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
 
-// ProjectCard Component
+// Project card component
 const ProjectCard = ({
   project,
   playingAudio,
   onPlay,
   onDownload,
+  onDelete,
+  isDeleting,
   type,
 }: {
   project: any;
   playingAudio: string | null;
   onPlay: (project: any) => void;
   onDownload: (project: any) => void;
+  onDelete?: (project: any) => void;
+  isDeleting?: boolean;
   type: "generated" | "recorded";
 }) => {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
         <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-sm sm:text-base lg:text-lg flex items-center space-x-2">
-              {type === "generated" ? (
-                <Volume2 className="h-4 w-4 text-primary" />
-              ) : (
-                <Mic className="h-4 w-4 text-primary" />
-              )}
-              <span>{project.title}</span>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-sm sm:text-base lg:text-lg flex items-center space-x-2 truncate">
+              {type === "generated" ? <Volume2 className="h-4 w-4 text-primary" /> : <Mic className="h-4 w-4 text-primary" />}
+              <span className="truncate">{project.title}</span>
             </CardTitle>
             <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
-              <Badge variant="outline" className="text-xs">
-                {project.language}
-              </Badge>
-              <Badge variant="secondary" className="text-xs">
-                {project.word_count} words
-              </Badge>
-              <Badge
-                variant="outline"
-                className={`text-xs ${
-                  type === "generated"
-                    ? "bg-primary/10 text-primary"
-                    : "bg-secondary/10 text-primary"
-                }`}
-              >
+              <Badge variant="outline" className={`text-xs ${type === "generated" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-primary"}`}>
                 {type === "generated" ? "AI Generated" : "User Recorded"}
               </Badge>
-              {project.processing_time_ms && (
-                <Badge
-                  variant="outline"
-                  className="text-xs bg-blue-50 text-blue-700"
-                >
-                  {(project.processing_time_ms / 1000).toFixed(1)}s
-                </Badge>
-              )}
+              {type === 'generated' && project.language && project.language !== 'N/A' && <Badge variant="outline" className="text-xs">{project.language}</Badge>}
+              {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
+              {type === 'recorded' && project.duration && <Badge variant="secondary" className="text-xs">{project.duration}s duration</Badge>}
+              {project.processing_time_ms && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{(project.processing_time_ms / 1000).toFixed(1)}s</Badge>}
             </div>
           </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0 p-3 sm:p-6">
-        <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">
-          {project.original_text}
-        </p>
+        {type === 'generated' && project.original_text && (
+          <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">{project.original_text}</p>
+        )}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
             <Button
               onClick={() => onPlay(project)}
               variant="outline"
               size="sm"
-              disabled={!project.audio_url}
+              disabled={!project.audio_url || !!isDeleting}
               className="h-7 sm:h-8 px-2 sm:px-3"
             >
-              {playingAudio === project.id ? (
-                <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
-              ) : (
-                <Play className="h-3 w-3 sm:h-4 sm:w-4" />
-              )}
+              {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
             <Button
               onClick={() => onDownload(project)}
               variant="outline"
               size="sm"
-              disabled={!project.audio_url}
+              disabled={!project.audio_url || !!isDeleting}
               className="h-7 sm:h-8 px-2 sm:px-3"
             >
               <Download className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
+            {onDelete && (
+              <Button
+                onClick={() => onDelete(project)}
+                variant="outline"
+                size="sm"
+                disabled={!!isDeleting}
+                className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
             <span>{new Date(project.created_at).toLocaleDateString()}</span>
-            {project.generation_started_at && (
-              <span>
-                {new Date(project.generation_started_at).toLocaleTimeString()}
-              </span>
-            )}
+            <span>{type === "generated" && project.generation_started_at ? new Date(project.generation_started_at).toLocaleTimeString() : new Date(project.created_at).toLocaleTimeString()}</span>
           </div>
         </div>
       </CardContent>
