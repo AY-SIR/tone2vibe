@@ -266,31 +266,27 @@ const francToLanguageCode: Record<string, string> = {
 
 const detectLanguage = (text: string, minLength = 5, maxLength = 31) => {
   const trimmed = text.trim();
-  if (!trimmed) return ''; // fallback empty string
+  if (!trimmed) return 'en-US'; // safe fallback
 
   const textToDetect = trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
   const detectedCode = franc(textToDetect, { minLength });
 
-  return francToLanguageCode[detectedCode] || ''; // fallback empty
+  return francToLanguageCode[detectedCode] || 'en-US'; // safe fallback
 };
 
 useEffect(() => {
   setEditedText(extractedText);
   const detected = detectLanguage(extractedText, 5, 31);
-  if (detected) {
-    setDetectedLanguage(detected);
-    setSelectedLanguage(detected);
-    onLanguageSelect(detected);
-  }
+  setDetectedLanguage(detected);
+  setSelectedLanguage(detected);
+  onLanguageSelect(detected);
 }, [extractedText]);
 
 const handleTextChange = (newText: string) => {
   setEditedText(newText);
   onTextUpdated(newText);
-  const detected = detectLanguage(newText, 5, 31);
-  if (detected) setDetectedLanguage(detected);
+  setDetectedLanguage(detectLanguage(newText, 5, 31));
 };
-
   
 
   const handleLanguageChange = (languageCode: string) => {
