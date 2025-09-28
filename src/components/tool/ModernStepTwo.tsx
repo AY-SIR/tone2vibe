@@ -263,6 +263,8 @@ const francToLanguageCode: Record<string, string> = {
   'zul': 'zu-ZA', // Zulu
 };
 
+
+  const [lastValidLanguage, setLastValidLanguage] = useState("en-US");
   const detectLanguage = (text: string, minLength = 5, maxLength = 31) => {
     const trimmed = text.trim();
     if (!trimmed) return 'en-US'; // safe fallback
@@ -273,21 +275,50 @@ const francToLanguageCode: Record<string, string> = {
 
   // Initial detection from Step 1
   useEffect(() => {
-    setEditedText(extractedText);
-    const detected = detectLanguage(extractedText);
-    setDetectedLanguage(detected);
-    setSelectedLanguage(detected !== 'unsupported' ? detected : 'en-US');
-    setIsUnsupported(detected === 'unsupported');
-    onLanguageSelect(detected !== 'unsupported' ? detected : 'en-US');
-  }, [extractedText]);
+  setEditedText(extractedText);
+  const detected = detectLanguage(extractedText);
+  const initialLang = detected !== 'unsupported' ? detected : 'en-US';
+  setDetectedLanguage(initialLang);
+  setSelectedLanguage(initialLang);
+  setIsUnsupported(detected === 'unsupported');
+  setLastValidLanguage(initialLang);
+  onLanguageSelect(initialLang);
+}, [extractedText]);
 
+  
   const handleTextChange = (newText: string) => {
-    setEditedText(newText);
-    onTextUpdated(newText);
-    const detected = detectLanguage(newText);
+  setEditedText(newText);
+  onTextUpdated(newText);
+
+  const trimmed = newText.trim();
+  const wordCount = trimmed.split(/\s+/).filter(Boolean);
+
+  if (!trimmed) {
+    // Reset if text is empty
+    setDetectedLanguage("en-US");
+    setIsUnsupported(false);
+    setLastValidLanguage("en-US");
+    return;
+  }
+
+  // For very short text, fallback to last valid language
+  if (trimmed.length < 5 || wordCount.length < 2) {
+    setDetectedLanguage(lastValidLanguage);
+    setIsUnsupported(false);
+    return;
+  }
+
+  // Detect language for longer text
+  const detected = detectLanguage(trimmed);
+  if (detected === "unsupported") {
+    setDetectedLanguage(lastValidLanguage); // fallback
+    setIsUnsupported(true);
+  } else {
     setDetectedLanguage(detected);
-    setIsUnsupported(detected === 'unsupported');
-  };
+    setIsUnsupported(false);
+    setLastValidLanguage(detected); // remember last valid
+  }
+};
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
