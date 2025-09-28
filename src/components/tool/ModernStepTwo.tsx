@@ -264,26 +264,32 @@ const francToLanguageCode: Record<string, string> = {
 };
   
 
-  const detectLanguage = (text: string) => {
-    if (text.trim().length < 10) return 'en-US'; // Default for short text
-    const detectedCode = franc(text, { minLength: 3 });
-    return francToLanguageCode[detectedCode] || 'en-US'; // Fallback to en-US
-  };
+  const detectLanguage = (text: string, minLength = 1, maxLength = 11) => {
+  const trimmed = text.trim();
+
+  if (!trimmed) return 'en-US';
+
+  // Truncate text to maxLength
+  const textToDetect = trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+
+  const detectedCode = franc(textToDetect, { minLength });
+
+  return francToLanguageCode[detectedCode] || 'en-US';
+};
 
   useEffect(() => {
-    setEditedText(extractedText);
-    const detected = detectLanguage(extractedText);
-    setDetectedLanguage(detected);
-    setSelectedLanguage(detected);
-    onLanguageSelect(detected);
-  }, [extractedText]);
+  setEditedText(extractedText);
+  const detected = detectLanguage(extractedText, 1, 11);
+  setDetectedLanguage(detected);
+  setSelectedLanguage(detected);
+  onLanguageSelect(detected);
+}, [extractedText]);
 
-
-  const handleTextChange = (newText: string) => {
-    setEditedText(newText);
-    onTextUpdated(newText);
-    setDetectedLanguage(detectLanguage(newText));
-  };
+const handleTextChange = (newText: string) => {
+  setEditedText(newText);
+  onTextUpdated(newText);
+  setDetectedLanguage(detectLanguage(newText, 1, 11));
+};
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
