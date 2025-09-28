@@ -1,7 +1,4 @@
-Of course. The issue is that the filtering logic for prebuilt voices was only considering the search term and not the selectedLanguage from the previous step.
-I have fixed this by updating the filtering logic to first filter the voices by the selectedLanguage and then apply the search term filter on that result. This ensures you only see voices matching your chosen language.
-Here is the complete and corrected code for ModernStepThree.tsx:
-// src/components/tool/ModernStepThree.tsx
+
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
