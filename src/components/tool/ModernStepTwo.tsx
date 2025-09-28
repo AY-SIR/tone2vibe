@@ -393,7 +393,7 @@ const francToLanguageCode: Record<string, string> = {
             className={`min-h-[200px] resize-none text-base leading-relaxed ${isUnsupported ? 'border-red-500 border-2' : ''}`}
           />
           {isUnsupported && (
-            <p className="text-red-600 mt-2 text-sm">⚠️ Language not supported. Please rewrite in a supported language.</p>
+            <p className="text-red-600 mt-2 text-sm"> Language not supported. Please rewrite in a supported language.</p>
           )}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
             <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim() || isUnsupported} variant="outline" className="flex-1">
