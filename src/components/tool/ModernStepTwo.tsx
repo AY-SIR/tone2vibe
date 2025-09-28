@@ -1,5 +1,4 @@
 // src/components/tool/ModernStepTwo.tsx
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +32,7 @@ const ModernStepTwo = ({
   const [editedText, setEditedText] = useState(extractedText);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [detectedLanguage, setDetectedLanguage] = useState("en-US");
+  const [isUnsupported, setIsUnsupported] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const { toast } = useToast();
@@ -262,32 +262,32 @@ const francToLanguageCode: Record<string, string> = {
   'yor': 'yo-NG', // Yoruba
   'zul': 'zu-ZA', // Zulu
 };
-  
 
-const detectLanguage = (text: string, minLength = 5, maxLength = 31) => {
-  const trimmed = text.trim();
-  if (!trimmed) return 'en-US'; // safe fallback
+  const detectLanguage = (text: string, minLength = 5, maxLength = 31) => {
+    const trimmed = text.trim();
+    if (!trimmed) return 'en-US'; // safe fallback
+    const textToDetect = trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+    const detectedCode = franc(textToDetect, { minLength });
+    return francToLanguageCode[detectedCode] || 'unsupported'; // unsupported if not mapped
+  };
 
-  const textToDetect = trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
-  const detectedCode = franc(textToDetect, { minLength });
+  // Initial detection from Step 1
+  useEffect(() => {
+    setEditedText(extractedText);
+    const detected = detectLanguage(extractedText);
+    setDetectedLanguage(detected);
+    setSelectedLanguage(detected !== 'unsupported' ? detected : 'en-US');
+    setIsUnsupported(detected === 'unsupported');
+    onLanguageSelect(detected !== 'unsupported' ? detected : 'en-US');
+  }, [extractedText]);
 
-  return francToLanguageCode[detectedCode] || 'en-US'; // safe fallback
-};
-
-useEffect(() => {
-  setEditedText(extractedText);
-  const detected = detectLanguage(extractedText, 5, 31);
-  setDetectedLanguage(detected);
-  setSelectedLanguage(detected);
-  onLanguageSelect(detected);
-}, [extractedText]);
-
-const handleTextChange = (newText: string) => {
-  setEditedText(newText);
-  onTextUpdated(newText);
-  setDetectedLanguage(detectLanguage(newText, 5, 31));
-};
-  
+  const handleTextChange = (newText: string) => {
+    setEditedText(newText);
+    onTextUpdated(newText);
+    const detected = detectLanguage(newText);
+    setDetectedLanguage(detected);
+    setIsUnsupported(detected === 'unsupported');
+  };
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
@@ -295,24 +295,22 @@ const handleTextChange = (newText: string) => {
   };
 
   const handleTranslateText = async () => {
-    // This is a placeholder for a real translation API call
     if (!editedText.trim()) return;
     setIsTranslating(true);
     onProcessingStart("Translating text...");
     try {
-      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const translated = `[This is a simulated translation to ${selectedLanguage}] ... ${editedText}`;
+      const translated = `[Simulated translation to ${selectedLanguage}] ... ${editedText}`;
       setEditedText(translated);
       onTextUpdated(translated);
-      // After translating, the new text should be detected as the target language
       setDetectedLanguage(selectedLanguage);
+      setIsUnsupported(false);
       toast({ title: "Text Translated (Simulated)", description: `The text has been translated to your selected language.` });
-    } catch (error) {
-       toast({ title: "Translation Failed", variant: "destructive" });
+    } catch {
+      toast({ title: "Translation Failed", variant: "destructive" });
     } finally {
-       setIsTranslating(false);
-       onProcessingEnd();
+      setIsTranslating(false);
+      onProcessingEnd();
     }
   };
 
@@ -329,7 +327,7 @@ const handleTextChange = (newText: string) => {
       } else {
         toast({ title: "No Changes Needed", description: "Your text looks great!" });
       }
-    } catch (error) {
+    } catch {
       toast({ title: "Improvement Failed", description: "Could not connect to the AI service.", variant: "destructive" });
     } finally {
       setIsImproving(false);
@@ -343,8 +341,7 @@ const handleTextChange = (newText: string) => {
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-  // Show translate icon if the detected language of the text is different from the selected output language
-  const showTranslateIcon = editedText.trim() && detectedLanguage !== selectedLanguage;
+  const showTranslateIcon = editedText.trim() && detectedLanguage !== selectedLanguage && !isUnsupported;
 
   return (
     <div className="space-y-6">
@@ -370,7 +367,7 @@ const handleTextChange = (newText: string) => {
               </SelectContent>
             </Select>
             {showTranslateIcon && (
-              <Button onClick={handleTranslateText} disabled={isTranslating} variant="outline" size="icon" title={`Translate text to ${languages.find(l => l.code === selectedLanguage)?.name}`}>
+              <Button onClick={handleTranslateText} disabled={isTranslating} variant="outline" size="icon">
                 <Languages className="h-4 w-4" />
               </Button>
             )}
@@ -393,10 +390,13 @@ const handleTextChange = (newText: string) => {
             value={editedText}
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder="Your text will appear here. You can edit it before proceeding..."
-            className="min-h-[200px] resize-none text-base leading-relaxed"
+            className={`min-h-[200px] resize-none text-base leading-relaxed ${isUnsupported ? 'border-red-500 border-2' : ''}`}
           />
+          {isUnsupported && (
+            <p className="text-red-600 mt-2 text-sm">⚠️ Language not supported. Please rewrite in a supported language.</p>
+          )}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
-            <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim()} variant="outline" className="flex-1">
+            <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim() || isUnsupported} variant="outline" className="flex-1">
               <Wand2 className="h-4 w-4 mr-2" /> {isImproving ? "Improving..." : "Improve with AI"}
             </Button>
             <div className="flex items-center space-x-2 justify-center text-muted-foreground">
@@ -408,7 +408,7 @@ const handleTextChange = (newText: string) => {
       </Card>
 
       {/* Text Statistics */}
-       <Card className="bg-muted/50 border-dashed">
+      <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
@@ -423,10 +423,10 @@ const handleTextChange = (newText: string) => {
               <div className="text-lg sm:text-2xl font-bold">~{Math.ceil(currentWordCount / 150)} min</div>
               <div className="text-xs sm:text-sm text-muted-foreground">Speaking Time</div>
             </div>
-             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
-               <div className="text-lg sm:text-2xl font-bold text-primary truncate">{languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}</div>
-               <div className="text-xs sm:text-sm text-muted-foreground">Selected Language</div>
-             </div>
+            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold text-primary truncate">{languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Selected Language</div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -436,7 +436,7 @@ const handleTextChange = (newText: string) => {
         <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating} className="order-2 sm:order-1">
           Back to Upload
         </Button>
-        <Button onClick={onNext} disabled={!editedText.trim() || isImproving || isTranslating} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
+        <Button onClick={onNext} disabled={!editedText.trim() || isImproving || isTranslating || isUnsupported} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
           Continue to Voice Selection
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
