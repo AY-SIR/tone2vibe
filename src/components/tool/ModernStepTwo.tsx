@@ -106,7 +106,7 @@ const ModernStepTwo = ({
     'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
     'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN', 'tel': 'te-IN',
     'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA', 'urd': 'ur-IN',
-    'vie': 'vi-VN', 'cmn': 'zh-CN',
+    'vie': 'vi-VN', 'cmn': 'zh-CN','rum': 'ro-RO',
   };
 
   const detectLanguage = (text: string): string => {
