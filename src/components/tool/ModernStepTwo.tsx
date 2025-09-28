@@ -110,11 +110,11 @@ const ModernStepTwo = ({
   };
 
   const detectLanguage = (text: string): string => {
-    const trimmed = text.trim();
-    if (trimmed.length < 10) return 'short'; // Special code for short text
-    const detectedCode = franc(trimmed, { minLength: 3 });
-    return francToLanguageCode[detectedCode] || 'unsupported';
-  };
+  const trimmed = text.trim();
+  if (trimmed.length < 3) return 'short'; // allow detection for shorter texts
+  const detectedCode = franc(trimmed, { minLength: 3 });
+  return francToLanguageCode[detectedCode] || 'unsupported';
+};
 
   useEffect(() => {
     setEditedText(extractedText);
