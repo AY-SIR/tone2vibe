@@ -1,3 +1,5 @@
+// src/components/tool/ModernStepTwo.tsx
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,220 +9,190 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GrammarService } from "@/services/grammarService";
-import { supabase } from "@/integrations/supabase/client";
+import { franc } from "franc";
 
 interface ModernStepTwoProps {
   extractedText: string;
-  wordCount: number;
   onNext: () => void;
   onPrevious: () => void;
   onProcessingStart: (step: string) => void;
   onProcessingEnd: () => void;
   onLanguageSelect: (language: string) => void;
-    onTextUpdated: (text: string) => void; // Add this
-
+  onTextUpdated: (text: string) => void;
 }
 
 const ModernStepTwo = ({
   extractedText,
-  wordCount,
   onNext,
   onPrevious,
   onProcessingStart,
   onProcessingEnd,
   onLanguageSelect,
+  onTextUpdated,
 }: ModernStepTwoProps) => {
   const [editedText, setEditedText] = useState(extractedText);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
+  const [detectedLanguage, setDetectedLanguage] = useState("en-US");
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [showTranslateIcon, setShowTranslateIcon] = useState(false);
   const { toast } = useToast();
 
   const languages = [
+    { code: 'ar-SA', name: 'Arabic (Saudi Arabia)' },
+    { code: 'as-IN', name: 'Assamese' },
+    { code: 'bg-BG', name: 'Bulgarian' },
+    { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
+    { code: 'bn-IN', name: 'Bengali (India)' },
+    { code: 'cs-CZ', name: 'Czech' },
+    { code: 'da-DK', name: 'Danish' },
+    { code: 'doi-IN', name: 'Dogri' },
+    { code: 'nl-NL', name: 'Dutch' },
+    { code: 'en-GB', name: 'English (UK)' },
+    { code: 'en-US', name: 'English (US)' },
+    { code: 'fi-FI', name: 'Finnish' },
+    { code: 'fr-CA', name: 'French (Canada)' },
+    { code: 'fr-FR', name: 'French (France)' },
+    { code: 'de-DE', name: 'German' },
+    { code: 'el-GR', name: 'Greek' },
+    { code: 'gu-IN', name: 'Gujarati' },
+    { code: 'he-IL', name: 'Hebrew' },
+    { code: 'hi-IN', name: 'Hindi' },
+    { code: 'hr-HR', name: 'Croatian' },
+    { code: 'id-ID', name: 'Indonesian' },
+    { code: 'it-IT', name: 'Italian' },
+    { code: 'ja-JP', name: 'Japanese' },
+    { code: 'kn-IN', name: 'Kannada' },
+    { code: 'ks-IN', name: 'Kashmiri' },
+    { code: 'ko-KR', name: 'Korean' },
+    { code: 'lt-LT', name: 'Lithuanian' },
+    { code: 'ms-MY', name: 'Malay' },
+    { code: 'ml-IN', name: 'Malayalam' },
+    { code: 'mni-IN', name: 'Manipuri' },
+    { code: 'mr-IN', name: 'Marathi' },
+    { code: 'ne-IN', name: 'Nepali (India)' },
+    { code: 'no-NO', name: 'Norwegian' },
+    { code: 'or-IN', name: 'Odia' },
+    { code: 'pa-IN', name: 'Punjabi' },
+    { code: 'fa-IR', name: 'Persian (Farsi)' },
+    { code: 'pt-BR', name: 'Portuguese (Brazil)' },
+    { code: 'pt-PT', name: 'Portuguese (Portugal)' },
+    { code: 'ro-RO', name: 'Romanian' },
+    { code: 'ru-RU', name: 'Russian' },
+    { code: 'sa-IN', name: 'Sanskrit' },
+    { code: 'sd-IN', name: 'Sindhi' },
+    { code: 'sr-RS', name: 'Serbian' },
+    { code: 'sk-SK', name: 'Slovak' },
+    { code: 'sl-SI', name: 'Slovenian' },
+    { code: 'es-ES', name: 'Spanish (Spain)' },
+    { code: 'es-MX', name: 'Spanish (Mexico)' },
+    { code: 'sv-SE', name: 'Swedish' },
+    { code: 'ta-IN', name: 'Tamil' },
+    { code: 'te-IN', name: 'Telugu' },
+    { code: 'th-TH', name: 'Thai' },
+    { code: 'tr-TR', name: 'Turkish' },
+    { code: 'uk-UA', name: 'Ukrainian' },
+    { code: 'ur-IN', name: 'Urdu (India)' },
+    { code: 'vi-VN', name: 'Vietnamese' },
+    { code: 'zh-CN', name: 'Chinese (Simplified)' },
+    { code: 'zh-TW', name: 'Chinese (Traditional)' }
+  ];
 
+  // Comprehensive map from franc's 3-letter codes to your xx-YY format
+  const francToLanguageCode: Record<string, string> = {
+    'arb': 'ar-SA', 'asm': 'as-IN', 'bul': 'bg-BG', 'ben': 'bn-IN',
+    'ces': 'cs-CZ', 'dan': 'da-DK', 'nld': 'nl-NL', 'eng': 'en-US',
+    'fin': 'fi-FI', 'fra': 'fr-FR', 'deu': 'de-DE', 'ell': 'el-GR',
+    'guj': 'gu-IN', 'heb': 'he-IL', 'hin': 'hi-IN', 'bho': 'hi-IN', // Mapping Bhojpuri to Hindi
+    'hrv': 'hr-HR', 'ind': 'id-ID', 'ita': 'it-IT', 'jpn': 'ja-JP',
+    'kan': 'kn-IN', 'kas': 'ks-IN', 'kor': 'ko-KR', 'lit': 'lt-LT',
+    'msa': 'ms-MY', 'mal': 'ml-IN', 'mar': 'mr-IN', 'nep': 'ne-IN',
+    'nor': 'no-NO', 'ory': 'or-IN', 'pan': 'pa-IN', 'pes': 'fa-IR',
+    'por': 'pt-BR', 'ron': 'ro-RO', 'rus': 'ru-RU', 'san': 'sa-IN',
+    'snd': 'sd-IN', 'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
+    'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN', 'tel': 'te-IN',
+    'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA', 'urd': 'ur-IN',
+    'vie': 'vi-VN', 'cmn': 'zh-CN',
+    // Add other less common ones if needed
+    'dgo': 'doi-IN', 'mni': 'mni-IN',
+  };
 
-  { code: 'hi-IN', name: 'Hindi' },
-  { code: 'bn-IN', name: 'Bengali (India)' },
-  { code: 'ta-IN', name: 'Tamil' },
-  { code: 'te-IN', name: 'Telugu' },
-  { code: 'mr-IN', name: 'Marathi' },
-  { code: 'gu-IN', name: 'Gujarati' },
-  { code: 'kn-IN', name: 'Kannada' },
-  { code: 'ml-IN', name: 'Malayalam' },
-  { code: 'pa-IN', name: 'Punjabi' },
-  { code: 'or-IN', name: 'Odia' },
-  { code: 'as-IN', name: 'Assamese' },
-  { code: 'ur-IN', name: 'Urdu (India)' },
-  { code: 'sa-IN', name: 'Sanskrit' },
-  { code: 'ne-IN', name: 'Nepali (India)' },
-  { code: 'doi-IN', name: 'Dogri' },
-  { code: 'ks-IN', name: 'Kashmiri' },
-  { code: 'mni-IN', name: 'Manipuri' },
-  { code: 'sd-IN', name: 'Sindhi' },
-  { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
-
-  { code: 'en-US', name: 'English (US)' },
-  { code: 'en-GB', name: 'English (UK)' },
-  { code: 'fr-FR', name: 'French (France)' },
-  { code: 'fr-CA', name: 'French (Canada)' },
-  { code: 'es-ES', name: 'Spanish (Spain)' },
-  { code: 'es-MX', name: 'Spanish (Mexico)' },
-  { code: 'de-DE', name: 'German' },
-  { code: 'it-IT', name: 'Italian' },
-  { code: 'pt-PT', name: 'Portuguese (Portugal)' },
-  { code: 'pt-BR', name: 'Portuguese (Brazil)' },
-  { code: 'ru-RU', name: 'Russian' },
-  { code: 'zh-CN', name: 'Chinese (Simplified)' },
-  { code: 'zh-TW', name: 'Chinese (Traditional)' },
-  { code: 'ja-JP', name: 'Japanese' },
-  { code: 'ko-KR', name: 'Korean' },
-  { code: 'ar-SA', name: 'Arabic (Saudi Arabia)' },
-  { code: 'tr-TR', name: 'Turkish' },
-  { code: 'nl-NL', name: 'Dutch' },
-  { code: 'sv-SE', name: 'Swedish' },
-  { code: 'no-NO', name: 'Norwegian' },
-  { code: 'da-DK', name: 'Danish' },
-  { code: 'fi-FI', name: 'Finnish' },
-  { code: 'cs-CZ', name: 'Czech' },
-  { code: 'el-GR', name: 'Greek' },
-  { code: 'he-IL', name: 'Hebrew' },
-  { code: 'th-TH', name: 'Thai' },
-  { code: 'vi-VN', name: 'Vietnamese' },
-  { code: 'id-ID', name: 'Indonesian' },
-  { code: 'ms-MY', name: 'Malay' },
-  { code: 'fa-IR', name: 'Persian (Farsi)' },
-  { code: 'uk-UA', name: 'Ukrainian' },
-  { code: 'ro-RO', name: 'Romanian' },
-  { code: 'sk-SK', name: 'Slovak' },
-  { code: 'sl-SI', name: 'Slovenian' },
-  { code: 'hr-HR', name: 'Croatian' },
-  { code: 'sr-RS', name: 'Serbian' },
-  { code: 'bg-BG', name: 'Bulgarian' },
-  { code: 'lt-LT', name: 'Lithuanian' }
-
-
-
-];
-
-
+  const detectLanguage = (text: string) => {
+    if (text.trim().length < 10) return 'en-US'; // Default for short text
+    const detectedCode = franc(text, { minLength: 3 });
+    return francToLanguageCode[detectedCode] || 'en-US'; // Fallback to en-US
+  };
 
   useEffect(() => {
     setEditedText(extractedText);
+    const detected = detectLanguage(extractedText);
+    setDetectedLanguage(detected);
+    setSelectedLanguage(detected);
+    onLanguageSelect(detected);
   }, [extractedText]);
 
-  const handleLanguageChange = (language: string) => {
-    setSelectedLanguage(language);
-    setShowTranslateIcon(language !== "en-US");
-    onLanguageSelect(language);
+
+  const handleTextChange = (newText: string) => {
+    setEditedText(newText);
+    onTextUpdated(newText);
+    setDetectedLanguage(detectLanguage(newText));
+  };
+
+  const handleLanguageChange = (languageCode: string) => {
+    setSelectedLanguage(languageCode);
+    onLanguageSelect(languageCode);
   };
 
   const handleTranslateText = async () => {
-    if (!editedText.trim()) {
-      toast({
-        title: "No text to translate",
-        description: "Please enter some text first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // This is a placeholder for a real translation API call
+    if (!editedText.trim()) return;
     setIsTranslating(true);
-    onProcessingStart("Translating your text...");
-
+    onProcessingStart("Translating text...");
     try {
-      // Simple translation simulation
-      const targetLang = selectedLanguage.split('-')[0];
-      if (targetLang !== 'en') {
-        const translatedText = `[Translated to ${targetLang.toUpperCase()}] ${editedText}`;
-        setEditedText(translatedText);
-        toast({
-          title: "Text translated!",
-          description: `Translated to ${targetLang.toUpperCase()}`,
-        });
-      } else {
-        toast({
-          title: "No translation needed",
-          description: "Text is already in English",
-        });
-      }
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const translated = `[This is a simulated translation to ${selectedLanguage}] ... ${editedText}`;
+      setEditedText(translated);
+      onTextUpdated(translated);
+      // After translating, the new text should be detected as the target language
+      setDetectedLanguage(selectedLanguage);
+      toast({ title: "Text Translated (Simulated)", description: `The text has been translated to your selected language.` });
     } catch (error) {
-      console.error('Translation failed:', error);
-      toast({
-        title: "Translation failed",
-        description: "Unable to translate text. Please continue with your current text.",
-        variant: "destructive",
-      });
+       toast({ title: "Translation Failed", variant: "destructive" });
     } finally {
-      setIsTranslating(false);
-      onProcessingEnd();
+       setIsTranslating(false);
+       onProcessingEnd();
     }
   };
 
   const handleImproveText = async () => {
-    if (!editedText.trim()) {
-      toast({
-        title: "No text to improve",
-        description: "Please enter some text first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!editedText.trim()) return;
     setIsImproving(true);
-    onProcessingStart("Improving your text with AI...");
-
+    onProcessingStart("Improving text with AI...");
     try {
       const result = await GrammarService.checkGrammar(editedText);
-      const improvedText = result.correctedText;
-      if (improvedText && improvedText !== editedText) {
-        setEditedText(improvedText);
-        toast({
-          title: "Text improved!",
-          description: "Your text has been enhanced for better speech synthesis.",
-        });
+      if (result.correctedText && result.correctedText !== editedText) {
+        setEditedText(result.correctedText);
+        onTextUpdated(result.correctedText);
+        toast({ title: "Text Improved", description: "Grammar and phrasing have been enhanced." });
       } else {
-        toast({
-          title: "Text looks great!",
-          description: "No improvements needed for your text.",
-        });
+        toast({ title: "No Changes Needed", description: "Your text looks great!" });
       }
     } catch (error) {
-      console.error('Text improvement failed:', error);
-      toast({
-        title: "Improvement failed",
-        description: "Unable to improve text. Please continue with your current text.",
-        variant: "destructive",
-      });
+      toast({ title: "Improvement Failed", description: "Could not connect to the AI service.", variant: "destructive" });
     } finally {
       setIsImproving(false);
       onProcessingEnd();
     }
   };
 
-  // Calculate word count with 45-character rule (same as Step 1)
   const calculateDisplayWordCount = (text: string) => {
-    const words = text.trim().split(/\s+/).filter((w) => w.length > 0);
-    let totalWordCount = 0;
-    words.forEach((word) => {
-      if (word.length > 45) {
-        totalWordCount += Math.ceil(word.length / 45);
-      } else {
-        totalWordCount += 1;
-      }
-    });
-    return totalWordCount;
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    return words.reduce((acc, word) => acc + (word.length > 45 ? Math.ceil(word.length / 45) : 1), 0);
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-  const currentCharCount = editedText.replace(/\s/g, '').length;
-  const hasChanges = editedText !== extractedText;
-
-// In ModernStepTwo, when text changes:
-const handleTextChange = (newText: string) => {
-  setEditedText(newText);
-  onTextUpdated(newText); // Call parent handler
-};
+  // Show translate icon if the detected language of the text is different from the selected output language
+  const showTranslateIcon = editedText.trim() && detectedLanguage !== selectedLanguage;
 
   return (
     <div className="space-y-6">
@@ -228,43 +200,28 @@ const handleTextChange = (newText: string) => {
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center text-lg">
-            <Globe className="h-5 w-5 mr-2" />
-            Select Language
+            <Globe className="h-5 w-5 mr-2" /> Select Output Language
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Choose language for speech synthesis" />
-                </SelectTrigger>
-                <SelectContent>
-                  {languages.map((lang) => (
-                    <SelectItem key={lang.code} value={lang.code}>
-                      <div className="flex items-center space-x-2">
-                        <span>{lang.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {showTranslateIcon && (
-                <Button
-                  onClick={handleTranslateText}
-                  disabled={isTranslating || !editedText.trim()}
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0"
-                >
-                  <Languages className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <p className="text-sm text-gray-600">
-              Choose the language that matches your text for optimal speech synthesis quality.
-            </p>
+          <div className="flex gap-2 items-center">
+            <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Choose language" />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {showTranslateIcon && (
+              <Button onClick={handleTranslateText} disabled={isTranslating} variant="outline" size="icon" title={`Translate text to ${languages.find(l => l.code === selectedLanguage)?.name}`}>
+                <Languages className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -273,114 +230,61 @@ const handleTextChange = (newText: string) => {
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center text-lg">
-  <Edit3 className="h-5 w-5 mr-2" />
-  Review & Edit Text
-</CardTitle>
-
-<div className="flex flex-wrap items-center max-w-[430px]">
-  {/* Left-aligned badge */}
-  <div className="flex items-center space-x-2">
-    <Badge variant={hasChanges ? "default" : "secondary"}>
-      {currentWordCount}
-    </Badge>
-    {hasChanges && (
-      <Badge variant="outline" className="text-orange-600 border-orange-200">
-        Edited
-      </Badge>
-    )}
-  </div>
-</div>
-</div>
-
-
+            <CardTitle className="flex items-center text-lg">
+              <Edit3 className="h-5 w-5 mr-2" /> Review & Edit Text
+            </CardTitle>
+            <Badge variant={"secondary"}>{currentWordCount} Words</Badge>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div>
-              <Textarea
-                value={editedText}
-                onChange={(e) => 
-                   setEditedText(e.target.value)
-                  }
-          
-                placeholder="Review and edit your text here..."
-                className="min-h-[200px] resize-none text-base leading-relaxed"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-Edit your text to ensure it sounds natural when convert to Voice.
-              
-</p>
-            </div>
-
-            {/* AI Improvement */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                onClick={handleImproveText}
-                disabled={isImproving || isTranslating || !editedText.trim()}
-                variant="outline"
-                className="flex-1"
-              >
-                <Wand2 className="h-4 w-4 mr-2" />
-                {isImproving ? "Improving..." : "Improve with AI"}
-              </Button>
-              
-              <div className="flex items-center space-x-2">
-                <BookOpen className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">
-                  Auto-enhance for speech
-                </span>
-              </div>
+          <Textarea
+            value={editedText}
+            onChange={(e) => handleTextChange(e.target.value)}
+            placeholder="Your text will appear here. You can edit it before proceeding..."
+            className="min-h-[200px] resize-none text-base leading-relaxed"
+          />
+          <div className="flex flex-col sm:flex-row gap-3 mt-3">
+            <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim()} variant="outline" className="flex-1">
+              <Wand2 className="h-4 w-4 mr-2" /> {isImproving ? "Improving..." : "Improve with AI"}
+            </Button>
+            <div className="flex items-center space-x-2 justify-center text-muted-foreground">
+              <BookOpen className="h-4 w-4" />
+              <span className="text-sm">Auto-enhances for natural speech</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Text Statistics */}
-      <Card className="bg-gray-50/50">
+       <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
-              <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                <div className="text-lg sm:text-2xl font-bold text-gray-900">{currentWordCount}</div>
-                <div className="text-xs sm:text-sm text-gray-600">Words</div>
-              </div>
-              <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                <div className="text-lg sm:text-2xl font-bold text-gray-900">{editedText.length}</div>
-                <div className="text-xs sm:text-sm text-gray-600">Characters</div>
-              </div>
-              <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                <div className="text-lg sm:text-2xl font-bold text-gray-900">
-                  {Math.ceil(currentWordCount / 150)}min
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Est. Minutes</div>
-              </div>
-              <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                <div className="text-lg sm:text-2xl font-bold text-blue-600">
-                  {selectedLanguage.split('-')[0].toUpperCase()}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Language</div>
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
+            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold">{currentWordCount}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Words</div>
             </div>
+            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold">{editedText.length}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Characters</div>
+            </div>
+            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold">~{Math.ceil(currentWordCount / 150)} min</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Speaking Time</div>
+            </div>
+             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+               <div className="text-lg sm:text-2xl font-bold text-primary truncate">{languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}</div>
+               <div className="text-xs sm:text-sm text-muted-foreground">Selected Language</div>
+             </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Navigation */}
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
-        <Button
-          onClick={onPrevious}
-          variant="outline"
-          disabled={isImproving || isTranslating}
-          className="order-2 sm:order-1 text-sm"
-        >
+        <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating} className="order-2 sm:order-1">
           Back to Upload
         </Button>
-        
-        <Button
-          onClick={onNext}
-          disabled={!editedText.trim() || isImproving || isTranslating}
-          size="lg"
-          className="px-6 sm:px-8 order-1 sm:order-2 text-sm"
-        >
+        <Button onClick={onNext} disabled={!editedText.trim() || isImproving || isTranslating} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
           Continue to Voice Selection
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>

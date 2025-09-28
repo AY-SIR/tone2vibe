@@ -1,4 +1,4 @@
-
+// src/components/tool/ModernStepThree.tsx
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,67 @@ import { VoiceUpload } from "@/components/tool/VoiceUpload";
 import { VoiceHistoryDropdown } from "@/components/tool/VoiceHistoryDropdown";
 import { PrebuiltVoiceService, type PrebuiltVoice } from "@/services/prebuiltVoiceService";
 import { UploadLimitService } from "@/services/uploadLimitService";
+
+// --- FIX ---
+// Define the large, static list of paragraphs outside the component.
+// This is more performant and prevents re-render issues.
+const sampleParagraphs: { [key: string]: string } = {
+    "hi-IN": "सूरज की हल्की किरणें आज बहुत सुंदर हैं। बच्चे पार्क में खेल रहे हैं और लोग बाजार में अपने कामों में व्यस्त हैं। थोड़ी देर बाहर निकलकर ताज़ी हवा का आनंद लें।",
+    "bn-IN": "आज সূর্যের আলো কোমল এবং সুন্দর। শিশুরা পার্কে খেলা করছে, মানুষ বাজারে ব্যস্ত। বাইরে একটু সময় কাটিয়ে প্রকৃতির মজা নিন।",
+    "ta-IN": "இன்று காலை சூரியன் மென்மையான ஒளியை வழங்குகிறது. குழந்தைகள் பூங்காவில் விளையாடுகின்றனர், மக்கள் சந்தையில் பிஸியாக இருக்கிறார்கள். சிறிது நேரம் எடுத்துக் கொண்டு வெளியில் நடைபயிற்சி செய்யவும்.",
+    "te-IN": "ఈ ఉదయం సూర్యకాంతి చాలా మృదువుగా ఉంది. పిల్లలు పార్క్‌లో ఆడుతున్నారు, మరియు మార్కెట్‌లో వ్యాపారులు పని చేస్తున్నారు. కొంచెం సమయం తీసుకుని బయట నడవండి.",
+    "mr-IN": "आज सकाळी सूर्यप्रकाश सौम्य आहे. मुलं उद्यानात खेळत आहेत आणि लोक बाजारात व्यस्त आहेत. थोडा वेळ बाहेर घालवून ताजी हवा श्वास घ्या.",
+    "gu-IN": "આ સવારે સૂર્યની કિરણો ખૂબ નમ્ર છે. બાળકો પાર્કમાં રમ્યા કરે છે અને લોકો બજારમાં વ્યસ્ત છે. થોડો સમય બહાર જઈને તાજી હવા માણો.",
+    "kn-IN": "ಇಂದು ಬೆಳಿಗ್ಗೆ ಸೂರ್ಯನ ಬೆಳಕು ಮೃದುವಾಗಿದೆ. ಮಕ್ಕಳು ಪಾರ್ಕ್‌ನಲ್ಲಿ ಆಟವಾಡುತ್ತಿದ್ದಾರೆ, ಜನರು ಮಾರುಕಟ್ಟೆಯಲ್ಲಿ ವ್ಯಸ್ತರಾಗಿದ್ದಾರೆ. ಸ್ವಲ್ಪ ಸಮಯ ತೆಗೆದು ಹೊರಗೆ ನಡಿಗೆ ಮಾಡಿ.",
+    "ml-IN": "ഇന്ന് രാവിലെ സൂര്യപ്രകാശം വളരെ മൃദുവാണ്. കുട്ടികൾ പാർക്കിൽ കളിക്കുന്നു, ആളുകൾ ബസാറിൽ ബിസിയാണ്. കുറച്ച് സമയം എടുത്ത് പുറത്ത് സഞ്ചരിക്കുക.",
+    "pa-IN": "ਅੱਜ ਸਵੇਰੇ ਸੂਰਜ ਦੀ ਰੌਸ਼ਨੀ ਨਰਮ ਹੈ। ਬੱਚੇ ਪਾਰਕ ਵਿੱਚ ਖੇਡ ਰਹੇ ਹਨ ਅਤੇ ਲੋਕ ਬਾਜ਼ਾਰ ਵਿੱਚ ਵਿਅਸਤ ਹਨ। ਕੁਝ ਸਮਾਂ ਬਾਹਰ ਤਾਜ਼ੀ ਹਵਾ ਵਿੱਚ ਬਿਤਾਓ।",
+    "or-IN": "ଆଜି ସକାଳି ସୂର୍ଯ୍ୟର ଆଲୋକ ସୁମଧୁର। ଶିଶୁମାନେ ପାର୍କରେ ଖେଳୁଛନ୍ତି, ଲୋକ ଚାରିପାଖରେ ବ୍ୟସ୍ତ। ବାହାର ଯାଇ ସ୍ୱଚ୍ଛ ହাওର ଆନନ୍ଦ ନିଅନ୍ତୁ।",
+    "as-IN": "আজিৰ পুৱা সূৰ্য্যৰ পোহৰ মৃদু। শিশুবোৰ পাৰ্কত খেলি আছে, মানুহে বজাৰত ব্যস্ত। অলপ সময় উলিয়াই বাহিৰে বাতাস উপভোগ কৰক।",
+    "ur-IN": "آج صبح سورج کی روشنی بہت ہلکی ہے۔ بچے پارک میں کھیل رہے ہیں اور لوگ بازار میں مصروف ہیں۔ کچھ وقت باہر تازہ ہوا میں گزاریں۔",
+    "ne-IN": "आज मौसम रमाइलो छ। बच्चाहरु पार्कमा खेल्दै छन्, मानिसहरु बजारमा व्यस्त छन्। केही समय बाहिर गई ताजा हावा खानुहोस्।",
+    "doi-IN": "आज मौसम बढ़िया है। बच्चे खेल रहे हैं और लोग अपने काम में व्यस्त हैं। थोड़ी देर बाहर निकलकर ताजी हवा का आनंद लें।",
+    "ks-IN": "آج کا موسم خوشگوار ہے۔ بچے پارک میں کھیل رہے ہیں اور لوگ بازار میں مصروف ہیں۔ تھوڑا وقت باہر نکل کر تازہ ہوا میں لطف اٹھائیں۔",
+    "mni-IN": "আজ সকালটা খুব সুন্দর। ছেলেমেয়েরা পার্কে খেলছে এবং মানুষ বাজারে ব্যস্ত। বাইরে একটু সময় কাটান।",
+    "sd-IN": "اڄ صبح جو موسم خوشگوار آهي. ٻار پارڪ ۾ کيڏي رهيا آهن ۽ ماڻهو بازار ۾ مصروف آهن. ٿورو وقت ٻاهر نڪري تازو هوا وٺو.",
+    "en-US": "This morning, the city streets are lively. People are heading to work, and street vendors are setting up their stalls. Take a moment to enjoy the buzz of the city and the aroma of fresh coffee.",
+    "en-GB": "The morning city scene is bustling. Commuters make their way to work while vendors arrange their goods. Pause and enjoy the hum of life and the scent of fresh bread.",
+    "es-ES": "Hoy el parque de la ciudad está lleno de vida. Los niños juegan, los corredores mantienen su ritmo, y el aroma de las flores frescas llena el aire. Disfruta del momento.",
+    "es-MX": "Esta mañana, las calles del parque están activas. Los niños corren, los vendedores colocan sus productos, y el aire huele a flores frescas.",
+    "fr-FR": "Aujourd'hui, le parc de la ville est animé. Les enfants jouent, les coureurs suivent leur rythme, et le parfum des fleurs fraîches emplit l'air. Prenez un moment pour apprécier.",
+    "fr-CA": "Ce matin, le parc est vivant. Les enfants jouent, les adultes se déplacent, et l'air est rempli du parfum des fleurs. Profitez de ce moment.",
+    "de-DE": "Heute ist der Stadtpark voller Leben. Kinder spielen, Jogger laufen, und der Duft frischer Blumen liegt in der Luft. Genießen Sie den Moment.",
+    "it-IT": "Questa mattina il parco della città è vivace. I bambini giocano, le persone passeggiano e l'aria è piena di profumo di fiori freschi.",
+    "pt-PT": "Esta manhã, o parque da cidade está animado. As crianças brincam, os vendedores arrumam os produtos e o ar está cheio de flores frescas.",
+    "pt-BR": "Hoje pela manhã, o parque está cheio de vida. Crianças brincam, vendedores organizam suas barracas e o aroma das flores frescas está no ar.",
+    "ru-RU": "Сегодня утром городской парк оживлен. Дети играют, люди идут по делам, а воздух наполнен ароматом свежих цветов.",
+    "zh-CN": "今天早晨，公园里生机勃勃。孩子们在玩耍，街边的小贩摆好摊位，空气中弥漫着花香。",
+    "zh-TW": "今天早晨，公園裡充滿生氣。孩子們在玩耍，小販擺好攤位，空氣中充滿花香。",
+    "ja-JP": "今朝、市内の公園は活気にあふれています。子どもたちが遊び、屋台が準備をしています。新鮮な花の香りを楽しんでください。",
+    "ko-KR": "오늘 아침, 도시 공원은 활기차요. 아이들이 놀고, 상인들이 가판대를 정리하며, 공기는 꽃향기로 가득합니다.",
+    "ar-SA": "هذا الصباح، الحديقة العامة مليئة بالحياة. الأطفال يلعبون والبائعون يرتبون أكشاكهم. استمتع بجو المدينة ورائحة الزهور.",
+    "tr-TR": "Bu sabah şehir parkı canlı. Çocuklar oynuyor, satıcılar tezgahlarını hazırlıyor. Şehrin hareketliliğinin tadını çıkarın.",
+    "nl-NL": "Vanmorgen is het stadspark levendig. Kinderen spelen, verkopers zetten hun kramen op, en de lucht ruikt naar bloemen.",
+    "sv-SE": "I morse var stadsparken livlig. Barn leker, försäljare ställer upp sina stånd och luften är fylld med doften av blommor.",
+    "no-NO": "I dag morges er byparken full av liv. Barn leker, selgere setter opp bodene sine, og luften er fylt med blomsterduft.",
+    "da-DK": "I morges er byparken fuld af liv. Børn leger, sælgere gør deres boder klar, og luften dufter af blomster.",
+    "fi-FI": "Tänä aamuna kaupunkipuisto on vilkas. Lapset leikkivät, myyjät laittavat kojujaan ja ilma on täynnä kukkien tuoksua.",
+    "cs-CZ": "Dnes ráno je městský park plný života. Děti si hrají, prodejci připravují stánky a vzduch je plný vůně květin.",
+    "el-GR": "Αυτό το πρωί, το πάρκο της πόλης ζωντανεύει. Τα παιδιά παίζουν, οι πωλητές στήνουν τα περίπτερά τους και η ατμόσφαιρα μυρίζει λουλούδια.",
+    "he-IL": "הבוקר הפארק העירוני מלא חיים. ילדים משחקים, מוכרים מסדרים את הדוכנים שלהם, והאוויר מלא בריח פרחים.",
+    "th-TH": "เช้านี้ สวนสาธารณะในเมืองคึกคัก เด็ก ๆ กำลังเล่น และพ่อค้าเตรียมร้านของตน กลิ่นดอกไม้หอมฟุ้งไปทั่วบริเวณ",
+    "vi-VN": "Sáng nay, công viên thành phố rất nhộn nhịp. Trẻ em chơi đùa, các người bán dọn quầy, không khí tràn ngập mùi hoa tươi.",
+    "id-ID": "Pagi ini, taman kota ramai. Anak-anak bermain, para pedagang menata kios mereka, dan udara dipenuhi aroma bunga segar.",
+    "ms-MY": "Pagi ini, taman bandar penuh dengan aktiviti. Kanak-kanak bermain, penjual menyusun gerai, dan udara dipenuhi bau bunga segar.",
+    "fa-IR": "صبح امروز، پارک شهری پرجنب‌وجوش است. کودکان بازی می‌کنند, فروشندگان بساط خود را پهن می‌کنند و هوا پر از بوی گل است.",
+    "uk-UA": "Сьогодні вранці міський парк сповнений життя. Діти грають, продавці облаштовують свої намети, а повітря наповнене запахом квітів.",
+    "ro-RO": "În această dimineață, parcul orașului este plin de viață. Copiii se joacă, vânzătorii își aranjează tarabele, iar aerul este plin de miros de flori.",
+    "sk-SK": "Dnes ráno je mestský park plný života. Deti sa hrajú, predajcovia pripravujú svoje stánky a vzduch je plný vône kvetov.",
+    "sl-SI": "Danes zjutraj je mestni park živahen. Otroci se igrajo, prodajalci pripravljajo stojnice, zrak pa je poln vonja cvetja.",
+    "hr-HR": "Jutros je gradski park pun života. Djeca se igraju, prodavači postavljaju svoje štandove, a zrak je ispunjen mirisom cvijeća.",
+    "sr-RS": "Jutros je gradski park pun života. Deca se igraju, prodavci postavljaju štandove, a vazduh je ispunjen mirisom cveća.",
+    "bg-BG": "Тази сутрин градският парк е оживен. Децата играят, продавачите подреждат щандовете си, а въздухът е пълен с аромат на цветя.",
+    "lt-LT": "Šį rytą miesto parkas pilnas gyvybės. Vaikai žaidžia, prekeiviai ruošia savo stalus, o oras pilnas gėlių kvapo."
+};
 
 interface ModernStepThreeProps {
   onNext: () => void;
@@ -50,7 +111,6 @@ export default function ModernStepThree({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
-  const [sampleParagraphs, setSampleParagraphs] = useState<{ [key: string]: string }>({});
   const [prebuiltVoices, setPrebuiltVoices] = useState<PrebuiltVoice[]>([]);
   const [filteredVoices, setFilteredVoices] = useState<PrebuiltVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
@@ -61,72 +121,11 @@ export default function ModernStepThree({
 
   const clearSelection = () => {
     setSelectedVoice(null);
-    // Reset parent state by sending empty/null values
     onVoiceRecorded(new Blob());
     onVoiceSelect('');
   };
 
-  useEffect(() => {
-    const paragraphs = {
-        // ... (all your language paragraphs remain here, unchanged)
-        "hi-IN": "सूरज की हल्की किरणें आज बहुत सुंदर हैं। बच्चे पार्क में खेल रहे हैं और लोग बाजार में अपने कामों में व्यस्त हैं। थोड़ी देर बाहर निकलकर ताज़ी हवा का आनंद लें।",
-        "bn-IN": "আজ সূর্যের আলো কোমল এবং সুন্দর। শিশুরা পার্কে খেলা করছে, মানুষ বাজারে ব্যস্ত। বাইরে একটু সময় কাটিয়ে প্রকৃতির মজা নিন।",
-        "ta-IN": "இன்று காலை சூரியன் மென்மையான ஒளியை வழங்குகிறது. குழந்தைகள் பூங்காவில் விளையாடுகின்றனர், மக்கள் சந்தையில் பிஸியாக இருக்கிறார்கள். சிறிது நேரம் எடுத்துக் கொண்டு வெளியில் நடைபயிற்சி செய்யவும்.",
-        "te-IN": "ఈ ఉదయం సూర్యకాంతి చాలా మృదువుగా ఉంది. పిల్లలు పార్క్‌లో ఆడుతున్నారు, మరియు మార్కెట్‌లో వ్యాపారులు పని చేస్తున్నారు. కొంచెం సమయం తీసుకుని బయట నడవండి.",
-        "mr-IN": "आज सकाळी सूर्यप्रकाश सौम्य आहे. मुलं उद्यानात खेळत आहेत आणि लोक बाजारात व्यस्त आहेत. थोडा वेळ बाहेर घालवून ताजी हवा श्वास घ्या.",
-        "gu-IN": "આ સવારે સૂર્યની કિરણો ખૂબ નમ્ર છે. બાળકો પાર્કમાં રમ્યા કરે છે અને લોકો બજારમાં વ્યસ્ત છે. થોડો સમય બહાર જઈને તાજી હવા માણો.",
-        "kn-IN": "ಇಂದು ಬೆಳಿಗ್ಗೆ ಸೂರ್ಯನ ಬೆಳಕು ಮೃದುವಾಗಿದೆ. ಮಕ್ಕಳು ಪಾರ್ಕ್‌ನಲ್ಲಿ ಆಟವಾಡುತ್ತಿದ್ದಾರೆ, ಜನರು ಮಾರುಕಟ್ಟೆಯಲ್ಲಿ ವ್ಯಸ್ತರಾಗಿದ್ದಾರೆ. ಸ್ವಲ್ಪ ಸಮಯ ತೆಗೆದು ಹೊರಗೆ ನಡಿಗೆ ಮಾಡಿ.",
-        "ml-IN": "ഇന്ന് രാവിലെ സൂര്യപ്രകാശം വളരെ മൃദുവാണ്. കുട്ടികൾ പാർക്കിൽ കളിക്കുന്നു, ആളുകൾ ബസാറിൽ ബിസിയാണ്. കുറച്ച് സമയം എടുത്ത് പുറത്ത് സഞ്ചരിക്കുക.",
-        "pa-IN": "ਅੱਜ ਸਵੇਰੇ ਸੂਰਜ ਦੀ ਰੌਸ਼ਨੀ ਨਰਮ ਹੈ। ਬੱਚੇ ਪਾਰਕ ਵਿੱਚ ਖੇਡ ਰਹੇ ਹਨ ਅਤੇ ਲੋਕ ਬਾਜ਼ਾਰ ਵਿੱਚ ਵਿਅਸਤ ਹਨ। ਕੁਝ ਸਮਾਂ ਬਾਹਰ ਤਾਜ਼ੀ ਹਵਾ ਵਿੱਚ ਬਿਤਾਓ।",
-        "or-IN": "ଆଜି ସକାଳି ସୂର୍ଯ୍ୟର ଆଲୋକ ସୁମଧୁର। ଶିଶୁମାନେ ପାର୍କରେ ଖେଳୁଛନ୍ତି, ଲୋକ ଚାରିପାଖରେ ବ୍ୟସ୍ତ। ବାହାର ଯାଇ ସ୍ୱଚ୍ଛ ହাওର ଆନନ୍ଦ ନିଅନ୍ତୁ।",
-        "as-IN": "আজিৰ পুৱা সূৰ্য্যৰ পোহৰ মৃদু। শিশুবোৰ পাৰ্কত খেলি আছে, মানুহে বজাৰত ব্যস্ত। অলপ সময় উলিয়াই বাহিৰে বাতাস উপভোগ কৰক।",
-        "ur-IN": "آج صبح سورج کی روشنی بہت ہلکی ہے۔ بچے پارک میں کھیل رہے ہیں اور لوگ بازار میں مصروف ہیں۔ کچھ وقت باہر تازہ ہوا میں گزاریں۔",
-        "ne-IN": "आज मौसम रमाइलो छ। बच्चाहरु पार्कमा खेल्दै छन्, मानिसहरु बजारमा व्यस्त छन्। केही समय बाहिर गई ताजा हावा खानुहोस्।",
-        "doi-IN": "आज मौसम बढ़िया है। बच्चे खेल रहे हैं और लोग अपने काम में व्यस्त हैं। थोड़ी देर बाहर निकलकर ताजी हवा का आनंद लें।",
-        "ks-IN": "آج کا موسم خوشگوار ہے۔ بچے پارک میں کھیل رہے ہیں اور لوگ بازار میں مصروف ہیں۔ تھوڑا وقت باہر نکل کر تازہ ہوا میں لطف اٹھائیں۔",
-        "mni-IN": "আজ সকালটা খুব সুন্দর। ছেলেমেয়েরা পার্কে খেলছে এবং মানুষ বাজারে ব্যস্ত। বাইরে একটু সময় কাটান।",
-        "sd-IN": "اڄ صبح جو موسم خوشگوار آهي. ٻار پارڪ ۾ کيڏي رهيا آهن ۽ ماڻهو بازار ۾ مصروف آهن. ٿورو وقت ٻاهر نڪري تازو هوا وٺو.",
-        "en-US": "This morning, the city streets are lively. People are heading to work, and street vendors are setting up their stalls. Take a moment to enjoy the buzz of the city and the aroma of fresh coffee.",
-        "en-GB": "The morning city scene is bustling. Commuters make their way to work while vendors arrange their goods. Pause and enjoy the hum of life and the scent of fresh bread.",
-        "es-ES": "Hoy el parque de la ciudad está lleno de vida. Los niños juegan, los corredores mantienen su ritmo, y el aroma de las flores frescas llena el aire. Disfruta del momento.",
-        "es-MX": "Esta mañana, las calles del parque están activas. Los niños corren, los vendedores colocan sus productos, y el aire huele a flores frescas.",
-        "fr-FR": "Aujourd'hui, le parc de la ville est animé. Les enfants jouent, les coureurs suivent leur rythme, et le parfum des fleurs fraîches emplit l'air. Prenez un moment pour apprécier.",
-        "fr-CA": "Ce matin, le parc est vivant. Les enfants jouent, les adultes se déplacent, et l'air est rempli du parfum des fleurs. Profitez de ce moment.",
-        "de-DE": "Heute ist der Stadtpark voller Leben. Kinder spielen, Jogger laufen, und der Duft frischer Blumen liegt in der Luft. Genießen Sie den Moment.",
-        "it-IT": "Questa mattina il parco della città è vivace. I bambini giocano, le persone passeggiano e l'aria è piena di profumo di fiori freschi.",
-        "pt-PT": "Esta manhã, o parque da cidade está animado. As crianças brincam, os vendedores arrumam os produtos e o ar está cheio de flores frescas.",
-        "pt-BR": "Hoje pela manhã, o parque está cheio de vida. Crianças brincam, vendedores organizam suas barracas e o aroma das flores frescas está no ar.",
-        "ru-RU": "Сегодня утром городской парк оживлен. Дети играют, люди идут по делам, а воздух наполнен ароматом свежих цветов.",
-        "zh-CN": "今天早晨，公园里生机勃勃。孩子们在玩耍，街边的小贩摆好摊位，空气中弥漫着花香。",
-        "zh-TW": "今天早晨，公園裡充滿生氣。孩子們在玩耍，小販擺好攤位，空氣中充滿花香。",
-        "ja-JP": "今朝、市内の公園は活気にあふれています。子どもたちが遊び、屋台が準備をしています。新鮮な花の香りを楽しんでください。",
-        "ko-KR": "오늘 아침, 도시 공원은 활기차요. 아이들이 놀고, 상인들이 가판대를 정리하며, 공기는 꽃향기로 가득합니다.",
-        "ar-SA": "هذا الصباح، الحديقة العامة مليئة بالحياة. الأطفال يلعبون والبائعون يرتبون أكشاكهم. استمتع بجو المدينة ورائحة الزهور.",
-        "tr-TR": "Bu sabah şehir parkı canlı. Çocuklar oynuyor, satıcılar tezgahlarını hazırlıyor. Şehrin hareketliliğinin tadını çıkarın.",
-        "nl-NL": "Vanmorgen is het stadspark levendig. Kinderen spelen, verkopers zetten hun kramen op, en de lucht ruikt naar bloemen.",
-        "sv-SE": "I morse var stadsparken livlig. Barn leker, försäljare ställer upp sina stånd och luften är fylld med doften av blommor.",
-        "no-NO": "I dag morges er byparken full av liv. Barn leker, selgere setter opp bodene sine, og luften er fylt med blomsterduft.",
-        "da-DK": "I morges er byparken fuld af liv. Børn leger, sælgere gør deres boder klar, og luften dufter af blomster.",
-        "fi-FI": "Tänä aamuna kaupunkipuisto on vilkas. Lapset leikkivät, myyjät laittavat kojujaan ja ilma on täynnä kukkien tuoksua.",
-        "cs-CZ": "Dnes ráno je městský park plný života. Děti si hrají, prodejci připravují stánky a vzduch je plný vůně květin.",
-        "el-GR": "Αυτό το πρωί, το πάρκο της πόλης ζωντανεύει. Τα παιδιά παίζουν, οι πωλητές στήνουν τα περίπτερά τους και η ατμόσφαιρα μυρίζει λουλούδια.",
-        "he-IL": "הבוקר הפארק העירוני מלא חיים. ילדים משחקים, מוכרים מסדרים את הדוכנים שלהם, והאוויר מלא בריח פרחים.",
-        "th-TH": "เช้านี้ สวนสาธารณะในเมืองคึกคัก เด็ก ๆ กำลังเล่น และพ่อค้าเตรียมร้านของตน กลิ่นดอกไม้หอมฟุ้งไปทั่วบริเวณ",
-        "vi-VN": "Sáng nay, công viên thành phố rất nhộn nhịp. Trẻ em chơi đùa, các người bán dọn quầy, không khí tràn ngập mùi hoa tươi.",
-        "id-ID": "Pagi ini, taman kota ramai. Anak-anak bermain, para pedagang menata kios mereka, dan udara dipenuhi aroma bunga segar.",
-        "ms-MY": "Pagi ini, taman bandar penuh dengan aktiviti. Kanak-kanak bermain, penjual menyusun gerai, dan udara dipenuhi bau bunga segar.",
-        "fa-IR": "صبح امروز، پارک شهری پرجنب‌وجوش است. کودکان بازی می‌کنند, فروشندگان بساط خود را پهن می‌کنند و هوا پر از بوی گل است.",
-        "uk-UA": "Сьогодні вранці міський парк сповнений життя. Діти грають, продавці облаштовують свої намети, а повітря наповнене запахом квітів.",
-        "ro-RO": "În această dimineață, parcul orașului este plin de viață. Copiii se joacă, vânzătorii își aranjează tarabele, iar aerul este plin de miros de flori.",
-        "sk-SK": "Dnes ráno je mestský park plný života. Deti sa hrajú, predajcovia pripravujú svoje stánky a vzduch je plný vône kvetov.",
-        "sl-SI": "Danes zjutraj je mestni park živahen. Otroci se igrajo, prodajalci pripravljajo stojnice, zrak pa je poln vonja cvetja.",
-        "hr-HR": "Jutros je gradski park pun života. Djeca se igraju, prodavači postavljaju svoje štandove, a zrak je ispunjen mirisom cvijeća.",
-        "sr-RS": "Jutros je gradski park pun života. Deca se igraju, prodavci postavljaju štandove, a vazduh je ispunjen mirisom cveća.",
-        "bg-BG": "Тази сутрин градският парк е оживен. Децата играят, продавачите подреждат щандовете си, а въздухът е пълен с аромат на цветя.",
-        "lt-LT": "Šį rytą miesto parkas pilnas gyvybės. Vaikai žaidžia, prekeiviai ruošia savo stalus, o oras pilnas gėlių kvapo."
-    };
-    setSampleParagraphs(paragraphs);
-  }, []);
+  // This useEffect for paragraphs is now removed from here.
 
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
@@ -144,18 +143,13 @@ export default function ModernStepThree({
     loadPrebuiltVoices();
   }, [voiceMethod, canUsePrebuilt, profile?.plan, toast]);
 
-  // *** FIX APPLIED HERE ***
-  // Filters voices by selected language and then by the search term.
   useEffect(() => {
     let filtered = prebuiltVoices;
-
-    // 1. Filter by selected language first.
-    // Assuming the voice object from your service has a 'language_code' property.
     if (selectedLanguage) {
-      filtered = filtered.filter(voice => voice.language_code === selectedLanguage);
+      // NOTE: Ensure your PrebuiltVoice object has a property named 'language'
+      // that matches the codes (e.g., 'hi-IN').
+      filtered = filtered.filter(voice => voice.language === selectedLanguage);
     }
-
-    // 2. Then, apply the search term on the language-filtered list.
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(v =>
@@ -165,9 +159,8 @@ export default function ModernStepThree({
         (v.accent?.toLowerCase().includes(term))
       );
     }
-
     setFilteredVoices(filtered);
-  }, [selectedLanguage, searchTerm, prebuiltVoices]); // Dependencies that trigger re-filtering
+  }, [selectedLanguage, searchTerm, prebuiltVoices]);
 
   const handleVoiceRecorded = (blob: Blob) => {
     clearSelection();
@@ -215,6 +208,9 @@ export default function ModernStepThree({
     }
   };
 
+  // --- FIX ---
+  // Directly look up the paragraph from the constant object using the prop.
+  // This is more direct and reliable.
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
 
   return (
@@ -285,7 +281,7 @@ export default function ModernStepThree({
           </Card>
         </TabsContent>
 
-        
+
          {/* Prebuilt Tab */}
         <TabsContent value="prebuilt" className="space-y-4">
           {canUsePrebuilt ? (
