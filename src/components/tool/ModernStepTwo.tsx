@@ -98,23 +98,176 @@ const ModernStepTwo = ({
   ];
 
   // Comprehensive map from franc's 3-letter codes to your xx-YY format
-  const francToLanguageCode: Record<string, string> = {
-    'arb': 'ar-SA', 'asm': 'as-IN', 'bul': 'bg-BG', 'ben': 'bn-IN',
-    'ces': 'cs-CZ', 'dan': 'da-DK', 'nld': 'nl-NL', 'eng': 'en-US',
-    'fin': 'fi-FI', 'fra': 'fr-FR', 'deu': 'de-DE', 'ell': 'el-GR',
-    'guj': 'gu-IN', 'heb': 'he-IL', 'hin': 'hi-IN', 'bho': 'hi-IN', // Mapping Bhojpuri to Hindi
-    'hrv': 'hr-HR', 'ind': 'id-ID', 'ita': 'it-IT', 'jpn': 'ja-JP',
-    'kan': 'kn-IN', 'kas': 'ks-IN', 'kor': 'ko-KR', 'lit': 'lt-LT',
-    'msa': 'ms-MY', 'mal': 'ml-IN', 'mar': 'mr-IN', 'nep': 'ne-IN',
-    'nor': 'no-NO', 'ory': 'or-IN', 'pan': 'pa-IN', 'pes': 'fa-IR',
-    'por': 'pt-BR', 'ron': 'ro-RO', 'rus': 'ru-RU', 'san': 'sa-IN',
-    'snd': 'sd-IN', 'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
-    'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN', 'tel': 'te-IN',
-    'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA', 'urd': 'ur-IN',
-    'vie': 'vi-VN', 'cmn': 'zh-CN',
-    // Add other less common ones if needed
-    'dgo': 'doi-IN', 'mni': 'mni-IN',
-  };
+const francToLanguageCode: Record<string, string> = {
+  'afr': 'af-ZA', // Afrikaans
+  'amh': 'am-ET', // Amharic
+  'arb': 'ar-SA', // Arabic
+  'asm': 'as-IN', // Assamese
+  'ava': 'av-RU', // Avaric
+  'aym': 'ay-BO', // Aymara
+  'aze': 'az-AZ', // Azerbaijani
+  'bak': 'ba-RU', // Bashkir
+  'bar': 'bar-DE', // Bavarian
+  'bel': 'be-BY', // Belarusian
+  'ben': 'bn-IN', // Bengali
+  'bho': 'hi-IN', // Bhojpuri (Mapped to Hindi)
+  'bos': 'bs-BA', // Bosnian
+  'bpy': 'bpy-IN', // Bishnupriya
+  'bre': 'br-FR', // Breton
+  'bul': 'bg-BG', // Bulgarian
+  'bua': 'bua-RU', // Buryat
+  'cat': 'ca-ES', // Catalan
+  'ceb': 'ceb-PH', // Cebuano
+  'ces': 'cs-CZ', // Czech
+  'che': 'ce-RU', // Chechen
+  'chm': 'chm-RU', // Mari (Russia)
+  'chv': 'cv-RU', // Chuvash
+  'cmn': 'zh-CN', // Chinese (Mandarin)
+  'cor': 'kw-GB', // Cornish
+  'cos': 'co-FR', // Corsican
+  'cym': 'cy-GB', // Welsh
+  'dan': 'da-DK', // Danish
+  'deu': 'de-DE', // German
+  'div': 'dv-MV', // Dhivehi
+  'dsb': 'dsb-DE', // Lower Sorbian
+  'dzo': 'dz-BT', // Dzongkha
+  'ell': 'el-GR', // Greek
+  'eng': 'en-US', // English
+  'epo': 'eo',    // Esperanto
+  'est': 'et-EE', // Estonian
+  'eus': 'eu-ES', // Basque
+  'fao': 'fo-FO', // Faroese
+  'fij': 'fj-FJ', // Fijian
+  'fin': 'fi-FI', // Finnish
+  'fra': 'fr-FR', // French
+  'fry': 'fy-NL', // Western Frisian
+  'gla': 'gd-GB', // Scottish Gaelic
+  'gle': 'ga-IE', // Irish
+  'glg': 'gl-ES', // Galician
+  'gom': 'gom-IN', // Goan Konkani
+  'grn': 'gn-PY', // Guarani
+  'guj': 'gu-IN', // Gujarati
+  'hat': 'ht-HT', // Haitian
+  'hau': 'ha-NG', // Hausa
+  'heb': 'he-IL', // Hebrew
+  'hif': 'hif-FJ', // Fiji Hindi
+  'hil': 'hil-PH', // Hiligaynon
+  'hin': 'hi-IN', // Hindi
+  'hrv': 'hr-HR', // Croatian
+  'hsb': 'hsb-DE', // Upper Sorbian
+  'hun': 'hu-HU', // Hungarian
+  'hye': 'hy-AM', // Armenian
+  'ido': 'io',    // Ido
+  'iii': 'ii-CN', // Sichuan Yi
+  'ilo': 'ilo-PH', // Iloko
+  'ina': 'ia',    // Interlingua
+  'ind': 'id-ID', // Indonesian
+  'isl': 'is-IS', // Icelandic
+  'ita': 'it-IT', // Italian
+  'jav': 'jv-ID', // Javanese
+  'jpn': 'ja-JP', // Japanese
+  'kaa': 'kaa-UZ', // Karakalpak
+  'kat': 'ka-GE', // Georgian
+  'kaz': 'kk-KZ', // Kazakh
+  'kbd': 'kbd-RU', // Kabardian
+  'khm': 'km-KH', // Central Khmer
+  'kir': 'ky-KG', // Kirghiz
+  'kan': 'kn-IN', // Kannada
+  'kor': 'ko-KR', // Korean
+  'krc': 'krc-RU', // Karachay-Balkar
+  'kur': 'ku-TR', // Kurdish
+  'kum': 'kum-RU', // Kumyk
+  'lao': 'lo-LA', // Lao
+  'lat': 'la',    // Latin
+  'lav': 'lv-LV', // Latvian
+  'lez': 'lez-RU', // Lezghian
+  'lim': 'li-NL', // Limburgan
+  'lin': 'ln-CD', // Lingala
+  'lit': 'lt-LT', // Lithuanian
+  'lmo': 'lmo-IT', // Lombard
+  'ltz': 'lb-LU', // Luxembourgish
+  'lug': 'lg-UG', // Luganda
+  'mal': 'ml-IN', // Malayalam
+  'mar': 'mr-IN', // Marathi
+  'mkd': 'mk-MK', // Macedonian
+  'mlg': 'mg-MG', // Malagasy
+  'mlt': 'mt-MT', // Maltese
+  'mon': 'mn-MN', // Mongolian
+  'mri': 'mi-NZ', // Maori
+  'msa': 'ms-MY', // Malay
+  'mya': 'my-MM', // Burmese
+  'myv': 'myv-RU', // Erzya
+  'nah': 'nah-MX', // Nahuatl languages
+  'nav': 'nv-US', // Navajo
+  'nbl': 'nr-ZA', // South Ndebele
+  'nde': 'nd-ZW', // North Ndebele
+  'nds': 'nds-DE', // Low German
+  'nep': 'ne-NP', // Nepali
+  'new': 'new-NP', // Newari
+  'nld': 'nl-NL', // Dutch
+  'nno': 'nn-NO', // Norwegian Nynorsk
+  'nob': 'nb-NO', // Norwegian Bokmål
+  'nor': 'no-NO', // Norwegian
+  'oci': 'oc-FR', // Occitan
+  'ory': 'or-IN', // Odia
+  'oss': 'os-RU', // Ossetian
+  'pan': 'pa-IN', // Panjabi
+  'pap': 'pap-AW', // Papiamento
+  'pes': 'fa-IR', // Persian
+  'pli': 'pi-IN', // Pali
+  'pol': 'pl-PL', // Polish
+  'por': 'pt-BR', // Portuguese
+  'pus': 'ps-AF', // Pashto
+  'que': 'qu-PE', // Quechua
+  'roh': 'rm-CH', // Romansh
+  'ron': 'ro-RO', // Romanian
+  'rus': 'ru-RU', // Russian
+  'ryu': 'ryu-UA', // Rusyn
+  'sah': 'sah-RU', // Yakut
+  'scn': 'scn-IT', // Sicilian
+  'sco': 'sco-GB', // Scots
+  'sin': 'si-LK', // Sinhala
+  'slk': 'sk-SK', // Slovak
+  'slv': 'sl-SI', // Slovenian
+  'sme': 'se-NO', // Northern Sami
+  'sna': 'sn-ZW', // Shona
+  'som': 'so-SO', // Somali
+  'sot': 'st-LS', // Southern Sotho
+  'spa': 'es-ES', // Spanish
+  'sqi': 'sq-AL', // Albanian
+  'srd': 'sc-IT', // Sardinian
+  'srp': 'sr-RS', // Serbian
+  'ssw': 'ss-SZ', // Swati
+  'sun': 'su-ID', // Sundanese
+  'swa': 'sw-TZ', // Swahili
+  'swe': 'sv-SE', // Swedish
+  'tah': 'ty-PF', // Tahitian
+  'tam': 'ta-IN', // Tamil
+  'tat': 'tt-RU', // Tatar
+  'tel': 'te-IN', // Telugu
+  'tgk': 'tg-TJ', // Tajik
+  'tgl': 'tl-PH', // Tagalog
+  'tha': 'th-TH', // Thai
+  'tir': 'ti-ER', // Tigrinya
+  'tuk': 'tk-TM', // Turkmen
+  'tur': 'tr-TR', // Turkish
+  'tyv': 'tyv-RU', // Tuvan
+  'uig': 'ug-CN', // Uighur
+  'ukr': 'uk-UA', // Ukrainian
+  'urd': 'ur-PK', // Urdu
+  'uzb': 'uz-UZ', // Uzbek
+  'vec': 'vec-IT', // Venetian
+  'vie': 'vi-VN', // Vietnamese
+  'vol': 'vo',    // Volapük
+  'war': 'war-PH', // Waray
+  'wln': 'wa-BE', // Walloon
+  'xho': 'xh-ZA', // Xhosa
+  'xal': 'xal-RU', // Kalmyk
+  'yid': 'yi',    // Yiddish
+  'yor': 'yo-NG', // Yoruba
+  'zul': 'zu-ZA', // Zulu
+};
+  
 
   const detectLanguage = (text: string) => {
     if (text.trim().length < 10) return 'en-US'; // Default for short text
