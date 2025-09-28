@@ -4,14 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Mic, Upload, Crown, Lock, Play, Pause, Search, Loader2 } from "lucide-react";
+import { Mic, Upload, Crown, Lock, Play, Pause, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { VoiceRecorder } from "@/components/tool/VoiceRecorder";
 import { VoiceHistoryDropdown } from "@/components/tool/VoiceHistoryDropdown";
 import { PrebuiltVoiceService, type PrebuiltVoice } from "@/services/prebuiltVoiceService";
 import { UploadLimitService } from "@/services/uploadLimitService";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ModernStepThreeProps {
   onNext: () => void;
@@ -46,7 +45,6 @@ export default function ModernStepThree({
   const [filteredVoices, setFilteredVoices] = useState<PrebuiltVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   const canUsePrebuilt = profile?.plan !== "free";
   const uploadLimit = UploadLimitService.getUploadLimit(profile?.plan || 'free');
@@ -106,75 +104,6 @@ export default function ModernStepThree({
     }
   }, [searchTerm, prebuiltVoices]);
 
-  const generateUniqueFileName = (originalName: string, userId: string): string => {
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 8);
-    const extension = originalName.split('.').pop() || 'wav';
-    return `${userId}_upload_${timestamp}_${randomString}.${extension}`;
-  };
-
-  const uploadAudioToSupabase = async (file: File, userId: string): Promise<string> => {
-    const fileName = generateUniqueFileName(file.name, userId);
-    
-    try {
-      // Upload to user-voice bucket
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('user-voice')
-        .upload(fileName, file, {
-          contentType: file.type,
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error(`Failed to upload audio: ${uploadError.message}`);
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('user-voice')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error('Error in uploadAudioToSupabase:', error);
-      throw error;
-    }
-  };
-
-  const saveUploadToHistory = async (fileName: string, audioUrl: string, userId: string, fileSizeKB: number) => {
-    try {
-      const { data, error } = await supabase
-        .from('history')
-        .insert({
-          user_id: userId,
-          title: `Upload-${fileName}-${new Date().toISOString().slice(0, 10)}`,
-          original_text: 'User Audio Upload',
-          language: selectedLanguage || 'en-US',
-          words_used: 0,
-          audio_url: audioUrl,
-          voice_settings: {
-            type: 'uploaded',
-            has_voice_recording: true,
-            original_filename: fileName,
-            file_size_kb: fileSizeKB,
-            upload_timestamp: new Date().toISOString()
-          }
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('History save error:', error);
-        throw new Error(`Failed to save to history: ${error.message}`);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error in saveUploadToHistory:', error);
-      throw error;
-    }
-  };
 
   const handleVoiceRecorded = (blob: Blob) => {
     setHasVoiceData(true);
@@ -189,7 +118,6 @@ export default function ModernStepThree({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validation
     const allowedTypes = ["audio/mp3", "audio/wav", "audio/mpeg", "audio/wave", "audio/x-wav"];
     const maxSize = UploadLimitService.getUploadLimit(profile?.plan || 'free') * 1024 * 1024; // Convert MB to bytes
 
@@ -199,7 +127,6 @@ export default function ModernStepThree({
         description: "Please upload an MP3 or WAV file.",
         variant: "destructive",
       });
-      event.target.value = '';
       return;
     }
 
@@ -209,61 +136,30 @@ export default function ModernStepThree({
         description: `Please upload a file smaller than ${UploadLimitService.getUploadLimit(profile?.plan || 'free')}MB.`,
         variant: "destructive",
       });
-      event.target.value = '';
       return;
     }
-
-    // Check if user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      toast({
-        title: "Authentication Error",
-        description: "Please log in to upload audio files.",
-        variant: "destructive",
-      });
-      event.target.value = '';
-      return;
-    }
-
-    setIsUploadingFile(true);
-    onProcessingStart("Uploading audio file...");
 
     try {
-      // Upload to Supabase storage
-      const audioUrl = await uploadAudioToSupabase(file, user.id);
-      
-      // Save to history
-      await saveUploadToHistory(
-        file.name, 
-        audioUrl, 
-        user.id, 
-        Math.round(file.size / 1024)
-      );
-
-      // Convert file to blob for immediate use
+      // Convert file to blob properly
       const arrayBuffer = await file.arrayBuffer();
       const blob = new Blob([arrayBuffer], { type: file.type });
 
       setHasVoiceData(true);
       onVoiceRecorded(blob);
-
       toast({
-        title: "Audio Uploaded Successfully",
-        description: `${file.name} has been uploaded and saved to your history.`,
+        title: "Audio Uploaded",
+        description: `Successfully uploaded ${file.name}`,
       });
 
-    } catch (error) {
-      console.error('Error during audio upload:', error);
-      toast({
-        title: "Upload Failed",
-        description: error instanceof Error ? error.message : "Failed to upload audio file. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploadingFile(false);
-      onProcessingEnd();
       // Clear the input
       event.target.value = '';
+    } catch (error) {
+      console.error('Error processing audio file:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to process the audio file. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -340,8 +236,8 @@ export default function ModernStepThree({
             <Mic className="h-4 w-4" />
             <span>Record</span>
           </TabsTrigger>
-          <TabsTrigger value="upload" className="flex items-center space-x-2" disabled={isUploadingFile}>
-            {isUploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          <TabsTrigger value="upload" className="flex items-center space-x-2">
+            <Upload className="h-4 w-4" />
             <span>Upload</span>
           </TabsTrigger>
           <TabsTrigger
@@ -388,15 +284,12 @@ export default function ModernStepThree({
               <CardTitle className="flex items-center space-x-2">
                 <Upload className="h-5 w-5" />
                 <span>Upload / History</span>
-                {isUploadingFile && <Badge variant="secondary">Uploading...</Badge>}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <Tabs defaultValue="uploadFile" className="w-full">
                 <TabsList className="grid grid-cols-2 w-full">
-                  <TabsTrigger value="uploadFile" disabled={isUploadingFile}>
-                    Upload File
-                  </TabsTrigger>
+                  <TabsTrigger value="uploadFile">Upload File</TabsTrigger>
                   <TabsTrigger value="history">Recorded History</TabsTrigger>
                 </TabsList>
 
@@ -410,49 +303,24 @@ export default function ModernStepThree({
                       <li>• Max file size: {uploadLimit}MB ({profile?.plan || 'free'} plan)</li>
                       <li>• Clear audio with minimal background noise</li>
                       <li>• Single speaker only</li>
-                      <li>• Files are saved to your cloud storage and history</li>
                     </ul>
                   </div>
 
-                  <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isUploadingFile 
-                      ? "border-primary bg-primary/5" 
-                      : "border-muted-foreground/25 hover:border-primary/50"
-                  }`}>
-                    {isUploadingFile ? (
-                      <div className="space-y-4">
-                        <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
-                        <div>
-                          <p className="font-medium">Uploading Audio...</p>
-                          <p className="text-sm text-muted-foreground">Please wait while we process your file</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-                        <p className="font-medium mb-2">Choose Audio File (Max {uploadLimit}MB)</p>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          File will be uploaded to your cloud storage and saved in history
-                        </p>
-                        <input
-  type="file"
-  accept="audio/*"
-  onChange={handleAudioUpload}
-  className="hidden"
-  id="audio-upload"
-/>
-<label htmlFor="audio-upload">
-  <Button 
-    type="button"
-    variant="outline"
-    className="cursor-pointer"
-    disabled={isUploadingFile}
-  >
-    Browse Files
-  </Button>
-</label>
-                      </>
-                    )}
+                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                    <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
+                    <p className="font-medium mb-2">Choose Audio File (Max {uploadLimit}MB)</p>
+                    <input
+                      type="file"
+                      accept="audio/mp3,audio/wav,audio/mpeg"
+                      onChange={handleAudioUpload}
+                      className="hidden"
+                      id="audio-upload"
+                    />
+                    <label htmlFor="audio-upload">
+                      <Button variant="outline" className="cursor-pointer">
+                        Browse Files
+                      </Button>
+                    </label>
                   </div>
                 </TabsContent>
 
@@ -469,7 +337,7 @@ export default function ModernStepThree({
           </Card>
         </TabsContent>
 
-        {/* Prebuilt Tab */}
+        {/* Prebuilt Tab (no history here now) */}
         <TabsContent value="prebuilt" className="space-y-4">
           {canUsePrebuilt ? (
             <Card>
@@ -496,7 +364,7 @@ export default function ModernStepThree({
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Search voices by name, gender, or accent..."
+                        placeholder="Search voices "
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10"
@@ -511,58 +379,57 @@ export default function ModernStepThree({
                         </div>
                       ) : (
                         filteredVoices.map((voice) => (
-                          <div
-                            key={voice.id}
-                            className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                              selectedVoiceId === voice.voice_id
-                                ? "border-primary bg-primary/5"
-                                : "border-muted hover:border-primary/50"
-                            }`}
-                            onClick={() => handlePrebuiltSelect(voice.voice_id)}
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <h4 className="font-medium text-sm sm:text-base truncate">{voice.name}</h4>
-                                  {voice.gender && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {voice.gender}
-                                    </Badge>
-                                  )}
-                                  {voice.accent && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {voice.accent}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{voice.description}</p>
-                              </div>
-                              <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0">
-                                {voice.audio_preview_url && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      playPrebuiltSample(voice.voice_id);
-                                    }}
-                                    disabled={isPlaying && playingVoiceId !== voice.voice_id}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    {playingVoiceId === voice.voice_id && isPlaying ?
-                                      <Pause className="h-3 w-3" /> :
-                                      <Play className="h-3 w-3" />
-                                    }
-                                  </Button>
-                                )}
-                                {selectedVoiceId === voice.voice_id && (
-                                  <Badge className="text-xs">Selected</Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                      <div
+                        key={voice.id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                          selectedVoiceId === voice.voice_id
+                            ? "border-primary bg-primary/5"
+                            : "border-muted hover:border-primary/50"
+                        }`}
+                        onClick={() => handlePrebuiltSelect(voice.voice_id)}
+                      >
+                         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                           <div className="flex-1 min-w-0">
+                             <div className="flex flex-wrap items-center gap-2 mb-1">
+                               <h4 className="font-medium text-sm sm:text-base truncate">{voice.name}</h4>
+                               {voice.gender && (
+                                 <Badge variant="outline" className="text-xs">
+                                   {voice.gender}
+                                 </Badge>
+                               )}
+                               {voice.accent && (
+                                 <Badge variant="outline" className="text-xs">
+                                   {voice.accent}
+                                 </Badge>
+                               )}
+                             </div>
+                             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{voice.description}</p>
+                           </div>
+                           <div className="flex items-center justify-between sm:justify-end space-x-2 shrink-0">
+                             {voice.audio_preview_url && (
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   playPrebuiltSample(voice.voice_id);
+                                 }}
+                                 disabled={isPlaying && playingVoiceId !== voice.voice_id}
+                                 className="h-8 w-8 p-0"
+                               >
+                                 {playingVoiceId === voice.voice_id && isPlaying ?
+                                   <Pause className="h-3 w-3" /> :
+                                   <Play className="h-3 w-3" />
+                                 }
+                               </Button>
+                             )}
+                             {selectedVoiceId === voice.voice_id && (
+                               <Badge className="text-xs">Selected</Badge>
+                             )}
+                           </div>
+                         </div>
+                        </div>
+                      )))}
                     </div>
                   </div>
                 )}
@@ -587,23 +454,16 @@ export default function ModernStepThree({
       </Tabs>
 
       <div className="flex justify-between">
-        <Button variant="outline" onClick={onPrevious} disabled={isUploadingFile}>
+        <Button variant="outline" onClick={onPrevious}>
           Previous
         </Button>
         <Button
           onClick={onNext}
-          disabled={!hasVoiceData && !selectedVoiceId || isUploadingFile}
+          disabled={!hasVoiceData && !selectedVoiceId}
           size="lg"
           className="px-8"
         >
-          {isUploadingFile ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            "Continue to Generate"
-          )}
+          Continue to Generate
         </Button>
       </div>
     </div>
