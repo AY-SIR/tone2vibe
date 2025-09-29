@@ -559,7 +559,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     autoComplete="email"
                   />
                 </div>
-                <p class="text-sm text-gray-500">
+                <p className="text-sm text-gray-500">
   Enter your email to receive a password reset link.
 </p>
 
