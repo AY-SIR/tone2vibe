@@ -14,70 +14,21 @@ const PaymentSuccess = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { refreshProfile } = useAuth()
-  const [isVerifying, setIsVerifying] = useState(true)
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
   const [title, setTitle] = useState("Verifying Payment...")
   const [description, setDescription] = useState("Please wait while we confirm your transaction.")
-  const [confettiShown, setConfettiShown] = useState(false)
-  const [isReturnVisit, setIsReturnVisit] = useState(false)
-  const hasProcessedRef = useRef(false) // Prevent multiple processing attempts
+  const confettiFired = useRef(false)
+  const hasProcessedRef = useRef(false)
 
   const fireConfetti = () => {
-    if (confettiShown) return
-    setConfettiShown(true)
+    if (confettiFired.current) return
+    confettiFired.current = true
     const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"]
     confetti({ particleCount: 100, angle: 60, spread: 55, origin: { x: 0, y: 0.5 }, colors })
     confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1, y: 0.5 }, colors })
   }
 
-  // Cleanup function to clear session storage on unmount
   useEffect(() => {
-    return () => {
-      const paymentId = searchParams.get("payment_id")
-      const txId = searchParams.get("txId")
-      const coupon = searchParams.get("coupon")
-
-      // Clear session storage flags when component unmounts
-      if (paymentId) {
-        const toastKey = `toast_shown_${paymentId}`
-        sessionStorage.removeItem(toastKey)
-      }
-      if (txId || coupon) {
-        const toastKey = `toast_shown_free_${txId || coupon}`
-        sessionStorage.removeItem(toastKey)
-      }
-    }
-  }, [searchParams])
-
-  const onVerificationSuccess = async (successTitle: string, successDescription: string, isNewPurchase = true) => {
-    // First, update the state to show the checkmark icon
-    setStatus("success")
-    setTitle(successTitle)
-    setDescription(successDescription)
-
-    // Wait a moment for the checkmark to appear, then fire confetti
-    setTimeout(() => {
-      fireConfetti()
-    }, 200) // 200ms delay
-
-    // Always show toast for verification success
-    const type = searchParams.get("type")
-    if (isNewPurchase) {
-      toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
-    } else {
-      toast.info("Welcome back! Your purchase is ready to use.")
-    }
-
-    await refreshProfile()
-
-     // ✅ Auto-redirect after 3 seconds
-  setTimeout(() => {
-    navigate("/")  // or "/"
-  }, 3000)
-  }
-
-  useEffect(() => {
-    // Prevent multiple verification attempts
     if (hasProcessedRef.current) return
     hasProcessedRef.current = true
 
@@ -90,88 +41,61 @@ const PaymentSuccess = () => {
     const amount = searchParams.get("amount")
     const coupon = searchParams.get("coupon")
 
+    // This function now lives inside the useEffect for better scope management
+    const onVerificationSuccess = async (successTitle: string, successDescription: string, isNewPurchase = true) => {
+      setStatus("success")
+      setTitle(successTitle)
+      setDescription(successDescription)
+      setTimeout(fireConfetti, 200)
+
+      if (isNewPurchase) {
+        toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
+      } else {
+        toast.info("Welcome back! Your purchase is ready to use.")
+      }
+
+      await refreshProfile()
+      setTimeout(() => navigate("/tool"), 3000)
+    }
+
     const verifyPayment = async () => {
       try {
-        // Handle free transactions which don't have a paymentId
-        if (amount === "0" && (coupon || txId)) {
-          const toastKey = `toast_shown_free_${txId || coupon}`
+        const isFree = amount === "0" && (coupon || txId)
+        const toastKey = isFree ? `toast_shown_free_${txId || coupon}` : `toast_shown_${paymentId}`
 
-          if (sessionStorage.getItem(toastKey)) {
-            // This is a return visit
-            setIsReturnVisit(true)
-            if (type === "words" && count) {
-              await onVerificationSuccess(
-                "Welcome Back!",
-                `Your ${Number(count).toLocaleString()} words are ready to use.`,
-                false // This is a return visit, not new purchase
-              )
-            } else if (type === "subscription" && plan) {
-              await onVerificationSuccess(
-                "Welcome Back!",
-                `Your ${plan} plan is active and ready to use.`,
-                false // This is a return visit, not new purchase
-              )
-            } else {
-              await onVerificationSuccess(
-                "Welcome Back!",
-                "Your free item is available in your account.",
-                false // This is a return visit, not new purchase
-              )
-            }
-            return
-          }
-
-          // New free transaction
-          sessionStorage.setItem(toastKey, "1")
+        // 1. Handle all return visits first to avoid code duplication
+        if (sessionStorage.getItem(toastKey)) {
+          let welcomeTitle = "Welcome Back!"
+          let welcomeDescription = "Your purchase is ready to use."
           if (type === "words" && count) {
-            await onVerificationSuccess(
-              "Words Added!",
-              `${Number(count).toLocaleString()} words have been added using coupon ${coupon}.`,
-              true // This is a new purchase
-            )
+            welcomeDescription = `Your ${Number(count).toLocaleString()} words are ready to use.`
           } else if (type === "subscription" && plan) {
-            await onVerificationSuccess(
-              "Plan Activated!",
-              `Your ${plan} plan has been activated using coupon ${coupon}.`,
-              true // This is a new purchase
-            )
+            welcomeDescription = `Your ${plan} plan is active and ready to use.`
           }
+          await onVerificationSuccess(welcomeTitle, welcomeDescription, false)
           return
         }
 
-        // For paid transactions, first validate that we have the required IDs
+        // 2. Handle new transactions
+        sessionStorage.setItem(toastKey, "1")
+
+        if (isFree) {
+          // Handle new free transaction
+          if (type === "words" && count) {
+            await onVerificationSuccess("Words Added!", `${Number(count).toLocaleString()} words have been added using coupon ${coupon}.`)
+          } else if (type === "subscription" && plan) {
+            await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated using coupon ${coupon}.`)
+          } else {
+             await onVerificationSuccess("Success!", "Your free item has been added to your account.")
+          }
+          return
+        }
+        
+        // Handle new paid transaction
         if (!paymentId || !paymentRequestId) {
           throw new Error("Missing payment information in URL.")
         }
-
-        const toastKey = `toast_shown_${paymentId}`
-
-        if (sessionStorage.getItem(toastKey)) {
-          // This is a return visit
-          setIsReturnVisit(true)
-          if (type === "words" && count) {
-            await onVerificationSuccess(
-              "Welcome Back!",
-              `Your ${Number(count).toLocaleString()} words are ready to use.`,
-              false // This is a return visit, not new purchase
-            )
-          } else if (type === "subscription" && plan) {
-            await onVerificationSuccess(
-              "Welcome Back!",
-              `Your ${plan} plan is active and ready to use.`,
-              false // This is a return visit, not new purchase
-            )
-          } else {
-            await onVerificationSuccess(
-              "Welcome Back!",
-              "Your payment was processed successfully.",
-              false // This is a return visit, not new purchase
-            )
-          }
-          return
-        }
-
-        // New paid transaction - proceed to verify
+        
         const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
           body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
         })
@@ -179,28 +103,13 @@ const PaymentSuccess = () => {
         if (error) throw error
         if (!data.success) throw new Error(data.error || "Verification failed")
 
-        // Store verification flag
-        sessionStorage.setItem(toastKey, "1")
-
         if (type === "words") {
           const added = count ? Number(count).toLocaleString() : "Your purchased"
-          await onVerificationSuccess(
-            "Words Purchased!",
-            `${added} words have been added to your account.`,
-            true // This is a new purchase
-          )
+          await onVerificationSuccess("Words Purchased!", `${added} words have been added to your account.`)
         } else if (type === "subscription") {
-          await onVerificationSuccess(
-            "Plan Activated!",
-            `Your ${plan} plan has been activated successfully.`,
-            true // This is a new purchase
-          )
+          await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated successfully.`)
         } else {
-          await onVerificationSuccess(
-            "Payment Successful!",
-            "Your purchase has been completed successfully.",
-            true // This is a new purchase
-          )
+          await onVerificationSuccess("Payment Successful!", "Your purchase has been completed successfully.")
         }
       } catch (error) {
         setStatus("error")
@@ -208,13 +117,13 @@ const PaymentSuccess = () => {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
         setDescription(`Unable to verify your payment. Reason: ${errorMessage}`)
         toast.error("Verification Failed", { description: errorMessage })
-      } finally {
-        setIsVerifying(false)
       }
     }
 
     verifyPayment()
   }, [searchParams, refreshProfile, navigate])
+
+  const isVerifying = status === 'verifying';
 
   if (isVerifying) {
     return (
@@ -256,12 +165,11 @@ const PaymentSuccess = () => {
                 </Button>
               </div>
             ) : (
-              <Button onClick={() => navigate("/payment")} className="w-full">
-                Back to Payment Page
+              <Button onClick={() => navigate("/pricing")} className="w-full">
+                Back to Pricing
               </Button>
             )}
           </div>
-
         </CardContent>
       </Card>
     </div>
