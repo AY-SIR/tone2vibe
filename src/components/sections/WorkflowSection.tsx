@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Upload, FileText, Mic, Settings, Download, Info } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +18,7 @@ export const WorkflowSection = () => {
       title: "Review Text",
       description: "Review and edit the extracted text content",
       icon: <FileText className="h-8 w-8" />,
-      details: "Verify accuracy and make any necessary corrections (Translation and Grammer corrections)"
+      details: "Verify accuracy and make any necessary corrections (Translation and Grammar corrections)"
     },
     {
       number: 3,
@@ -33,14 +32,14 @@ export const WorkflowSection = () => {
       title: "Generate Audio",
       description: "AI processes and generates your voice clone",
       icon: <Settings className="h-8 w-8" />,
-      details: "Advanced AI creates natural-sounding speech in your voice With advanced settings"
+      details: "Advanced AI creates natural-sounding speech in your voice with advanced settings"
     },
     {
       number: 5,
       title: "Download",
       description: "Download your generated audio file",
       icon: <Download className="h-8 w-8" />,
-      details: "Download High quality audio in MP3, WAV, and more formats"
+      details: "Download high-quality audio in MP3, WAV, and more formats"
     }
   ];
 
@@ -52,8 +51,9 @@ export const WorkflowSection = () => {
     <section id="workflow" className="py-12 px-4 bg-white">
       <div className="container mx-auto">
         <div className="text-center mb-16 animate-fade-in">
-                      <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-How It Works</h2>
+          <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            How It Works
+          </h2>
           <p className="text-gray-600 text-xl max-w-2xl mx-auto mt-4">
             Transform your text into personalized voice audio in just 5 simple steps
           </p>
@@ -103,36 +103,36 @@ How It Works</h2>
 
               {/* Mobile Layout */}
               <div className="md:hidden">
-                <Card className="border-gray-200 hover:shadow-lg transition-all duration-300">
-                  <CardContent className="p-6">
-                    <div className="flex items-start space-x-4">
+                <Card className="w-full max-w-md mx-auto border-gray-200 hover:shadow-lg transition-all duration-300">
+                  <CardContent className="p-6 flex flex-col space-y-3">
+                    <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
                         <span className="text-white font-bold text-sm">{step.number}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold mb-2 text-black">{step.title}</h3>
-                        <p className="text-gray-600 mb-3">{step.description}</p>
-                        
-                        <button
-                          onClick={() => toggleDetails(index)}
-                          className="flex items-center space-x-2 text-gray-500 hover:text-gray-700 transition-colors"
-                        >
-                          <Info className="h-4 w-4" />
-                          <span className="text-sm">
-                            {expandedStep === index ? 'Hide details' : 'More info'}
-                          </span>
-                        </button>
-                        
-                        {expandedStep === index && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-lg animate-fade-in">
-                            <p className="text-sm text-gray-600">{step.details}</p>
-                          </div>
-                        )}
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold mb-1 text-black">{step.title}</h3>
+                        <p className="text-gray-600">{step.description}</p>
                       </div>
                     </div>
+
+                    <button
+                      onClick={() => toggleDetails(index)}
+                      className="flex items-center space-x-2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <Info className="h-4 w-4" />
+                      <span className="text-sm">
+                        {expandedStep === index ? 'Hide details' : 'More info'}
+                      </span>
+                    </button>
+
+                    {expandedStep === index && (
+                      <div className="p-3 bg-gray-50 rounded-lg animate-fade-in">
+                        <p className="text-sm text-gray-600">{step.details}</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-                
+
                 {/* Connection line for mobile */}
                 {index < steps.length - 1 && (
                   <div className="flex justify-center py-2">
