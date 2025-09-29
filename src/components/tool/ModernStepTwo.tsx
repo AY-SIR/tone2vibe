@@ -1,5 +1,5 @@
-// src/components/tool/ModernStepTwo.tsx
 
+// src/components/tool/ModernStepTwo.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,8 @@ const ModernStepTwo = ({
 }: ModernStepTwoProps) => {
   const [editedText, setEditedText] = useState(extractedText);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
-  const [detectedLanguage, setDetectedLanguage] = useState("en-US");
+  const [detectedLanguage, setDetectedLanguage] = useState("en-US"); 
+  const [isUnsupported, setIsUnsupported] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const { toast } = useToast();
@@ -45,7 +46,6 @@ const ModernStepTwo = ({
     { code: 'bn-IN', name: 'Bengali (India)' },
     { code: 'cs-CZ', name: 'Czech' },
     { code: 'da-DK', name: 'Danish' },
-    { code: 'doi-IN', name: 'Dogri' },
     { code: 'nl-NL', name: 'Dutch' },
     { code: 'en-GB', name: 'English (UK)' },
     { code: 'en-US', name: 'English (US)' },
@@ -62,12 +62,10 @@ const ModernStepTwo = ({
     { code: 'it-IT', name: 'Italian' },
     { code: 'ja-JP', name: 'Japanese' },
     { code: 'kn-IN', name: 'Kannada' },
-    { code: 'ks-IN', name: 'Kashmiri' },
     { code: 'ko-KR', name: 'Korean' },
     { code: 'lt-LT', name: 'Lithuanian' },
     { code: 'ms-MY', name: 'Malay' },
     { code: 'ml-IN', name: 'Malayalam' },
-    { code: 'mni-IN', name: 'Manipuri' },
     { code: 'mr-IN', name: 'Marathi' },
     { code: 'ne-IN', name: 'Nepali (India)' },
     { code: 'no-NO', name: 'Norwegian' },
@@ -78,8 +76,6 @@ const ModernStepTwo = ({
     { code: 'pt-PT', name: 'Portuguese (Portugal)' },
     { code: 'ro-RO', name: 'Romanian' },
     { code: 'ru-RU', name: 'Russian' },
-    { code: 'sa-IN', name: 'Sanskrit' },
-    { code: 'sd-IN', name: 'Sindhi' },
     { code: 'sr-RS', name: 'Serbian' },
     { code: 'sk-SK', name: 'Slovak' },
     { code: 'sl-SI', name: 'Slovenian' },
@@ -97,44 +93,71 @@ const ModernStepTwo = ({
     { code: 'zh-TW', name: 'Chinese (Traditional)' }
   ];
 
-  // Comprehensive map from franc's 3-letter codes to your xx-YY format
   const francToLanguageCode: Record<string, string> = {
     'arb': 'ar-SA', 'asm': 'as-IN', 'bul': 'bg-BG', 'ben': 'bn-IN',
     'ces': 'cs-CZ', 'dan': 'da-DK', 'nld': 'nl-NL', 'eng': 'en-US',
     'fin': 'fi-FI', 'fra': 'fr-FR', 'deu': 'de-DE', 'ell': 'el-GR',
-    'guj': 'gu-IN', 'heb': 'he-IL', 'hin': 'hi-IN', 'bho': 'hi-IN', // Mapping Bhojpuri to Hindi
+    'guj': 'gu-IN', 'heb': 'he-IL', 'hin': 'hi-IN', 'bho': 'hi-IN',
     'hrv': 'hr-HR', 'ind': 'id-ID', 'ita': 'it-IT', 'jpn': 'ja-JP',
-    'kan': 'kn-IN', 'kas': 'ks-IN', 'kor': 'ko-KR', 'lit': 'lt-LT',
+    'kan': 'kn-IN', 'kor': 'ko-KR', 'lit': 'lt-LT',
     'msa': 'ms-MY', 'mal': 'ml-IN', 'mar': 'mr-IN', 'nep': 'ne-IN',
     'nor': 'no-NO', 'ory': 'or-IN', 'pan': 'pa-IN', 'pes': 'fa-IR',
-    'por': 'pt-BR', 'ron': 'ro-RO', 'rus': 'ru-RU', 'san': 'sa-IN',
-    'snd': 'sd-IN', 'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
+    'por': 'pt-BR', 'ron': 'ro-RO', 'rus': 'ru-RU',
+    'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
     'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN', 'tel': 'te-IN',
     'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA', 'urd': 'ur-IN',
-    'vie': 'vi-VN', 'cmn': 'zh-CN',
-    // Add other less common ones if needed
-    'dgo': 'doi-IN', 'mni': 'mni-IN',
+    'vie': 'vi-VN', 'cmn': 'zh-CN','rum': 'ro-RO',
   };
 
-  const detectLanguage = (text: string) => {
-    if (text.trim().length < 10) return 'en-US'; // Default for short text
-    const detectedCode = franc(text, { minLength: 3 });
-    return francToLanguageCode[detectedCode] || 'en-US'; // Fallback to en-US
-  };
+  const detectLanguage = (text: string): string => {
+  const trimmed = text.trim();
+  if (trimmed.length < 3) return 'short'; // allow detection for shorter texts
+  const detectedCode = franc(trimmed, { minLength: 3 });
+  return francToLanguageCode[detectedCode] || 'unsupported';
+};
 
   useEffect(() => {
     setEditedText(extractedText);
-    const detected = detectLanguage(extractedText);
-    setDetectedLanguage(detected);
-    setSelectedLanguage(detected);
-    onLanguageSelect(detected);
-  }, [extractedText]);
+    const detectedCode = detectLanguage(extractedText);
 
+    if (detectedCode === 'unsupported') {
+      setIsUnsupported(true);
+      const fallback = 'en-US';
+      setDetectedLanguage(fallback);
+      setSelectedLanguage(fallback);
+      onLanguageSelect(fallback);
+    } else if (detectedCode !== 'short') {
+      setIsUnsupported(false);
+      setDetectedLanguage(detectedCode);
+      setSelectedLanguage(detectedCode);
+      onLanguageSelect(detectedCode);
+    } else {
+        // For short text, default to English without showing error
+        setIsUnsupported(false);
+        const fallback = 'en-US';
+        setDetectedLanguage(fallback);
+        setSelectedLanguage(fallback);
+        onLanguageSelect(fallback);
+    }
+  }, [extractedText]);
 
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
     onTextUpdated(newText);
-    setDetectedLanguage(detectLanguage(newText));
+
+    const detectedCode = detectLanguage(newText);
+
+    if (detectedCode === 'unsupported') {
+      setIsUnsupported(true);
+      // Don't change the selected language, just show the error
+    } else {
+      setIsUnsupported(false);
+      if (detectedCode !== 'short') {
+        setDetectedLanguage(detectedCode);
+        setSelectedLanguage(detectedCode); // Auto-switch dropdown
+        onLanguageSelect(detectedCode);
+      }
+    }
   };
 
   const handleLanguageChange = (languageCode: string) => {
@@ -143,24 +166,24 @@ const ModernStepTwo = ({
   };
 
   const handleTranslateText = async () => {
-    // This is a placeholder for a real translation API call
+    // This is a placeholder for actual translation logic
     if (!editedText.trim()) return;
     setIsTranslating(true);
     onProcessingStart("Translating text...");
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const translated = `[This is a simulated translation to ${selectedLanguage}] ... ${editedText}`;
+      await new Promise(resolve => setTimeout(resolve, 1000)); 
+      const translated = `[Translated to ${selectedLanguage}] ${editedText}`;
       setEditedText(translated);
       onTextUpdated(translated);
-      // After translating, the new text should be detected as the target language
-      setDetectedLanguage(selectedLanguage);
-      toast({ title: "Text Translated (Simulated)", description: `The text has been translated to your selected language.` });
-    } catch (error) {
-       toast({ title: "Translation Failed", variant: "destructive" });
+      setDetectedLanguage(selectedLanguage); // Assume translation is successful
+      setIsUnsupported(false);
+      toast({ title: "Text Translated (Simulated)", description: `Text translated to your selected language.` });
+    } catch {
+      toast({ title: "Translation Failed", variant: "destructive" });
     } finally {
-       setIsTranslating(false);
-       onProcessingEnd();
+      setIsTranslating(false);
+      onProcessingEnd();
     }
   };
 
@@ -177,7 +200,7 @@ const ModernStepTwo = ({
       } else {
         toast({ title: "No Changes Needed", description: "Your text looks great!" });
       }
-    } catch (error) {
+    } catch {
       toast({ title: "Improvement Failed", description: "Could not connect to the AI service.", variant: "destructive" });
     } finally {
       setIsImproving(false);
@@ -191,12 +214,11 @@ const ModernStepTwo = ({
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-  // Show translate icon if the detected language of the text is different from the selected output language
-  const showTranslateIcon = editedText.trim() && detectedLanguage !== selectedLanguage;
+  // Show translate icon if user manually selects a language different from the auto-detected one
+  const showTranslateIcon = editedText.trim() && detectedLanguage !== selectedLanguage && !isUnsupported;
 
   return (
     <div className="space-y-6">
-      {/* Language Selection */}
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center text-lg">
@@ -218,7 +240,7 @@ const ModernStepTwo = ({
               </SelectContent>
             </Select>
             {showTranslateIcon && (
-              <Button onClick={handleTranslateText} disabled={isTranslating} variant="outline" size="icon" title={`Translate text to ${languages.find(l => l.code === selectedLanguage)?.name}`}>
+              <Button onClick={handleTranslateText} disabled={isTranslating} variant="outline" size="icon" title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}>
                 <Languages className="h-4 w-4" />
               </Button>
             )}
@@ -226,7 +248,6 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
-      {/* Text Editor */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -241,10 +262,15 @@ const ModernStepTwo = ({
             value={editedText}
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder="Your text will appear here. You can edit it before proceeding..."
-            className="min-h-[200px] resize-none text-base leading-relaxed"
+            className={`min-h-[200px] resize-none text-base leading-relaxed transition-all ${isUnsupported ? 'border-destructive focus-visible:ring-destructive' : ''}`}
           />
+          {isUnsupported && (
+            <p className="text-sm text-destructive mt-2">
+              The language of this text is not supported. Please edit the text or choose a different language to continue.
+            </p>
+          )}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
-            <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim()} variant="outline" className="flex-1">
+            <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim() || isUnsupported} variant="outline" className="flex-1">
               <Wand2 className="h-4 w-4 mr-2" /> {isImproving ? "Improving..." : "Improve with AI"}
             </Button>
             <div className="flex items-center space-x-2 justify-center text-muted-foreground">
@@ -255,8 +281,7 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
-      {/* Text Statistics */}
-       <Card className="bg-muted/50 border-dashed">
+      <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
@@ -271,20 +296,21 @@ const ModernStepTwo = ({
               <div className="text-lg sm:text-2xl font-bold">~{Math.ceil(currentWordCount / 150)} min</div>
               <div className="text-xs sm:text-sm text-muted-foreground">Speaking Time</div>
             </div>
-             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
-               <div className="text-lg sm:text-2xl font-bold text-primary truncate">{languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}</div>
-               <div className="text-xs sm:text-sm text-muted-foreground">Selected Language</div>
-             </div>
+            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold text-primary truncate" title={languages.find(l => l.code === selectedLanguage)?.name}>
+                {languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}
+              </div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Selected Language</div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Navigation */}
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
         <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating} className="order-2 sm:order-1">
           Back to Upload
         </Button>
-        <Button onClick={onNext} disabled={!editedText.trim() || isImproving || isTranslating} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
+        <Button onClick={onNext} disabled={!editedText.trim() || isImproving || isTranslating || isUnsupported} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
           Continue to Voice Selection
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
