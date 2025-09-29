@@ -49,7 +49,7 @@ export const WorkflowSection = () => {
   };
 
   return (
-    <section id="workflow" className="py-12 px-4 bg-white">
+    <section id="workflow" className="py-12  bg-white">
       <div className="container mx-auto">
         <div className="text-center mb-16 animate-fade-in">
                       <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
@@ -102,7 +102,7 @@ How It Works</h2>
               </div>
 
               {/* Mobile Layout */}
-              <div className="md:hidden">
+              <div className="md:hidden ">
                 <Card className="border-gray-200 hover:shadow-lg transition-all duration-300">
                   <CardContent className="p-6">
                     <div className="flex items-start space-x-4">
@@ -112,7 +112,7 @@ How It Works</h2>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-bold mb-2 text-black">{step.title}</h3>
                         <p className="text-gray-600 mb-3">{step.description}</p>
-                        
+
                         <button
                           onClick={() => toggleDetails(index)}
                           className="flex items-center space-x-2 text-gray-500 hover:text-gray-700 transition-colors"
@@ -122,7 +122,7 @@ How It Works</h2>
                             {expandedStep === index ? 'Hide details' : 'More info'}
                           </span>
                         </button>
-                        
+
                         {expandedStep === index && (
                           <div className="mt-3 p-3 bg-gray-50 rounded-lg animate-fade-in">
                             <p className="text-sm text-gray-600">{step.details}</p>
@@ -132,7 +132,7 @@ How It Works</h2>
                     </div>
                   </CardContent>
                 </Card>
-                
+
                 {/* Connection line for mobile */}
                 {index < steps.length - 1 && (
                   <div className="flex justify-center py-2">
