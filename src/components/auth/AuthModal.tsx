@@ -544,8 +544,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           ) : (
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label htmlFor="reset-email">Email Address</Label>
-                <div className="relative">
+                <Label htmlFor="reset-email ">Email Address</Label>
+                <div className="relative py-2">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="reset-email"
@@ -559,7 +559,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     autoComplete="email"
                   />
                 </div>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 ">
   Enter your email to receive a password reset link.
 </p>
 
