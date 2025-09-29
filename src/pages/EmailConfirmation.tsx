@@ -1,5 +1,5 @@
 // src/pages/EmailConfirmation.tsx
-
+"use client";
 import React, 'react';
 import { useEffect, useState, useRef } from 'react'; // Import useRef
 import { useNavigate } from 'react-router-dom';
