@@ -1,4 +1,3 @@
-
 // src/components/tool/ModernStepTwo.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,10 +31,11 @@ const ModernStepTwo = ({
 }: ModernStepTwoProps) => {
   const [editedText, setEditedText] = useState(extractedText);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
-  const [detectedLanguage, setDetectedLanguage] = useState("en-US"); 
+  const [detectedLanguage, setDetectedLanguage] = useState("en-US");
   const [isUnsupported, setIsUnsupported] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isFallback, setIsFallback] = useState(false);
   const { toast } = useToast();
 
   const languages = [
@@ -109,55 +109,38 @@ const ModernStepTwo = ({
     'vie': 'vi-VN', 'cmn': 'zh-CN','rum': 'ro-RO',
   };
 
-  const detectLanguage = (text: string): string => {
-  const trimmed = text.trim();
-  if (trimmed.length < 3) return 'short'; // allow detection for shorter texts
-  const detectedCode = franc(trimmed, { minLength: 3 });
-  return francToLanguageCode[detectedCode] || 'unsupported';
-};
+  const isCodeSnippet = (text: string) => /<[\w\s="'{}-]*>|{.*}|;/.test(text);
+
+  const detectLanguage = (text: string): { code: string; fallback: boolean; unsupported: boolean } => {
+    const trimmed = text.trim();
+    if (!trimmed) return { code: "en-US", fallback: false, unsupported: false };
+    if (trimmed.length < 3 || isCodeSnippet(trimmed)) return { code: "en-US", fallback: true, unsupported: false };
+    const cleaned = trimmed.replace(/[^\p{L}\s]/gu, "");
+    if (cleaned.length < 3) return { code: "en-US", fallback: true, unsupported: false };
+    const detectedCode = franc(cleaned, { minLength: 3 });
+    if (detectedCode === "und") return { code: "en-US", fallback: true, unsupported: false };
+    const langCode = francToLanguageCode[detectedCode] || "en-US";
+    const unsupported = !languages.find(l => l.code === langCode);
+    return { code: langCode, fallback: false, unsupported };
+  };
 
   useEffect(() => {
     setEditedText(extractedText);
-    const detectedCode = detectLanguage(extractedText);
-
-    if (detectedCode === 'unsupported') {
-      setIsUnsupported(true);
-      const fallback = 'en-US';
-      setDetectedLanguage(fallback);
-      setSelectedLanguage(fallback);
-      onLanguageSelect(fallback);
-    } else if (detectedCode !== 'short') {
-      setIsUnsupported(false);
-      setDetectedLanguage(detectedCode);
-      setSelectedLanguage(detectedCode);
-      onLanguageSelect(detectedCode);
-    } else {
-        // For short text, default to English without showing error
-        setIsUnsupported(false);
-        const fallback = 'en-US';
-        setDetectedLanguage(fallback);
-        setSelectedLanguage(fallback);
-        onLanguageSelect(fallback);
-    }
+    const { code, fallback, unsupported } = detectLanguage(extractedText);
+    setDetectedLanguage(code);
+    setSelectedLanguage(code);
+    setIsFallback(fallback);
+    setIsUnsupported(unsupported);
+    onLanguageSelect(code);
   }, [extractedText]);
 
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
     onTextUpdated(newText);
-
-    const detectedCode = detectLanguage(newText);
-
-    if (detectedCode === 'unsupported') {
-      setIsUnsupported(true);
-      // Don't change the selected language, just show the error
-    } else {
-      setIsUnsupported(false);
-      if (detectedCode !== 'short') {
-        setDetectedLanguage(detectedCode);
-        setSelectedLanguage(detectedCode); // Auto-switch dropdown
-        onLanguageSelect(detectedCode);
-      }
-    }
+    const { code, fallback, unsupported } = detectLanguage(newText);
+    setDetectedLanguage(code);
+    setIsFallback(fallback);
+    setIsUnsupported(unsupported);
   };
 
   const handleLanguageChange = (languageCode: string) => {
@@ -166,17 +149,16 @@ const ModernStepTwo = ({
   };
 
   const handleTranslateText = async () => {
-    // This is a placeholder for actual translation logic
     if (!editedText.trim()) return;
     setIsTranslating(true);
     onProcessingStart("Translating text...");
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000)); 
+      await new Promise(resolve => setTimeout(resolve, 1000));
       const translated = `[Translated to ${selectedLanguage}] ${editedText}`;
       setEditedText(translated);
       onTextUpdated(translated);
-      setDetectedLanguage(selectedLanguage); // Assume translation is successful
+      setDetectedLanguage(selectedLanguage);
+      setIsFallback(false);
       setIsUnsupported(false);
       toast({ title: "Text Translated (Simulated)", description: `Text translated to your selected language.` });
     } catch {
@@ -214,11 +196,12 @@ const ModernStepTwo = ({
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-  // Show translate icon if user manually selects a language different from the auto-detected one
-  const showTranslateIcon = editedText.trim() && detectedLanguage !== selectedLanguage && !isUnsupported;
+
+  const showTranslateIcon = editedText.trim() && !isFallback;
 
   return (
     <div className="space-y-6">
+      {/* Language Selector */}
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center text-lg">
@@ -240,7 +223,13 @@ const ModernStepTwo = ({
               </SelectContent>
             </Select>
             {showTranslateIcon && (
-              <Button onClick={handleTranslateText} disabled={isTranslating} variant="outline" size="icon" title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}>
+              <Button
+                onClick={handleTranslateText}
+                disabled={isTranslating || !editedText.trim()}
+                variant="outline"
+                size="icon"
+                title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
+              >
                 <Languages className="h-4 w-4" />
               </Button>
             )}
@@ -248,6 +237,7 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
+      {/* Text Editor */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -264,13 +254,25 @@ const ModernStepTwo = ({
             placeholder="Your text will appear here. You can edit it before proceeding..."
             className={`min-h-[200px] resize-none text-base leading-relaxed transition-all ${isUnsupported ? 'border-destructive focus-visible:ring-destructive' : ''}`}
           />
-          {isUnsupported && (
+          {/* Fallback Alert */}
+          {isFallback && (
             <p className="text-sm text-destructive mt-2">
-              The language of this text is not supported. Please edit the text or choose a different language to continue.
+              The language of this text could not be detected. Please edit the text to continue.
+            </p>
+          )}
+          {/* Unsupported Alert */}
+          {!isFallback && isUnsupported && (
+            <p className="text-sm text-destructive mt-2">
+              The selected language is not supported for translation. Please choose a different language.
             </p>
           )}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
-            <Button onClick={handleImproveText} disabled={isImproving || isTranslating || !editedText.trim() || isUnsupported} variant="outline" className="flex-1">
+            <Button
+              onClick={handleImproveText}
+              disabled={isImproving || isTranslating || !editedText.trim() || isFallback}
+              variant="outline"
+              className="flex-1"
+            >
               <Wand2 className="h-4 w-4 mr-2" /> {isImproving ? "Improving..." : "Improve with AI"}
             </Button>
             <div className="flex items-center space-x-2 justify-center text-muted-foreground">
@@ -281,6 +283,7 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
+      {/* Stats */}
       <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
@@ -306,11 +309,17 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
+      {/* Navigation */}
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
         <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating} className="order-2 sm:order-1">
           Back to Upload
         </Button>
-        <Button onClick={onNext} disabled={!editedText.trim() || isImproving || isTranslating || isUnsupported} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
+        <Button
+          onClick={onNext}
+          disabled={!editedText.trim() || isImproving || isTranslating || isFallback || isUnsupported}
+          size="lg"
+          className="px-6 sm:px-8 order-1 sm:order-2"
+        >
           Continue to Voice Selection
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>

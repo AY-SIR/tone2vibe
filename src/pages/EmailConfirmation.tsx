@@ -1,13 +1,12 @@
 // src/pages/EmailConfirmation.tsx
 "use client";
-import React, 'react';
-import { useEffect, useState, useRef } from 'react'; // Import useRef
+import React, { useEffect, useState, useRef } from 'react'; // Corrected import statement
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from "sonner"; // Using sonner as per your other components
+import { toast } from "sonner";
 import confetti from 'canvas-confetti';
 
 export default function EmailConfirmation() {
@@ -15,7 +14,7 @@ export default function EmailConfirmation() {
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Confirming your email, please wait...');
-  
+
   // Use a ref to prevent multiple confetti fires
   const confettiFired = useRef(false);
 
@@ -30,8 +29,10 @@ export default function EmailConfirmation() {
   useEffect(() => {
     // Set a timeout to handle cases where the auth state never changes (e.g., invalid link)
     const timeoutId = setTimeout(() => {
-      setStatus('error');
-      setMessage('Invalid or expired confirmation link. Please request a new confirmation.');
+      if (status === 'loading') {
+        setStatus('error');
+        setMessage('Invalid or expired confirmation link. Please request a new confirmation.');
+      }
     }, 10000); // 10-second timeout
 
     // The correct way: listen for the SIGNED_IN event
@@ -61,7 +62,7 @@ export default function EmailConfirmation() {
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, status]);
 
 
   const getIcon = () => {

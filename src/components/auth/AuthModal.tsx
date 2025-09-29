@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from "@/integrations/supabase/client";
+// ✅ STEP 1: No longer need to import supabase client directly for auth
+// import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,8 @@ import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
+import { useAuth } from '@/contexts/AuthContext'; // ✅ STEP 2: Import useAuth
+import { supabase } from '@/integrations/supabase/client'; // Keep for resetPasswordForEmail
 
 interface AuthModalProps {
   open: boolean;
@@ -33,6 +36,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [currentView, setCurrentView] = useState<'auth' | 'forgot-password'>('auth');
   const [resetEmail, setResetEmail] = useState('');
+
+  // ✅ STEP 3: Get signUp and signIn from our context
+  const { signUp, signIn } = useAuth();
 
   // Handle URL parameters
   useEffect(() => {
@@ -126,10 +132,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     try {
       console.log('Attempting sign in for:', email);
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: password
-      });
+      // ✅ STEP 4: Use the signIn function from AuthContext
+      const { data, error } = await signIn(email.trim().toLowerCase(), password);
 
       if (error) {
         console.error('Sign in error:', error);
@@ -203,15 +207,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       console.log('Attempting sign up for:', email);
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password: password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/email-confirmation`,
-          data: {
-            full_name: fullName.trim()
-          }
-        }
+      // ✅ STEP 5: Use the signUp function from AuthContext
+      const { data, error } = await signUp(email.trim().toLowerCase(), password, {
+        emailRedirectTo: `${window.location.origin}/email-confirmation`,
+        fullName: fullName.trim(),
       });
 
       if (error) {
@@ -233,7 +232,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       if (data.user) {
         console.log('Sign up successful for user:', data.user.email);
 
-        // Check if user already existed
+        // This check might be redundant now but is safe to keep
         if (data.user.identities && data.user.identities.length === 0) {
           toast.error('This email is already registered. Please sign in instead.');
           clearAllFields();

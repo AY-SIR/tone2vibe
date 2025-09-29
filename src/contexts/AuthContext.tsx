@@ -146,12 +146,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (data && !error) {
           // Calculate word balance if not already calculated
-          const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
+const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
 
           const updatedProfile = {
             ...data,
             ip_address: (data.ip_address as string | null) || null,
-            word_balance: data.word_balance || calculatedWordBalance,
+word_balance: data.word_balance != null ? data.word_balance : calculatedWordBalance,
           };
 
           setProfile(updatedProfile);
@@ -354,10 +354,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         },
       });
 
-      // If signup is successful and user is immediately available, create profile
-      if (data.user && !error) {
-        await createDefaultProfile(data.user.id, email);
-      }
+      // ✅ FIX: Profile creation is removed from here.
+      // The `loadUserProfile` function, which runs after email confirmation,
+      // is now the single source of truth for creating a new user's profile.
+      // This prevents the race condition and duplicate profile creation.
 
       return { data, error };
     } catch (err) {
