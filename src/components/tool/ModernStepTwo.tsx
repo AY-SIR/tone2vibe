@@ -197,7 +197,17 @@ const ModernStepTwo = ({
 
   const currentWordCount = calculateDisplayWordCount(editedText);
 
-  const showTranslateIcon = editedText.trim() && !isFallback;
+  // ✅ Show translate icon only if selected language differs from detected language
+  const showTranslateIcon = editedText.trim() && !isFallback && selectedLanguage !== detectedLanguage;
+
+  // ✅ Disable continue button if translation needed or other conditions
+  const isContinueDisabled =
+    !editedText.trim() ||
+    isImproving ||
+    isTranslating ||
+    isFallback ||
+    isUnsupported ||
+    showTranslateIcon;
 
   return (
     <div className="space-y-6">
@@ -254,13 +264,11 @@ const ModernStepTwo = ({
             placeholder="Your text will appear here. You can edit it before proceeding..."
             className={`min-h-[200px] resize-none text-base leading-relaxed transition-all ${isUnsupported ? 'border-destructive focus-visible:ring-destructive' : ''}`}
           />
-          {/* Fallback Alert */}
           {isFallback && (
             <p className="text-sm text-destructive mt-2">
               The language of this text could not be detected. Please edit the text to continue.
             </p>
           )}
-          {/* Unsupported Alert */}
           {!isFallback && isUnsupported && (
             <p className="text-sm text-destructive mt-2">
               The selected language is not supported for translation. Please choose a different language.
@@ -316,7 +324,7 @@ const ModernStepTwo = ({
         </Button>
         <Button
           onClick={onNext}
-          disabled={!editedText.trim() || isImproving || isTranslating || isFallback || isUnsupported}
+          disabled={isContinueDisabled}
           size="lg"
           className="px-6 sm:px-8 order-1 sm:order-2"
         >

@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Mic, Upload, Crown, Lock, Play, Pause, Search, CheckCircle } from "lucide-react";
+import { Mic, Upload, Crown, Lock, Play, Pause, Search, CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useNavigate } from "react-router-dom";
 
 // Component Imports
 import { VoiceRecorder } from "@/components/tool/VoiceRecorder";
-import { VoiceUpload } from "@/components/tool/VoiceUpload";
 import { VoiceHistoryDropdown } from "@/components/tool/VoiceHistoryDropdown";
 import { PrebuiltVoiceService, type PrebuiltVoice } from "@/services/prebuiltVoiceService";
 import { UploadLimitService } from "@/services/uploadLimitService";
@@ -79,6 +79,7 @@ const sampleParagraphs: { [key: string]: string } = {
     "lt-LT": "Šį rytą miesto parkas pilnas gyvybės. Vaikai žaidžia, prekeiviai ruošia savo stalus, o oras pilnas gėlių kvapo."
 };
 
+
 interface ModernStepThreeProps {
   onNext: () => void;
   onPrevious: () => void;
@@ -107,6 +108,7 @@ export default function ModernStepThree({
   const { toast } = useToast();
   const [voiceMethod, setVoiceMethod] = useState<"record" | "upload" | "prebuilt">("record");
   const [selectedVoice, setSelectedVoice] = useState<VoiceSelection | null>(null);
+const navigate = useNavigate(); // <-- add this inside ModernStepThree function
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
@@ -208,26 +210,28 @@ export default function ModernStepThree({
     }
   };
 
-  // --- FIX ---
-  // Directly look up the paragraph from the constant object using the prop.
-  // This is more direct and reliable.
+
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold mb-2">Voice Selection</h2>
-        <p className="text-muted-foreground">Choose a voice for the audio generation.</p>
-      </div>
+
 
       <Tabs value={voiceMethod} onValueChange={(value) => setVoiceMethod(value as any)}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="record"><Mic className="h-4 w-4 mr-2" />Record</TabsTrigger>
-          <TabsTrigger value="upload"><Upload className="h-4 w-4 mr-2" />Upload</TabsTrigger>
-          <TabsTrigger value="prebuilt" disabled={!canUsePrebuilt}>
+
+           <TabsTrigger value="prebuilt" disabled={!canUsePrebuilt}>
             {canUsePrebuilt ? <Crown className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
             Prebuilt
           </TabsTrigger>
+<TabsTrigger value="history">
+  <Clock className="h-4 w-4 mr-2" />
+  History
+</TabsTrigger>
+
+
+
         </TabsList>
 
         {/* Record Tab */}
@@ -251,35 +255,61 @@ export default function ModernStepThree({
           </Card>
         </TabsContent>
 
-        {/* Upload Tab */}
-        <TabsContent value="upload" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2"><Upload className="h-5 w-5" /><span>Upload / History</span></CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 sm:p-2">
-              <Tabs defaultValue="uploadFile" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full">
-                  <TabsTrigger value="uploadFile">Upload File</TabsTrigger>
-                  <TabsTrigger value="history">Your Voices</TabsTrigger>
-                </TabsList>
-                <TabsContent value="uploadFile" className="p-4 space-y-4">
-                  <VoiceUpload
-                    onUploadComplete={handleUploadComplete}
-                    uploadLimit={uploadLimit}
-                    plan={profile?.plan || 'free'}
-                  />
-                </TabsContent>
-                <TabsContent value="history" className="p-4 space-y-4">
-                  <VoiceHistoryDropdown
-                    onVoiceSelect={handleHistoryVoiceSelect}
-                    selectedVoiceId={selectedVoice?.type === 'history' ? selectedVoice.id : ''}
-                  />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+    <TabsContent value="history" className="space-y-4">
+  <Tabs defaultValue="recorded">
+    <TabsList className="grid grid-cols-2 w-full">
+      <TabsTrigger value="recorded">
+      <Clock className="h-4 w-4 mr-2" />
+      History</TabsTrigger>
+      <TabsTrigger value="uploaded" disabled>
+
+<Lock className="h-4 w-4 mr-2" />
+      Upload (Soon)</TabsTrigger>
+    </TabsList>
+
+    <TabsContent value="recorded" className="p-4 space-y-4">
+
+      <div className="flex items-center mb-4">
+      {/* Clock Icon */}
+      <Clock className="w-6 h-6 text-gray-700 mr-2" />
+
+      {/* Header Text */}
+      <h3 className="text-lg font-semibold text-gray-800">Your Voice History</h3>
+    </div>
+
+
+
+
+      <VoiceHistoryDropdown
+        onVoiceSelect={handleHistoryVoiceSelect}
+        selectedVoiceId={selectedVoice?.type === 'history' ? selectedVoice.id : ''}
+      />
+
+      {/* Optional CTA */}
+ <div className="text-center mt-4">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => navigate("/terms")}
+      >
+        Learn More About History
+      </Button>
+    </div>
+
+
+    </TabsContent>
+
+    <TabsContent value="uploaded" className="p-4 text-center text-muted-foreground">
+      <p>Coming Soon</p>
+    </TabsContent>
+  </Tabs>
+</TabsContent>
+
+
+
+
+
 
 
          {/* Prebuilt Tab */}

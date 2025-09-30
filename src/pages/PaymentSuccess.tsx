@@ -13,7 +13,7 @@ import confetti from "canvas-confetti"
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { refreshProfile } = useAuth()
+  const { refreshProfile, profile } = useAuth()
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
   const [title, setTitle] = useState("Verifying Payment...")
   const [description, setDescription] = useState("Please wait while we confirm your transaction.")
@@ -41,18 +41,19 @@ const PaymentSuccess = () => {
     const amount = searchParams.get("amount")
     const coupon = searchParams.get("coupon")
 
-    // This function now lives inside the useEffect for better scope management
-    const onVerificationSuccess = async (successTitle: string, successDescription: string, isNewPurchase = true) => {
+    if (!profile?.id) return
+
+    const userKey = `processed_${profile.id}`
+    let processedTransactions: string[] = JSON.parse(sessionStorage.getItem(userKey) || "[]")
+    const transactionId = txId || paymentId || coupon || ""
+
+    const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
       setStatus("success")
       setTitle(successTitle)
       setDescription(successDescription)
       setTimeout(fireConfetti, 200)
 
-      if (isNewPurchase) {
-        toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
-      } else {
-        toast.info("Welcome back! Your purchase is ready to use.")
-      }
+      toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
 
       await refreshProfile()
       setTimeout(() => navigate("/tool"), 3000)
@@ -60,11 +61,8 @@ const PaymentSuccess = () => {
 
     const verifyPayment = async () => {
       try {
-        const isFree = amount === "0" && (coupon || txId)
-        const toastKey = isFree ? `toast_shown_free_${txId || coupon}` : `toast_shown_${paymentId}`
-
-        // 1. Handle all return visits first to avoid code duplication
-        if (sessionStorage.getItem(toastKey)) {
+        // Already processed?
+        if (processedTransactions.includes(transactionId)) {
           let welcomeTitle = "Welcome Back!"
           let welcomeDescription = "Your purchase is ready to use."
           if (type === "words" && count) {
@@ -72,30 +70,33 @@ const PaymentSuccess = () => {
           } else if (type === "subscription" && plan) {
             welcomeDescription = `Your ${plan} plan is active and ready to use.`
           }
-          await onVerificationSuccess(welcomeTitle, welcomeDescription, false)
+          await onVerificationSuccess(welcomeTitle, welcomeDescription)
           return
         }
 
-        // 2. Handle new transactions
-        sessionStorage.setItem(toastKey, "1")
+        // Mark as processed
+        processedTransactions.push(transactionId)
+        sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
+
+        const isFree = amount === "0" && (coupon || txId)
 
         if (isFree) {
-          // Handle new free transaction
+          // Free transaction
           if (type === "words" && count) {
             await onVerificationSuccess("Words Added!", `${Number(count).toLocaleString()} words have been added using coupon ${coupon}.`)
           } else if (type === "subscription" && plan) {
             await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated using coupon ${coupon}.`)
           } else {
-             await onVerificationSuccess("Success!", "Your free item has been added to your account.")
+            await onVerificationSuccess("Success!", "Your free item has been added to your account.")
           }
           return
         }
-        
-        // Handle new paid transaction
+
+        // Paid transaction
         if (!paymentId || !paymentRequestId) {
           throw new Error("Missing payment information in URL.")
         }
-        
+
         const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
           body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
         })
@@ -121,9 +122,9 @@ const PaymentSuccess = () => {
     }
 
     verifyPayment()
-  }, [searchParams, refreshProfile, navigate])
+  }, [searchParams, refreshProfile, navigate, profile?.id])
 
-  const isVerifying = status === 'verifying';
+  const isVerifying = status === 'verifying'
 
   if (isVerifying) {
     return (

@@ -142,17 +142,21 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
         <SelectContent>
           {voices.map((voice) => (
             <SelectItem
-              key={voice.id}
-              value={voice.id}
-              className={!voice.audio_url ? "text-gray-400 cursor-not-allowed" : ""}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="truncate flex-1">{voice.name}</span>
-                <span className="text-xs text-gray-500 ml-4 flex-shrink-0">
-                  {new Date(voice.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </SelectItem>
+  key={voice.id}
+  value={voice.id}
+  className={!voice.audio_url ? "text-gray-400 cursor-not-allowed" : ""}
+>
+  <div className="flex items-center justify-between w-full">
+    {/* Voice Name on Left */}
+    <span className="truncate flex-1">{voice.name}</span>
+
+    {/* Date + Time on Right */}
+    <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+      {voice.created_at ? new Date(voice.created_at).toLocaleString() : "No date"}
+    </span>
+  </div>
+</SelectItem>
+
           ))}
         </SelectContent>
       </Select>

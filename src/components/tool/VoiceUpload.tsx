@@ -48,16 +48,16 @@ export function VoiceUpload({ onVoiceUploaded }: VoiceUploadProps) {
 
     try {
       // 1️⃣ Upload to Supabase Storage
-      const filePath = `user-voices/${profile.id}/${Date.now()}-${file.name}`;
+      const filePath = `/${profile.id}/${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
-        .from("user-voices")
+        .from("")
         .upload(filePath, file, { cacheControl: "3600", upsert: false });
 
       if (uploadError) throw uploadError;
 
       // 2️⃣ Get public URL
       const { data: urlData, error: urlError } = supabase.storage
-        .from("user-voices")
+        .from("")
         .getPublicUrl(filePath);
 
       if (urlError) throw urlError;
@@ -65,7 +65,7 @@ export function VoiceUpload({ onVoiceUploaded }: VoiceUploadProps) {
 
       // 3️⃣ Async DB insert
       supabase
-        .from("user_voices")
+        .from("")
         .insert({
           user_id: profile.id,
           name: file.name,

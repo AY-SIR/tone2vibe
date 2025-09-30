@@ -1,4 +1,6 @@
 // src/contexts/AuthContext.tsx
+"use client";
+
 import React, {
   createContext,
   useContext,
@@ -85,20 +87,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const profileChannelRef = useRef<any>(null);
 
+  const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
+
   const shouldShowPopup = expiryData.show_popup;
 
-  // Create default free tier profile
+  // -----------------------
+  // Create default profile
+  // -----------------------
   const createDefaultProfile = useCallback(async (userId: string, userEmail: string) => {
     try {
       const defaultProfile = {
         user_id: userId,
-        full_name: userEmail.split('@')[0] || 'User',
-        avatar_url: '',
-        plan: 'free',
-        words_limit: 1000, // Free tier limit
+        full_name: userEmail.split("@")[0] || "User",
+        avatar_url: "",
+        plan: "free",
+        words_limit: 1000,
         words_used: 0,
         plan_words_used: 0,
-        word_balance: 0,
+        word_balance: 1000,
         total_words_used: 0,
         upload_limit_mb: 10,
         plan_expires_at: null,
@@ -106,9 +112,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         ip_address: null,
         country: null,
         email: userEmail,
-        company: '',
-        preferred_language: 'en',
-        last_word_purchase_at: '',
+        company: "",
+        preferred_language: "en",
+        created_at: new Date().toISOString(),
+        last_word_purchase_at: "",
         login_count: 1,
         plan_start_date: new Date().toISOString(),
         plan_end_date: null,
@@ -132,11 +139,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // Load user profile with auto-creation for new users
-  const loadUserProfile = useCallback(async (userId: string, userEmail?: string, retries = 3) => {
-    if (!userId) return;
+  // -----------------------
+  // Load profile
+  // -----------------------
+  const loadUserProfile = useCallback(
+    async (userId: string, userEmail?: string) => {
+      if (!userId) return;
 
-    for (let i = 0; i < retries; i++) {
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -144,87 +153,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           .eq("user_id", userId)
           .single();
 
-        if (data && !error) {
-          // Calculate word balance if not already calculated
-const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
+        if (data) {
+          // Increment login_count and update last_login_at
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update({
+              login_count: (data.login_count || 0) + 1,
+              last_login_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId);
 
-          const updatedProfile = {
+          if (updateError) console.error("Failed to increment login_count:", updateError);
+
+          const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
+
+          setProfile({
             ...data,
-            ip_address: (data.ip_address as string | null) || null,
-word_balance: data.word_balance != null ? data.word_balance : calculatedWordBalance,
-          };
-
-          setProfile(updatedProfile);
+            login_count: (data.login_count || 0) + 1,
+            last_login_at: new Date().toISOString(),
+            word_balance: data.word_balance ?? calculatedWordBalance,
+          });
 
           if (data.country) {
-            const location = { country: data.country, currency: "INR" };
-            setLocationData(location);
-            try {
-              localStorage.setItem(
-                `user_location_${userId}`,
-                JSON.stringify(location)
-              );
-            } catch {}
+            setLocationData({ country: data.country, currency: "INR" });
           }
           return;
         }
 
-        if (error && error.code === "PGRST116") {
-          // Profile doesn't exist, create default profile
-          console.log(`Profile not found for user ${userId}, creating default profile...`);
-
-          if (userEmail) {
-            const newProfile = await createDefaultProfile(userId, userEmail);
-            if (newProfile) {
-              const updatedProfile = {
-                ...newProfile,
-                ip_address: (newProfile.ip_address as string | null) || null,
-              };
-              setProfile(updatedProfile);
-              console.log("Default profile created successfully");
-              return;
-            }
-          }
-        }
-
-        if (error && error.code !== "PGRST116") {
-          console.error("Critical profile load error:", error);
-          return;
-        }
-
-        console.warn(
-          `Profile for user ${userId} not found. Attempt ${i + 1}/${retries}. Retrying...`
-        );
-        if (i < retries - 1) {
-          await new Promise((res) => setTimeout(res, 1000 * (i + 1)));
+        if (error?.code === "PGRST116" && userEmail) {
+          const newProfile = await createDefaultProfile(userId, userEmail);
+          if (newProfile) setProfile(newProfile);
         }
       } catch (err) {
-        console.error("Exception during profile load:", err);
-        return;
+        console.error("Error loading profile:", err);
       }
-    }
+    },
+    [createDefaultProfile]
+  );
 
-    // If all retries failed and we have user email, try to create default profile
-    if (userEmail) {
-      console.log("All retries failed, attempting to create default profile...");
-      const newProfile = await createDefaultProfile(userId, userEmail);
-      if (newProfile) {
-        const updatedProfile = {
-          ...newProfile,
-          ip_address: (newProfile.ip_address as string | null) || null,
-        };
-        setProfile(updatedProfile);
-        console.log("Default profile created after retries");
-        return;
-      }
-    }
-
-    console.error(`Failed to load or create profile for user ${userId} after ${retries} attempts.`);
-  }, [createDefaultProfile]);
-
-  // Handle session + user
+  // -----------------------
+  // Handle session
+  // -----------------------
   useEffect(() => {
     let mounted = true;
+    let sessionTimeout: any = null;
 
     const handleSession = async (currentSession: Session | null) => {
       if (!mounted) return;
@@ -234,8 +206,13 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
       setUser(currentUser);
 
       if (currentUser) {
-        // Pass user email for profile creation if needed
         await loadUserProfile(currentUser.id, currentUser.email);
+
+        // Setup 2-hour session timeout
+        if (sessionTimeout) clearTimeout(sessionTimeout);
+        sessionTimeout = setTimeout(() => {
+          supabase.auth.signOut();
+        }, SESSION_EXPIRY_MS);
       } else {
         setProfile(null);
         setLocationData(null);
@@ -251,21 +228,20 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
       });
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) {
-        handleSession(session);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
     });
 
     return () => {
       mounted = false;
+      if (sessionTimeout) clearTimeout(sessionTimeout);
       subscription?.unsubscribe();
     };
   }, [loadUserProfile]);
 
+  // -----------------------
   // Listen to profile updates
+  // -----------------------
   useEffect(() => {
     if (profileChannelRef.current) {
       profileChannelRef.current.unsubscribe?.();
@@ -287,14 +263,8 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
             const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
             setProfile({
               ...newProfile,
-              word_balance: newProfile.word_balance || calculatedWordBalance,
+              word_balance: newProfile.word_balance ?? calculatedWordBalance,
             });
-
-            // If plan was downgraded to free, refresh the profile to get updated data
-            if (newProfile.plan === 'free' && profile?.plan !== 'free') {
-              console.log('Plan downgraded to free, refreshing profile...');
-              loadUserProfile(user.id, user.email);
-            }
           }
         )
         .subscribe();
@@ -304,39 +274,11 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
     return () => {
       profileChannelRef.current?.unsubscribe?.();
     };
-  }, [user?.id, profile?.plan, loadUserProfile]);
+  }, [user?.id]);
 
-  // Track login IP
-  useEffect(() => {
-    const trackLoginIP = async () => {
-      if (!session?.access_token || !user?.id) return;
-      if (localStorage.getItem(`ip_tracked_${user.id}`)) return;
-
-      try {
-        const { data } = await supabase.functions.invoke("track-login-ip", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-
-        if (data?.country) {
-          const location = { country: data.country, currency: "INR" };
-          setLocationData(location);
-          localStorage.setItem(`ip_tracked_${user.id}`, "true");
-          localStorage.setItem(
-            `user_location_${user.id}`,
-            JSON.stringify(location)
-          );
-          await loadUserProfile(user.id, user.email);
-        }
-      } catch (err) {
-        console.error("IP tracking failed:", err);
-      }
-    };
-    trackLoginIP();
-  }, [session?.access_token, user?.id, user?.email, loadUserProfile]);
-
-  // ------------------------
+  // -----------------------
   // Auth Actions
-  // ------------------------
+  // -----------------------
   const signUp = async (
     email: string,
     password: string,
@@ -353,12 +295,6 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
           },
         },
       });
-
-      // ✅ FIX: Profile creation is removed from here.
-      // The `loadUserProfile` function, which runs after email confirmation,
-      // is now the single source of truth for creating a new user's profile.
-      // This prevents the race condition and duplicate profile creation.
-
       return { data, error };
     } catch (err) {
       console.error("Exception during signUp:", err);
@@ -382,18 +318,10 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (!error) {
-        setUser(null);
-        setSession(null);
-        setProfile(null);
-        setLocationData(null);
-
-        // Clear localStorage
-        if (user?.id) {
-          localStorage.removeItem(`ip_tracked_${user.id}`);
-          localStorage.removeItem(`user_location_${user.id}`);
-        }
-      }
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setLocationData(null);
       return { error };
     } catch (err) {
       console.error("Exception during signOut:", err);
@@ -409,27 +337,22 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
     if (!user?.id) return;
 
     try {
-      // If updating words_used, recalculate word_balance
       if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
 
-      const { error } = await supabase
-        .from("profiles")
-        .update(data)
-        .eq("user_id", user.id);
-
+      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
       if (!error) {
         await loadUserProfile(user.id, user.email);
-      } else {
-        console.error("Failed to update profile:", error);
       }
     } catch (err) {
       console.error("Exception during profile update:", err);
     }
   };
 
-  // Context value
+  // -----------------------
+  // Context Value
+  // -----------------------
   const value: AuthContextType = {
     user,
     session,
@@ -443,7 +366,6 @@ word_balance: data.word_balance != null ? data.word_balance : calculatedWordBala
     updateProfile,
   };
 
-  // More robust ready check
   const isReady = authInitialized && !loading && (!user || (user && profile !== null));
 
   return (
