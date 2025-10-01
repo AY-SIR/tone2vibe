@@ -148,23 +148,24 @@ export function PaymentGateway({
   };
 
   const handleFreeActivation = async () => {
-    try {
-      if (!user) throw new Error('User not logged in');
+      try {
+        if (!user) throw new Error('User not logged in');
 
-      const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // 1️⃣ Verify coupon
-      const { data: couponCheck, error: couponError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponValidation.code)
-        .in('type', ['subscription', 'both'])
-        .single();
+        // 1️⃣ Verify coupon - cast to any to handle missing type fields
+        const { data: couponCheck, error: couponError } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('code', couponValidation.code)
+          .in('type', ['subscription', 'both'])
+          .single();
 
-      if (couponError || !couponCheck) throw new Error('Coupon is no longer valid for subscription');
-      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
-        throw new Error('Coupon usage limit exceeded');
-      }
+        if (couponError || !couponCheck) throw new Error('Coupon is no longer valid for subscription');
+        const coupon = couponCheck as any;
+        if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+          throw new Error('Coupon usage limit exceeded');
+        }
 
       // 2️⃣ Plan limits
       const planLimits = {
@@ -225,13 +226,14 @@ export function PaymentGateway({
       }
 
       // 5️⃣ Update coupon usage count
+      const couponData = couponCheck as any;
       const { error: couponUpdateError } = await supabase
         .from('coupons')
         .update({
-          used_count: (couponCheck.used_count || 0) + 1,
+          used_count: (couponData.used_count || 0) + 1,
           last_used_at: now.toISOString()
-        })
-        .eq('id', couponCheck.id);
+        } as any)
+        .eq('id', couponData.id);
 
       if (couponUpdateError) {
         throw new Error(`Failed to update coupon usage: ${couponUpdateError.message}`);
@@ -312,47 +314,53 @@ export function PaymentGateway({
 
   // Main payment gateway
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center p-6 block lg:hidden">
-          <div className={`${plan.color} w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
+      <Card className="w-full max-w-2xl shadow-xl border-border/50 bg-card/95 backdrop-blur">
+        <CardHeader className="text-center pb-6 pt-8 px-6">
+          <div className={`${plan.color} w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg`}>
             {plan.icon}
           </div>
-          <CardTitle className="text-lg lg:text-xl">
-            {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}
+          <CardTitle className="text-2xl font-bold">
+            {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Switch to ' : 'Subscribe to '}{plan.name} Plan
           </CardTitle>
-          <CardDescription className="text-sm">
-            {isChange ? `Change your ${currentPlan} plan to ${selectedPlan} plan` : 'Embark on your voice creation adventure.'}
+          <CardDescription className="text-base mt-2">
+            {isChange ? `Modify your subscription from ${currentPlan} to ${selectedPlan}` : 'Unlock premium features and enhanced limits'}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6 p-6">
           {currentPlan && currentPlan !== 'free' && (
-            <div className="text-center">
-              <Badge variant="outline" className="text-sm">
-                Currently on {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
+            <div className="flex justify-center">
+              <Badge variant="secondary" className="text-sm px-4 py-1.5">
+                Current: {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
               </Badge>
             </div>
           )}
 
           {/* Plan Features */}
-          <div className="space-y-3 lg:hidden">
-            <h4 className="font-medium text-sm text-gray-900">What's included:</h4>
-            <ul className="space-y-2">
+          <div className="space-y-4 bg-muted/30 rounded-xl p-5">
+            <h4 className="font-semibold text-base flex items-center gap-2">
+              <Check className="h-5 w-5 text-primary" />
+              What's Included
+            </h4>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {plan.features.map((feature, index) => (
-                <li key={index} className="flex items-center space-x-3 text-xs">
-                  <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
-                  <span>{feature}</span>
+                <li key={index} className="flex items-start space-x-3 text-sm">
+                  <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-muted-foreground">{feature}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <Separator className="lg:hidden" />
+          <Separator />
 
           {/* Coupon Section */}
-          <div>
-            <h4 className="font-medium text-sm text-gray-900 mb-3">Coupon Code</h4>
+          <div className="bg-background rounded-xl p-5 border border-border/50">
+            <h4 className="font-semibold text-base mb-3 flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              Have a Coupon Code?
+            </h4>
             <CouponInput
               amount={baseAmount}
               type="subscription"
@@ -364,52 +372,54 @@ export function PaymentGateway({
           <Separator />
 
           {/* Pricing */}
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm text-gray-900">Pricing Summary</h4>
-            <div className="flex justify-between text-sm">
-              <span>Plan Price</span>
-              <span className="font-medium">{pricing.symbol}{baseAmount}</span>
-            </div>
-            {couponValidation.isValid && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Coupon Discount ({couponValidation.code})</span>
-                <span className="font-medium">-{pricing.symbol}{discount}</span>
+          <div className="space-y-4 bg-muted/30 rounded-xl p-5">
+            <h4 className="font-semibold text-base">Payment Summary</h4>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Base Price</span>
+                <span className="font-medium">{pricing.symbol}{baseAmount}</span>
               </div>
-            )}
-            <Separator />
-            <div className="flex justify-between text-sm font-semibold">
-              <span>Total Amount</span>
-             <span className={finalAmount === 0 ? 'text-green-600' : ''}>
-  {pricing.symbol}{finalAmount}
-</span>
-
-            </div>
-            <div className="text-xs text-gray-500 text-center">
-              {finalAmount === 0 ? 'Free activation with coupon' : 
-               isExpired ? 'Plan renewal • INR Currency Only' : 
-               'Billed monthly • INR Currency Only'}
+              {couponValidation.isValid && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Discount ({couponValidation.code})</span>
+                  <span className="font-semibold">-{pricing.symbol}{discount}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-bold">Total</span>
+                <span className={`text-2xl font-bold ${finalAmount === 0 ? 'text-green-600' : 'text-primary'}`}>
+                  {pricing.symbol}{finalAmount}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                {finalAmount === 0 ? '🎉 Free activation with coupon' : 
+                 isExpired ? '🔄 Plan renewal • INR Only' : 
+                 '📅 Monthly billing • INR Only'}
+              </p>
             </div>
           </div>
 
           {finalAmount === 0 && !couponValidation.isValid && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 font-medium"> Invalid Free Activation</p>
-              <p className="text-xs text-red-500 mt-1">A valid coupon code is required for free plan activation.</p>
+            <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-xl">
+              <p className="text-sm text-destructive font-semibold">⚠️ Coupon Required</p>
+              <p className="text-xs text-destructive/80 mt-1">A valid coupon code is required for free plan activation.</p>
             </div>
           )}
 
           {/* Payment Confirmation */}
-          <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-start space-x-3 p-4 bg-muted/40 rounded-xl border border-border/50">
             <Checkbox
               id="confirm-payment"
               checked={confirmPayment}
               onCheckedChange={(checked) => setConfirmPayment(checked as boolean)}
               disabled={finalAmount === 0 && !couponValidation.isValid}
+              className="mt-0.5"
             />
-            <div className="text-sm text-gray-600 flex-1">
-              <label htmlFor="confirm-payment" className="cursor-pointer">
-                I confirm {finalAmount === 0 ? 'the free activation' : `the payment of ${pricing.symbol}${finalAmount}`} for the {plan.name} plan.
-                {finalAmount === 0 && couponValidation.isValid && ` Using coupon code: ${couponValidation.code}`}
+            <div className="text-sm flex-1">
+              <label htmlFor="confirm-payment" className="cursor-pointer font-medium">
+                I confirm {finalAmount === 0 ? 'the free activation' : `payment of ${pricing.symbol}${finalAmount}`} for the {plan.name} plan
+                {finalAmount === 0 && couponValidation.isValid && ` using ${couponValidation.code}`}
               </label>
             </div>
           </div>
@@ -418,31 +428,31 @@ export function PaymentGateway({
           <Button
             onClick={handlePayment}
             disabled={isProcessing || isActivating || !confirmPayment || (finalAmount === 0 && !couponValidation.isValid)}
-            className={`w-full ${finalAmount === 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'} text-white py-3 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`w-full h-12 text-base font-semibold ${finalAmount === 0 ? 'bg-green-600 hover:bg-green-700' : ''}`}
             size="lg"
           >
             {isProcessing || isActivating ? (
               <div className="flex items-center justify-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>{finalAmount === 0 ? 'Activating...' : 'Processing...'}</span>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span>{finalAmount === 0 ? 'Activating Plan...' : 'Processing Payment...'}</span>
               </div>
             ) : (
               <div className="flex items-center justify-center space-x-2">
-                <Zap className="h-4 w-4" />
+                <Zap className="h-5 w-5" />
                 <span>{getPaymentButtonText()}</span>
               </div>
             )}
           </Button>
 
           {/* Security Notice */}
-          <div className="text-sm text-gray-500 text-center mt-2">
-            <div className="flex items-center justify-center space-x-2">
+          <div className="text-center pt-2">
+            <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
               <span>🔒</span>
-              <span>{finalAmount === 0 ? 'Secure free activation' : 'Secure payment processing'}</span>
+              <span className="font-medium">{finalAmount === 0 ? 'Secure Activation' : 'Secure Payment'}</span>
             </div>
-            <div className="mt-1 text-xs">
-              {finalAmount === 0 ? 'Your account will be upgraded immediately upon confirmation' : 'Your payment information is encrypted and secure'}
-            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {finalAmount === 0 ? 'Instant activation with coupon verification' : 'Bank-grade encryption & secure processing'}
+            </p>
           </div>
         </CardContent>
       </Card>

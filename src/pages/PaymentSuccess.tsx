@@ -62,8 +62,8 @@ const PaymentSuccess = () => {
         toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
 
         await refreshProfile()
-        // No longer using a redirect timeout, let the user decide.
-        // setTimeout(() => navigate("/tool"), 3000)
+        // Auto-redirect to tool page after 5 seconds
+        setTimeout(() => navigate("/tool"), 5000)
       }
       
       try {
@@ -161,6 +161,9 @@ const PaymentSuccess = () => {
         </CardHeader>
         <CardContent className="text-center space-y-4">
           <p className="text-muted-foreground">{description}</p>
+          {status === "success" && (
+            <p className="text-sm text-muted-foreground">Redirecting in 5 seconds...</p>
+          )}
           <div className="space-y-2 pt-4">
             {status === "success" ? (
               <div className="space-y-2">
@@ -174,7 +177,7 @@ const PaymentSuccess = () => {
                 </Button>
               </div>
             ) : (
-              <Button onClick={() => navigate("/pricing")} className="w-full">
+              <Button onClick={() => navigate("/payment")} className="w-full">
                 Try Again
               </Button>
             )}
