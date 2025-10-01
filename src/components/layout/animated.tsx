@@ -28,7 +28,7 @@ const Circle = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "z-10 flex size-12 cursor-pointer items-center justify-center rounded-full border-2 bg-white p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)]",
+        "z-10 flex cursor-pointer items-center justify-center rounded-full border-2 bg-white p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)]",
         className
       )}
       {...props}
@@ -41,7 +41,7 @@ const Circle = forwardRef<
 Circle.displayName = "Circle"
 
 // ----------------------------------------------------------------------
-// Popup component
+// Mic Popup component
 // ----------------------------------------------------------------------
 const MicPopup = ({
   isOpen,
@@ -95,57 +95,55 @@ export default function AnimatedBeamDemo() {
   return (
     <div className="flex items-center justify-center p-8">
       <div
-        className="relative flex h-[300px] w-full max-w-7xl items-center justify-center p-10"
+        className="relative flex w-full max-w-7xl flex-col items-center justify-center p-10"
         ref={containerRef}
       >
-        <div className="flex size-full max-h-[200px] max-w-lg flex-col items-stretch justify-between gap-10">
-          {/* First row: cards with text */}
-          <div className="flex flex-row items-center justify-between">
-            <Circle ref={div1Ref}>
-              <div className="flex h-20 w-28 items-center justify-center rounded-lg bg-blue-100 p-4 text-center text-sm font-semibold text-blue-800 shadow">
-                Google Drive
-              </div>
-            </Circle>
-            <Circle ref={div5Ref}>
-              <div className="flex h-20 w-28 items-center justify-center rounded-lg bg-green-100 p-4 text-center text-sm font-semibold text-green-800 shadow">
-                Google Docs
-              </div>
-            </Circle>
-          </div>
+        <div className="flex w-full flex-col items-stretch justify-between gap-10 lg:flex-row lg:justify-between">
+          {/* First row */}
+          <Circle ref={div1Ref}>
+            <div className="flex h-24 w-32 items-center justify-center rounded-xl bg-gradient-to-r from-blue-400 to-blue-600 p-4 text-center text-white font-semibold shadow-xl transform transition-transform hover:-translate-y-2 hover:shadow-2xl">
+              Google Drive
+            </div>
+          </Circle>
 
-          {/* Second row */}
-          <div className="flex flex-row items-center justify-between">
-            <Circle ref={div2Ref}>
-              <div className="flex h-20 w-28 items-center justify-center rounded-lg bg-gray-100 p-4 text-center text-sm font-semibold text-gray-800 shadow">
-                Notion
-              </div>
-            </Circle>
-
-            <Circle
-              ref={div4Ref}
-              className="size-16"
-              onClick={() => setIsPopupOpen(true)}
-            >
-              <Icons.mic />
-            </Circle>
-
-            <Circle ref={div6Ref}>
-              <Icons.zapier />
-            </Circle>
-          </div>
-
-          {/* Third row: icons remain */}
-          <div className="flex flex-row items-center justify-between">
-            <Circle ref={div3Ref}>
-              <Icons.whatsapp />
-            </Circle>
-            <Circle ref={div7Ref}>
-              <Icons.messenger />
-            </Circle>
-          </div>
+          <Circle ref={div5Ref}>
+            <Icons.googleDocs />
+          </Circle>
         </div>
 
-        {/* AnimatedBeam connections */}
+        {/* Second row */}
+        <div className="flex w-full flex-col items-center justify-between gap-10 lg:flex-row lg:justify-between">
+          <Circle ref={div2Ref}>
+            <Icons.notion />
+          </Circle>
+
+          <Circle
+            ref={div4Ref}
+            className="size-16"
+            onClick={() => setIsPopupOpen(true)}
+          >
+            <Icons.mic />
+          </Circle>
+
+          <Circle ref={div6Ref}>
+            <Icons.zapier />
+          </Circle>
+        </div>
+
+        {/* Third row */}
+        <div className="flex w-full flex-col items-center justify-between gap-10 lg:flex-row lg:justify-between">
+          <Circle ref={div3Ref}>
+            <Icons.whatsapp />
+          </Circle>
+
+          <Circle ref={div7Ref}>
+            <div className="flex h-24 w-32 items-center justify-center rounded-xl bg-gradient-to-r from-pink-400 to-pink-600 p-4 text-center text-white font-semibold shadow-xl transform transition-transform hover:-translate-y-2 hover:shadow-2xl">
+              Messenger
+            </div>
+          </Circle>
+        </div>
+
+        {/* AnimatedBeams */}
         <AnimatedBeam
           containerRef={containerRef}
           fromRef={div1Ref}
