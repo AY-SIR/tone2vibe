@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lock, Eye, EyeOff, Loader as Loader2, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Chrome as Home } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle, Home } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from "sonner";
 
@@ -20,6 +20,10 @@ export default function ResetPassword() {
   const [isTokenValid, setIsTokenValid] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [resetComplete, setResetComplete] = useState(false);
+  
+  // Store tokens for later use
+  const [accessToken, setAccessToken] = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
 
   // ----------------------
   // Verify reset token
@@ -27,37 +31,59 @@ export default function ResetPassword() {
   useEffect(() => {
     const verifyResetToken = async () => {
       try {
-        const hash = window.location.hash.substring(1); // Supabase puts tokens in hash
-        const params = new URLSearchParams(hash);
-
-        const accessToken = params.get('access_token') || '';
-        const refreshToken = params.get('refresh_token') || '';
-        const type = (params.get('type') || '').toLowerCase();
-
-        console.log('Reset link params:', { accessToken, refreshToken, type });
-
-        if (!accessToken || !refreshToken || type !== 'recovery') {
+        // Log full URL for debugging
+        console.log('Full URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
+        
+        // Get hash without the leading '#'
+        const hash = window.location.hash.substring(1);
+        
+        if (!hash) {
+          console.log('No hash found in URL');
           toast.error('Invalid or expired reset link.');
           setIsTokenValid(false);
           setIsVerifying(false);
           return;
         }
 
-        // Temporarily set session just for password reset
-        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
+        const params = new URLSearchParams(hash);
+        
+        // Log all params for debugging
+        console.log('All params:', Array.from(params.entries()));
+
+        const token = params.get('access_token') || '';
+        const refresh = params.get('refresh_token') || '';
+        const type = (params.get('type') || '').toLowerCase();
+
+        console.log('Extracted values:', { 
+          hasToken: !!token, 
+          tokenLength: token.length,
+          hasRefresh: !!refresh, 
+          refreshLength: refresh.length,
+          type 
         });
 
-        if (sessionError || !sessionData.session) {
-          console.error('Session error:', sessionError);
-          toast.error('Reset link is invalid or expired.');
+        if (!token || !refresh) {
+          console.error('Missing tokens:', { hasToken: !!token, hasRefresh: !!refresh });
+          toast.error('Invalid or expired reset link. Missing authentication tokens.');
           setIsTokenValid(false);
           setIsVerifying(false);
           return;
         }
 
-        // Clean URL so tokens don't remain
+        if (type !== 'recovery') {
+          console.error('Wrong token type:', type);
+          toast.error('This link is not a password reset link.');
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        // Store tokens but DON'T set the session yet
+        setAccessToken(token);
+        setRefreshToken(refresh);
+
+        // Clean URL immediately
         window.history.replaceState({}, document.title, window.location.pathname);
 
         toast.success('Reset link verified! Set your new password.');
@@ -110,6 +136,20 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
+      // Now set the session temporarily just for the password update
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        toast.error('Reset link has expired. Please request a new one.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update password
       const { error: updateError } = await supabase.auth.updateUser({
         password: password
       });
@@ -117,19 +157,23 @@ export default function ResetPassword() {
       if (updateError) {
         console.error('Password update failed:', updateError);
         toast.error(updateError.message || 'Failed to update password.');
+        setIsLoading(false);
         return;
       }
 
       toast.success('Password updated successfully!');
       setResetComplete(true);
 
-      // Sign out and redirect to main page after success
+      // Sign out to clear the session
       await supabase.auth.signOut();
-      setTimeout(() => navigate('/', { replace: true }), 2000);
+
+      // Redirect to home page where user can sign in with new password
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 2000);
     } catch (error) {
       console.error('Unexpected update error:', error);
       toast.error('Something went wrong.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -165,10 +209,17 @@ export default function ResetPassword() {
               This password reset link is expired, invalid, or already used.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <Button onClick={() => navigate('/', { replace: true })} className="w-full">
               <Home className="mr-2 h-4 w-4" />
               Return to Home
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/?auth=open&view=forgot-password', { replace: true })} 
+              className="w-full"
+            >
+              Request New Reset Link
             </Button>
           </CardContent>
         </Card>
@@ -187,9 +238,12 @@ export default function ResetPassword() {
             <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
             <CardTitle className="text-2xl">Password Reset Complete!</CardTitle>
             <CardDescription>
-              You will be redirected to the main page shortly.
+              Your password has been updated. You can now sign in with your new password.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Redirecting to home page...</p>
+          </CardContent>
         </Card>
       </div>
     );
@@ -221,12 +275,14 @@ export default function ResetPassword() {
                   className="pr-10"
                   disabled={isLoading}
                   required
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -249,12 +305,14 @@ export default function ResetPassword() {
                   className="pr-10"
                   disabled={isLoading}
                   required
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   disabled={isLoading}
+                  tabIndex={-1}
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
