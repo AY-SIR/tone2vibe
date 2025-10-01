@@ -9,7 +9,7 @@ import {
   HardDrive,
   MessageSquare,
   File,
-  X, // Import the X icon for the close button
+  X,
 } from "lucide-react"
 
 // Utility function for class names
@@ -18,7 +18,7 @@ const cn = (...classes: (string | undefined | false)[]) => {
 }
 
 // ----------------------------------------------------------------------
-// STEP 4: Update the Circle component to accept additional props like onClick
+// Circle component
 // ----------------------------------------------------------------------
 const Circle = forwardRef<
   HTMLDivElement,
@@ -31,7 +31,7 @@ const Circle = forwardRef<
         "z-10 flex size-12 cursor-pointer items-center justify-center rounded-full border-2 bg-white p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)]",
         className
       )}
-      {...props} // Spread the rest of the props here
+      {...props}
     >
       {children}
     </div>
@@ -40,9 +40,8 @@ const Circle = forwardRef<
 
 Circle.displayName = "Circle"
 
-
 // ----------------------------------------------------------------------
-// STEP 2: Create a new component for the popup
+// Popup component
 // ----------------------------------------------------------------------
 const MicPopup = ({
   isOpen,
@@ -51,16 +50,11 @@ const MicPopup = ({
   isOpen: boolean
   onClose: () => void
 }) => {
-  if (!isOpen) {
-    return null
-  }
+  if (!isOpen) return null
 
   return (
-    // Backdrop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
-      {/* Popup container */}
       <div className="relative w-full max-w-md rounded-xl bg-white p-8 text-center shadow-2xl">
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-gray-400 hover:text-gray-800"
@@ -68,9 +62,8 @@ const MicPopup = ({
           <X size={24} />
         </button>
 
-        {/* Popup content */}
         <div className="mb-4 inline-flex size-16 items-center justify-center rounded-full bg-gray-100">
-           <Mic size={40} className="text-gray-800" />
+          <Mic size={40} className="text-gray-800" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">
           Microphone Activated
@@ -84,7 +77,9 @@ const MicPopup = ({
   )
 }
 
-
+// ----------------------------------------------------------------------
+// Main component
+// ----------------------------------------------------------------------
 export default function AnimatedBeamDemo() {
   const containerRef = useRef<HTMLDivElement>(null)
   const div1Ref = useRef<HTMLDivElement>(null)
@@ -95,9 +90,6 @@ export default function AnimatedBeamDemo() {
   const div6Ref = useRef<HTMLDivElement>(null)
   const div7Ref = useRef<HTMLDivElement>(null)
 
-  // ----------------------------------------------------------------------
-  // STEP 1: Add state to manage the popup's visibility
-  // ----------------------------------------------------------------------
   const [isPopupOpen, setIsPopupOpen] = useState(false)
 
   return (
@@ -107,22 +99,28 @@ export default function AnimatedBeamDemo() {
         ref={containerRef}
       >
         <div className="flex size-full max-h-[200px] max-w-lg flex-col items-stretch justify-between gap-10">
+          {/* First row: cards with text */}
           <div className="flex flex-row items-center justify-between">
             <Circle ref={div1Ref}>
-              <Icons.googleDrive />
+              <div className="flex h-20 w-28 items-center justify-center rounded-lg bg-blue-100 p-4 text-center text-sm font-semibold text-blue-800 shadow">
+                Google Drive
+              </div>
             </Circle>
             <Circle ref={div5Ref}>
-              <Icons.googleDocs />
+              <div className="flex h-20 w-28 items-center justify-center rounded-lg bg-green-100 p-4 text-center text-sm font-semibold text-green-800 shadow">
+                Google Docs
+              </div>
             </Circle>
           </div>
+
+          {/* Second row */}
           <div className="flex flex-row items-center justify-between">
             <Circle ref={div2Ref}>
-              <Icons.notion />
+              <div className="flex h-20 w-28 items-center justify-center rounded-lg bg-gray-100 p-4 text-center text-sm font-semibold text-gray-800 shadow">
+                Notion
+              </div>
             </Circle>
 
-            {/* ---------------------------------------------------------------------- */}
-            {/* STEP 3: Add the onClick handler to the microphone's Circle           */}
-            {/* ---------------------------------------------------------------------- */}
             <Circle
               ref={div4Ref}
               className="size-16"
@@ -135,6 +133,8 @@ export default function AnimatedBeamDemo() {
               <Icons.zapier />
             </Circle>
           </div>
+
+          {/* Third row: icons remain */}
           <div className="flex flex-row items-center justify-between">
             <Circle ref={div3Ref}>
               <Icons.whatsapp />
@@ -145,7 +145,7 @@ export default function AnimatedBeamDemo() {
           </div>
         </div>
 
-        {/* AnimatedBeam components remain the same */}
+        {/* AnimatedBeam connections */}
         <AnimatedBeam
           containerRef={containerRef}
           fromRef={div1Ref}
@@ -189,12 +189,15 @@ export default function AnimatedBeamDemo() {
         />
       </div>
 
-      {/* Render the popup component conditionally */}
+      {/* Popup */}
       <MicPopup isOpen={isPopupOpen} onClose={() => setIsPopupOpen(false)} />
     </div>
   )
 }
 
+// ----------------------------------------------------------------------
+// Icon definitions
+// ----------------------------------------------------------------------
 const Icons = {
   googleDrive: () => <HardDrive size={40} color="#0066da" />,
   googleDocs: () => <File size={40} color="#4285F4" />,
