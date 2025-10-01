@@ -8,6 +8,7 @@ import GridConnect from "@/components/gridconnect";
 
 import { FloatingNavigation } from "@/components/ui/FloatingNavigation";
 import { MobileWordCounter } from "@/components/layout/MobileWordCounter";
+import Animated from "@/components/layout/animated"
 
 import {
   Mic,
@@ -40,6 +41,7 @@ const Index = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
@@ -266,53 +268,67 @@ const Index = () => {
   const renderContent = () => {
     switch (currentSection) {
       case "home":
-        return (
-          <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
-          <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block ">
-              <GridPattern rows={15} columns={50} cellSize={32} />
+  return (
+    <>
+      {/* Hero Section */}
+      <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
+        <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block">
+          <GridPattern rows={15} columns={50} cellSize={32} />
+        </div>
+        <div className="relative z-10 container mx-auto max-w-4xl">
+          {/* Hero Content */}
+          <div className="animate-fade-in">
+            <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
+              ✨ Now with 50+ language support
+            </Badge>
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-black leading-tight">
+              Clone Your Voice with{" "}
+              <span className="block bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-pink-500 via-blue-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
+                  AI
+                </span>{" "}
+                Precision
+              </span>
+            </h1>
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-center">
+              Transform any text into speech that sounds exactly like you.
+              <br />
+              Perfect for content creators, educators, and anyone who wants personalized voice synthesis.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button
+                size="lg"
+                className="bg-black hover:bg-gray-800 text-white px-8 py-4 text-lg font-bold animate-scale-in"
+                onClick={handleGetStarted}
+              >
+                {user ? "Go to Tool" : "Start Cloning Now"}
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-gray-300 hover:bg-gray-100 text-black px-8 py-4 text-lg animate-scale-in"
+                onClick={() => setShowVideoModal(true)}
+              >
+                <Play className="mr-2 h-5 w-5" />
+                Watch Demo
+              </Button>
             </div>
-            <div className="relative z-10 container mx-auto max-w-4xl">
-              <div className="animate-fade-in">
-                <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
-                  ✨ Now with 50+ language support
-                </Badge>
-                <h1 className="text-4xl md:text-6xl font-bold mb-6 text-black leading-tight">
-                  Clone Your Voice with{" "}
-                  <span className="block bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
-                    <span className="bg-gradient-to-r from-pink-500 via-blue-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
-                      AI
-                    </span>{" "}
-                    Precision
-                  </span>
-                </h1>
-                <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-center">
-                  Transform any text into speech that sounds exactly like you.
-                  <br/>Perfect for content creators, educators, and anyone who wants
-                  personalized voice synthesis.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button
-                    size="lg"
-                    className="bg-black hover:bg-gray-800 text-white px-8 py-4 text-lg font-bold animate-scale-in"
-                    onClick={handleGetStarted}
-                  >
-                    {user ? "Go to Tool" : "Start Cloning Now"}
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-gray-300 hover:bg-gray-100 text-black px-8 py-4 text-lg animate-scale-in"
-                    onClick={() => setShowVideoModal(true)}
-                  >
-                    <Play className="mr-2 h-5 w-5" />
-                    Watch Demo
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </section>
-        );
+          </div>
+        </div>
+      </section>
+
+      {/* Animated Beams AFTER Hero */}
+      <div className="w-full  overflow-hidden">
+        <Animated />
+      </div>
+    </>
+  );
+
+
+
+
+
       case "features":
         return (
           <section className="relative py-28 px-6 bg-white text-black min-h-screen">

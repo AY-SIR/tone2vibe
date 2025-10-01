@@ -16,7 +16,7 @@ export const VoiceRecorder = ({
   disabled = false,
   minimumDuration = 5,
 }: VoiceRecorderProps) => {
-  const [status, setStatus] = useState<'idle'|'recording'|'stopping'|'completed'|'saved'>('idle');
+  const [status, setStatus] = useState<'idle' | 'recording' | 'stopping' | 'completed' | 'saved'>('idle');
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -28,9 +28,9 @@ export const VoiceRecorder = ({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const durationRef = useRef(0);
+  const audioUrlRef = useRef<string>("");
   const { toast } = useToast();
 
-  // ------------------ Cleanup ------------------
   const cleanup = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -48,16 +48,27 @@ export const VoiceRecorder = ({
     setIsPlaying(false);
     setStatus('idle');
     setIsSaving(false);
+
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = "";
+    }
     cleanup();
   }, [cleanup]);
 
-  useEffect(() => cleanup, [cleanup]);
+  useEffect(() => {
+    return () => {
+      cleanup();
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+    };
+  }, [cleanup]);
 
-  // ------------------ Start Recording ------------------
   const startRecording = async () => {
     reset();
     try {
@@ -65,10 +76,34 @@ export const VoiceRecorder = ({
       recordedChunksRef.current = [];
       durationRef.current = 0;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // --- STEP 1: Get High-Quality Raw Audio Stream ---
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 44100,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 256000 });
+      // --- STEP 2: Boost Volume with Web Audio API ---
+      const audioContext = new AudioContext();
+      // Ensure the context is active to prevent silent recordings
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      const source = audioContext.createMediaStreamSource(stream);
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = 1.5; // Boost volume by 50%
+      const dest = audioContext.createMediaStreamDestination();
+      // Connect pipeline: Mic Source -> Gain (Volume) -> Final Destination
+      source.connect(gainNode);
+      gainNode.connect(dest);
+
+      // --- STEP 3: Record the Processed Stream at High Bitrate ---
+      const mime = 'audio/webm;codecs=opus';
+      const recorder = new MediaRecorder(dest.stream, MediaRecorder.isTypeSupported(mime) ? { mimeType: mime, audioBitsPerSecond: 256000 } : undefined);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -76,7 +111,14 @@ export const VoiceRecorder = ({
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        if (recordedChunksRef.current.length === 0) {
+            toast({ title: "Recording failed", description: "No audio data captured. Please check microphone permissions.", variant: "destructive" });
+            reset();
+            cleanup();
+            return;
+        }
+
+        const blob = new Blob(recordedChunksRef.current, { type: mime });
         if (durationRef.current >= minimumDuration) {
           setAudioBlob(blob);
           setStatus('completed');
@@ -88,7 +130,7 @@ export const VoiceRecorder = ({
         cleanup();
       };
 
-      recorder.start(100); // 100ms chunks
+      recorder.start(100);
 
       intervalRef.current = setInterval(() => {
         durationRef.current += 1;
@@ -97,16 +139,20 @@ export const VoiceRecorder = ({
 
       toast({ title: "Recording started..." });
     } catch (err) {
-      toast({ title: "Microphone access denied", variant: "destructive" });
+      console.error("Error starting recording:", err);
+      toast({ title: "Microphone access denied", description: "Please allow microphone access in your browser settings.", variant: "destructive" });
+      setStatus('idle');
       cleanup();
     }
   };
 
-  // ------------------ Stop Recording ------------------
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       setStatus('stopping');
-      mediaRecorderRef.current.stop();
+      setTimeout(() => {
+         mediaRecorderRef.current?.stop();
+      }, 250);
+
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -114,40 +160,69 @@ export const VoiceRecorder = ({
     }
   };
 
-  // ------------------ Play/Pause ------------------
   const playRecording = () => {
     if (!audioBlob) return;
-    if (isPlaying && audioRef.current) {
-      audioRef.current.pause();
+
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+    }
+
+    const url = URL.createObjectURL(audioBlob);
+    audioUrlRef.current = url;
+    const audio = new Audio(url);
+    audioRef.current = audio;
+
+    audio.onended = () => setIsPlaying(false);
+    audio.onerror = (e) => {
+      console.error("Audio playback error:", e);
       setIsPlaying(false);
-    } else {
-      if (audioRef.current) audioRef.current.pause();
-      const url = URL.createObjectURL(audioBlob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => setIsPlaying(false);
-      audio.onerror = () => {
+      toast({ title: "Playback failed", variant: "destructive" });
+    };
+
+    audio.play()
+      .then(() => setIsPlaying(true))
+      .catch((err) => {
+        console.error("Playback promise error:", err);
         setIsPlaying(false);
         toast({ title: "Playback failed", variant: "destructive" });
-      };
-      audio.play();
-      setIsPlaying(true);
+      });
+  };
+
+  const pauseRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
     }
   };
 
-  // ------------------ Get Duration ------------------
   const getAudioDuration = (blob: Blob) => {
     return new Promise<number>((resolve, reject) => {
       const audio = document.createElement('audio');
-      audio.src = URL.createObjectURL(blob);
-      audio.addEventListener('loadedmetadata', () => {
-        resolve(isFinite(audio.duration) && audio.duration > 0 ? audio.duration : minimumDuration);
-      });
-      audio.addEventListener('error', (e) => reject(e));
+      const url = URL.createObjectURL(blob);
+      audio.src = url;
+
+      const cleanupAudio = () => {
+        URL.revokeObjectURL(url);
+        audio.removeEventListener('loadedmetadata', onLoaded);
+        audio.removeEventListener('error', onError);
+      };
+
+      const onLoaded = () => {
+        const duration = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+        cleanupAudio();
+        resolve(duration > 0 ? duration : minimumDuration);
+      };
+
+      const onError = (e: Event) => {
+        cleanupAudio();
+        reject(e);
+      };
+
+      audio.addEventListener('loadedmetadata', onLoaded);
+      audio.addEventListener('error', onError);
     });
   };
 
-  // ------------------ Confirm & Save ------------------
   const confirmRecording = async () => {
     if (!audioBlob || isSaving) return;
     setIsSaving(true);
@@ -172,20 +247,22 @@ export const VoiceRecorder = ({
 
       const audioDuration = Math.ceil(await getAudioDuration(audioBlob));
 
+      const voiceName = `Recorded Voice ${new Date().toISOString().split('T')[0]}`;
+
       const { error: insertError } = await supabase.from('user_voices').insert({
         user_id: user.id,
-        name: `Recorded Voice ${new Date().toLocaleDateString()}`,
+        name: voiceName,
         audio_url: publicUrl,
         duration: audioDuration,
         is_selected: true,
-      } as any);
+      });
 
       if (insertError) throw insertError;
 
       toast({ title: "Voice saved successfully!" });
       setStatus('saved');
     } catch (err: any) {
-      console.error(err);
+      console.error("Save error:", err);
       toast({ title: "Failed to save voice", description: err.message, variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -195,9 +272,9 @@ export const VoiceRecorder = ({
   const deleteRecording = () => reset();
 
   const formatTime = (sec: number) => {
-    const mins = Math.floor(sec/60);
+    const mins = Math.floor(sec / 60);
     const secs = sec % 60;
-    return `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -206,7 +283,7 @@ export const VoiceRecorder = ({
         {/* Record / Stop Button */}
         <div className="flex justify-center">
           {status !== 'recording' ? (
-            <Button onClick={startRecording} disabled={disabled || status==='stopping' || status==='saved'} size="lg" className="bg-red-600 hover:bg-red-700 text-white rounded-full w-20 h-20">
+            <Button onClick={startRecording} disabled={disabled || status === 'stopping' || status === 'saved'} size="lg" className="bg-red-600 hover:bg-red-700 text-white rounded-full w-20 h-20">
               <Mic className="h-8 w-8" />
             </Button>
           ) : (
@@ -222,21 +299,21 @@ export const VoiceRecorder = ({
             <>
               <p className="text-2xl font-mono font-bold">{formatTime(duration)}</p>
               <p className="text-sm text-muted-foreground h-5">
-                {status==='recording' ? `Recording... (min: ${minimumDuration}s)` :
-                 status==='stopping' ? "Finalizing..." :
-                 status==='completed' ? "Recording ready for review" :
-                 "Record a voice sample"}
+                {status === 'recording' ? `Recording... (min: ${minimumDuration}s)` :
+                  status === 'stopping' ? "Finalizing..." :
+                  status === 'completed' ? "Recording ready for review" :
+                  "Record a voice sample"}
               </p>
-              {status==='stopping' && <Loader2 className="h-4 w-4 animate-spin mx-auto mt-1" />}
+              {status === 'stopping' && <Loader2 className="h-4 w-4 animate-spin mx-auto mt-1" />}
             </>
           )}
         </div>
 
         {/* Review Buttons */}
-        {status==='completed' && audioBlob && (
+        {status === 'completed' && audioBlob && (
           <div className="space-y-3 animate-in fade-in">
             <div className="flex justify-center gap-2">
-              <Button onClick={playRecording} variant="outline" size="sm" className="w-24" disabled={isSaving}>
+              <Button onClick={isPlaying ? pauseRecording : playRecording} variant="outline" size="sm" className="w-24" disabled={isSaving}>
                 {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                 {isPlaying ? "Pause" : "Play"}
               </Button>
@@ -251,20 +328,23 @@ export const VoiceRecorder = ({
         )}
 
         {/* Saved State */}
-        {status==='saved' && (
+        {status === 'saved' && (
           <div className="space-y-3 animate-in fade-in">
             <div className="flex items-center justify-center gap-2 text-green-600">
               <CheckCircle className="h-5 w-5" />
               <p className="font-medium">Voice Saved Successfully!</p>
             </div>
+
             {audioBlob && (
               <div className="flex justify-center gap-2">
-                <Button onClick={playRecording} variant="outline" size="sm" className="w-40">
-                  {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                  {isPlaying ? "Pause" : "Play Saved Voice"}
+                <Button onClick={isPlaying ? pauseRecording : playRecording} variant="outline" size="sm" className="w-48">
+                    {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                    {isPlaying ? "Pause Playback" : "Play Saved Voice"}
                 </Button>
               </div>
             )}
+
+            <Button onClick={startRecording} variant="outline">Record another</Button>
           </div>
         )}
       </CardContent>
