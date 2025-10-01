@@ -45,7 +45,9 @@ const PaymentSuccess = () => {
 
     const userKey = `processed_${profile.id}`
     let processedTransactions: string[] = JSON.parse(sessionStorage.getItem(userKey) || "[]")
-    const transactionId = txId || paymentId || coupon || ""
+
+    // Create a unique transactionId
+    let transactionId = txId || paymentId || `${coupon || "free"}-${amount || "0"}`
 
     const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
       setStatus("success")
@@ -61,7 +63,7 @@ const PaymentSuccess = () => {
 
     const verifyPayment = async () => {
       try {
-        // Already processed?
+        // Already processed? => Show welcome back
         if (processedTransactions.includes(transactionId)) {
           let welcomeTitle = "Welcome Back!"
           let welcomeDescription = "Your purchase is ready to use."
@@ -74,14 +76,13 @@ const PaymentSuccess = () => {
           return
         }
 
-        // Mark as processed
+        // New transaction → push to sessionStorage
         processedTransactions.push(transactionId)
         sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
 
         const isFree = amount === "0" && (coupon || txId)
 
         if (isFree) {
-          // Free transaction
           if (type === "words" && count) {
             await onVerificationSuccess("Words Added!", `${Number(count).toLocaleString()} words have been added using coupon ${coupon}.`)
           } else if (type === "subscription" && plan) {
