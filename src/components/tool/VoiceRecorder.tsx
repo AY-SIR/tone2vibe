@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,14 +32,6 @@ export const VoiceRecorder = ({
 
   const { toast } = useToast();
 
-  const getSupportedMimeType = () => {
-    const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
-    for (const mimeType of mimeTypes) {
-      if (MediaRecorder.isTypeSupported(mimeType)) return mimeType;
-    }
-    return 'audio/webm';
-  };
-
   const cleanup = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     streamRef.current?.getTracks().forEach(track => track.stop());
@@ -69,11 +62,15 @@ export const VoiceRecorder = ({
       setRecordingStatus('recording');
       recordedChunksRef.current = [];
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: false, noiseSuppression: false } 
+      });
       streamRef.current = stream;
 
-      const supportedMimeType = getSupportedMimeType();
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: supportedMimeType, audioBitsPerSecond: 128000 });
+      const mediaRecorder = new MediaRecorder(stream, { 
+        mimeType: 'audio/webm;codecs=opus', 
+        audioBitsPerSecond: 256000 
+      });
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -81,7 +78,7 @@ export const VoiceRecorder = ({
       };
 
       mediaRecorder.onstop = () => {
-        const finalBlob = new Blob(recordedChunksRef.current, { type: supportedMimeType });
+        const finalBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm;codecs=opus' });
 
         if (durationRef.current >= minimumDuration) {
           setAudioBlob(finalBlob);
@@ -94,7 +91,7 @@ export const VoiceRecorder = ({
         cleanup();
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(100); // 100ms chunking for smooth capture
       toast({ title: "Recording started..." });
 
       intervalRef.current = setInterval(() => {
@@ -118,10 +115,12 @@ export const VoiceRecorder = ({
 
   const playRecording = () => {
     if (!audioBlob) return;
+
     if (isPlaying && audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
+      if (audioRef.current) audioRef.current.pause();
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
@@ -135,7 +134,6 @@ export const VoiceRecorder = ({
     }
   };
 
-  // Get actual audio duration from blob
   const getAudioDuration = (blob: Blob): Promise<number> => {
     return new Promise((resolve, reject) => {
       const audio = document.createElement('audio');
@@ -176,13 +174,12 @@ export const VoiceRecorder = ({
         .update({ is_selected: false })
         .eq('user_id', user.id);
 
-      // Get actual duration
       const actualDuration = await getAudioDuration(audioBlob);
 
       const { error: insertError } = await supabase.from('user_voices').insert({
         user_id: user.id,
         name: `Recorded Voice ${new Date().toLocaleDateString()}`,
-        audio_blob: audioBlob, // store as blob
+        audio_blob: audioBlob,
         audio_url: publicUrl,
         duration: Math.ceil(actualDuration).toString(),
         is_selected: true,
@@ -281,7 +278,6 @@ export const VoiceRecorder = ({
                  </Button>
               </div>
             )}
-
           </div>
         )}
       </CardContent>
