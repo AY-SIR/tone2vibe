@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
+
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -23,23 +24,33 @@ import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import EmailConfirmation from "./pages/EmailConfirmation";
-// ✅ 1. Import the ResetPassword component
 import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
 function App() {
+  // ✅ Disable right click globally
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener("contextmenu", handleContextMenu);
+    return () => {
+      document.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <TooltipProvider>
           <ResponsiveGuard>
             <AuthProvider>
-              <Suspense fallback={
-                <div className="min-h-screen flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              }>
+              <Suspense
+                fallback={
+                  <div className="min-h-screen flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                }
+              >
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
@@ -52,12 +63,8 @@ function App() {
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/terms" element={<Terms />} />
                   <Route path="/cookies" element={<Cookies />} />
-
                   <Route path="/email-confirmation" element={<EmailConfirmation />} />
-
-
                   <Route path="/reset-password" element={<ResetPassword />} />
-
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

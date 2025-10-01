@@ -19,11 +19,11 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -32,29 +32,29 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
-      
+
       const chunks: BlobPart[] = [];
-      
+
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunks.push(event.data);
         }
       };
-      
+
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
-      
+
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
-      
+
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error starting recording:', error);
       toast({
@@ -80,12 +80,12 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
-      
+
       audio.onended = () => {
         setIsPlaying(false);
         URL.revokeObjectURL(audioUrl);
       };
-      
+
       audio.play();
       setIsPlaying(true);
     }
@@ -101,12 +101,12 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
 
   const saveRecording = async () => {
     if (!audioBlob || !user) return;
-    
+
     setIsUploading(true);
     try {
       const voiceName = `Voice Sample ${new Date().toLocaleDateString()}`;
       const duration = `${Math.floor(recordingTime / 60)}:${(recordingTime % 60).toString().padStart(2, '0')}`;
-      
+
       const voiceId = await VoiceStorageService.storeVoice(
         user.id,
         voiceName,
@@ -114,17 +114,17 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
         language,
         duration
       );
-      
+
       if (voiceId) {
         toast({
           title: "Recording Saved",
           description: "Your voice sample has been saved successfully.",
         });
-        
+
         if (onRecordingComplete) {
           onRecordingComplete(voiceId);
         }
-        
+
         setAudioBlob(null);
         setRecordingTime(0);
       } else {
@@ -163,7 +163,7 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
           </p>
           <p className="text-gray-800 leading-relaxed">{sampleText}</p>
         </div>
-        
+
         <div className="flex items-center justify-center space-x-4">
           {!isRecording ? (
             <Button
@@ -191,7 +191,7 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
             </div>
           )}
         </div>
-        
+
         {audioBlob && (
           <div className="flex items-center justify-center space-x-4 pt-4 border-t">
             <Button
@@ -211,7 +211,7 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
                 </>
               )}
             </Button>
-            
+
             <Button
               onClick={saveRecording}
               disabled={isUploading}
@@ -229,7 +229,7 @@ export function VoiceRecordingSample({ sampleText, language, onRecordingComplete
                 </>
               )}
             </Button>
-            
+
             <Button
               onClick={() => setAudioBlob(null)}
               variant="outline"
