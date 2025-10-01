@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-// ✅ STEP 1: No longer need to import supabase client directly for auth
-// import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +12,7 @@ import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
-import { useAuth } from '@/contexts/AuthContext'; // ✅ STEP 2: Import useAuth
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client'; // Keep for resetPasswordForEmail
 import { FcGoogle } from "react-icons/fc";
 
@@ -37,10 +35,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [currentView, setCurrentView] = useState<'auth' | 'forgot-password'>('auth');
   const [resetEmail, setResetEmail] = useState('');
-
-
-// ✅ STEP 3: Get signUp, signIn, and signInWithGoogle from our context
-const { signUp, signIn, signInWithGoogle } = useAuth();
+  const { signUp, signIn, signInWithGoogle } = useAuth();
 
   // Handle URL parameters
   useEffect(() => {
@@ -73,7 +68,7 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
       }
       LocationCacheService.getLocation().then(location => setIsIndianUser(location.isIndian));
     }
-  }, [open]);
+  }, [open, currentView]);
 
   const clearAllFields = () => {
     setEmail('');
@@ -133,13 +128,9 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
 
     try {
       console.log('Attempting sign in for:', email);
-
-      // ✅ STEP 4: Use the signIn function from AuthContext
       const { data, error } = await signIn(email.trim().toLowerCase(), password);
-
       if (error) {
         console.error('Sign in error:', error);
-
         if (error.message.includes('Invalid login credentials')) {
           toast.error('Invalid email or password. Please check your credentials.');
         } else if (error.message.includes('Email not confirmed')) {
@@ -208,16 +199,12 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
       }
 
       console.log('Attempting sign up for:', email);
-
-      // ✅ STEP 5: Use the signUp function from AuthContext
       const { data, error } = await signUp(email.trim().toLowerCase(), password, {
         emailRedirectTo: `${window.location.origin}/email-confirmation`,
         fullName: fullName.trim(),
       });
-
       if (error) {
         console.error('Sign up error:', error);
-
         if (error.message.includes('User already registered')) {
           toast.error('This email is already registered. Please sign in instead.');
         } else if (error.message.includes('Signup not allowed')) {
@@ -233,8 +220,6 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
 
       if (data.user) {
         console.log('Sign up successful for user:', data.user.email);
-
-        // This check might be redundant now but is safe to keep
         if (data.user.identities && data.user.identities.length === 0) {
           toast.error('This email is already registered. Please sign in instead.');
           clearAllFields();
@@ -272,14 +257,11 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
 
     try {
       console.log('Sending reset email to:', resetEmail);
-
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim().toLowerCase(), {
         redirectTo: `${window.location.origin}/reset-password`
       });
-
       if (error) {
         console.error('Reset password error:', error);
-
         if (error.message.includes('rate limit')) {
           toast.error('Too many reset attempts. Please wait before trying again.');
         } else {
@@ -304,11 +286,8 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
     }
   };
 
-
   return (
-<Dialog
-  open={open} onOpenChange={onOpenChange}
->
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh]  overflow-auto no-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -338,7 +317,8 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
         {!isIndianUser && <IndiaOnlyAlert />}
 
         {isIndianUser && (
-          currentView === 'auth' ? (
+          currentView === 'auth' ?
+          (
             <Tabs defaultValue="signin" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin" disabled={isLoading}>Sign In</TabsTrigger>
@@ -412,27 +392,25 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
                     Sign In
                   </Button>
                 </div>
-                 {/* Google Login */}
+                {/* Google Login */}
                 <Button
-  variant="outline"
-  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
-  onClick={async () => {
-    setIsLoading(true);
-    try {
-      await signInWithGoogle();
-    } finally {
-      setIsLoading(false);
-    }
-  }}
-  disabled={isLoading}
->
-  {isLoading ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
-  ) : (
-    <FcGoogle className="h-4 w-4" />
-  )}
-  {isLoading ? 'Signing in...' : 'Continue with Google'}
-</Button>
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
+                  onClick={() => {
+                    setIsLoading(true);
+                    // The page will redirect, so we don't need a try/finally block
+                    // to set loading back to false.
+                    signInWithGoogle();
+                  }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FcGoogle className="h-4 w-4" />
+                  )}
+                  {isLoading ? 'Signing in...' : 'Continue with Google'}
+                </Button>
               </TabsContent>
 
               <TabsContent value="signup">
@@ -533,7 +511,8 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
                     )}
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  
+                       <div className="flex items-center space-x-2">
                     <Checkbox
                       id="terms"
                       checked={agreeToTerms}
@@ -562,26 +541,24 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
                   </Button>
                 </div>
                  {/* Google Login */}
-              <Button
-  variant="outline"
-  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
-  onClick={async () => {
-    setIsLoading(true);
-    try {
-      await signInWithGoogle();
-    } finally {
-      setIsLoading(false);
-    }
-  }}
-  disabled={isLoading}
->
-  {isLoading ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
-  ) : (
-    <FcGoogle className="h-4 w-4" />
-  )}
-  {isLoading ? 'Signing in...' : 'Continue with Google'}
-</Button>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
+                  onClick={() => {
+                    setIsLoading(true);
+                    // The page will redirect, so we don't need a try/finally block
+                    // to set loading back to false.
+                    signInWithGoogle();
+                  }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FcGoogle className="h-4 w-4" />
+                  )}
+                  {isLoading ? 'Signing in...' : 'Continue with Google'}
+                </Button>
               </TabsContent>
             </Tabs>
           ) : (
@@ -603,8 +580,8 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
                   />
                 </div>
                 <p className="text-sm text-gray-500 ">
-  Enter your email to receive a password reset link.
-</p>
+                  Enter your email to receive a password reset link.
+                </p>
 
               </div>
 
@@ -623,4 +600,5 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
       </DialogContent>
     </Dialog>
   );
-}
+        }
+    
