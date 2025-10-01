@@ -414,17 +414,25 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
                 </div>
                  {/* Google Login */}
                 <Button
-                  variant="outline"
-                  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
-                  onClick={async () => {
-                    setIsLoading(true);
-                    try { await signInWithGoogle(); } finally { setIsLoading(false); }
-                  }}
-                  disabled={isLoading}
-                >
-<FcGoogle className="h-4 w-4" />
-                  Continue with Google
-                </Button>
+  variant="outline"
+  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
+  onClick={async () => {
+    setIsLoading(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setIsLoading(false);
+    }
+  }}
+  disabled={isLoading}
+>
+  {isLoading ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : (
+    <FcGoogle className="h-4 w-4" />
+  )}
+  {isLoading ? 'Signing in...' : 'Continue with Google'}
+</Button>
               </TabsContent>
 
               <TabsContent value="signup">
@@ -554,19 +562,26 @@ const { signUp, signIn, signInWithGoogle } = useAuth();
                   </Button>
                 </div>
                  {/* Google Login */}
-                <Button
-                  variant="outline"
-                  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
-                  onClick={async () => {
-                    setIsLoading(true);
-                    try { await signInWithGoogle(); } finally { setIsLoading(false); }
-                  }}
-                  disabled={isLoading}
-                >
-<FcGoogle className="h-4 w-4" />
-
-                 Signup with Google
-                </Button>
+              <Button
+  variant="outline"
+  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
+  onClick={async () => {
+    setIsLoading(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setIsLoading(false);
+    }
+  }}
+  disabled={isLoading}
+>
+  {isLoading ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : (
+    <FcGoogle className="h-4 w-4" />
+  )}
+  {isLoading ? 'Signing in...' : 'Continue with Google'}
+</Button>
               </TabsContent>
             </Tabs>
           ) : (
