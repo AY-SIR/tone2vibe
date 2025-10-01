@@ -29,44 +29,50 @@ const PaymentSuccess = () => {
   }
 
   useEffect(() => {
-    if (hasProcessedRef.current) return
+    if (hasProcessedRef.current || !profile?.id) return
     hasProcessedRef.current = true
 
-    const paymentId = searchParams.get("payment_id")
-    const paymentRequestId = searchParams.get("payment_request_id")
-    const txId = searchParams.get("txId")
-    const type = searchParams.get("type")
-    const plan = searchParams.get("plan")
-    const count = searchParams.get("count")
-    const amount = searchParams.get("amount")
-    const coupon = searchParams.get("coupon")
-
-    if (!profile?.id) return
-
-    const userKey = `processed_${profile.id}`
-    let processedTransactions: string[] = JSON.parse(sessionStorage.getItem(userKey) || "[]")
-
-    // Create a unique transactionId
-    let transactionId = txId || paymentId || `${coupon || "free"}-${amount || "0"}`
-
-    const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
-      setStatus("success")
-      setTitle(successTitle)
-      setDescription(successDescription)
-      setTimeout(fireConfetti, 200)
-
-      toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
-
-      await refreshProfile()
-      setTimeout(() => navigate("/tool"), 3000)
-    }
-
     const verifyPayment = async () => {
+      // --- START: MAJOR FIX FOR TRANSACTION ID ---
+      // Get all potential unique identifiers from the URL.
+      const paymentId = searchParams.get("payment_id")
+      const paymentRequestId = searchParams.get("payment_request_id")
+      const txId = searchParams.get("txId")
+      
+      // We create one single, reliable key for the transaction.
+      // `payment_request_id` is the best because it's unique for every attempt.
+      const uniqueTransactionKey = paymentRequestId || paymentId || txId
+      // --- END: MAJOR FIX ---
+      
+      const type = searchParams.get("type")
+      const plan = searchParams.get("plan")
+      const count = searchParams.get("count")
+      const amount = searchParams.get("amount")
+      const coupon = searchParams.get("coupon")
+
+      const userKey = `processed_${profile.id}`
+      let processedTransactions: string[] = JSON.parse(sessionStorage.getItem(userKey) || "[]")
+
+      const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
+        setStatus("success")
+        setTitle(successTitle)
+        setDescription(successDescription)
+        setTimeout(fireConfetti, 200)
+
+        toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
+
+        await refreshProfile()
+        // No longer using a redirect timeout, let the user decide.
+        // setTimeout(() => navigate("/tool"), 3000)
+      }
+      
       try {
-        // Already processed? => Show welcome back
-        if (processedTransactions.includes(transactionId)) {
+        // --- START: IMPROVED RE-LOAD CHECK ---
+        // Only check for already processed transactions if we have a reliable unique key.
+        // This prevents the bug where two different free/coupon purchases were seen as the same.
+        if (uniqueTransactionKey && processedTransactions.includes(uniqueTransactionKey)) {
           let welcomeTitle = "Welcome Back!"
-          let welcomeDescription = "Your purchase is ready to use."
+          let welcomeDescription = "Your purchase is already confirmed and ready to use."
           if (type === "words" && count) {
             welcomeDescription = `Your ${Number(count).toLocaleString()} words are ready to use.`
           } else if (type === "subscription" && plan) {
@@ -75,10 +81,13 @@ const PaymentSuccess = () => {
           await onVerificationSuccess(welcomeTitle, welcomeDescription)
           return
         }
+        // --- END: IMPROVED RE-LOAD CHECK ---
 
-        // New transaction → push to sessionStorage
-        processedTransactions.push(transactionId)
-        sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
+        // If it's a new transaction with a key, add it to session storage to prevent double-processing on reload.
+        if (uniqueTransactionKey) {
+            processedTransactions.push(uniqueTransactionKey)
+            sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
+        }
 
         const isFree = amount === "0" && (coupon || txId)
 
@@ -93,7 +102,7 @@ const PaymentSuccess = () => {
           return
         }
 
-        // Paid transaction
+        // Paid transaction logic remains the same
         if (!paymentId || !paymentRequestId) {
           throw new Error("Missing payment information in URL.")
         }
@@ -117,7 +126,7 @@ const PaymentSuccess = () => {
         setStatus("error")
         setTitle("Verification Failed")
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
-        setDescription(`Unable to verify your payment. Reason: ${errorMessage}`)
+        setDescription(`There was an issue while verifying your payment. Please contact support if the problem persists.`)
         toast.error("Verification Failed", { description: errorMessage })
       }
     }
@@ -125,9 +134,7 @@ const PaymentSuccess = () => {
     verifyPayment()
   }, [searchParams, refreshProfile, navigate, profile?.id])
 
-  const isVerifying = status === 'verifying'
-
-  if (isVerifying) {
+  if (status === 'verifying') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -143,14 +150,14 @@ const PaymentSuccess = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
-      <Card className="w-full max-w-md animate-fade-in">
+      <Card className="w-full max-w-md animate-fade-in z-10">
         <CardHeader className="text-center">
           {status === "success" ? (
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
           ) : (
             <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
           )}
-          <CardTitle className="text-2xl">{title}</CardTitle>
+          <CardTitle className="text-2xl font-bold">{title}</CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
           <p className="text-muted-foreground">{description}</p>
@@ -168,7 +175,7 @@ const PaymentSuccess = () => {
               </div>
             ) : (
               <Button onClick={() => navigate("/pricing")} className="w-full">
-                Back to Pricing
+                Try Again
               </Button>
             )}
           </div>
