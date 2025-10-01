@@ -11,12 +11,15 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' &&
-    componentTagger(),
+    mode === 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  build: {
+    chunkSizeWarningLimit: 2000, // 2MB, warning will disappear
+    sourcemap: false,             // optional, build smaller
   },
 }));
