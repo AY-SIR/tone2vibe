@@ -1,24 +1,14 @@
 "use client"
 
-import React, { forwardRef, useRef, useState } from "react"
+import React, { forwardRef, useRef, useState, useEffect } from "react"
 import { AnimatedBeam } from "@/components/ui/animated-beam"
-import {
-  Mic,
-  Zap,
-  FileText,
-  HardDrive,
-  MessageSquare,
-  File,
-  X, // Import the X icon for the close button
-} from "lucide-react"
+import { Mic, File, HardDrive, X } from "lucide-react"
 
 // Utility function for class names
-const cn = (...classes: (string | undefined | false)[]) => {
-  return classes.filter(Boolean).join(" ")
-}
+const cn = (...classes: (string | undefined | false)[]) => classes.filter(Boolean).join(" ")
 
 // ----------------------------------------------------------------------
-// STEP 4: Update the Circle component to accept additional props like onClick
+// Circle Component for Mic
 // ----------------------------------------------------------------------
 const Circle = forwardRef<
   HTMLDivElement,
@@ -28,10 +18,10 @@ const Circle = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "z-10 flex size-12 cursor-pointer items-center justify-center rounded-full border-2 bg-white p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)]",
+        "z-10 flex items-center justify-center rounded-full border-2 bg-white p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)] cursor-pointer",
         className
       )}
-      {...props} // Spread the rest of the props here
+      {...props}
     >
       {children}
     </div>
@@ -40,9 +30,31 @@ const Circle = forwardRef<
 
 Circle.displayName = "Circle"
 
+// ----------------------------------------------------------------------
+// Card Component
+// ----------------------------------------------------------------------
+const Card = forwardRef<
+  HTMLDivElement,
+  { className?: string; children?: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>
+>(({ className, children, ...props }, ref) => {
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "w-full max-w-md rounded-xl border-2 border-gray-300 bg-white p-6 shadow-lg flex items-center justify-center",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+})
+
+Card.displayName = "Card"
 
 // ----------------------------------------------------------------------
-// STEP 2: Create a new component for the popup
+// Mic Popup
 // ----------------------------------------------------------------------
 const MicPopup = ({
   isOpen,
@@ -51,16 +63,11 @@ const MicPopup = ({
   isOpen: boolean
   onClose: () => void
 }) => {
-  if (!isOpen) {
-    return null
-  }
+  if (!isOpen) return null
 
   return (
-    // Backdrop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
-      {/* Popup container */}
       <div className="relative w-full max-w-md rounded-xl bg-white p-8 text-center shadow-2xl">
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-gray-400 hover:text-gray-800"
@@ -68,139 +75,130 @@ const MicPopup = ({
           <X size={24} />
         </button>
 
-        {/* Popup content */}
         <div className="mb-4 inline-flex size-16 items-center justify-center rounded-full bg-gray-100">
-           <Mic size={40} className="text-gray-800" />
+          <Mic size={40} className="text-gray-800" />
         </div>
         <h2 className="mb-2 text-2xl font-bold text-gray-800">
           Microphone Activated
         </h2>
-        <p className="text-gray-600">
-          This is the popup that appears when you click the microphone. You can
-          add any component or content here, like a voice recorder.
-        </p>
+        <p className="text-gray-600">This is the popup that appears when you click the microphone.</p>
       </div>
     </div>
   )
 }
 
+// ----------------------------------------------------------------------
+// Utility: Get edge point for card border
+// ----------------------------------------------------------------------
+const getCardEdgePoint = (fromEl: HTMLDivElement, toEl: HTMLDivElement) => {
+  const fromRect = fromEl.getBoundingClientRect()
+  const toRect = toEl.getBoundingClientRect()
 
-export default function AnimatedBeamDemo() {
+  const fromCenterX = fromRect.left + fromRect.width / 2
+  const fromCenterY = fromRect.top + fromRect.height / 2
+  const toCenterX = toRect.left + toRect.width / 2
+  const toCenterY = toRect.top + toRect.height / 2
+
+  const dx = toCenterX - fromCenterX
+  const dy = toCenterY - fromCenterY
+
+  const w = fromRect.width / 2
+  const h = fromRect.height / 2
+
+  let scale = 1
+  if (Math.abs(dy) * w > Math.abs(dx) * h) {
+    scale = h / Math.abs(dy)
+  } else {
+    scale = w / Math.abs(dx)
+  }
+
+  return {
+    x: fromCenterX + dx * scale,
+    y: fromCenterY + dy * scale,
+  }
+}
+
+// ----------------------------------------------------------------------
+// Main Component
+// ----------------------------------------------------------------------
+export default function AnimatedBeamDemoMobile() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const div1Ref = useRef<HTMLDivElement>(null)
-  const div2Ref = useRef<HTMLDivElement>(null)
-  const div3Ref = useRef<HTMLDivElement>(null)
-  const div4Ref = useRef<HTMLDivElement>(null)
-  const div5Ref = useRef<HTMLDivElement>(null)
-  const div6Ref = useRef<HTMLDivElement>(null)
-  const div7Ref = useRef<HTMLDivElement>(null)
 
-  // ----------------------------------------------------------------------
-  // STEP 1: Add state to manage the popup's visibility
-  // ----------------------------------------------------------------------
+  const topCardRef = useRef<HTMLDivElement>(null)
+  const bottomCardRef = useRef<HTMLDivElement>(null)
+  const micRef = useRef<HTMLDivElement>(null)
+
   const [isPopupOpen, setIsPopupOpen] = useState(false)
 
+  // Force re-render to recalc beam positions on resize
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight })
+    window.addEventListener("resize", handleResize)
+    handleResize()
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
   return (
-    <div className="flex items-center justify-center p-8">
-      <div
-        className="relative flex h-[300px] w-full max-w-7xl items-center justify-center p-10"
-        ref={containerRef}
-      >
-        <div className="flex size-full max-h-[200px] max-w-lg flex-col items-stretch justify-between gap-10">
-          <div className="flex flex-row items-center justify-between">
-            <Circle ref={div1Ref}>
-              <Icons.googleDrive />
-            </Circle>
-            <Circle ref={div5Ref}>
-              <Icons.googleDocs />
-            </Circle>
-          </div>
-          <div className="flex flex-row items-center justify-between">
-            <Circle ref={div2Ref}>
-              <Icons.notion />
-            </Circle>
+    <div className="flex flex-col items-center justify-center p-4">
+      <div ref={containerRef} className="relative w-full flex flex-col items-center justify-center gap-16">
+        {/* Top Card */}
+        <Card ref={topCardRef}>
+          <Icons.googleDrive />
+        </Card>
 
-            {/* ---------------------------------------------------------------------- */}
-            {/* STEP 3: Add the onClick handler to the microphone's Circle           */}
-            {/* ---------------------------------------------------------------------- */}
-            <Circle
-              ref={div4Ref}
-              className="size-16"
-              onClick={() => setIsPopupOpen(true)}
-            >
-              <Icons.mic />
-            </Circle>
+        {/* Center Mic */}
+        <Circle ref={micRef} className="size-16" onClick={() => setIsPopupOpen(true)}>
+          <Icons.mic />
+        </Circle>
 
-            <Circle ref={div6Ref}>
-              <Icons.zapier />
-            </Circle>
-          </div>
-          <div className="flex flex-row items-center justify-between">
-            <Circle ref={div3Ref}>
-              <Icons.whatsapp />
-            </Circle>
-            <Circle ref={div7Ref}>
-              <Icons.messenger />
-            </Circle>
-          </div>
-        </div>
+        {/* Bottom Card */}
+        <Card ref={bottomCardRef}>
+          <Icons.googleDocs />
+        </Card>
 
-        {/* AnimatedBeam components remain the same */}
-        <AnimatedBeam
-          containerRef={containerRef}
-          fromRef={div1Ref}
-          toRef={div4Ref}
-          curvature={-75}
-          endYOffset={-10}
-        />
-        <AnimatedBeam
-          containerRef={containerRef}
-          fromRef={div2Ref}
-          toRef={div4Ref}
-        />
-        <AnimatedBeam
-          containerRef={containerRef}
-          fromRef={div3Ref}
-          toRef={div4Ref}
-          curvature={75}
-          endYOffset={10}
-        />
-        <AnimatedBeam
-          containerRef={containerRef}
-          fromRef={div5Ref}
-          toRef={div4Ref}
-          curvature={-75}
-          endYOffset={-10}
-          reverse
-        />
-        <AnimatedBeam
-          containerRef={containerRef}
-          fromRef={div6Ref}
-          toRef={div4Ref}
-          reverse
-        />
-        <AnimatedBeam
-          containerRef={containerRef}
-          fromRef={div7Ref}
-          toRef={div4Ref}
-          curvature={75}
-          endYOffset={10}
-          reverse
-        />
+        {/* Animated Beam from Top Card to Bottom Card */}
+        {topCardRef.current && bottomCardRef.current && (
+          <AnimatedBeam
+            containerRef={containerRef}
+            fromRef={topCardRef}
+            toRef={bottomCardRef}
+            curvature={50}
+          />
+        )}
+
+        {/* Animated Beam from Top Card to Mic */}
+        {topCardRef.current && micRef.current && (
+          <AnimatedBeam
+            containerRef={containerRef}
+            fromRef={topCardRef}
+            toRef={micRef}
+            curvature={-30}
+          />
+        )}
+
+        {/* Animated Beam from Bottom Card to Mic */}
+        {bottomCardRef.current && micRef.current && (
+          <AnimatedBeam
+            containerRef={containerRef}
+            fromRef={bottomCardRef}
+            toRef={micRef}
+            curvature={30}
+          />
+        )}
       </div>
 
-      {/* Render the popup component conditionally */}
+      {/* Mic Popup */}
       <MicPopup isOpen={isPopupOpen} onClose={() => setIsPopupOpen(false)} />
     </div>
   )
 }
 
+// ----------------------------------------------------------------------
+// Icons
+// ----------------------------------------------------------------------
 const Icons = {
   googleDrive: () => <HardDrive size={40} color="#0066da" />,
   googleDocs: () => <File size={40} color="#4285F4" />,
-  notion: () => <FileText size={40} color="#000" />,
-  whatsapp: () => <MessageSquare size={40} color="#25D366" />,
-  zapier: () => <Zap size={40} color="#FF4A00" />,
-  messenger: () => <MessageSquare size={40} color="#0084FF" />,
   mic: () => <Mic size={40} color="#000" />,
 }
