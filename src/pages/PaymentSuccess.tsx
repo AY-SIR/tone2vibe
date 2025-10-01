@@ -17,8 +17,10 @@ const PaymentSuccess = () => {
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
   const [title, setTitle] = useState("Verifying Payment...")
   const [description, setDescription] = useState("Please wait while we confirm your transaction.")
+
   const confettiFired = useRef(false)
   const hasProcessedRef = useRef(false)
+  const isMounted = useRef(true)
 
   const fireConfetti = () => {
     if (confettiFired.current) return
@@ -29,47 +31,48 @@ const PaymentSuccess = () => {
   }
 
   useEffect(() => {
+    return () => { isMounted.current = false } // track component mount status
+  }, [])
+
+  useEffect(() => {
     if (hasProcessedRef.current || !profile?.id) return
     hasProcessedRef.current = true
 
     const verifyPayment = async () => {
-      // --- START: MAJOR FIX FOR TRANSACTION ID ---
-      // Get all potential unique identifiers from the URL.
-      const paymentId = searchParams.get("payment_id")
-      const paymentRequestId = searchParams.get("payment_request_id")
-      const txId = searchParams.get("txId")
-      
-      // We create one single, reliable key for the transaction.
-      // `payment_request_id` is the best because it's unique for every attempt.
-      const uniqueTransactionKey = paymentRequestId || paymentId || txId
-      // --- END: MAJOR FIX ---
-      
-      const type = searchParams.get("type")
-      const plan = searchParams.get("plan")
-      const count = searchParams.get("count")
-      const amount = searchParams.get("amount")
-      const coupon = searchParams.get("coupon")
-
-      const userKey = `processed_${profile.id}`
-      let processedTransactions: string[] = JSON.parse(sessionStorage.getItem(userKey) || "[]")
-
-      const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
-        setStatus("success")
-        setTitle(successTitle)
-        setDescription(successDescription)
-        setTimeout(fireConfetti, 200)
-
-        toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
-
-        await refreshProfile()
-        // Auto-redirect to tool page after 5 seconds
-        setTimeout(() => navigate("/tool"), 5000)
-      }
-      
       try {
-        // --- START: IMPROVED RE-LOAD CHECK ---
-        // Only check for already processed transactions if we have a reliable unique key.
-        // This prevents the bug where two different free/coupon purchases were seen as the same.
+        // --- GET UNIQUE TRANSACTION KEY ---
+        const paymentId = searchParams.get("payment_id")
+        const paymentRequestId = searchParams.get("payment_request_id")
+        const txId = searchParams.get("txId")
+        const uniqueTransactionKey = paymentRequestId || paymentId || txId
+
+        const type = searchParams.get("type")
+        const plan = searchParams.get("plan")
+        const count = searchParams.get("count")
+        const amount = searchParams.get("amount")
+        const coupon = searchParams.get("coupon")
+
+        // --- SAFE SESSION STORAGE ---
+        const userKey = `processed_${profile.id}`
+        let processedTransactions: string[] = []
+        try {
+          processedTransactions = JSON.parse(sessionStorage.getItem(userKey) || "[]")
+        } catch {
+          processedTransactions = []
+        }
+
+        const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
+          if (!isMounted.current) return
+          setStatus("success")
+          setTitle(successTitle)
+          setDescription(successDescription)
+          fireConfetti()
+          toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
+          await refreshProfile()
+          setTimeout(() => navigate("/"), 5000)
+        }
+
+        // --- CHECK IF ALREADY PROCESSED ---
         if (uniqueTransactionKey && processedTransactions.includes(uniqueTransactionKey)) {
           let welcomeTitle = "Welcome Back!"
           let welcomeDescription = "Your purchase is already confirmed and ready to use."
@@ -81,16 +84,14 @@ const PaymentSuccess = () => {
           await onVerificationSuccess(welcomeTitle, welcomeDescription)
           return
         }
-        // --- END: IMPROVED RE-LOAD CHECK ---
 
-        // If it's a new transaction with a key, add it to session storage to prevent double-processing on reload.
+        // --- MARK AS PROCESSED ---
         if (uniqueTransactionKey) {
-            processedTransactions.push(uniqueTransactionKey)
-            sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
+          processedTransactions.push(uniqueTransactionKey)
+          sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
         }
 
         const isFree = amount === "0" && (coupon || txId)
-
         if (isFree) {
           if (type === "words" && count) {
             await onVerificationSuccess("Words Added!", `${Number(count).toLocaleString()} words have been added using coupon ${coupon}.`)
@@ -102,10 +103,8 @@ const PaymentSuccess = () => {
           return
         }
 
-        // Paid transaction logic remains the same
-        if (!paymentId || !paymentRequestId) {
-          throw new Error("Missing payment information in URL.")
-        }
+        // --- PAID TRANSACTION ---
+        if (!paymentId || !paymentRequestId) throw new Error("Missing payment information in URL.")
 
         const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
           body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
@@ -122,12 +121,14 @@ const PaymentSuccess = () => {
         } else {
           await onVerificationSuccess("Payment Successful!", "Your purchase has been completed successfully.")
         }
+
       } catch (error) {
+        if (!isMounted.current) return
+        console.error("Payment verification error:", error)
         setStatus("error")
         setTitle("Verification Failed")
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred."
-        setDescription(`There was an issue while verifying your payment. Please contact support if the problem persists.`)
-        toast.error("Verification Failed", { description: errorMessage })
+        setDescription("There was an issue while verifying your payment. Please contact support if the problem persists.")
+        toast.error("Verification Failed", { description: error instanceof Error ? error.message : String(error) })
       }
     }
 

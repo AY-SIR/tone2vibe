@@ -122,7 +122,7 @@ export function NewsletterSection() {
                 </Button>
               </form>
               <p className="text-xs text-gray-500 mt-3">
-                No spam, unsubscribe anytime. Privacy policy applies.
+                No spam, Privacy policy applies.
               </p>
             </CardContent>
           </Card>
