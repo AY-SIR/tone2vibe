@@ -20,68 +20,87 @@ export default function ResetPassword() {
   const [isTokenValid, setIsTokenValid] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [resetComplete, setResetComplete] = useState(false);
+  
+  // Store tokens in state (not in session storage)
+  const [accessToken, setAccessToken] = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
 
   // ----------------------
-  // Verify reset token by listening to auth state
+  // Verify reset token - Extract manually and don't let Supabase persist session
   // ----------------------
   useEffect(() => {
-    let isProcessed = false;
-
-    // Set a timeout to handle cases where auth never changes (invalid link)
-    const timeoutId = setTimeout(() => {
-      if (isVerifying && !isProcessed) {
-        console.log('Timeout: No auth event received');
-        setIsTokenValid(false);
-        setIsVerifying(false);
-        toast.error('Invalid or expired reset link.');
-      }
-    }, 10000); // 10-second timeout
-
-    // Listen for PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event, 'Session:', !!session);
-
-      if (isProcessed) return; // Prevent multiple processing
-
-      // Supabase triggers PASSWORD_RECOVERY event when reset link is clicked
-      if (event === 'PASSWORD_RECOVERY' && session) {
-        isProcessed = true;
-        clearTimeout(timeoutId);
-
-        console.log('Password recovery session detected');
+    const verifyResetToken = async () => {
+      try {
+        console.log('Full URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
         
-        // Clean URL hash
+        // Get hash without the leading '#'
+        const hash = window.location.hash.substring(1);
+        
+        if (!hash) {
+          console.log('No hash found in URL');
+          toast.error('Invalid or expired reset link.');
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        const params = new URLSearchParams(hash);
+        
+        // Log all params for debugging
+        console.log('All params:', Array.from(params.entries()));
+
+        const accessToken = params.get('access_token') || '';
+        const refreshToken = params.get('refresh_token') || '';
+        const type = (params.get('type') || '').toLowerCase();
+
+        console.log('Extracted values:', { 
+          hasToken: !!accessToken, 
+          tokenLength: accessToken.length,
+          hasRefresh: !!refreshToken, 
+          refreshLength: refreshToken.length,
+          type 
+        });
+
+        if (!accessToken || !refreshToken) {
+          console.error('Missing tokens');
+          toast.error('Invalid or expired reset link. Missing authentication tokens.');
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        if (type !== 'recovery') {
+          console.error('Wrong token type:', type);
+          toast.error('This link is not a password reset link.');
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          return;
+        }
+
+        // CRITICAL: Sign out first to clear any existing sessions
+        await supabase.auth.signOut();
+
+        // Store tokens in component state only (not in session storage)
+        setAccessToken(accessToken);
+        setRefreshToken(refreshToken);
+
+        // Clean URL immediately to prevent Supabase from auto-processing
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        setIsTokenValid(true);
-        setIsVerifying(false);
         toast.success('Reset link verified! Set your new password.');
-      } 
-      // Handle case where user is already signed in (shouldn't happen but just in case)
-      else if (event === 'SIGNED_IN' && session && !isProcessed) {
-        isProcessed = true;
-        clearTimeout(timeoutId);
-        
-        // Check if this is actually a recovery session
-        const hash = window.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const type = params.get('type');
-        
-        if (type === 'recovery') {
-          console.log('Recovery session via SIGNED_IN event');
-          window.history.replaceState({}, document.title, window.location.pathname);
-          setIsTokenValid(true);
-          setIsVerifying(false);
-          toast.success('Reset link verified! Set your new password.');
-        }
+        setIsTokenValid(true);
+      } catch (error) {
+        console.error('Unexpected verification error:', error);
+        toast.error('Failed to process reset link.');
+        setIsTokenValid(false);
+      } finally {
+        setIsVerifying(false);
       }
-    });
-
-    return () => {
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
     };
-  }, [isVerifying]);
+
+    verifyResetToken();
+  }, []);
 
   // ----------------------
   // Password validation
@@ -121,19 +140,28 @@ export default function ResetPassword() {
     try {
       console.log('Updating password...');
 
-      // Update password using the current session
+      // Create a temporary session ONLY for this password update
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError || !sessionData.session) {
+        console.error('Session error:', sessionError);
+        toast.error('Your reset session has expired. Please request a new reset link.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update password using the temporary session
       const { error: updateError } = await supabase.auth.updateUser({
         password: password
       });
 
       if (updateError) {
         console.error('Password update failed:', updateError);
-        
-        if (updateError.message.includes('session')) {
-          toast.error('Your reset session has expired. Please request a new reset link.');
-        } else {
-          toast.error(updateError.message || 'Failed to update password.');
-        }
+        toast.error(updateError.message || 'Failed to update password.');
+        setIsLoading(false);
         return;
       }
 
@@ -141,7 +169,7 @@ export default function ResetPassword() {
       toast.success('Password updated successfully!');
       setResetComplete(true);
 
-      // Sign out to clear the recovery session
+      // CRITICAL: Sign out immediately to clear the session from all tabs
       await supabase.auth.signOut();
 
       // Redirect to home page where user can sign in with new password
@@ -151,7 +179,6 @@ export default function ResetPassword() {
     } catch (error) {
       console.error('Unexpected update error:', error);
       toast.error('Something went wrong.');
-    } finally {
       setIsLoading(false);
     }
   };
