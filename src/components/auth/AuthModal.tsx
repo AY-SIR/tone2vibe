@@ -16,6 +16,7 @@ import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
 import { useAuth } from '@/contexts/AuthContext'; // ✅ STEP 2: Import useAuth
 import { supabase } from '@/integrations/supabase/client'; // Keep for resetPasswordForEmail
+import { FcGoogle } from "react-icons/fc";
 
 interface AuthModalProps {
   open: boolean;
@@ -37,8 +38,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [currentView, setCurrentView] = useState<'auth' | 'forgot-password'>('auth');
   const [resetEmail, setResetEmail] = useState('');
 
-  // ✅ STEP 3: Get signUp and signIn from our context
-  const { signUp, signIn } = useAuth();
+
+// ✅ STEP 3: Get signUp, signIn, and signInWithGoogle from our context
+const { signUp, signIn, signInWithGoogle } = useAuth();
 
   // Handle URL parameters
   useEffect(() => {
@@ -410,6 +412,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     Sign In
                   </Button>
                 </div>
+                 {/* Google Login */}
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
+                  onClick={async () => {
+                    setIsLoading(true);
+                    try { await signInWithGoogle(); } finally { setIsLoading(false); }
+                  }}
+                  disabled={isLoading}
+                >
+<FcGoogle className="h-4 w-4" />
+                  Continue with Google
+                </Button>
               </TabsContent>
 
               <TabsContent value="signup">
@@ -538,6 +553,20 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     Create Account
                   </Button>
                 </div>
+                 {/* Google Login */}
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 mb-2 mt-2"
+                  onClick={async () => {
+                    setIsLoading(true);
+                    try { await signInWithGoogle(); } finally { setIsLoading(false); }
+                  }}
+                  disabled={isLoading}
+                >
+<FcGoogle className="h-4 w-4" />
+
+                 Signup with Google
+                </Button>
               </TabsContent>
             </Tabs>
           ) : (

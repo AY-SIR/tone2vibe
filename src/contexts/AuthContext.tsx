@@ -1,14 +1,7 @@
 // src/contexts/AuthContext.tsx
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
@@ -53,15 +46,9 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   locationData: LocationData | null;
-  signUp: (
-    email: string,
-    password: string,
-    options?: { emailRedirectTo?: string; fullName?: string }
-  ) => Promise<{ data: any; error: Error | null }>;
-  signIn: (
-    email: string,
-    password: string
-  ) => Promise<{ data: any; error: Error | null }>;
+  signUp: (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => Promise<{ data: any; error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
@@ -75,9 +62,7 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -88,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const profileChannelRef = useRef<any>(null);
 
   const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
-
   const shouldShowPopup = expiryData.show_popup;
 
   // -----------------------
@@ -104,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         words_limit: 1000,
         words_used: 0,
         plan_words_used: 0,
-        word_balance: 1000,
+        word_balance: 0,
         total_words_used: 0,
         upload_limit_mb: 10,
         plan_expires_at: null,
@@ -154,26 +138,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           .single();
 
         if (data) {
-          // Increment login_count and update last_login_at
           const { error: updateError } = await supabase
             .from("profiles")
-            .update({
-              login_count: (data.login_count || 0) + 1,
-              last_login_at: new Date().toISOString(),
-            })
+            .update({ login_count: (data.login_count || 0) + 1, last_login_at: new Date().toISOString() })
             .eq("user_id", userId);
 
           if (updateError) console.error("Failed to increment login_count:", updateError);
 
           const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
-
-          setProfile({
-            ...data,
-            ip_address: data.ip_address as string,
-            login_count: (data.login_count || 0) + 1,
-            last_login_at: new Date().toISOString(),
-            word_balance: data.word_balance ?? calculatedWordBalance,
-          } as Profile);
+          setProfile({ ...data, word_balance: data.word_balance ?? calculatedWordBalance } as Profile);
 
           if (data.country) {
             setLocationData({ country: data.country, currency: "INR" });
@@ -209,7 +182,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (currentUser) {
         await loadUserProfile(currentUser.id, currentUser.email);
 
-        // Setup 2-hour session timeout
         if (sessionTimeout) clearTimeout(sessionTimeout);
         sessionTimeout = setTimeout(() => {
           supabase.auth.signOut();
@@ -244,57 +216,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Listen to profile updates
   // -----------------------
   useEffect(() => {
-    if (profileChannelRef.current) {
-      profileChannelRef.current.unsubscribe?.();
-    }
+    if (profileChannelRef.current) profileChannelRef.current.unsubscribe?.();
 
     if (user?.id) {
       const channel = supabase
         .channel(`profile-updates-${user.id}`)
         .on(
           "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "profiles",
-            filter: `user_id=eq.${user.id}`,
-          },
+          { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
           (payload) => {
             const newProfile = payload.new as Profile;
             const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
-            setProfile({
-              ...newProfile,
-              word_balance: newProfile.word_balance ?? calculatedWordBalance,
-            });
+            setProfile({ ...newProfile, word_balance: newProfile.word_balance ?? calculatedWordBalance });
           }
         )
         .subscribe();
       profileChannelRef.current = channel;
     }
 
-    return () => {
-      profileChannelRef.current?.unsubscribe?.();
-    };
+    return () => profileChannelRef.current?.unsubscribe?.();
   }, [user?.id]);
 
   // -----------------------
   // Auth Actions
   // -----------------------
-  const signUp = async (
-    email: string,
-    password: string,
-    options?: { emailRedirectTo?: string; fullName?: string }
-  ) => {
+  const signUp = async (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: options?.emailRedirectTo,
-          data: {
-            full_name: options?.fullName || "",
-          },
-        },
+        options: { emailRedirectTo: options?.emailRedirectTo, data: { full_name: options?.fullName || "" } },
       });
       return { data, error };
     } catch (err) {
@@ -305,14 +256,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       return { data, error };
     } catch (err) {
       console.error("Exception during signIn:", err);
       return { data: null, error: err as Error };
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/tool' } });
+    } catch (err) {
+      console.error('Google sign in failed:', err);
     }
   };
 
@@ -336,24 +292,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
-
     try {
       if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
-
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (!error) {
-        await loadUserProfile(user.id, user.email);
-      }
+      if (!error) await loadUserProfile(user.id, user.email);
     } catch (err) {
       console.error("Exception during profile update:", err);
     }
   };
 
-  // -----------------------
-  // Context Value
-  // -----------------------
   const value: AuthContextType = {
     user,
     session,
@@ -362,6 +311,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     locationData,
     signUp,
     signIn,
+    signInWithGoogle,
     signOut,
     refreshProfile,
     updateProfile,
