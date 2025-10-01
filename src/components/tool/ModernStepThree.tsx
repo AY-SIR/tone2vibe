@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 // Component Imports
 import { VoiceRecorder } from "@/components/tool/VoiceRecorder";
@@ -148,9 +149,8 @@ const navigate = useNavigate(); // <-- add this inside ModernStepThree function
   useEffect(() => {
     let filtered = prebuiltVoices;
     if (selectedLanguage) {
-      // NOTE: Ensure your PrebuiltVoice object has a property named 'language'
-      // that matches the codes (e.g., 'hi-IN').
-      filtered = filtered.filter(voice => voice.language === selectedLanguage);
+      // Cast to any to access language property
+      filtered = filtered.filter(voice => (voice as any).language === selectedLanguage);
     }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
@@ -178,11 +178,48 @@ const navigate = useNavigate(); // <-- add this inside ModernStepThree function
     toast({ title: "Audio Uploaded", description: `"${fileName}" is ready for generation.` });
   };
 
-  const handleHistoryVoiceSelect = (blob: Blob, voiceId: string, voiceName: string) => {
+  const handleHistoryVoiceSelect = async (voiceId: string) => {
     clearSelection();
-    setSelectedVoice({ type: 'history', id: voiceId, name: voiceName });
-    onVoiceRecorded(blob);
-    toast({ title: "Voice Selected", description: `Using your saved voice: "${voiceName}".` });
+    
+    // Fetch the voice details from the database
+    const { data: voice, error } = await supabase
+      .from('user_voices')
+      .select('*')
+      .eq('id', voiceId)
+      .single();
+      
+    if (error || !voice) {
+      toast({ 
+        title: "Error", 
+        description: "Failed to load selected voice", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    // Convert audio_blob or fetch from audio_url
+    let blob: Blob | null = null;
+    if (voice.audio_blob) {
+      blob = new Blob([voice.audio_blob], { type: 'audio/wav' });
+    } else if (voice.audio_url) {
+      try {
+        const response = await fetch(voice.audio_url);
+        blob = await response.blob();
+      } catch (err) {
+        toast({ 
+          title: "Error", 
+          description: "Failed to load voice audio", 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+    
+    if (blob) {
+      setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
+      onVoiceRecorded(blob);
+      toast({ title: "Voice Selected", description: `Using your saved voice: "${voice.name}".` });
+    }
   };
 
   const handlePrebuiltSelect = (voiceId: string) => {

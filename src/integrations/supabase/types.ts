@@ -85,34 +85,46 @@ export type Database = {
       }
       coupons: {
         Row: {
+          active: boolean
           code: string
           created_at: string | null
           discount_amount: number | null
           discount_percentage: number
           expires_at: string | null
           id: string
+          last_used_at: string | null
+          max_uses: number | null
           type: string
           updated_at: string | null
+          used_count: number
         }
         Insert: {
+          active?: boolean
           code: string
           created_at?: string | null
           discount_amount?: number | null
           discount_percentage?: number
           expires_at?: string | null
           id?: string
+          last_used_at?: string | null
+          max_uses?: number | null
           type: string
           updated_at?: string | null
+          used_count?: number
         }
         Update: {
+          active?: boolean
           code?: string
           created_at?: string | null
           discount_amount?: number | null
           discount_percentage?: number
           expires_at?: string | null
           id?: string
+          last_used_at?: string | null
+          max_uses?: number | null
           type?: string
           updated_at?: string | null
+          used_count?: number
         }
         Relationships: []
       }
@@ -308,30 +320,36 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          coupon_code: string | null
           created_at: string
           currency: string
           id: string
           payment_id: string
+          payment_method: string | null
           plan: string | null
           status: string
           user_id: string
         }
         Insert: {
           amount: number
+          coupon_code?: string | null
           created_at?: string
           currency?: string
           id?: string
           payment_id: string
+          payment_method?: string | null
           plan?: string | null
           status: string
           user_id: string
         }
         Update: {
           amount?: number
+          coupon_code?: string | null
           created_at?: string
           currency?: string
           id?: string
           payment_id?: string
+          payment_method?: string | null
           plan?: string | null
           status?: string
           user_id?: string
@@ -387,6 +405,7 @@ export type Database = {
           gender: string | null
           id: string
           is_active: boolean
+          language: string
           name: string
           required_plan: string
           sort_order: number
@@ -402,6 +421,7 @@ export type Database = {
           gender?: string | null
           id?: string
           is_active?: boolean
+          language?: string
           name: string
           required_plan?: string
           sort_order?: number
@@ -417,6 +437,7 @@ export type Database = {
           gender?: string | null
           id?: string
           is_active?: boolean
+          language?: string
           name?: string
           required_plan?: string
           sort_order?: number
@@ -438,6 +459,9 @@ export type Database = {
           is_vpn_user: boolean | null
           last_ip_check: string | null
           last_login_at: string | null
+          last_payment_amount: number | null
+          last_payment_id: string | null
+          last_payment_method: string | null
           last_word_purchase_at: string | null
           login_count: number | null
           max_voice_storage_mb: number | null
@@ -471,6 +495,9 @@ export type Database = {
           is_vpn_user?: boolean | null
           last_ip_check?: string | null
           last_login_at?: string | null
+          last_payment_amount?: number | null
+          last_payment_id?: string | null
+          last_payment_method?: string | null
           last_word_purchase_at?: string | null
           login_count?: number | null
           max_voice_storage_mb?: number | null
@@ -504,6 +531,9 @@ export type Database = {
           is_vpn_user?: boolean | null
           last_ip_check?: string | null
           last_login_at?: string | null
+          last_payment_amount?: number | null
+          last_payment_id?: string | null
+          last_payment_method?: string | null
           last_word_purchase_at?: string | null
           login_count?: number | null
           max_voice_storage_mb?: number | null
@@ -642,7 +672,8 @@ export type Database = {
       }
       user_voices: {
         Row: {
-          audio_blob: string
+          audio_blob: string | null
+          audio_url: string | null
           created_at: string
           duration: string | null
           id: string
@@ -651,7 +682,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          audio_blob: string
+          audio_blob?: string | null
+          audio_url?: string | null
           created_at?: string
           duration?: string | null
           id?: string
@@ -660,7 +692,8 @@ export type Database = {
           user_id: string
         }
         Update: {
-          audio_blob?: string
+          audio_blob?: string | null
+          audio_url?: string | null
           created_at?: string
           duration?: string | null
           id?: string
@@ -814,6 +847,22 @@ export type Database = {
       reset_plan_words: {
         Args: { user_id_param: string }
         Returns: undefined
+      }
+      safe_update_profile_for_subscription: {
+        Args: {
+          p_last_payment_amount: number
+          p_last_payment_id: string
+          p_last_payment_method?: string
+          p_plan: string
+          p_plan_end_date: string
+          p_plan_start_date: string
+          p_plan_words_used: number
+          p_upload_limit_mb: number
+          p_user_id: string
+          p_word_balance: number
+          p_words_limit: number
+        }
+        Returns: Json
       }
       update_word_count: {
         Args: { new_word_count: number; user_id: string }

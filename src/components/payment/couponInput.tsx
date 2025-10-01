@@ -22,7 +22,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled = false }:
 
     setIsValidating(true);
     try {
-      const result = await CouponService.validateCoupon(couponCode.trim(), amount, type);
+      const result = await CouponService.validateCoupon(couponCode.trim(), amount);
       setValidationResult(result);
       onCouponApplied({
         ...result,

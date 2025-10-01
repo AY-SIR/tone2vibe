@@ -102,7 +102,7 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
       if (daysUntilExpiry <= 7 && !popupDismissed) {
         setExpiryData({
           show_popup: true,
-          days_until_expiry,
+          days_until_expiry: daysUntilExpiry,
           plan: profile.plan,
           expires_at: profile.plan_expires_at,
           is_expired: false

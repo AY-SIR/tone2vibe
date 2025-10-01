@@ -144,6 +144,7 @@ const History = () => {
 
     try {
       // Delete from DB
+      const tableName = itemToDelete.type === 'project' ? 'history' : 'user_voices';
       const { error: dbError } = await supabase.from(tableName).delete().eq("id", itemToDelete.id);
       if (dbError) throw new Error(`Database Error: ${dbError.message}`);
 

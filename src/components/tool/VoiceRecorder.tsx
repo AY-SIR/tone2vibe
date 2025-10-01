@@ -177,13 +177,12 @@ export const VoiceRecorder = ({
       const actualDuration = await getAudioDuration(audioBlob);
 
       const { error: insertError } = await supabase.from('user_voices').insert({
-        user_id: user.id,
         name: `Recorded Voice ${new Date().toLocaleDateString()}`,
         audio_blob: audioBlob,
         audio_url: publicUrl,
         duration: Math.ceil(actualDuration).toString(),
         is_selected: true,
-      });
+      } as any);
 
       if (insertError) throw insertError;
 

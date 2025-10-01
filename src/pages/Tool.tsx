@@ -284,10 +284,9 @@ const handleTextUpdated = (updatedText: string) => {
               {currentStep === 2 && (
   <ModernStepTwo
     extractedText={extractedText}
-    wordCount={wordCount}
     onNext={handleNext}
     onPrevious={handlePrevious}
-    onTextUpdated={handleTextUpdated} // Add this
+    onTextUpdated={handleTextUpdated}
     onProcessingStart={handleProcessingStart}
     onProcessingEnd={handleProcessingEnd}
     onLanguageSelect={handleLanguageSelect}

@@ -56,16 +56,15 @@ export function VoiceUpload({ onVoiceUploaded }: VoiceUploadProps) {
       if (uploadError) throw uploadError;
 
       // 2️⃣ Get public URL
-      const { data: urlData, error: urlError } = supabase.storage
-        .from("")
+      const { data: urlData } = supabase.storage
+        .from("user-voices")
         .getPublicUrl(filePath);
 
-      if (urlError) throw urlError;
       const publicUrl = urlData.publicUrl;
 
       // 3️⃣ Async DB insert
       supabase
-        .from("")
+        .from("user_voices")
         .insert({
           user_id: profile.id,
           name: file.name,

@@ -46,16 +46,17 @@ export class CouponService {
       return { isValid: false, discount: 0, message: "Invalid coupon code." };
     }
 
-    // Check validity with user-friendly messages
-    if (!data.active) {
+    // Check validity with user-friendly messages - cast to any for type safety
+    const coupon = data as any;
+    if (!coupon.active) {
       return { isValid: false, discount: 0, message: "This coupon is no longer active." };
     }
 
-    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
       return { isValid: false, discount: 0, message: "This coupon has expired." };
     }
 
-    if (data.max_uses && data.used_count >= data.max_uses) {
+    if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
       return { isValid: false, discount: 0, message: "This coupon has reached its usage limit." };
     }
 
@@ -71,7 +72,7 @@ export class CouponService {
       isValid: true,
       discount,
       code: data.code,
-      message: "Coupon applied successfully!", // Added a success message for the UI
+      message: "Coupon applied successfully!",
       coupon: {
         id: data.id,
         code: data.code,
@@ -79,9 +80,9 @@ export class CouponService {
         discount_amount: data.discount_amount,
         type: data.type,
         expires_at: data.expires_at,
-        max_uses: data.max_uses,
-        used_count: data.used_count,
-        last_used_at: data.last_used_at,
+        max_uses: coupon.max_uses,
+        used_count: coupon.used_count,
+        last_used_at: coupon.last_used_at,
       },
     };
   }

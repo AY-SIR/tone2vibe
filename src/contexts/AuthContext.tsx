@@ -169,10 +169,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
           setProfile({
             ...data,
+            ip_address: data.ip_address as string,
             login_count: (data.login_count || 0) + 1,
             last_login_at: new Date().toISOString(),
             word_balance: data.word_balance ?? calculatedWordBalance,
-          });
+          } as Profile);
 
           if (data.country) {
             setLocationData({ country: data.country, currency: "INR" });
@@ -182,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (error?.code === "PGRST116" && userEmail) {
           const newProfile = await createDefaultProfile(userId, userEmail);
-          if (newProfile) setProfile(newProfile);
+          if (newProfile) setProfile({ ...newProfile, ip_address: newProfile.ip_address as string } as Profile);
         }
       } catch (err) {
         console.error("Error loading profile:", err);

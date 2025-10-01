@@ -174,7 +174,8 @@ export function WordPurchase() {
         .eq('code', couponCode)
         .single();
       if (couponError || !couponCheck) throw new Error('Coupon is no longer valid');
-      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses)
+      const coupon = couponCheck as any;
+      if (coupon.max_uses && coupon.used_count >= coupon.max_uses)
         throw new Error('Coupon usage limit exceeded');
 
       // Get current balance
@@ -209,8 +210,8 @@ export function WordPurchase() {
       // Update coupon usage
       await supabase
         .from('coupons')
-        .update({ used_count: (couponCheck.used_count || 0) + 1, last_used_at: new Date().toISOString() })
-        .eq('id', couponCheck.id);
+        .update({ used_count: (coupon.used_count || 0) + 1, last_used_at: new Date().toISOString() } as any)
+        .eq('id', coupon.id);
 
       // NOTE: The extra toast notification has been removed from here.
 
