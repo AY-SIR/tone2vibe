@@ -72,18 +72,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const profileChannelRef = useRef<any>(null);
 
-  const SESSION_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
   const shouldShowPopup = expiryData.show_popup;
 
   // -----------------------
-  // Create default profile
+  // Create default profile (FIXED)
   // -----------------------
-  const createDefaultProfile = useCallback(async (userId: string, userEmail: string) => {
+  const createDefaultProfile = useCallback(async (user: User) => {
     try {
       const defaultProfile = {
-        user_id: userId,
-        full_name: userEmail.split("@")[0] || "User",
-        avatar_url: "",
+        user_id: user.id,
+        // Use full_name and avatar_url from Google, with fallbacks
+        full_name: user.user_metadata.full_name || user.email?.split("@")[0] || "User",
+        avatar_url: user.user_metadata.avatar_url || "",
         plan: "free",
         words_limit: 1000,
         words_used: 0,
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         last_login_at: new Date().toISOString(),
         ip_address: null,
         country: null,
-        email: userEmail,
+        email: user.email!, // Email will exist for a new user
         company: "",
         preferred_language: "en",
         created_at: new Date().toISOString(),
@@ -124,24 +124,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // -----------------------
-  // Load profile
+  // Load profile (FIXED)
   // -----------------------
   const loadUserProfile = useCallback(
-    async (userId: string, userEmail?: string) => {
-      if (!userId) return;
+    async (user: User) => {
+      if (!user.id) return;
 
       try {
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .eq("user_id", userId)
+          .eq("user_id", user.id)
           .single();
 
         if (data) {
           const { error: updateError } = await supabase
             .from("profiles")
             .update({ login_count: (data.login_count || 0) + 1, last_login_at: new Date().toISOString() })
-            .eq("user_id", userId);
+            .eq("user_id", user.id);
 
           if (updateError) console.error("Failed to increment login_count:", updateError);
 
@@ -154,8 +154,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        if (error?.code === "PGRST116" && userEmail) {
-          const newProfile = await createDefaultProfile(userId, userEmail);
+        if (error?.code === "PGRST116" && user.email) {
+          const newProfile = await createDefaultProfile(user);
           if (newProfile) setProfile({ ...newProfile, ip_address: newProfile.ip_address as string } as Profile);
         }
       } catch (err) {
@@ -166,11 +166,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   // -----------------------
-  // Handle session
+  // Handle session (FIXED)
   // -----------------------
   useEffect(() => {
     let mounted = true;
-    let sessionTimeout: any = null;
 
     const handleSession = async (currentSession: Session | null) => {
       if (!mounted) return;
@@ -180,12 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentUser);
 
       if (currentUser) {
-        await loadUserProfile(currentUser.id, currentUser.email);
-
-        if (sessionTimeout) clearTimeout(sessionTimeout);
-        sessionTimeout = setTimeout(() => {
-          supabase.auth.signOut();
-        }, SESSION_EXPIRY_MS);
+        await loadUserProfile(currentUser);
       } else {
         setProfile(null);
         setLocationData(null);
@@ -207,7 +201,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
-      if (sessionTimeout) clearTimeout(sessionTimeout);
       subscription?.unsubscribe();
     };
   }, [loadUserProfile]);
@@ -287,7 +280,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = async () => {
-    if (user?.id) await loadUserProfile(user.id, user.email);
+    if (user) await loadUserProfile(user);
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
@@ -297,7 +290,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (!error) await loadUserProfile(user.id, user.email);
+      if (!error) {
+        // We call loadUserProfile to get the freshest data after an update
+        if(user) await loadUserProfile(user);
+      }
     } catch (err) {
       console.error("Exception during profile update:", err);
     }
