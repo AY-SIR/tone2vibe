@@ -54,10 +54,10 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
 
       if (error) throw error;
       setVoices(data || []);
-    } catch (err) {
+    } catch {
       toast({
-        title: "Oops!",
-        description: "Couldn't load your saved voices. Please try again later.",
+        title: "Could not load voices",
+        description: "Please try again later",
         variant: "default",
       });
     } finally {
@@ -80,55 +80,48 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
   const playVoice = (voice: UserVoice) => {
     if (!voice.audio_url) {
       toast({
-        title: "Audio not available",
-        description: "This voice does not have audio to play.",
+        title: "No audio found",
+        description: "This voice cannot be played",
         variant: "default",
       });
       return;
     }
 
-    // Pause if already playing
     if (playingVoiceId === voice.id) {
       stopPlayback();
       return;
     }
 
-    // Stop previous playback
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    stopPlayback();
 
     try {
-      // Use encodeURI to handle special characters
       const safeUrl = encodeURI(voice.audio_url);
       const audio = new Audio(safeUrl);
       audioRef.current = audio;
       setPlayingVoiceId(voice.id);
 
-      audio.onended = stopPlayback;
+      audio.onended = () => setPlayingVoiceId(null);
       audio.onerror = () => {
         stopPlayback();
         toast({
-          title: "Playback issue",
-          description: "Could not play this audio. Please try again later.",
+          title: "Playback failed",
+          description: "Unable to play this voice",
           variant: "default",
         });
       };
 
       audio.play();
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast({
-        title: "Unexpected error",
-        description: "Could not play the audio file.",
+        title: "Something went wrong",
+        description: "Please try again",
         variant: "default",
       });
     }
   };
 
   if (loading) {
-    return <div className="text-sm text-gray-500 p-4 text-center">Loading your voices...</div>;
+    return <div className="text-sm text-gray-500 p-4 text-center">Loading voices...</div>;
   }
 
   if (voices.length === 0) {
@@ -136,8 +129,8 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
       <Card>
         <CardContent className="p-4 text-center">
           <Mic className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-          <p className="text-sm text-gray-500 mb-1">No saved voices found</p>
-          <p className="text-xs text-gray-400">Record or upload a voice to see it here.</p>
+          <p className="text-sm text-gray-500 mb-1">No voices saved</p>
+          <p className="text-xs text-gray-400">Record a voice to see it here</p>
         </CardContent>
       </Card>
     );
@@ -148,12 +141,19 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
   return (
     <div className="space-y-3">
       <div className="text-xs text-blue-600 mb-2">
-        Showing your last {voices.length} saved voices ({profile?.plan} plan).
+        Showing last {voices.length} voices ({profile?.plan} plan)
       </div>
 
-      <Select value={selectedVoiceId} onValueChange={onVoiceSelect}>
+      <Select
+        value={selectedVoiceId}
+        onValueChange={(voiceId) => {
+          onVoiceSelect(voiceId);
+          const selectedVoice = voices.find(v => v.id === voiceId);
+          if (selectedVoice) playVoice(selectedVoice);
+        }}
+      >
         <SelectTrigger>
-          <SelectValue placeholder="Select from your saved voices" />
+          <SelectValue placeholder="Select a voice" />
         </SelectTrigger>
         <SelectContent>
           {voices.map((voice) => (
@@ -175,26 +175,24 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
 
       {selectedVoiceDetails && (
         <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{selectedVoiceDetails.name}</p>
-                <p className="text-xs text-gray-500">
-                  Created: {new Date(selectedVoiceDetails.created_at).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex space-x-1 flex-shrink-0">
-                <Button
-                  onClick={() => playVoice(selectedVoiceDetails)}
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  title={selectedVoiceDetails.audio_url ? "Play/Pause audio" : "Audio not available"}
-                  disabled={!selectedVoiceDetails.audio_url}
-                >
-                  {playingVoiceId === selectedVoiceDetails.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-              </div>
+          <CardContent className="p-3 flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{selectedVoiceDetails.name}</p>
+              <p className="text-xs text-gray-500">
+                Created: {new Date(selectedVoiceDetails.created_at).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex space-x-1 flex-shrink-0">
+              <Button
+                onClick={() => playVoice(selectedVoiceDetails)}
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                title={selectedVoiceDetails.audio_url ? "Play/Pause" : "Not available"}
+                disabled={!selectedVoiceDetails.audio_url}
+              >
+                {playingVoiceId === selectedVoiceDetails.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
             </div>
           </CardContent>
         </Card>
