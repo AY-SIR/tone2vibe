@@ -21,23 +21,20 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
     );
 
-    // Get authenticated user
     const authHeader = req.headers.get("Authorization")!;
     const token = authHeader.replace("Bearer ", "");
     const { data } = await supabaseClient.auth.getUser(token);
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { text, voice_settings, title, language = "en-US" } = await req.json();
+    const { text, title } = await req.json();
 
     if (!text || !title) {
       throw new Error("Text and title are required");
     }
 
-    // Count words for billing
-    const actualWordCount = text.split(/\s+/).length;
+    const wordCount = text.split(/\s+/).length;
 
-    // Get user profile to check limits
     const supabaseService = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -54,26 +51,15 @@ Deno.serve(async (req: Request) => {
       throw new Error("User profile not found");
     }
 
-    // For free users, only deduct 1 word. For paid users, deduct actual word count
-    const wordsToDeduct = profile.plan === 'free' ? 1 : actualWordCount;
-
-    // Check word limits
-    const totalWordsAvailable = (profile.words_limit - profile.plan_words_used) + profile.word_balance;
-
-    if (wordsToDeduct > totalWordsAvailable) {
-      throw new Error(`Insufficient word balance. Need ${wordsToDeduct} words but only ${totalWordsAvailable} available.`);
-    }
-
-    // Create history record first
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
         user_id: user.id,
         title,
         original_text: text,
-        language,
-        voice_settings: voice_settings || {},
-        words_used: wordsToDeduct,
+        language: "en-US",
+        voice_settings: { fallback: true },
+        words_used: wordCount,
         generation_started_at: new Date().toISOString(),
       })
       .select()
@@ -84,19 +70,13 @@ Deno.serve(async (req: Request) => {
       throw new Error("Failed to create history record");
     }
 
-    // For now, create a simple audio response since you'll connect custom endpoints later
-    // This creates a placeholder that allows the workflow to complete to step 5
-    const audioData = new Uint8Array(1024); // Placeholder audio data
-    
-    console.log("Voice generation with custom endpoint - placeholder created");
+    const audioData = new Uint8Array(2048);
 
-    // Upload to user-generates bucket
     const fileName = `${user.id}/${historyRecord.id}.mp3`;
     const { error: uploadError } = await supabaseService.storage
       .from("user-generates")
       .upload(fileName, audioData, {
         contentType: "audio/mpeg",
-        duplex: "false"
       });
 
     if (uploadError) {
@@ -104,12 +84,10 @@ Deno.serve(async (req: Request) => {
       throw new Error("Failed to save audio file");
     }
 
-    // Get public URL
     const { data: urlData } = supabaseService.storage
       .from("user-generates")
       .getPublicUrl(fileName);
 
-    // Update history record with audio URL and completion time
     const { error: updateError } = await supabaseService
       .from("history")
       .update({
@@ -123,25 +101,22 @@ Deno.serve(async (req: Request) => {
       console.error("Failed to update history:", updateError);
     }
 
-    // Deduct words from user account (1 for free, actual count for paid)
     const { error: deductError } = await supabaseService.rpc('deduct_words_smartly', {
       user_id_param: user.id,
-      words_to_deduct: wordsToDeduct
+      words_to_deduct: wordCount
     });
 
     if (deductError) {
       console.error("Failed to deduct words:", deductError);
-      // Don't throw error as voice was already generated
     }
 
-    // Schedule cleanup after 5 minutes for free users
     if (profile.plan === 'free') {
       setTimeout(async () => {
         try {
           await supabaseService.storage
             .from("user-generates")
             .remove([fileName]);
-          
+
           await supabaseService
             .from("history")
             .update({ audio_url: null })
@@ -149,14 +124,14 @@ Deno.serve(async (req: Request) => {
         } catch (error) {
           console.error("Cleanup failed:", error);
         }
-      }, 5 * 60 * 1000); // 5 minutes
+      }, 5 * 60 * 1000);
     }
 
     return new Response(JSON.stringify({
       success: true,
       audio_url: urlData.publicUrl,
       history_id: historyRecord.id,
-      words_used: wordsToDeduct,
+      words_used: wordCount,
       cleanup_in_minutes: profile.plan === 'free' ? 5 : null
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -164,7 +139,7 @@ Deno.serve(async (req: Request) => {
     });
 
   } catch (error) {
-    console.error("Voice generation error:", error);
+    console.error("Fallback voice generation error:", error);
     return new Response(JSON.stringify({
       success: false,
       error: error.message

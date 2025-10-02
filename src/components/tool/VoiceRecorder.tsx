@@ -234,7 +234,7 @@ export const VoiceRecorder = ({
       if (!user) throw new Error("User not authenticated");
 
       const fileName = `user-voice-${user.id}-${Date.now()}.webm`;
-      const filePath = `${user.id}/user-voices/${fileName}`;
+      const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
