@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Download, Play, Pause, Volume2, Clock, FileAudio, Copy, Check } from 'lucide-react';
+import { Download, Play, Pause, Volume2, FileAudio, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { AnalyticsService } from '@/services/analyticsService';
 
 interface ModernStepFiveProps {
   audioUrl: string;
@@ -26,8 +26,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   selectedLanguage,
   wordCount,
   duration,
-  onBack,
-  onStartOver,
   onNextGeneration,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -39,35 +37,40 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const handleNextGeneration = async () => {
-    setIsRefreshing(true);
-    
-    // Show loading screen for better UX
-    toast({
-      title: "✨ Preparing Next Generation",
-      description: "Setting up your next voice generation...",
-      duration: 2000,
-    });
-    
-    // Navigate back to tool page instead of reloading
-    setTimeout(() => {
-      if (onNextGeneration) {
-        onNextGeneration();
-      } else if (onStartOver) {
-        onStartOver();
-      } else {
-        // Navigate to the tool page instead of reloading
-        window.location.href = '/tool';
+  useEffect(() => {
+    if (!user) return;
+
+    const updateAnalytics = async () => {
+      try {
+        if (!user.plan || (user.plan !== 'pro' && user.plan !== 'premium')) return;
+
+        await AnalyticsService.trackActivity(
+          user.id,
+          'audio_generated',
+          {
+            language: selectedLanguage,
+            words: wordCount,
+            audioUrl,
+            title: 'Auto Recorded Generation',
+            responseTime: 1200
+          },
+          user.plan
+        );
+
+        console.log('Analytics automatically updated on page load');
+      } catch (error) {
+        console.error('Failed to update analytics:', error);
       }
-    }, 1500);
-  };
+    };
+
+    updateAnalytics();
+  }, [user, selectedLanguage, wordCount, audioUrl]);
 
   useEffect(() => {
     if (audioUrl || audioData) {
       const audioElement = new Audio();
-      
+
       if (audioData) {
-        // Convert base64 to blob URL
         const byteCharacters = atob(audioData);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -106,12 +109,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
   const togglePlayPause = () => {
     if (!audio) return;
-
-    if (isPlaying) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
+    if (isPlaying) audio.pause();
+    else audio.play();
     setIsPlaying(!isPlaying);
   };
 
@@ -124,9 +123,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   const downloadAudio = async (format: 'mp3' | 'wav' | 'ogg' = 'mp3') => {
     try {
       let audioBlob: Blob;
-      
+
       if (audioData) {
-        // Convert base64 to blob
         const byteCharacters = atob(audioData);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -135,7 +133,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         const byteArray = new Uint8Array(byteNumbers);
         audioBlob = new Blob([byteArray], { type: `audio/${format}` });
       } else {
-        // Fetch from URL
         const response = await fetch(audioUrl);
         audioBlob = await response.blob();
       }
@@ -181,27 +178,41 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
   };
 
+  const handleNextGeneration = async () => {
+    setIsRefreshing(true);
+    toast({
+      title: "Preparing Next Generation",
+      description: "Setting up your next voice generation...",
+      duration: 2000,
+    });
+
+    setTimeout(() => {
+      if (onNextGeneration) {
+        onNextGeneration();
+      } else {
+        window.location.href = '/tool';
+      }
+    }, 1500);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Success Header */}
       <div className="text-center space-y-2">
         <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
           <Check className="w-8 h-8 text-green-500" />
         </div>
-        <h2 className="text-2xl font-bold"> Full Audio Generated Successfully!</h2>
+        <h2 className="text-2xl font-bold">Audio Generated Successfully!</h2>
         <p className="text-muted-foreground max-w-md mx-auto">
           Your complete voice generation is ready with full analytics tracking and history saved.
         </p>
       </div>
 
-      {/* Audio Summary */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-<FileAudio className="w-5 h-5" />
-  Your Generated Audio
-</CardTitle>
-
+            <FileAudio className="w-5 h-5" />
+            Your Generated Audio
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -221,7 +232,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             </div>
             <div className="text-center">
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                 Tracked
+                Tracked
               </Badge>
               <div className="text-sm text-muted-foreground mt-1">Analytics</div>
             </div>
@@ -229,31 +240,24 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-      {/* Audio Player */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Volume2 className="w-5 h-5" />
-            Your Generated Audio
+            Audio Player
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Player Controls */}
           <div className="flex items-center gap-4">
-         <Button
-  onClick={togglePlayPause}
-  size="lg"
-  className="px-5 py-3 rounded-lg"
-  disabled={!audio}
->
-  {isPlaying ? (
-    <Pause className="w-5 h-5" />
-  ) : (
-    <Play className="w-5 h-5" />
-  )}
-</Button>
+            <Button
+              onClick={togglePlayPause}
+              size="lg"
+              className="px-5 py-3 rounded-lg"
+              disabled={!audio}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            </Button>
 
-            
             <div className="flex-1">
               <div className="flex justify-between text-sm text-muted-foreground mb-1">
                 <span>{formatTime(currentTime)}</span>
@@ -262,9 +266,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
               <div className="w-full bg-secondary rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all duration-100"
-                  style={{
-                    width: totalDuration > 0 ? `${(currentTime / totalDuration) * 100}%` : '0%'
-                  }}
+                  style={{ width: totalDuration > 0 ? `${(currentTime / totalDuration) * 100}%` : '0%' }}
                 />
               </div>
             </div>
@@ -272,7 +274,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-      {/* Text Content */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between text-base sm:text-lg">
@@ -295,7 +296,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-      {/* Download Options */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -305,48 +305,31 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Button
-              onClick={() => downloadAudio('mp3')}
-              variant="default"
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download MP3
+            <Button onClick={() => downloadAudio('mp3')} variant="default" className="gap-2">
+              <Download className="w-4 h-4" /> Download MP3
             </Button>
-            <Button
-              onClick={() => downloadAudio('wav')}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download WAV
+            <Button onClick={() => downloadAudio('wav')} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" /> Download WAV
             </Button>
-            <Button
-              onClick={() => downloadAudio('ogg')}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download OGG
+            <Button onClick={() => downloadAudio('ogg')} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" /> Download OGG
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Navigation - No Back Button, Only Next Generation */}
       <div className="flex justify-center">
         {isRefreshing ? (
           <div className="flex items-center space-x-3 px-8 py-3 bg-blue-50 rounded-lg">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-blue-700 font-medium">Refreshing .....</span>
+            <span className="text-blue-700 font-medium">Refreshing...</span>
           </div>
         ) : (
           <Button
             onClick={handleNextGeneration}
             size="lg"
-            className="px-8 py-3 text-lg font-semibold  bg-gradient-to-r from-gray-700 to-black
-           hover:from-gray-900 hover:to-black
-           text-white rounded-lg transition-colors"
+            className="px-8 py-3 text-lg font-semibold bg-gradient-to-r from-gray-700 to-black
+            hover:from-gray-900 hover:to-black text-white rounded-lg transition-colors"
           >
             Next Generation
           </Button>

@@ -1,4 +1,3 @@
-// src/contexts/AuthContext.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
@@ -75,13 +74,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const shouldShowPopup = expiryData.show_popup;
 
   // -----------------------
-  // Create default profile (FIXED)
+  // Create default profile
   // -----------------------
   const createDefaultProfile = useCallback(async (user: User) => {
     try {
       const defaultProfile = {
         user_id: user.id,
-        // Use full_name and avatar_url from Google, with fallbacks
         full_name: user.user_metadata.full_name || user.email?.split("@")[0] || "User",
         avatar_url: user.user_metadata.avatar_url || "",
         plan: "free",
@@ -95,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         last_login_at: new Date().toISOString(),
         ip_address: null,
         country: null,
-        email: user.email!, // Email will exist for a new user
+        email: user.email!,
         company: "",
         preferred_language: "en",
         created_at: new Date().toISOString(),
@@ -124,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // -----------------------
-  // Load profile (FIXED)
+  // Load user profile
   // -----------------------
   const loadUserProfile = useCallback(
     async (user: User) => {
@@ -154,9 +152,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
+        // Profile not found → create default
         if (error?.code === "PGRST116" && user.email) {
           const newProfile = await createDefaultProfile(user);
-          if (newProfile) setProfile({ ...newProfile, ip_address: newProfile.ip_address as string } as Profile);
+          if (newProfile) setProfile({ ...newProfile } as Profile);
         }
       } catch (err) {
         console.error("Error loading profile:", err);
@@ -166,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   // -----------------------
-  // Handle session (FIXED)
+  // Handle session
   // -----------------------
   useEffect(() => {
     let mounted = true;
@@ -206,7 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadUserProfile]);
 
   // -----------------------
-  // Listen to profile updates
+  // Listen to profile updates using Realtime
   // -----------------------
   useEffect(() => {
     if (profileChannelRef.current) profileChannelRef.current.unsubscribe?.();
@@ -224,6 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         )
         .subscribe();
+
       profileChannelRef.current = channel;
     }
 
@@ -231,7 +231,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.id]);
 
   // -----------------------
-  // Auth Actions
+  // Auth actions
   // -----------------------
   const signUp = async (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => {
     try {
@@ -291,8 +291,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
       if (!error) {
-        // We call loadUserProfile to get the freshest data after an update
-        if(user) await loadUserProfile(user);
+        await refreshProfile();
       }
     } catch (err) {
       console.error("Exception during profile update:", err);

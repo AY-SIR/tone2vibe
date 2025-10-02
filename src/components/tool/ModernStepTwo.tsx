@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages } from "lucide-react";
+import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GrammarService } from "@/services/grammarService";
 import { franc } from "franc";
@@ -32,65 +32,69 @@ const ModernStepTwo = ({
   const [editedText, setEditedText] = useState(extractedText);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [detectedLanguage, setDetectedLanguage] = useState("en-US");
+  const [detectionConfidence, setDetectionConfidence] = useState<'high' | 'medium' | 'low'>('high');
   const [isUnsupported, setIsUnsupported] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
+  const [isMixedLanguage, setIsMixedLanguage] = useState(false);
+  const [isManualSelection, setIsManualSelection] = useState(false);
+  const [hasBeenTranslated, setHasBeenTranslated] = useState(false);
   const { toast } = useToast();
 
   const languages = [
-    { code: 'ar-SA', name: 'Arabic (Saudi Arabia)' },
-    { code: 'as-IN', name: 'Assamese' },
-    { code: 'bg-BG', name: 'Bulgarian' },
-    { code: 'bn-BD', name: 'Bengali (Bangladesh)' },
-    { code: 'bn-IN', name: 'Bengali (India)' },
-    { code: 'cs-CZ', name: 'Czech' },
-    { code: 'da-DK', name: 'Danish' },
-    { code: 'nl-NL', name: 'Dutch' },
-    { code: 'en-GB', name: 'English (UK)' },
-    { code: 'en-US', name: 'English (US)' },
-    { code: 'fi-FI', name: 'Finnish' },
-    { code: 'fr-CA', name: 'French (Canada)' },
-    { code: 'fr-FR', name: 'French (France)' },
-    { code: 'de-DE', name: 'German' },
-    { code: 'el-GR', name: 'Greek' },
-    { code: 'gu-IN', name: 'Gujarati' },
-    { code: 'he-IL', name: 'Hebrew' },
-    { code: 'hi-IN', name: 'Hindi' },
-    { code: 'hr-HR', name: 'Croatian' },
-    { code: 'id-ID', name: 'Indonesian' },
-    { code: 'it-IT', name: 'Italian' },
-    { code: 'ja-JP', name: 'Japanese' },
-    { code: 'kn-IN', name: 'Kannada' },
-    { code: 'ko-KR', name: 'Korean' },
-    { code: 'lt-LT', name: 'Lithuanian' },
-    { code: 'ms-MY', name: 'Malay' },
-    { code: 'ml-IN', name: 'Malayalam' },
-    { code: 'mr-IN', name: 'Marathi' },
-    { code: 'ne-IN', name: 'Nepali (India)' },
-    { code: 'no-NO', name: 'Norwegian' },
-    { code: 'or-IN', name: 'Odia' },
-    { code: 'pa-IN', name: 'Punjabi' },
-    { code: 'fa-IR', name: 'Persian (Farsi)' },
-    { code: 'pt-BR', name: 'Portuguese (Brazil)' },
-    { code: 'pt-PT', name: 'Portuguese (Portugal)' },
-    { code: 'ro-RO', name: 'Romanian' },
-    { code: 'ru-RU', name: 'Russian' },
-    { code: 'sr-RS', name: 'Serbian' },
-    { code: 'sk-SK', name: 'Slovak' },
-    { code: 'sl-SI', name: 'Slovenian' },
-    { code: 'es-ES', name: 'Spanish (Spain)' },
-    { code: 'es-MX', name: 'Spanish (Mexico)' },
-    { code: 'sv-SE', name: 'Swedish' },
-    { code: 'ta-IN', name: 'Tamil' },
-    { code: 'te-IN', name: 'Telugu' },
-    { code: 'th-TH', name: 'Thai' },
-    { code: 'tr-TR', name: 'Turkish' },
-    { code: 'uk-UA', name: 'Ukrainian' },
-    { code: 'ur-IN', name: 'Urdu (India)' },
-    { code: 'vi-VN', name: 'Vietnamese' },
-    { code: 'zh-CN', name: 'Chinese (Simplified)' },
-    { code: 'zh-TW', name: 'Chinese (Traditional)' }
+    { code: 'ar-SA', name: 'Arabic (Saudi Arabia)', nativeName: 'العربية' },
+    { code: 'as-IN', name: 'Assamese', nativeName: 'অসমীয়া' },
+    { code: 'bg-BG', name: 'Bulgarian', nativeName: 'Български' },
+    { code: 'bn-BD', name: 'Bengali (Bangladesh)', nativeName: 'বাংলা' },
+    { code: 'bn-IN', name: 'Bengali (India)', nativeName: 'বাংলা' },
+    { code: 'cs-CZ', name: 'Czech', nativeName: 'Čeština' },
+    { code: 'da-DK', name: 'Danish', nativeName: 'Dansk' },
+    { code: 'nl-NL', name: 'Dutch', nativeName: 'Nederlands' },
+    { code: 'en-GB', name: 'English (UK)', nativeName: 'English' },
+    { code: 'en-US', name: 'English (US)', nativeName: 'English' },
+    { code: 'fi-FI', name: 'Finnish', nativeName: 'Suomi' },
+    { code: 'fr-CA', name: 'French (Canada)', nativeName: 'Français' },
+    { code: 'fr-FR', name: 'French (France)', nativeName: 'Français' },
+    { code: 'de-DE', name: 'German', nativeName: 'Deutsch' },
+    { code: 'el-GR', name: 'Greek', nativeName: 'Ελληνικά' },
+    { code: 'gu-IN', name: 'Gujarati', nativeName: 'ગુજરાતી' },
+    { code: 'he-IL', name: 'Hebrew', nativeName: 'עברית' },
+    { code: 'hi-IN', name: 'Hindi', nativeName: 'हिन्दी' },
+    { code: 'hr-HR', name: 'Croatian', nativeName: 'Hrvatski' },
+    { code: 'id-ID', name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
+    { code: 'it-IT', name: 'Italian', nativeName: 'Italiano' },
+    { code: 'ja-JP', name: 'Japanese', nativeName: '日本語' },
+    { code: 'kn-IN', name: 'Kannada', nativeName: 'ಕನ್ನಡ' },
+    { code: 'ko-KR', name: 'Korean', nativeName: '한국어' },
+    { code: 'lt-LT', name: 'Lithuanian', nativeName: 'Lietuvių' },
+    { code: 'ms-MY', name: 'Malay', nativeName: 'Bahasa Melayu' },
+    { code: 'ml-IN', name: 'Malayalam', nativeName: 'മലയാളം' },
+    { code: 'mr-IN', name: 'Marathi', nativeName: 'मराठी' },
+    { code: 'ne-IN', name: 'Nepali (India)', nativeName: 'नेपाली' },
+    { code: 'no-NO', name: 'Norwegian', nativeName: 'Norsk' },
+    { code: 'or-IN', name: 'Odia', nativeName: 'ଓଡ଼ିଆ' },
+    { code: 'pa-IN', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
+    { code: 'fa-IR', name: 'Persian (Farsi)', nativeName: 'فارسی' },
+    { code: 'pt-BR', name: 'Portuguese (Brazil)', nativeName: 'Português' },
+    { code: 'pt-PT', name: 'Portuguese (Portugal)', nativeName: 'Português' },
+    { code: 'ro-RO', name: 'Romanian', nativeName: 'Română' },
+    { code: 'ru-RU', name: 'Russian', nativeName: 'Русский' },
+    { code: 'sr-RS', name: 'Serbian', nativeName: 'Српски' },
+    { code: 'sk-SK', name: 'Slovak', nativeName: 'Slovenčina' },
+    { code: 'sl-SI', name: 'Slovenian', nativeName: 'Slovenščina' },
+    { code: 'es-ES', name: 'Spanish (Spain)', nativeName: 'Español' },
+    { code: 'es-MX', name: 'Spanish (Mexico)', nativeName: 'Español' },
+    { code: 'sv-SE', name: 'Swedish', nativeName: 'Svenska' },
+    { code: 'ta-IN', name: 'Tamil', nativeName: 'தமிழ்' },
+    { code: 'te-IN', name: 'Telugu', nativeName: 'తెలుగు' },
+    { code: 'th-TH', name: 'Thai', nativeName: 'ไทย' },
+    { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe' },
+    { code: 'uk-UA', name: 'Ukrainian', nativeName: 'Українська' },
+    { code: 'ur-IN', name: 'Urdu (India)', nativeName: 'اردو' },
+    { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
+    { code: 'zh-CN', name: 'Chinese (Simplified)', nativeName: '简体中文' },
+    { code: 'zh-TW', name: 'Chinese (Traditional)', nativeName: '繁體中文' }
   ];
 
   const francToLanguageCode: Record<string, string> = {
@@ -106,63 +110,228 @@ const ModernStepTwo = ({
     'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
     'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN', 'tel': 'te-IN',
     'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA', 'urd': 'ur-IN',
-    'vie': 'vi-VN', 'cmn': 'zh-CN','rum': 'ro-RO',
+    'vie': 'vi-VN', 'cmn': 'zh-CN', 'rum': 'ro-RO',
   };
 
-  const isCodeSnippet = (text: string) => /<[\w\s="'{}-]*>|{.*}|;/.test(text);
+  const scriptPatterns = {
+    devanagari: /[\u0900-\u097F]/,
+    arabic: /[\u0600-\u06FF]/,
+    cyrillic: /[\u0400-\u04FF]/,
+    chinese: /[\u4E00-\u9FFF]/,
+    japanese: /[\u3040-\u309F\u30A0-\u30FF]/,
+    korean: /[\uAC00-\uD7AF]/,
+    tamil: /[\u0B80-\u0BFF]/,
+    telugu: /[\u0C00-\u0C7F]/,
+    bengali: /[\u0980-\u09FF]/,
+    gujarati: /[\u0A80-\u0AFF]/,
+    kannada: /[\u0C80-\u0CFF]/,
+    malayalam: /[\u0D00-\u0D7F]/,
+    thai: /[\u0E00-\u0E7F]/,
+    greek: /[\u0370-\u03FF]/,
+    hebrew: /[\u0590-\u05FF]/,
+  };
 
-  const detectLanguage = (text: string): { code: string; fallback: boolean; unsupported: boolean } => {
+  const isCodeSnippet = (text: string) => {
+    const codePatterns = [
+      /<[\w\s="'{}-]*>/,
+      /function\s*\(/,
+      /class\s+\w+/,
+      /import\s+.*from/,
+      /\{.*\}/,
+      /;$/m,
+    ];
+    return codePatterns.some(pattern => pattern.test(text));
+  };
+
+  const detectLanguage = (text: string): {
+    code: string;
+    fallback: boolean;
+    unsupported: boolean;
+    confidence: 'high' | 'medium' | 'low';
+    mixed: boolean;
+  } => {
     const trimmed = text.trim();
-    if (!trimmed) return { code: "en-US", fallback: false, unsupported: false };
-    if (trimmed.length < 3 || isCodeSnippet(trimmed)) return { code: "en-US", fallback: true, unsupported: false };
+
+    if (!trimmed || trimmed.length < 3) {
+      return { code: "en-US", fallback: false, unsupported: false, confidence: 'high', mixed: false };
+    }
+
+    if (isCodeSnippet(trimmed)) {
+      return { code: "en-US", fallback: true, unsupported: false, confidence: 'low', mixed: false };
+    }
+
+    const scriptResults: string[] = [];
+    for (const [script, pattern] of Object.entries(scriptPatterns)) {
+      if (pattern.test(trimmed)) {
+        scriptResults.push(script);
+      }
+    }
+
+    if (scriptResults.length > 1) {
+      const primaryScript = scriptResults[0];
+      const langCode = getLanguageFromScript(primaryScript);
+      return {
+        code: langCode || "en-US",
+        fallback: false,
+        unsupported: false,
+        confidence: 'medium',
+        mixed: true
+      };
+    }
+
+    if (scriptResults.length === 1) {
+      const langCode = getLanguageFromScript(scriptResults[0]);
+      if (langCode) {
+        return {
+          code: langCode,
+          fallback: false,
+          unsupported: false,
+          confidence: 'high',
+          mixed: false
+        };
+      }
+    }
+
     const cleaned = trimmed.replace(/[^\p{L}\s]/gu, "");
-    if (cleaned.length < 3) return { code: "en-US", fallback: true, unsupported: false };
+
+    if (cleaned.length < 10) {
+      return {
+        code: "en-US",
+        fallback: true,
+        unsupported: false,
+        confidence: 'low',
+        mixed: false
+      };
+    }
+
     const detectedCode = franc(cleaned, { minLength: 3 });
-    if (detectedCode === "und") return { code: "en-US", fallback: true, unsupported: false };
+
+    if (detectedCode === "und") {
+      return {
+        code: "en-US",
+        fallback: true,
+        unsupported: false,
+        confidence: 'low',
+        mixed: false
+      };
+    }
+
     const langCode = francToLanguageCode[detectedCode] || "en-US";
     const unsupported = !languages.find(l => l.code === langCode);
-    return { code: langCode, fallback: false, unsupported };
+
+    let confidence: 'high' | 'medium' | 'low' = 'medium';
+    if (cleaned.length > 100) confidence = 'high';
+    else if (cleaned.length < 30) confidence = 'low';
+
+    return {
+      code: langCode,
+      fallback: detectedCode === "und",
+      unsupported,
+      confidence,
+      mixed: false
+    };
+  };
+
+  const getLanguageFromScript = (script: string): string | null => {
+    const scriptToLang: Record<string, string> = {
+      devanagari: 'hi-IN',
+      arabic: 'ar-SA',
+      cyrillic: 'ru-RU',
+      chinese: 'zh-CN',
+      japanese: 'ja-JP',
+      korean: 'ko-KR',
+      tamil: 'ta-IN',
+      telugu: 'te-IN',
+      bengali: 'bn-IN',
+      gujarati: 'gu-IN',
+      kannada: 'kn-IN',
+      malayalam: 'ml-IN',
+      thai: 'th-TH',
+      greek: 'el-GR',
+      hebrew: 'he-IL',
+    };
+    return scriptToLang[script] || null;
   };
 
   useEffect(() => {
     setEditedText(extractedText);
-    const { code, fallback, unsupported } = detectLanguage(extractedText);
-    setDetectedLanguage(code);
-    setSelectedLanguage(code);
-    setIsFallback(fallback);
-    setIsUnsupported(unsupported);
-    onLanguageSelect(code);
+    const result = detectLanguage(extractedText);
+    setDetectedLanguage(result.code);
+    setSelectedLanguage(result.code);
+    setIsFallback(result.fallback);
+    setIsUnsupported(result.unsupported);
+    setDetectionConfidence(result.confidence);
+    setIsMixedLanguage(result.mixed);
+    setIsManualSelection(false);
+    setHasBeenTranslated(false);
+    onLanguageSelect(result.code);
+
+    if (result.mixed) {
+      toast({
+        title: "Mixed Language Detected",
+        description: "Your text contains multiple languages. Please select the primary language for audio generation.",
+        variant: "default",
+      });
+    }
   }, [extractedText]);
 
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
     onTextUpdated(newText);
-    const { code, fallback, unsupported } = detectLanguage(newText);
-    setDetectedLanguage(code);
-    setIsFallback(fallback);
-    setIsUnsupported(unsupported);
+
+    if (isManualSelection || hasBeenTranslated) {
+      return;
+    }
+
+    const result = detectLanguage(newText);
+    setDetectedLanguage(result.code);
+    setIsFallback(result.fallback);
+    setIsUnsupported(result.unsupported);
+    setDetectionConfidence(result.confidence);
+    setIsMixedLanguage(result.mixed);
   };
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
     onLanguageSelect(languageCode);
+    setIsManualSelection(true);
+    setIsMixedLanguage(false);
   };
 
   const handleTranslateText = async () => {
     if (!editedText.trim()) return;
     setIsTranslating(true);
     onProcessingStart("Translating text...");
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const translated = `[Translated to ${selectedLanguage}] ${editedText}`;
-      setEditedText(translated);
-      onTextUpdated(translated);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const translatedText = `[Translated to ${languages.find(l => l.code === selectedLanguage)?.name}] ${editedText}`;
+
+      setEditedText(translatedText);
+      onTextUpdated(translatedText);
+
       setDetectedLanguage(selectedLanguage);
       setIsFallback(false);
       setIsUnsupported(false);
-      toast({ title: "Text Translated (Simulated)", description: `Text translated to your selected language.` });
-    } catch {
-      toast({ title: "Translation Failed", variant: "destructive" });
+      setIsMixedLanguage(false);
+      setDetectionConfidence('high');
+      setIsManualSelection(true);
+      setHasBeenTranslated(true);
+
+      onLanguageSelect(selectedLanguage);
+
+      toast({
+        title: "Translation Complete",
+        description: `Text translated to ${languages.find(l => l.code === selectedLanguage)?.name}.`
+      });
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast({
+        title: "Translation Failed",
+        description: "Unable to translate. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsTranslating(false);
       onProcessingEnd();
@@ -196,22 +365,17 @@ const ModernStepTwo = ({
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-
-  // ✅ Show translate icon only if selected language differs from detected language
   const showTranslateIcon = editedText.trim() && !isFallback && selectedLanguage !== detectedLanguage;
-
-  // ✅ Disable continue button if translation needed or other conditions
   const isContinueDisabled =
     !editedText.trim() ||
     isImproving ||
     isTranslating ||
     isFallback ||
     isUnsupported ||
-    showTranslateIcon;
+    (showTranslateIcon && !isMixedLanguage);
 
   return (
     <div className="space-y-6">
-      {/* Language Selector */}
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center text-lg">
@@ -219,35 +383,62 @@ const ModernStepTwo = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 items-center">
-            <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Choose language" />
-              </SelectTrigger>
-              <SelectContent>
-                {languages.map((lang) => (
-                  <SelectItem key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {showTranslateIcon && (
-              <Button
-                onClick={handleTranslateText}
-                disabled={isTranslating || !editedText.trim()}
-                variant="outline"
-                size="icon"
-                title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
+          <div className="space-y-3">
+            <div className="flex gap-2 items-center">
+              <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Choose language" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {languages.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name} ({lang.nativeName})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {showTranslateIcon && (
+                <Button
+                  onClick={handleTranslateText}
+                  disabled={isTranslating || !editedText.trim()}
+                  variant="outline"
+                  size="icon"
+                  title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
+                >
+                  <Languages className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              <span>
+                Detected: <strong>{languages.find(l => l.code === detectedLanguage)?.name || 'Unknown'}</strong>
+              </span>
+              <Badge
+                variant={
+                  detectionConfidence === 'high' ? 'default' :
+                  detectionConfidence === 'medium' ? 'secondary' :
+                  'outline'
+                }
+                className="text-xs"
               >
-                <Languages className="h-4 w-4" />
-              </Button>
+                {detectionConfidence} confidence
+              </Badge>
+            </div>
+
+            {isMixedLanguage && (
+              <div className="flex items-start gap-2 text-xs text-orange-700 bg-orange-50 p-3 rounded border border-orange-200">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div>
+                  <strong>Mixed Language Content:</strong> Your text contains multiple languages.
+                  The audio will be generated in the language you select above.
+                </div>
+              </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Text Editor */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -265,13 +456,15 @@ const ModernStepTwo = ({
             className={`min-h-[200px] resize-none text-base leading-relaxed transition-all ${isUnsupported ? 'border-destructive focus-visible:ring-destructive' : ''}`}
           />
           {isFallback && (
-            <p className="text-sm text-destructive mt-2">
-              The language of this text could not be detected. Please edit the text to continue.
+            <p className="text-sm text-destructive mt-2 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>The language of this text could not be detected. Please manually select the correct language above.</span>
             </p>
           )}
           {!isFallback && isUnsupported && (
-            <p className="text-sm text-destructive mt-2">
-              The selected language is not supported for translation. Please choose a different language.
+            <p className="text-sm text-destructive mt-2 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>The detected language is not supported. Please choose a different language from the dropdown above.</span>
             </p>
           )}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
@@ -291,7 +484,6 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
-      {/* Stats */}
       <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
@@ -309,7 +501,7 @@ const ModernStepTwo = ({
             </div>
             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
               <div className="text-lg sm:text-2xl font-bold text-primary truncate" title={languages.find(l => l.code === selectedLanguage)?.name}>
-                {languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}
+                {languages.find(l => l.code === selectedLanguage)?.nativeName || 'Unknown'}
               </div>
               <div className="text-xs sm:text-sm text-muted-foreground">Selected Language</div>
             </div>
@@ -317,7 +509,6 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
-      {/* Navigation */}
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
         <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating} className="order-2 sm:order-1">
           Back to Upload

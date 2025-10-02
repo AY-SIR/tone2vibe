@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,13 +34,18 @@ export default function ModernStepOne({
   const [extractedText, setExtractedText] = useState(initialText);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // REFACTORED: This is now the single source of truth for word count calculation.
+  // Update state when initialText changes (on reset)
+  useEffect(() => {
+    setManualText(initialText);
+    setExtractedText(initialText);
+  }, [initialText]);
+
+  // Single source of truth for word count calculation
   const calculateWordCount = (text: string) => {
     if (!text) return 0;
     const words = text.trim().split(/\s+/).filter(Boolean);
     let totalWordCount = 0;
     words.forEach((word) => {
-      // A very long "word" without spaces is counted based on character length
       totalWordCount += word.length > 45 ? Math.ceil(word.length / 45) : 1;
     });
     return totalWordCount;
@@ -64,7 +69,7 @@ export default function ModernStepOne({
     try {
       const text = await OCRService.extractText(file);
       if (text.trim()) {
-        const wordCount = calculateWordCount(text); // REFACTORED: Using the helper function
+        const wordCount = calculateWordCount(text);
 
         setExtractedText(text);
         onTextExtracted(text);
@@ -83,7 +88,7 @@ export default function ModernStepOne({
         description: error instanceof Error ? error.message : "An unknown error occurred.",
         variant: "destructive"
       });
-      setExtractedText(""); // Clear previous results on failure
+      setExtractedText("");
     } finally {
       setIsProcessing(false);
       onProcessingEnd();
@@ -114,7 +119,7 @@ export default function ModernStepOne({
       return;
     }
 
-    const wordCount = calculateWordCount(trimmedText); // REFACTORED: Using the helper function
+    const wordCount = calculateWordCount(trimmedText);
 
     setExtractedText(trimmedText);
     onTextExtracted(trimmedText);

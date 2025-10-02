@@ -1,6 +1,4 @@
-// This is the complete file for ModernStepFour.tsx. No sections have been shortened or omitted.
-// Fallback logic has now been added to handleGenerateSample as well.
-
+// src/components/tool/ModernStepFour.tsx - Complete Fixed Version
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Wand2, Volume2, Clock, CheckCircle, Settings, Lock, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { TextToSpeechService } from "@/services/textToSpeechService";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ModernStepFourProps {
@@ -48,7 +45,6 @@ const ModernStepFour = ({
   const [advancedPanelCount, setAdvancedPanelCount] = useState(0);
   const [sampleApproved, setSampleApproved] = useState(false);
 
-  // Advanced settings state
   const [speed, setSpeed] = useState([1.0]);
   const [pitch, setPitch] = useState([1.0]);
   const [volume, setVolume] = useState([1.0]);
@@ -77,7 +73,6 @@ const ModernStepFour = ({
     return words.slice(0, 50).join(' ');
   };
 
-  // --- UPDATED handleGenerateSample with Fallback ---
   const handleGenerateSample = async () => {
     if (!extractedText.trim() || isGenerating || isSampleGeneration) return;
 
@@ -155,7 +150,7 @@ const ModernStepFour = ({
   };
 
   const handleRejectSample = () => {
-    if (advancedPanelCount < 1) { // Prevent multiple panels
+    if (advancedPanelCount < 1) {
       setShowAdvancedSettings(true);
       setAdvancedPanelCount(1);
     }
@@ -279,7 +274,6 @@ const ModernStepFour = ({
 
   const canGenerate = extractedText.trim().length > 0 && !isGenerating;
   const hasAudio = generatedAudio.length > 0;
-
 
   return (
     <div className="space-y-6">
@@ -438,7 +432,7 @@ const ModernStepFour = ({
               <div className="space-y-4 border-t pt-4">
                 <h4 className="font-semibold text-sm text-purple-700 border-b border-purple-200 pb-2 flex items-center">
                   <Crown className="h-4 w-4 mr-2" />
-                  (Premium)
+                  Premium God-Level Controls
                 </h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -567,9 +561,8 @@ const ModernStepFour = ({
         <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader>
             <CardTitle className="text-lg text-blue-900 flex items-center gap-2">
-              <Volume2 className="h-5 w-5 text-base sm:text-lg" />
-              Voice Sample
-              Test Quality
+              <Volume2 className="h-5 w-5" />
+              Voice Sample - Test Quality
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -585,24 +578,26 @@ const ModernStepFour = ({
               </audio>
               <div className="bg-yellow-50 p-3 rounded-lg">
                 <p className="text-xs text-yellow-800">
-                   <strong>Test Sample:</strong> This is just the first 50 words.
-                   No words deducted, no history saved.
+                  ✨ <strong>Test Sample:</strong> This is just the first 50 words.
+                  No words deducted, no history saved.
                 </p>
               </div>
-                 <Button
-                   onClick={handleApproveSample}
-                   className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base"
-                 >
-                     Perfect! Generate Full Audio
-                 </Button>
-                 <Button
-                   onClick={handleRejectSample}
-                   variant="outline"
-                   className="w-full sm:flex-1 border-orange-300 text-orange-700 hover:bg-orange-50 text-sm sm:text-base"
-                   disabled={advancedPanelCount >= 1}
-                 >
-                     {advancedPanelCount >= 1 ? 'Settings Panel Open' : 'Adjust Settings'}
-                 </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={handleApproveSample}
+                  className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  ✓ Perfect! Generate Full Audio
+                </Button>
+                <Button
+                  onClick={handleRejectSample}
+                  variant="outline"
+                  className="w-full sm:flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                  disabled={advancedPanelCount >= 1}
+                >
+                  {advancedPanelCount >= 1 ? 'Settings Panel Open' : '⚙ Adjust Settings'}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -613,7 +608,7 @@ const ModernStepFour = ({
         <Card className="border-orange-200 bg-orange-50/50">
           <CardHeader>
             <CardTitle className="text-lg text-orange-900">
-               Fine-tune Voice Settings
+              ⚙ Fine-tune Voice Settings
             </CardTitle>
             <p className="text-sm text-orange-700">
               Adjust these settings to perfect your voice quality, then generate a new sample.
@@ -660,7 +655,7 @@ const ModernStepFour = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="neutral"> Neutral</SelectItem>
+                    <SelectItem value="neutral">😐 Neutral</SelectItem>
                     <SelectItem value="happy">😊 Happy</SelectItem>
                     <SelectItem value="sad">😢 Sad</SelectItem>
                     <SelectItem value="excited">🤩 Excited</SelectItem>
@@ -676,7 +671,7 @@ const ModernStepFour = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default"> Default</SelectItem>
+                    <SelectItem value="default">🌐 Default</SelectItem>
                     <SelectItem value="american">🇺🇸 American</SelectItem>
                     <SelectItem value="british">🇬🇧 British</SelectItem>
                     <SelectItem value="australian">🇦🇺 Australian</SelectItem>
@@ -691,11 +686,11 @@ const ModernStepFour = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="natural"> Natural</SelectItem>
-                    <SelectItem value="news"> News Reader</SelectItem>
-                    <SelectItem value="conversational"> Conversational</SelectItem>
-                    <SelectItem value="dramatic"> Dramatic</SelectItem>
-                    <SelectItem value="storytelling"> Storytelling</SelectItem>
+                    <SelectItem value="natural">🎭 Natural</SelectItem>
+                    <SelectItem value="news">📰 News Reader</SelectItem>
+                    <SelectItem value="conversational">💬 Conversational</SelectItem>
+                    <SelectItem value="dramatic">🎬 Dramatic</SelectItem>
+                    <SelectItem value="storytelling">📚 Storytelling</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -735,7 +730,7 @@ const ModernStepFour = ({
         </Card>
       )}
 
-      {/* Generation Status */}
+      {/* Generation Status - DUAL BUTTON FOR PAID USERS */}
       {!hasAudio && !sampleAudio && !sampleApproved && (
         <Card>
           <CardContent className="p-6">
@@ -745,11 +740,11 @@ const ModernStepFour = ({
               </div>
               <div>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
-                  {isPaidUser ? "Generate Voice Sample First" : "Ready to Generate Audio"}
+                  {isPaidUser ? "Choose Your Generation Method" : "Ready to Generate Audio"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-600">
                   {isPaidUser
-                    ? "Start with a 50-word sample to verify voice quality before full generation."
+                    ? "Test with a 50-word sample first, or generate the full audio directly."
                     : "Your text will be converted to high-quality speech using advanced AI."
                   }
                 </p>
@@ -760,15 +755,44 @@ const ModernStepFour = ({
                   <span>Estimated time: ~{estimatedTime} seconds</span>
                 </div>
               )}
-              <Button
-                onClick={isPaidUser && !sampleApproved ? handleGenerateSample : handleGenerateFullAudio}
-                disabled={!canGenerate}
-                size="lg"
-                className="px-6 sm:px-8 py-2 sm:py-3"
-              >
-                <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                {isPaidUser && !sampleApproved ? "Generate Sample" : "Generate Full Audio"}
-              </Button>
+              {isPaidUser ? (
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    onClick={handleGenerateSample}
+                    disabled={!canGenerate}
+                    variant="outline"
+                    size="lg"
+                    className="px-6 sm:px-8 py-2 sm:py-3 border-blue-300 hover:bg-blue-50"
+                  >
+                    <Volume2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                    Generate Sample (50 words)
+                  </Button>
+                  <Button
+                    onClick={handleGenerateFullAudio}
+                    disabled={!canGenerate}
+                    size="lg"
+                    className="px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600"
+                  >
+                    <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                    Generate Full Audio ({wordCount} words)
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleGenerateFullAudio}
+                  disabled={!canGenerate}
+                  size="lg"
+                  className="px-6 sm:px-8 py-2 sm:py-3"
+                >
+                  <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                  Generate Full Audio
+                </Button>
+              )}
+              {isPaidUser && (
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Sample generation is free and doesn't use your word balance
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -811,7 +835,7 @@ const ModernStepFour = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-blue-900">
-                  Generating Your Audio...
+                  {isSampleGeneration ? "Generating Sample..." : "Generating Your Audio..."}
                 </h3>
                 <Badge className="bg-blue-100 text-blue-800">
                   {Math.round(progress)}%
@@ -822,12 +846,14 @@ const ModernStepFour = ({
                 <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                   <span className="text-xs sm:text-sm text-blue-700">
-                    Processing {wordCount} words...
+                    {isSampleGeneration ? "Processing 50-word sample..." : `Processing ${wordCount} words...`}
                   </span>
                 </div>
-                <p className="text-xs text-blue-600">
-                  This may take up to {estimatedTime} seconds
-                </p>
+                {!isSampleGeneration && (
+                  <p className="text-xs text-blue-600">
+                    This may take up to {estimatedTime} seconds
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -851,7 +877,7 @@ const ModernStepFour = ({
                 </p>
               </div>
               <Badge className="bg-green-100 text-green-800">
-                 Generation Complete
+                ✓ Generation Complete
               </Badge>
             </div>
           </CardContent>

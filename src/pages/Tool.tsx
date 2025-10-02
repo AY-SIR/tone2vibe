@@ -20,32 +20,24 @@ const Tool = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Step management
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const totalSteps = 5;
 
-  // Data state - persisted across steps
   const [extractedText, setExtractedText] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState<string>("");
-  
-  // Track initial text to preserve when going back to step 1
-  const [initialText, setInitialText] = useState("");
 
-  // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) navigate("/");
   }, [user, loading, navigate]);
 
-  // Word count calculation
   useEffect(() => {
     if (!extractedText) {
       setWordCount(0);
@@ -62,7 +54,6 @@ const Tool = () => {
     setWordCount(totalWordCount);
   }, [extractedText]);
 
-  // Word balance check
   const hasEnoughWords = () => {
     if (!profile) return false;
     const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
@@ -71,7 +62,6 @@ const Tool = () => {
     return wordCount <= totalAvailable;
   };
 
-  // Step titles & descriptions
   const getStepTitle = (step: number) => {
     const titles: Record<number, string> = {
       1: "Upload & Extract",
@@ -94,9 +84,8 @@ const Tool = () => {
     return descriptions[step] || "";
   };
 
-  // Step navigation
   const handleNext = () => {
-    if (!hasEnoughWords()) {
+    if (!hasEnoughWords() && currentStep === 4) {
       toast({
         title: "Insufficient Words",
         description: "Please upgrade your plan to continue.",
@@ -115,26 +104,36 @@ const Tool = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  // Processing overlay
   const handleProcessingStart = (stepName: string) => {
     setIsProcessing(true);
     setProcessingStep(stepName);
   };
+
   const handleProcessingEnd = () => {
     setIsProcessing(false);
     setProcessingStep("");
   };
 
-  // Handlers for steps
   const handleTextExtraction = (text: string) => {
     setExtractedText(text);
-    setInitialText(text); // Save initial text
     if (text.trim()) handleNext();
   };
-  const handleVoiceRecorded = (blob: Blob) => setVoiceRecording(blob);
-  const handleVoiceSelect = (voiceId: string) => setSelectedVoiceId(voiceId);
-  const handleLanguageSelect = (language: string) => setSelectedLanguage(language);
-  const handleWordCountUpdate = (count: number) => setWordCount(count);
+
+  const handleVoiceRecorded = (blob: Blob) => {
+    setVoiceRecording(blob);
+  };
+
+  const handleVoiceSelect = (voiceId: string) => {
+    setSelectedVoiceId(voiceId);
+  };
+
+  const handleLanguageSelect = (language: string) => {
+    setSelectedLanguage(language);
+  };
+
+  const handleWordCountUpdate = (count: number) => {
+    setWordCount(count);
+  };
 
   const handleAudioGenerated = async (audioUrl: string) => {
     setProcessedAudioUrl(audioUrl);
@@ -154,33 +153,39 @@ const Tool = () => {
     }
   };
 
-const handleTextUpdated = (updatedText: string) => {
-  setExtractedText(updatedText);
-  // Word count will recalculate via useEffect
-};
+  const handleTextUpdated = (updatedText: string) => {
+    setExtractedText(updatedText);
+  };
 
-
-  // Reset for new generation
   const handleReset = async () => {
-    setCurrentStep(1);
-    setCompletedSteps([]);
+    setIsProcessing(true);
+    setProcessingStep("Preparing for new generation...");
+
+    if (user && refreshProfile) {
+      await refreshProfile();
+    }
+
     setExtractedText("");
     setWordCount(0);
+    setSelectedLanguage("en-US");
     setSelectedVoiceId("");
     setVoiceRecording(null);
     setProcessedAudioUrl("");
 
-    if (user && refreshProfile) {
-      setIsProcessing(true);
-      setProcessingStep("Refreshing...");
-      await refreshProfile(); // Refresh profile from context
-      setIsProcessing(false);
-    }
+    setCurrentStep(1);
+    setCompletedSteps([]);
+
+    setIsProcessing(false);
+    setProcessingStep("");
+
+    toast({
+      title: "Ready for New Generation",
+      description: "All data cleared. Start fresh!",
+    });
   };
 
   const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
 
-  // Remaining words calculation
   const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
   const purchasedWords = profile?.word_balance || 0;
   const remainingWords = planWordsAvailable + purchasedWords;
@@ -204,10 +209,7 @@ const handleTextUpdated = (updatedText: string) => {
           <Header />
         </div>
 
-
-
         <div className="container mx-auto px-4 py-8 max-w-6xl">
-          {/* Step Buttons */}
           <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
             {Array.from({ length: totalSteps }, (_, i) => {
               const step = i + 1;
@@ -230,7 +232,6 @@ const handleTextUpdated = (updatedText: string) => {
             })}
           </div>
 
-          {/* Progress Bar */}
           <div className="mb-4 sm:mb-6">
             <div className="flex justify-between text-xs sm:text-sm text-muted-foreground mb-2">
               <span>
@@ -241,7 +242,6 @@ const handleTextUpdated = (updatedText: string) => {
             <Progress value={progressPercentage} className="h-2 sm:h-2" />
           </div>
 
-          {/* Word Balance Warning */}
           {!hasEnoughWords() && wordCount > 0 && (
             <Card className="mb-4 sm:mb-6 border-destructive/50 bg-destructive/5">
               <CardContent className="p-3 sm:p-4">
@@ -261,7 +261,6 @@ const handleTextUpdated = (updatedText: string) => {
             </Card>
           )}
 
-          {/* Step Content */}
           <Card className="shadow-lg border-0 bg-card">
             <CardHeader className="border-b p-4 sm:p-6">
               <div className="flex items-center space-x-3">
@@ -283,20 +282,20 @@ const handleTextUpdated = (updatedText: string) => {
                   onWordCountUpdate={handleWordCountUpdate}
                   onProcessingStart={handleProcessingStart}
                   onProcessingEnd={handleProcessingEnd}
-                  initialText={initialText}
+                  initialText={extractedText}
                 />
               )}
               {currentStep === 2 && (
-  <ModernStepTwo
-    extractedText={extractedText}
-    onNext={handleNext}
-    onPrevious={handlePrevious}
-    onTextUpdated={handleTextUpdated}
-    onProcessingStart={handleProcessingStart}
-    onProcessingEnd={handleProcessingEnd}
-    onLanguageSelect={handleLanguageSelect}
-  />
-)}
+                <ModernStepTwo
+                  extractedText={extractedText}
+                  onNext={handleNext}
+                  onPrevious={handlePrevious}
+                  onTextUpdated={handleTextUpdated}
+                  onProcessingStart={handleProcessingStart}
+                  onProcessingEnd={handleProcessingEnd}
+                  onLanguageSelect={handleLanguageSelect}
+                />
+              )}
               {currentStep === 3 && (
                 <ModernStepThree
                   onNext={handleNext}
