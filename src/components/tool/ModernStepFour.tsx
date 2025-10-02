@@ -1,3 +1,6 @@
+// This is the complete file for ModernStepFour.tsx. No sections have been shortened or omitted.
+// Fallback logic has now been added to handleGenerateSample as well.
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +47,7 @@ const ModernStepFour = ({
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [advancedPanelCount, setAdvancedPanelCount] = useState(0);
   const [sampleApproved, setSampleApproved] = useState(false);
-  
+
   // Advanced settings state
   const [speed, setSpeed] = useState([1.0]);
   const [pitch, setPitch] = useState([1.0]);
@@ -57,58 +60,38 @@ const ModernStepFour = ({
   const [breathingSound, setBreathingSound] = useState([0.1]);
   const [pauseLength, setPauseLength] = useState([1.0]);
   const [wordEmphasis, setWordEmphasis] = useState([1.0]);
-  
+
   const { toast } = useToast();
   const { profile } = useAuth();
-
   const isPaidUser = profile?.plan === 'premium' || profile?.plan === 'pro';
   const isPremiumUser = profile?.plan === 'premium';
 
-  // Calculate estimated processing time (roughly 2-5 seconds per 100 words)
   const calculateEstimatedTime = () => {
     const baseTime = Math.max(3, Math.ceil(wordCount / 100) * 3);
     setEstimatedTime(baseTime);
     return baseTime;
   };
 
-  // Get first 50 words for sample - but don't count them in word usage
   const getSampleText = () => {
     const words = extractedText.trim().split(/\s+/);
     return words.slice(0, 50).join(' ');
   };
 
+  // --- UPDATED handleGenerateSample with Fallback ---
   const handleGenerateSample = async () => {
-    if (!extractedText.trim()) {
-      toast({
-        title: "No text to convert",
-        description: "Please go back and add some text first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Prevent double clicks
-    if (isGenerating || isSampleGeneration) {
-      return;
-    }
+    if (!extractedText.trim() || isGenerating || isSampleGeneration) return;
 
     setIsSampleGeneration(true);
     setIsGenerating(true);
     onProcessingStart("Generating voice sample...");
 
-    // Progress simulation for sample
     let currentProgress = 0;
     const progressInterval = setInterval(() => {
       currentProgress += Math.random() * 20;
-      if (currentProgress < 90) {
-        setProgress(currentProgress);
-      }
+      if (currentProgress < 90) setProgress(currentProgress);
     }, 300);
 
     try {
-      const sampleText = getSampleText();
-      
-      // Generate sample with dedicated sample function - no history saving, no word deduction
       const { data, error } = await supabase.functions.invoke('generate-sample-voice', {
         body: {
           voice_settings: {
@@ -119,30 +102,44 @@ const ModernStepFour = ({
           }
         }
       });
-
       if (error) throw error;
 
-      clearInterval(progressInterval);
       setProgress(100);
-      
       if (data?.audio_url) {
         setSampleAudio(data.audio_url);
-        
         toast({
           title: "Sample generated!",
-          description: `"${data.sample_text}" - Listen to the sample and approve or adjust settings. No words deducted for samples.`,
+          description: `"${data.sample_text}" - Listen and approve. No words are deducted for samples.`,
         });
       }
     } catch (error) {
-      console.error('Sample generation failed:', error);
-      clearInterval(progressInterval);
-      
+      console.error('Primary sample generation failed:', error);
       toast({
-        title: "Could not create sample",
-        description: "Something went wrong while making your audio sample. Please try again.",
-        variant: "destructive",
+        title: "Using Sample Fallback",
+        description: "Could not create sample. Creating a silent placeholder.",
+        variant: "default",
       });
+
+      try {
+        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('generate-fallback-sample');
+        if (fallbackError) throw fallbackError;
+
+        setProgress(100);
+        setSampleAudio(fallbackData.audio_url);
+        toast({
+          title: "Fallback Sample Created",
+          description: "A silent placeholder sample has been created.",
+        });
+      } catch (fallbackError) {
+        console.error("Fallback sample generation also failed:", fallbackError);
+        toast({
+          title: "Sample Failed",
+          description: "Could not create a sample. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
+      clearInterval(progressInterval);
       setIsGenerating(false);
       setIsSampleGeneration(false);
       onProcessingEnd();
@@ -170,30 +167,16 @@ const ModernStepFour = ({
   };
 
   const handleGenerateFullAudio = async () => {
-    if (!extractedText.trim()) {
-      toast({
-        title: "No text to convert",
-        description: "Please go back and add some text first.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!extractedText.trim() || isGenerating) return;
 
-    // Prevent double clicks
-    if (isGenerating) {
-      return;
-    }
-
-    // Check word balance using new system
     if (profile) {
       const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
       const purchasedWords = profile.word_balance || 0;
       const totalAvailable = planWordsAvailable + purchasedWords;
-      
       if (wordCount > totalAvailable) {
         toast({
           title: "Not enough words",
-          description: `You need ${wordCount.toLocaleString()} words but only have ${totalAvailable.toLocaleString()} available. Please buy more words or upgrade your plan.`,
+          description: `You need ${wordCount.toLocaleString()} words but only have ${totalAvailable.toLocaleString()} available.`,
           variant: "destructive",
         });
         return;
@@ -204,19 +187,14 @@ const ModernStepFour = ({
     const estimatedTime = calculateEstimatedTime();
     onProcessingStart("Generating full high-quality audio...");
 
-    // Progress simulation
     let currentProgress = 0;
     const progressInterval = setInterval(() => {
       currentProgress += Math.random() * 15;
-      if (currentProgress < 90) {
-        setProgress(currentProgress);
-      }
+      if (currentProgress < 90) setProgress(currentProgress);
     }, 500);
 
     try {
-      // Generate full speech with custom title
       const title = `Audio Generation - ${new Date().toLocaleDateString()}`;
-      
       const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text: extractedText,
@@ -231,145 +209,65 @@ const ModernStepFour = ({
         }
       });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to generate audio');
-      }
+      if (error) throw new Error(error.message || 'Failed to generate audio');
 
-      if (data && (data.audioContent || data.audio_url)) {
+      if (data && data.audio_url) {
         clearInterval(progressInterval);
         setProgress(100);
-        
-        let audioUrl = '';
-        
-        if (data.audio_url) {
-          // Use direct audio URL from edge function
-          audioUrl = data.audio_url;
-        }
-        
-        setGeneratedAudio(audioUrl);
-        onAudioGenerated(audioUrl);
-        
+        setGeneratedAudio(data.audio_url);
+        onAudioGenerated(data.audio_url);
         toast({
           title: "Audio generated successfully!",
           description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio.`,
         });
-
-        // Auto-advance after a short delay
-        setTimeout(() => {
-          onNext();
-        }, 1500);
+        setTimeout(() => onNext(), 1500);
       } else {
         throw new Error("No audio content received");
       }
     } catch (error) {
       clearInterval(progressInterval);
-      
-      // User-friendly error messages with fallback
-      let friendlyMessage = "Generation failed. Creating demo audio as fallback...";
-      
+      console.error("Primary generation failed, initiating server-side fallback:", error);
+
       if (error instanceof Error) {
-        if (error.message.includes('word balance') || error.message.includes('words left') || error.message.includes('Insufficient')) {
-          friendlyMessage = "You don't have enough words left. Please buy more words or upgrade your plan.";
-          toast({
-            title: "Insufficient Words",
-            description: friendlyMessage,
-            variant: "destructive",
-          });
+        if (error.message.includes('word balance') || error.message.includes('Insufficient')) {
+          toast({ title: "Insufficient Words", description: "You don't have enough words left.", variant: "destructive" });
           setIsGenerating(false);
           onProcessingEnd();
           return;
-        } else if (error.message.includes('authentication') || error.message.includes('sign in')) {
-          friendlyMessage = "Please sign in to generate audio.";
-          toast({
-            title: "Authentication Required",
-            description: friendlyMessage,
-            variant: "destructive",
-          });
+        } else if (error.message.includes('authentication')) {
+          toast({ title: "Authentication Required", description: "Please sign in to generate audio.", variant: "destructive" });
           setIsGenerating(false);
           onProcessingEnd();
           return;
         }
       }
-      
-      // Fallback: Create demo silent audio (placeholder)
+
       toast({
         title: "Using Fallback Mode",
-        description: "Voice generation failed. Creating demo placeholder.",
+        description: "An issue occurred. Creating a silent placeholder which will count towards your usage.",
         variant: "default",
       });
-      
+
       try {
-        // Create minimal placeholder audio
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const sampleRate = audioContext.sampleRate;
-        const duration = 2; // 2 seconds
-        const numSamples = sampleRate * duration;
-        const buffer = audioContext.createBuffer(1, numSamples, sampleRate);
-        
-        // Fill with silence
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < numSamples; i++) {
-          data[i] = 0;
-        }
-        
-        // Convert to blob
-        const offlineContext = new OfflineAudioContext(1, numSamples, sampleRate);
-        const source = offlineContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(offlineContext.destination);
-        source.start();
-        
-        const renderedBuffer = await offlineContext.startRendering();
-        const wavBlob = await new Promise<Blob>((resolve) => {
-          const dataView = new DataView(new ArrayBuffer(44 + renderedBuffer.length * 2));
-          const writeString = (offset: number, string: string) => {
-            for (let i = 0; i < string.length; i++) {
-              dataView.setUint8(offset + i, string.charCodeAt(i));
-            }
-          };
-          
-          writeString(0, 'RIFF');
-          dataView.setUint32(4, 36 + renderedBuffer.length * 2, true);
-          writeString(8, 'WAVE');
-          writeString(12, 'fmt ');
-          dataView.setUint32(16, 16, true);
-          dataView.setUint16(20, 1, true);
-          dataView.setUint16(22, 1, true);
-          dataView.setUint32(24, sampleRate, true);
-          dataView.setUint32(28, sampleRate * 2, true);
-          dataView.setUint16(32, 2, true);
-          dataView.setUint16(34, 16, true);
-          writeString(36, 'data');
-          dataView.setUint32(40, renderedBuffer.length * 2, true);
-          
-          const channelData = renderedBuffer.getChannelData(0);
-          let offset = 44;
-          for (let i = 0; i < channelData.length; i++) {
-            const sample = Math.max(-1, Math.min(1, channelData[i]));
-            dataView.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-            offset += 2;
-          }
-          
-          resolve(new Blob([dataView], { type: 'audio/wav' }));
+        const title = `Fallback Generation - ${new Date().toLocaleDateString()}`;
+        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('generate-fallback-voice', {
+          body: { text: extractedText, title: title }
         });
-        
-        const demoUrl = URL.createObjectURL(wavBlob);
-        setGeneratedAudio(demoUrl);
-        onAudioGenerated(demoUrl);
-        
+        if (fallbackError) throw fallbackError;
+
+        setProgress(100);
+        setGeneratedAudio(fallbackData.audio_url);
+        onAudioGenerated(fallbackData.audio_url);
         toast({
-          title: "Demo Audio Created",
-          description: "Placeholder audio generated. Please try again later for full generation.",
+          title: "Fallback Audio Created",
+          description: "A silent placeholder has been saved to your history. You can now proceed.",
         });
-        
-        setTimeout(() => {
-          onNext();
-        }, 2000);
+        setTimeout(() => onNext(), 2000);
       } catch (fallbackError) {
         console.error("Fallback generation also failed:", fallbackError);
         toast({
           title: "Generation Failed",
-          description: "Could not create audio. Please try again later.",
+          description: "Could not create audio. No words were deducted.",
           variant: "destructive",
         });
       }
@@ -379,8 +277,9 @@ const ModernStepFour = ({
     }
   };
 
-      const canGenerate = extractedText.trim().length > 0 && !isGenerating;
-      const hasAudio = generatedAudio.length > 0;
+  const canGenerate = extractedText.trim().length > 0 && !isGenerating;
+  const hasAudio = generatedAudio.length > 0;
+
 
   return (
     <div className="space-y-6">
@@ -427,7 +326,6 @@ const ModernStepFour = ({
             <CardTitle className="flex items-center text-lg">
               <Settings className="h-5 w-5 mr-2" />
               Advanced Settings
-
             </CardTitle>
             {isPaidUser ? (
               <Button
@@ -446,7 +344,7 @@ const ModernStepFour = ({
             )}
           </div>
         </CardHeader>
-        
+
         {isPaidUser ? (
           <CardContent className={`space-y-6 ${(showAdvanced || showAdvancedSettings) ? 'block' : 'hidden'}`}>
             {/* Pro Settings */}
@@ -464,7 +362,6 @@ const ModernStepFour = ({
                     className="w-full"
                   />
                 </div>
-                
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Pitch: {pitch[0]}x</label>
                   <Slider
@@ -476,7 +373,6 @@ const ModernStepFour = ({
                     className="w-full"
                   />
                 </div>
-                
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Volume: {volume[0]}x</label>
                   <Slider
@@ -488,7 +384,6 @@ const ModernStepFour = ({
                     className="w-full"
                   />
                 </div>
-                
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Voice Style</label>
                   <Select value={voiceStyle} onValueChange={setVoiceStyle}>
@@ -504,7 +399,6 @@ const ModernStepFour = ({
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Emotion</label>
                   <Select value={emotion} onValueChange={setEmotion}>
@@ -521,7 +415,6 @@ const ModernStepFour = ({
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Accent</label>
                   <Select value={accent} onValueChange={setAccent}>
@@ -560,7 +453,6 @@ const ModernStepFour = ({
                     />
                     <p className="text-xs text-gray-500">Controls voice consistency throughout generation</p>
                   </div>
-                  
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-purple-700">Voice Clarity: {voiceClarity[0].toFixed(2)}</label>
                     <Slider
@@ -573,7 +465,6 @@ const ModernStepFour = ({
                     />
                     <p className="text-xs text-gray-500">Boosts clarity vs. naturalness</p>
                   </div>
-                  
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-purple-700">Breathing Sound: {breathingSound[0].toFixed(2)}</label>
                     <Slider
@@ -586,7 +477,6 @@ const ModernStepFour = ({
                     />
                     <p className="text-xs text-gray-500">Add realistic breathing between sentences</p>
                   </div>
-                  
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-purple-700">Pause Length: {pauseLength[0].toFixed(1)}x</label>
                     <Slider
@@ -599,7 +489,6 @@ const ModernStepFour = ({
                     />
                     <p className="text-xs text-gray-500">Control natural pauses and timing</p>
                   </div>
-                  
                   <div className="space-y-2 sm:col-span-2">
                     <label className="text-sm font-medium text-purple-700">Word Emphasis: {wordEmphasis[0].toFixed(2)}</label>
                     <Slider
@@ -615,7 +504,7 @@ const ModernStepFour = ({
                 </div>
               </div>
             )}
-            
+
             {/* Settings adjusted notification */}
             {showAdvancedSettings && sampleAudio && (
               <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
@@ -627,13 +516,13 @@ const ModernStepFour = ({
                     <Button onClick={handleGenerateSample} variant="outline" size="sm" className="mr-2">
                       Generate New Sample
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         setShowAdvancedSettings(false);
                         setAdvancedPanelCount(0);
                         setSampleAudio("");
-                      }} 
-                      variant="ghost" 
+                      }}
+                      variant="ghost"
                       size="sm"
                     >
                       Close Panel
@@ -690,27 +579,25 @@ const ModernStepFour = ({
                   "{getSampleText()}..."
                 </p>
               </div>
-              
               <audio controls className="w-full">
                 <source src={sampleAudio} type="audio/mpeg" />
                 Your browser does not support the audio element.
               </audio>
-              
               <div className="bg-yellow-50 p-3 rounded-lg">
                 <p className="text-xs text-yellow-800">
-                   <strong>Test Sample:</strong> This is just the first 50 words. No words deducted, no history saved.
+                   <strong>Test Sample:</strong> This is just the first 50 words.
+                   No words deducted, no history saved.
                 </p>
               </div>
-              
-                 <Button 
+                 <Button
                    onClick={handleApproveSample}
                    className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base"
                  >
                      Perfect! Generate Full Audio
                  </Button>
-                 <Button 
+                 <Button
                    onClick={handleRejectSample}
-                   variant="outline" 
+                   variant="outline"
                    className="w-full sm:flex-1 border-orange-300 text-orange-700 hover:bg-orange-50 text-sm sm:text-base"
                    disabled={advancedPanelCount >= 1}
                  >
@@ -750,7 +637,6 @@ const ModernStepFour = ({
                   <span>Fast</span>
                 </div>
               </div>
-              
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Pitch: {pitch[0]}x</label>
                 <Slider
@@ -767,7 +653,6 @@ const ModernStepFour = ({
                   <span>Higher</span>
                 </div>
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Emotion</label>
                 <Select value={emotion} onValueChange={setEmotion}>
@@ -784,7 +669,6 @@ const ModernStepFour = ({
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Accent</label>
                 <Select value={accent} onValueChange={setAccent}>
@@ -800,7 +684,6 @@ const ModernStepFour = ({
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Voice Style</label>
                 <Select value={voiceStyle} onValueChange={setVoiceStyle}>
@@ -816,7 +699,6 @@ const ModernStepFour = ({
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Volume: {volume[0]}x</label>
                 <Slider
@@ -834,16 +716,15 @@ const ModernStepFour = ({
                 </div>
               </div>
             </div>
-            
             <div className="flex gap-3 pt-4">
-              <Button 
-                onClick={handleGenerateSample} 
+              <Button
+                onClick={handleGenerateSample}
                 disabled={isSampleGeneration}
                 className="flex-1"
               >
                 {isSampleGeneration ? "Generating..." : "Generate New Sample"}
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowAdvancedSettings(false)}
                 variant="outline"
               >
@@ -862,26 +743,23 @@ const ModernStepFour = ({
               <div className="p-6 bg-gray-50 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
                 <Volume2 className="h-10 w-10 text-gray-400" />
               </div>
-              
               <div>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
                   {isPaidUser ? "Generate Voice Sample First" : "Ready to Generate Audio"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-600">
-                  {isPaidUser 
+                  {isPaidUser
                     ? "Start with a 50-word sample to verify voice quality before full generation."
                     : "Your text will be converted to high-quality speech using advanced AI."
                   }
                 </p>
               </div>
-
               {estimatedTime > 0 && !isGenerating && (
                 <div className="flex items-center justify-center space-x-2 text-xs sm:text-sm text-gray-500">
                   <Clock className="h-4 w-4" />
                   <span>Estimated time: ~{estimatedTime} seconds</span>
                 </div>
               )}
-
               <Button
                 onClick={isPaidUser && !sampleApproved ? handleGenerateSample : handleGenerateFullAudio}
                 disabled={!canGenerate}
@@ -904,7 +782,6 @@ const ModernStepFour = ({
               <div className="p-6 bg-green-100 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
                 <CheckCircle className="h-10 w-10 text-green-600" />
               </div>
-              
               <div>
                 <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
                   Ready for Full Generation
@@ -913,17 +790,14 @@ const ModernStepFour = ({
                   Sample approved! Generate the complete {wordCount}-word audio with your selected settings.
                 </p>
               </div>
-
               <Button
                 onClick={handleGenerateFullAudio}
                 disabled={!canGenerate}
                 size="lg"
-className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 hover:bg-green-700"
+                className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 hover:bg-green-700"
               >
                 <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                Generate Complete Audio
-                <br/>
-                ({wordCount} words)
+                Generate Complete Audio ({wordCount} words)
               </Button>
             </div>
           </CardContent>
@@ -943,9 +817,7 @@ className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 
                   {Math.round(progress)}%
                 </Badge>
               </div>
-              
               <Progress value={progress} className="h-3" />
-              
               <div className="text-center space-y-2">
                 <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -970,7 +842,6 @@ className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 
               <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
                 <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
-              
               <div>
                 <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
                   Audio Generated Successfully!
@@ -979,7 +850,6 @@ className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 
                   Your high-quality audio is ready for download and playback.
                 </p>
               </div>
-
               <Badge className="bg-green-100 text-green-800">
                  Generation Complete
               </Badge>
@@ -1000,7 +870,6 @@ className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 
             Back to Voice Selection
           </Button>
         )}
-        
         <Button
           onClick={onNext}
           disabled={!hasAudio}

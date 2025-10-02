@@ -336,21 +336,64 @@ export class AnalyticsService {
     }
   }
 
-  static formatLanguageCode(code: string): string {
-    const languageNames: Record<string, string> = {
-      'en-US': 'English (US)',
-      'en-GB': 'English (UK)',
-      'es-ES': 'Spanish',
-      'fr-FR': 'French',
-      'de-DE': 'German',
-      'it-IT': 'Italian',
-      'pt-BR': 'Portuguese',
-      'ja-JP': 'Japanese',
-      'ko-KR': 'Korean',
-      'zh-CN': 'Chinese',
-      'hi-IN': 'Hindi',
-      'ar-SA': 'Arabic'
-    };
-    return languageNames[code] || code;
-  }
+
+/** Map language codes to human-readable names */
+static formatLanguageCode(code: string): string {
+  const languageNames: Record<string, string> = {
+    'ar-SA': 'Arabic (Saudi Arabia)',
+    'as-IN': 'Assamese',
+    'bg-BG': 'Bulgarian',
+    'bn-BD': 'Bengali (Bangladesh)',
+    'bn-IN': 'Bengali (India)',
+    'cs-CZ': 'Czech',
+    'da-DK': 'Danish',
+    'nl-NL': 'Dutch',
+    'en-GB': 'English (UK)',
+    'en-US': 'English (US)',
+    'fi-FI': 'Finnish',
+    'fr-CA': 'French (Canada)',
+    'fr-FR': 'French (France)',
+    'de-DE': 'German',
+    'el-GR': 'Greek',
+    'gu-IN': 'Gujarati',
+    'he-IL': 'Hebrew',
+    'hi-IN': 'Hindi',
+    'hr-HR': 'Croatian',
+    'id-ID': 'Indonesian',
+    'it-IT': 'Italian',
+    'ja-JP': 'Japanese',
+    'kn-IN': 'Kannada',
+    'ko-KR': 'Korean',
+    'lt-LT': 'Lithuanian',
+    'ms-MY': 'Malay',
+    'ml-IN': 'Malayalam',
+    'mr-IN': 'Marathi',
+    'ne-IN': 'Nepali (India)',
+    'no-NO': 'Norwegian',
+    'or-IN': 'Odia',
+    'pa-IN': 'Punjabi',
+    'fa-IR': 'Persian (Farsi)',
+    'pt-BR': 'Portuguese (Brazil)',
+    'pt-PT': 'Portuguese (Portugal)',
+    'ro-RO': 'Romanian',
+    'ru-RU': 'Russian',
+    'sr-RS': 'Serbian',
+    'sk-SK': 'Slovak',
+    'sl-SI': 'Slovenian',
+    'es-ES': 'Spanish (Spain)',
+    'es-MX': 'Spanish (Mexico)',
+    'sv-SE': 'Swedish',
+    'ta-IN': 'Tamil',
+    'te-IN': 'Telugu',
+    'th-TH': 'Thai',
+    'tr-TR': 'Turkish',
+    'uk-UA': 'Ukrainian',
+    'ur-IN': 'Urdu (India)',
+    'vi-VN': 'Vietnamese',
+    'zh-CN': 'Chinese (Simplified)',
+    'zh-TW': 'Chinese (Traditional)'
+  };
+
+  return languageNames[code] || code;
+}
 }

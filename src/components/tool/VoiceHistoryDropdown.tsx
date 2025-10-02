@@ -87,28 +87,44 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
       return;
     }
 
+    // Pause if already playing
     if (playingVoiceId === voice.id) {
       stopPlayback();
       return;
     }
 
-    stopPlayback();
+    // Stop previous playback
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
 
-    const audio = new Audio(voice.audio_url);
-    audioRef.current = audio;
-    setPlayingVoiceId(voice.id);
+    try {
+      // Encode the URL to avoid 400 Bad Request
+      const safeUrl = encodeURI(voice.audio_url);
+      const audio = new Audio(safeUrl);
+      audioRef.current = audio;
+      setPlayingVoiceId(voice.id);
 
-    audio.onended = stopPlayback;
-    audio.onerror = () => {
-      stopPlayback();
+      audio.onended = stopPlayback;
+      audio.onerror = () => {
+        stopPlayback();
+        toast({
+          title: "Playback issue",
+          description: "Could not play this audio. Please try again later.",
+          variant: "default",
+        });
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error(err);
       toast({
-        title: "Playback issue",
-        description: "Could not play this audio. Please try again later.",
+        title: "Unexpected error",
+        description: "Could not play the audio file.",
         variant: "default",
       });
-    };
-
-    await audio.play();
+    }
   };
 
   if (loading) {
@@ -142,21 +158,17 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
         <SelectContent>
           {voices.map((voice) => (
             <SelectItem
-  key={voice.id}
-  value={voice.id}
-  className={!voice.audio_url ? "text-gray-400 cursor-not-allowed" : ""}
->
-  <div className="flex items-center justify-between w-full">
-    {/* Voice Name on Left */}
-    <span className="truncate flex-1">{voice.name}</span>
-
-    {/* Date + Time on Right */}
-    <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
-      {voice.created_at ? new Date(voice.created_at).toLocaleString() : "No date"}
-    </span>
-  </div>
-</SelectItem>
-
+              key={voice.id}
+              value={voice.id}
+              className={!voice.audio_url ? "text-gray-400 cursor-not-allowed" : ""}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="truncate flex-1">{voice.name}</span>
+                <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                  {voice.created_at ? new Date(voice.created_at).toLocaleString() : "No date"}
+                </span>
+              </div>
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -180,11 +192,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
                   title={selectedVoiceDetails.audio_url ? "Play/Pause audio" : "Audio not available"}
                   disabled={!selectedVoiceDetails.audio_url}
                 >
-                  {playingVoiceId === selectedVoiceDetails.id ? (
-                    <Pause className="h-4 w-4" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
+                  {playingVoiceId === selectedVoiceDetails.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </Button>
               </div>
             </div>

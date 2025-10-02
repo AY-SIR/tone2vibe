@@ -250,6 +250,7 @@ export const VoiceRecorder = ({
       const voiceName = `Recorded Voice ${new Date().toISOString().split('T')[0]}`;
 
       const { error: insertError } = await supabase.from('user_voices').insert({
+        user_id: user.id,        // ✅ include this
         name: voiceName,
         audio_url: publicUrl,
         duration: audioDuration,
