@@ -92,7 +92,7 @@ const ModernStepTwo = ({
     { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe' },
     { code: 'uk-UA', name: 'Ukrainian', nativeName: 'Українська' },
     { code: 'ur-IN', name: 'Urdu (India)', nativeName: 'اردو' },
-    { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
+   { code: 'zh-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
   ];
 
   const francToLanguageCode: Record<string, string> = {
