@@ -88,9 +88,9 @@ const ModernStepTwo = ({
     { code: 'te-IN', name: 'Telugu', nativeName: 'తెలుగు' },
     { code: 'th-TH', name: 'Thai', nativeName: 'ไทย' },
     { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe' },
-    { code: 'uk-UA', 'Ukrainian', nativeName: 'Українська' },
-    { code: 'ur-IN', 'Urdu (India)', nativeName: 'اردو' },
-    { code: 'vi-VN', 'Vietnamese', nativeName: 'Tiếng Việt' }
+    { code: 'uk-UA', name:'Ukrainian', nativeName: 'Українська' },
+    { code: 'ur-IN', name: 'Urdu (India)', nativeName: 'اردو' },
+    { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
   ];
 
   const francToLanguageCode: Record<string, string> = {
