@@ -87,10 +87,18 @@ export class InstamojoService {
   static async createWordPayment(
     wordCount: number,
     userEmail: string,
-    userName: string
+    userName: string,
+    userPlan: string = 'free'
   ): Promise<InstamojoResponse> {
     try {
-      const pricePerThousand = 31; // ₹31 per 1000 words
+      // Get pricing based on user's plan
+      let pricePerThousand = 31; // Default for free plan (shouldn't be used)
+      if (userPlan === 'pro') {
+        pricePerThousand = 11;
+      } else if (userPlan === 'premium') {
+        pricePerThousand = 9;
+      }
+      
       const amount = Math.ceil((wordCount / 1000) * pricePerThousand);
 
       const paymentRequest: InstamojoPaymentRequest = {

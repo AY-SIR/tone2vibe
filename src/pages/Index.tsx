@@ -113,8 +113,8 @@ const Index = () => {
       features: [
         "10,000 words/month","25MB upload limit","High quality audio","Last 30 voice history",
         "30 Days History","Voice storage & reuse","Priority support","Speed & pitch control",
-        `Buy extra words (${pricing.symbol}${pricing.currency === "INR" ? "31" : "0.37"} per 1000 words)`,
-        "Max total: 41,000 words"
+        `Buy extra words (${pricing.symbol}11 per 1000 words)`,
+        "Max total: 46,000 words"
       ],
       cta: "Upgrade",
       popular: true,
@@ -128,7 +128,7 @@ const Index = () => {
         "50,000 words/month","100MB upload limit","Ultra-high quality","Last 90 voice history",
         "90 Days History","Voice storage & reuse","Advanced Speed & pitch control",
         "24/7 priority support",
-        `Buy extra words (${pricing.symbol}${pricing.currency === "INR" ? "31" : "0.37"} per 1000 words)`,
+        `Buy extra words (${pricing.symbol}9 per 1000 words)`,
         "Max total: 99,000 words"
       ],
       cta: "Upgrade",

@@ -13,7 +13,6 @@ export interface PricingData {
     pro: { price: number; originalPrice: number };
     premium: { price: number; originalPrice: number };
   };
-  words: { pricePerThousand: number };
 }
 
 export class LocationService {
@@ -77,7 +76,6 @@ export class LocationService {
       currency: 'INR',
       symbol: '₹',
       plans: { pro: { price: 99, originalPrice: 99 }, premium: { price: 299, originalPrice: 299 } },
-      words: { pricePerThousand: 31 },
     };
   }
 

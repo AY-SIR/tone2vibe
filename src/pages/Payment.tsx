@@ -27,8 +27,7 @@ const Payment = () => {
     plans: {
       pro: { price: 99, originalPrice: 99 },
       premium: { price: 299, originalPrice: 299 }
-    },
-    words: { pricePerThousand: 31 }
+    }
   });
   const [locationVerified, setLocationVerified] = useState(false);
 
@@ -117,7 +116,7 @@ const Payment = () => {
       features: [
         '10,000 words/month base limit',
         'Buy up to 36,000 additional words',
-        `${pricing.symbol}${pricing.words.pricePerThousand} per 1,000 additional words`,
+        `${pricing.symbol}11 per 1,000 additional words`,
         '25MB upload limit',
         'High quality audio',
         'Last 30 voices history',
@@ -142,7 +141,7 @@ const Payment = () => {
       features: [
         '50,000 words/month base limit',
         'Buy up to 49,000 additional words',
-        `${pricing.symbol}${pricing.words.pricePerThousand} per 1,000 additional words`,
+        `${pricing.symbol}9 per 1,000 additional words`,
         '100MB upload limit',
         'Ultra-high quality',
         'Last 90 voices history',
@@ -457,8 +456,8 @@ const Payment = () => {
 
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
               <p className="mb-4 text-xs sm:text-sm md:text-base px-4">
-                All paid plans include the ability to purchase additional words at {pricing.symbol}{pricing.words.pricePerThousand} per 1,000 words.
-                <br/>Pro users can buy up to 36,000 additional words, Premium users can buy up to 49,000 additional words.
+                Pro plan: Buy up to 36,000 additional words at ₹11 per 1,000 words.
+                <br/>Premium plan: Buy up to 49,000 additional words at ₹9 per 1,000 words.
               </p>
               <div className="text-xs sm:text-sm">
                 Location: भारत | India • Currency: ₹ INR Only

@@ -15,6 +15,7 @@ import { InstamojoService } from "@/services/instamojo";
 import { CouponInput } from "@/components/payment/couponInput";
 import type { CouponValidation } from "@/services/couponService";
 import { v4 as uuidv4 } from 'uuid';
+import { WordService } from "@/services/wordService";
 
 export function WordPurchase() {
   const { user, profile } = useAuth();
@@ -24,13 +25,14 @@ export function WordPurchase() {
   const [wordsAmount, setWordsAmount] = useState<number>(1000);
   const [loading, setLoading] = useState(false);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
-  const [pricing] = useState({ currency: 'INR', pricePerThousand: 31, symbol: '₹' });
   const [couponValidation, setCouponValidation] = useState<CouponValidation>({
     isValid: false,
     discount: 0,
     message: '',
     code: ''
   });
+
+  const pricing = WordService.getPricingForUser(profile?.plan || 'free');
 
   const calculatePrice = (words: number) => {
     const cost = (words / 1000) * pricing.pricePerThousand;
@@ -130,7 +132,8 @@ export function WordPurchase() {
       const result = await InstamojoService.createWordPayment(
         wordsAmount,
         user!.email || '',
-        user!.user_metadata?.full_name || 'User'
+        user!.user_metadata?.full_name || 'User',
+        profile?.plan || 'free'
       );
 
       if (result.success && result.payment_request?.longurl) {
