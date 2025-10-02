@@ -77,7 +77,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
     setPlayingVoiceId(null);
   };
 
-  const playVoice = async (voice: UserVoice) => {
+  const playVoice = (voice: UserVoice) => {
     if (!voice.audio_url) {
       toast({
         title: "Audio not available",
@@ -100,7 +100,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
     }
 
     try {
-      // Encode the URL to avoid 400 Bad Request
+      // Use encodeURI to handle special characters
       const safeUrl = encodeURI(voice.audio_url);
       const audio = new Audio(safeUrl);
       audioRef.current = audio;
@@ -116,7 +116,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
         });
       };
 
-      await audio.play();
+      audio.play();
     } catch (err) {
       console.error(err);
       toast({
