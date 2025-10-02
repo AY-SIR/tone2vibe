@@ -1,3 +1,4 @@
+import { CompareDemo } from "@/components/CompareDemo";
 import { ProfileDropdown } from "@/components/ui/profile-dropdown";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -322,6 +323,9 @@ const Index = () => {
       <div className="w-full  overflow-hidden">
         <Animated />
       </div>
+      <div className="min-h-screen flex items-center justify-center p-8">
+      <CompareDemo />
+    </div>
     </>
   );
 
