@@ -93,7 +93,7 @@ export default function AnimatedBeamDemo() {
               <div className="flex flex-col items-center justify-start h-full">
                 <div className="flex items-center justify-start gap-2">
                   {/* Icon */}
-                  <Icons.Shield className="w-6 h-6" />
+                  <Icons.Shield />
                   {/* Heading */}
                   <h3 className="text-lg font-semibold text-gray-800">Privacy & Security</h3>
                 </div>
@@ -146,7 +146,7 @@ export default function AnimatedBeamDemo() {
               <div className="flex flex-col items-center justify-start h-full">
                 {/* Icon */}
                 <div className="flex items-center justify-center gap-2">
-                  <Icons.Languages className="w-12 h-12" />
+                  <Icons.Languages />
                   <h3 className="text-lg font-semibold text-gray-800">50+ Languages</h3>
                 </div>
 

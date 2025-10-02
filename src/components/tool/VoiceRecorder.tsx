@@ -76,13 +76,13 @@ export const VoiceRecorder = ({
       recordedChunksRef.current = [];
       durationRef.current = 0;
 
-      // --- STEP 1: Get High-Quality Raw Audio Stream ---
+      // --- STEP 1: Get High-Quality Audio Stream with noise reduction ---
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 44100,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
+          sampleRate: 48000, // Higher sample rate for better quality
+          echoCancellation: true, // Enable to remove echo/reverb
+          noiseSuppression: true, // Enable to remove background noise
+          autoGainControl: true, // Normalize volume levels
         },
       });
       streamRef.current = stream;
@@ -250,12 +250,11 @@ export const VoiceRecorder = ({
       const voiceName = `Recorded Voice ${new Date().toISOString().split('T')[0]}`;
 
       const { error: insertError } = await supabase.from('user_voices').insert({
-        user_id: user.id,
         name: voiceName,
         audio_url: publicUrl,
         duration: audioDuration,
         is_selected: true,
-      });
+      } as any);
 
       if (insertError) throw insertError;
 

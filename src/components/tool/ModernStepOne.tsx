@@ -16,6 +16,7 @@ interface ModernStepOneProps {
   onWordCountUpdate: (count: number) => void;
   onProcessingStart: (step: string) => void;
   onProcessingEnd: () => void;
+  initialText?: string;
 }
 
 export default function ModernStepOne({
@@ -24,12 +25,13 @@ export default function ModernStepOne({
   onWordCountUpdate,
   onProcessingStart,
   onProcessingEnd,
+  initialText = "",
 }: ModernStepOneProps) {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [inputMethod, setInputMethod] = useState<"text" | "file">("text");
-  const [manualText, setManualText] = useState("");
-  const [extractedText, setExtractedText] = useState("");
+  const [manualText, setManualText] = useState(initialText);
+  const [extractedText, setExtractedText] = useState(initialText);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // REFACTORED: This is now the single source of truth for word count calculation.

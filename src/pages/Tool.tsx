@@ -25,13 +25,16 @@ const Tool = () => {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const totalSteps = 5;
 
-  // Data state
+  // Data state - persisted across steps
   const [extractedText, setExtractedText] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState<string>("");
+  
+  // Track initial text to preserve when going back to step 1
+  const [initialText, setInitialText] = useState("");
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -125,6 +128,7 @@ const Tool = () => {
   // Handlers for steps
   const handleTextExtraction = (text: string) => {
     setExtractedText(text);
+    setInitialText(text); // Save initial text
     if (text.trim()) handleNext();
   };
   const handleVoiceRecorded = (blob: Blob) => setVoiceRecording(blob);
@@ -279,6 +283,7 @@ const handleTextUpdated = (updatedText: string) => {
                   onWordCountUpdate={handleWordCountUpdate}
                   onProcessingStart={handleProcessingStart}
                   onProcessingEnd={handleProcessingEnd}
+                  initialText={initialText}
                 />
               )}
               {currentStep === 2 && (

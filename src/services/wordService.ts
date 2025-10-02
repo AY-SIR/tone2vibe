@@ -7,10 +7,18 @@ export interface WordPricing {
 }
 
 export class WordService {
-  // Fixed pricing for India only service
+  // Plan-based pricing for India only service
   static getPricingForUser(plan: string): WordPricing {
+    let pricePerThousand = 31; // Default price
+    
+    if (plan === 'pro') {
+      pricePerThousand = 11; // ₹11 per 1000 words for Pro
+    } else if (plan === 'premium') {
+      pricePerThousand = 9; // ₹9 per 1000 words for Premium
+    }
+    
     return {
-      pricePerThousand: 31, // ₹31 per 1000 words
+      pricePerThousand,
       symbol: '₹',
       currency: 'INR'
     };

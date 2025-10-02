@@ -59,7 +59,7 @@ export function PaymentGateway({
       "10,000 words/month base limit",
 "Buy up to 36,000 additional words",
 "25MB upload limit",
-"₹31 for every 1,000 words",
+"₹11 for every 1,000 words",
 
 "High quality audio",
 "Last 30 voices ",
@@ -83,7 +83,7 @@ export function PaymentGateway({
 "Buy up to 49,000 additional words",
 "100MB upload limit",
 "Ultra-high quality",
-"₹31 for every 1,000 words",
+"₹9 for every 1,000 words",
 
 "90 days history",
 "Language usage tracking",

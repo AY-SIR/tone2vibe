@@ -83,10 +83,10 @@ serve(async (req) => {
     
     console.log("Voice generation with custom endpoint - placeholder created");
 
-    // Upload to Supabase Storage
+    // Upload to user-generates bucket
     const fileName = `${user.id}/${historyRecord.id}.mp3`;
     const { error: uploadError } = await supabaseService.storage
-      .from("voice-recordings")
+      .from("user-generates")
       .upload(fileName, audioData, {
         contentType: "audio/mpeg",
         duplex: "false"
@@ -99,7 +99,7 @@ serve(async (req) => {
 
     // Get public URL
     const { data: urlData } = supabaseService.storage
-      .from("voice-recordings")
+      .from("user-generates")
       .getPublicUrl(fileName);
 
     // Update history record with audio URL and completion time
@@ -132,7 +132,7 @@ serve(async (req) => {
       setTimeout(async () => {
         try {
           await supabaseService.storage
-            .from("voice-recordings")
+            .from("user-generates")
             .remove([fileName]);
           
           await supabaseService

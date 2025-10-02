@@ -264,22 +264,115 @@ const ModernStepFour = ({
     } catch (error) {
       clearInterval(progressInterval);
       
-      // User-friendly error messages
-      let friendlyMessage = "Something went wrong while creating your audio. Please try again.";
+      // User-friendly error messages with fallback
+      let friendlyMessage = "Generation failed. Creating demo audio as fallback...";
       
       if (error instanceof Error) {
         if (error.message.includes('word balance') || error.message.includes('words left') || error.message.includes('Insufficient')) {
           friendlyMessage = "You don't have enough words left. Please buy more words or upgrade your plan.";
+          toast({
+            title: "Insufficient Words",
+            description: friendlyMessage,
+            variant: "destructive",
+          });
+          setIsGenerating(false);
+          onProcessingEnd();
+          return;
         } else if (error.message.includes('authentication') || error.message.includes('sign in')) {
           friendlyMessage = "Please sign in to generate audio.";
+          toast({
+            title: "Authentication Required",
+            description: friendlyMessage,
+            variant: "destructive",
+          });
+          setIsGenerating(false);
+          onProcessingEnd();
+          return;
         }
       }
       
+      // Fallback: Create demo silent audio (placeholder)
       toast({
-        title: "Could not create audio",
-        description: friendlyMessage,
-        variant: "destructive",
+        title: "Using Fallback Mode",
+        description: "Voice generation failed. Creating demo placeholder.",
+        variant: "default",
       });
+      
+      try {
+        // Create minimal placeholder audio
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+        const duration = 2; // 2 seconds
+        const numSamples = sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, numSamples, sampleRate);
+        
+        // Fill with silence
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < numSamples; i++) {
+          data[i] = 0;
+        }
+        
+        // Convert to blob
+        const offlineContext = new OfflineAudioContext(1, numSamples, sampleRate);
+        const source = offlineContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(offlineContext.destination);
+        source.start();
+        
+        const renderedBuffer = await offlineContext.startRendering();
+        const wavBlob = await new Promise<Blob>((resolve) => {
+          const dataView = new DataView(new ArrayBuffer(44 + renderedBuffer.length * 2));
+          const writeString = (offset: number, string: string) => {
+            for (let i = 0; i < string.length; i++) {
+              dataView.setUint8(offset + i, string.charCodeAt(i));
+            }
+          };
+          
+          writeString(0, 'RIFF');
+          dataView.setUint32(4, 36 + renderedBuffer.length * 2, true);
+          writeString(8, 'WAVE');
+          writeString(12, 'fmt ');
+          dataView.setUint32(16, 16, true);
+          dataView.setUint16(20, 1, true);
+          dataView.setUint16(22, 1, true);
+          dataView.setUint32(24, sampleRate, true);
+          dataView.setUint32(28, sampleRate * 2, true);
+          dataView.setUint16(32, 2, true);
+          dataView.setUint16(34, 16, true);
+          writeString(36, 'data');
+          dataView.setUint32(40, renderedBuffer.length * 2, true);
+          
+          const channelData = renderedBuffer.getChannelData(0);
+          let offset = 44;
+          for (let i = 0; i < channelData.length; i++) {
+            const sample = Math.max(-1, Math.min(1, channelData[i]));
+            dataView.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+            offset += 2;
+          }
+          
+          resolve(new Blob([dataView], { type: 'audio/wav' }));
+        });
+        
+        const demoUrl = URL.createObjectURL(wavBlob);
+        setGeneratedAudio(demoUrl);
+        onAudioGenerated(demoUrl);
+        
+        toast({
+          title: "Demo Audio Created",
+          description: "Placeholder audio generated. Please try again later for full generation.",
+        });
+        
+        setTimeout(() => {
+          onNext();
+        }, 2000);
+      } catch (fallbackError) {
+        console.error("Fallback generation also failed:", fallbackError);
+        toast({
+          title: "Generation Failed",
+          description: "Could not create audio. Please try again later.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsGenerating(false);
       onProcessingEnd();

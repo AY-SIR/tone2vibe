@@ -198,18 +198,16 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-    await delay(2000); // The 2-second delay you requested
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: `${window.location.origin}/tool` }
       });
       if (error) throw new Error(error.message);
-      if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer');
+      // Navigate in same tab instead of opening new one
+      if (data.url) window.location.href = data.url;
     } catch (error) {
       toast.error("Failed to sign in with Google. Please try again.");
-      console.error("Google Sign-In Error:", error);
-    } finally {
       setIsGoogleLoading(false);
     }
   };
