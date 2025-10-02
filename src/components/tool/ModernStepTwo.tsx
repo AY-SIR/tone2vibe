@@ -88,7 +88,7 @@ const ModernStepTwo = ({
     { code: 'te-IN', name: 'Telugu', nativeName: 'తెలుగు' },
     { code: 'th-TH', name: 'Thai', nativeName: 'ไทย' },
     { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe' },
-    { code: 'uk-UA', name:'Ukrainian', nativeName: 'Українська' },
+    { code: 'uk-UA', name: 'Ukrainian', nativeName: 'Українська' },
     { code: 'ur-IN', name: 'Urdu (India)', nativeName: 'اردو' },
     { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
   ];
@@ -111,7 +111,6 @@ const ModernStepTwo = ({
 
   const isCodeSnippet = (text: string) => /<[\w\s="'{}-]>|{.}|;/.test(text);
 
-  // --- CHANGE START ---
   /**
    * Checks for mixed English (Latin) and Hindi (Devanagari) scripts.
    * This is a more reliable way to detect "Hinglish" or mixed content
@@ -122,19 +121,16 @@ const ModernStepTwo = ({
     const hasDevanagari = /[\u0900-\u097F]/.test(text); // Devanagari Unicode range
     return hasLatin && hasDevanagari;
   };
-  // --- CHANGE END ---
 
   const detectLanguage = (text: string): { code: string; fallback: boolean; unsupported: boolean } => {
     const trimmed = text.trim();
     if (!trimmed) return { code: "en-US", fallback: false, unsupported: false };
 
-    // --- CHANGE START ---
     // First, check for our special mixed-language case.
     if (isMixedLanguage(trimmed)) {
       // If language is mixed, force a fallback state.
       return { code: "en-US", fallback: true, unsupported: false };
     }
-    // --- CHANGE END ---
 
     if (trimmed.length < 3 || isCodeSnippet(trimmed)) return { code: "en-US", fallback: true, unsupported: false };
     
@@ -363,4 +359,3 @@ const ModernStepTwo = ({
 };
 
 export default ModernStepTwo;
-
