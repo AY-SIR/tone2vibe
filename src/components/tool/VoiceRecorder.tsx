@@ -4,7 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mic, Square, Play, Pause, Trash2, Loader as Loader2, CircleCheck as CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
 
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
@@ -22,6 +21,7 @@ export const VoiceRecorder = ({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -29,9 +29,29 @@ export const VoiceRecorder = ({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const audioUrlRef = useRef<string>("");
+
+  const ffmpegRef = useRef<any>(null);
+  const fetchFileRef = useRef<any>(null);
+
   const { toast } = useToast();
 
-  const ffmpeg = useRef(createFFmpeg({ log: true }));
+  // Load FFmpeg
+  useEffect(() => {
+    const loadFFmpeg = async () => {
+      try {
+        const ffmpegPkg = await import("@ffmpeg/ffmpeg");
+        ffmpegRef.current = new ffmpegPkg.FFmpeg({ log: true });
+        fetchFileRef.current = ffmpegPkg.fetchFile;
+        await ffmpegRef.current.load();
+        setIsFFmpegLoaded(true);
+        console.log("FFmpeg loaded successfully");
+      } catch (err) {
+        console.error("Failed to load FFmpeg:", err);
+        toast({ title: "FFmpeg failed to load", variant: "destructive" });
+      }
+    };
+    loadFFmpeg();
+  }, [toast]);
 
   const cleanup = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -72,7 +92,6 @@ export const VoiceRecorder = ({
       recordedChunksRef.current = [];
       setDuration(0);
 
-      // --- Get high-quality audio with noise suppression ---
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: 48000,
@@ -83,27 +102,22 @@ export const VoiceRecorder = ({
       });
       streamRef.current = stream;
 
-      // --- Web Audio API processing ---
       const audioContext = new AudioContext();
       if (audioContext.state === 'suspended') await audioContext.resume();
 
       const source = audioContext.createMediaStreamSource(stream);
 
-      // High-pass filter (remove hum)
       const highPass = audioContext.createBiquadFilter();
       highPass.type = 'highpass';
       highPass.frequency.value = 100;
 
-      // Low-pass filter (remove high-frequency hiss)
       const lowPass = audioContext.createBiquadFilter();
       lowPass.type = 'lowpass';
       lowPass.frequency.value = 15000;
 
-      // Gain (moderate boost)
       const gainNode = audioContext.createGain();
       gainNode.gain.value = 1.2;
 
-      // Connect pipeline
       source.connect(highPass);
       highPass.connect(lowPass);
       lowPass.connect(gainNode);
@@ -111,7 +125,6 @@ export const VoiceRecorder = ({
       const dest = audioContext.createMediaStreamDestination();
       gainNode.connect(dest);
 
-      // --- Record processed stream ---
       const mime = 'audio/webm;codecs=opus';
       const recorder = new MediaRecorder(dest.stream, MediaRecorder.isTypeSupported(mime) ? { mimeType: mime, audioBitsPerSecond: 256000 } : undefined);
       mediaRecorderRef.current = recorder;
@@ -128,14 +141,19 @@ export const VoiceRecorder = ({
         }
 
         const blob = new Blob(recordedChunksRef.current, { type: mime });
-        if (duration >= minimumDuration) {
-          setAudioBlob(blob);
-          setStatus('completed');
-          toast({ title: "Recording completed" });
-        } else {
-          toast({ title: "Recording too short", variant: "destructive" });
-          reset();
-        }
+        const tempAudio = document.createElement('audio');
+        tempAudio.src = URL.createObjectURL(blob);
+        tempAudio.onloadedmetadata = () => {
+          const recordedDuration = tempAudio.duration;
+          if (recordedDuration >= minimumDuration) {
+            setAudioBlob(blob);
+            setStatus('completed');
+            toast({ title: "Recording completed" });
+          } else {
+            toast({ title: "Recording too short", variant: "destructive" });
+            reset();
+          }
+        };
       };
 
       recorder.start(100);
@@ -162,21 +180,27 @@ export const VoiceRecorder = ({
     }
   };
 
-  // --- Convert WebM to MP3 ---
   const convertWebMtoMP3 = async (webmBlob: Blob): Promise<Blob> => {
-    if (!ffmpeg.current.isLoaded()) await ffmpeg.current.load();
+    if (!ffmpegRef.current || !fetchFileRef.current) throw new Error("FFmpeg not loaded yet");
+    if (!isFFmpegLoaded) throw new Error("FFmpeg not loaded yet");
 
-    ffmpeg.current.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
-    await ffmpeg.current.run('-i', 'input.webm', '-ar', '44100', '-ac', '2', '-b:a', '192k', 'output.mp3');
-    const mp3Data = ffmpeg.current.FS('readFile', 'output.mp3');
-    ffmpeg.current.FS('unlink', 'input.webm');
-    ffmpeg.current.FS('unlink', 'output.mp3');
+    ffmpegRef.current.FS('writeFile', 'input.webm', await fetchFileRef.current(webmBlob));
+    await ffmpegRef.current.run('-i', 'input.webm', '-ar', '44100', '-ac', '2', '-b:a', '192k', 'output.mp3');
+    const mp3Data = ffmpegRef.current.FS('readFile', 'output.mp3');
+    ffmpegRef.current.FS('unlink', 'input.webm');
+    ffmpegRef.current.FS('unlink', 'output.mp3');
 
     return new Blob([mp3Data.buffer], { type: 'audio/mpeg' });
   };
 
   const confirmRecording = async () => {
     if (!audioBlob || isSaving) return;
+
+    if (!isFFmpegLoaded) {
+      toast({ title: "FFmpeg is still loading, please wait...", variant: "destructive" });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -193,7 +217,7 @@ export const VoiceRecorder = ({
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from('user-voices').getPublicUrl(filePath);
-      if (!urlData.publicUrl) throw new Error("Failed to get public URL");
+      if (!urlData || !urlData.publicUrl) throw new Error("Failed to get public URL");
 
       toast({ title: "Voice saved successfully!" });
       setStatus('saved');
@@ -236,7 +260,6 @@ export const VoiceRecorder = ({
   return (
     <Card>
       <CardContent className="p-4 space-y-4 text-center">
-        {/* Record / Stop Button */}
         <div className="flex justify-center">
           {status !== 'recording' ? (
             <Button onClick={startRecording} disabled={disabled || status === 'stopping' || status === 'saved'} size="lg" className="bg-red-600 hover:bg-red-700 text-white rounded-full w-20 h-20">
