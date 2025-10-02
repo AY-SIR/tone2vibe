@@ -1,4 +1,6 @@
 // src/components/tool/ModernStepTwo.tsx
+"use client"; // Assuming this is needed in your framework (like Next.js)
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GrammarService } from "@/services/grammarService";
-import { franc } from "franc";
+import { franc, francAll } from "franc"; // Using francAll can be more robust, but franc is fine with a whitelist
 
 interface ModernStepTwoProps {
   extractedText: string;
@@ -109,13 +111,11 @@ const ModernStepTwo = ({
     'vie': 'vi-VN', 'cmn': 'zh-CN', 'rum': 'ro-RO',
   };
 
+  // ADDED: Create a whitelist of allowed language codes for franc
+  const allowedFrancCodes = Object.keys(francToLanguageCode);
+
   const isCodeSnippet = (text: string) => /<[\w\s="'{}-]>|{.}|;/.test(text);
 
-  /**
-   * Checks for mixed English (Latin) and Hindi (Devanagari) scripts.
-   * This is a more reliable way to detect "Hinglish" or mixed content
-   * than relying on franc, which finds the dominant language.
-   */
   const isMixedLanguage = (text: string) => {
     const hasLatin = /[a-zA-Z]/.test(text);
     const hasDevanagari = /[\u0900-\u097F]/.test(text); // Devanagari Unicode range
@@ -126,9 +126,7 @@ const ModernStepTwo = ({
     const trimmed = text.trim();
     if (!trimmed) return { code: "en-US", fallback: false, unsupported: false };
 
-    // First, check for our special mixed-language case.
     if (isMixedLanguage(trimmed)) {
-      // If language is mixed, force a fallback state.
       return { code: "en-US", fallback: true, unsupported: false };
     }
 
@@ -137,7 +135,9 @@ const ModernStepTwo = ({
     const cleaned = trimmed.replace(/[^\p{L}\s]/gu, "");
     if (cleaned.length < 3) return { code: "en-US", fallback: true, unsupported: false };
     
-    const detectedCode = franc(cleaned, { minLength: 3 });
+    // CHANGED: Use the `only` option to provide our whitelist to franc
+    const detectedCode = franc(cleaned, { minLength: 3, only: allowedFrancCodes });
+    
     if (detectedCode === "und") return { code: "en-US", fallback: true, unsupported: false };
 
     const langCode = francToLanguageCode[detectedCode] || "en-US";
@@ -153,7 +153,8 @@ const ModernStepTwo = ({
     setIsFallback(fallback);
     setIsUnsupported(unsupported);
     onLanguageSelect(code);
-  }, [extractedText, onLanguageSelect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extractedText]);
 
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
@@ -218,16 +219,12 @@ const ModernStepTwo = ({
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-
-  // Show translate icon only if selected language differs from detected language
   const showTranslateIcon = editedText.trim() && !isFallback && selectedLanguage !== detectedLanguage;
-
-  // Disable continue button if translation needed or other conditions
   const isContinueDisabled =
     !editedText.trim() ||
     isImproving ||
     isTranslating ||
-    isFallback || // This is the key part that will now be 'true' for mixed language
+    isFallback ||
     isUnsupported ||
     showTranslateIcon;
 
@@ -248,8 +245,9 @@ const ModernStepTwo = ({
               </SelectTrigger>
               <SelectContent>
                 {languages.map((lang) => (
+                  // CHANGED: Display both English and Native names
                   <SelectItem key={lang.code} value={lang.code}>
-                    {lang.name}
+                    {lang.name} {lang.name !== lang.nativeName && `(${lang.nativeName})`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -288,7 +286,7 @@ const ModernStepTwo = ({
           />
           {isFallback && (
             <p className="text-sm text-destructive mt-2">
-              The language of this text could not be detected. Please edit the text to continue.
+              The language of this text could not be reliably determined or is mixed (e.g., Hinglish). Please edit the text to continue.
             </p>
           )}
           {!isFallback && isUnsupported && (
@@ -359,3 +357,5 @@ const ModernStepTwo = ({
 };
 
 export default ModernStepTwo;
+
+                
