@@ -323,7 +323,13 @@ const Index = () => {
       <div className="w-full  overflow-hidden">
         <Animated />
       </div>
-      <div className="min-h-screen flex items-center justify-center p-8">
+      {/* Divider */}
+      <div className="flex items-center my-8">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <Mic className="mx-3 h-5 w-5 text-gray-900" />
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
+      <div className=" flex items-center justify-center p-8">
       <CompareDemo />
     </div>
     </>
