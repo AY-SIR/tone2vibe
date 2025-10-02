@@ -38,7 +38,7 @@ const ModernStepTwo = ({
   const [isFallback, setIsFallback] = useState(false);
   const { toast } = useToast();
 
- const languages = [
+  const languages = [
     { code: 'ar-SA', name: 'Arabic (Saudi Arabia)', nativeName: 'العربية' },
     { code: 'as-IN', name: 'Assamese', nativeName: 'অসমীয়া' },
     { code: 'bn-BD', name: 'Bengali (Bangladesh)', nativeName: 'বাংলা' },
@@ -88,10 +88,10 @@ const ModernStepTwo = ({
     { code: 'te-IN', name: 'Telugu', nativeName: 'తెలుగు' },
     { code: 'th-TH', name: 'Thai', nativeName: 'ไทย' },
     { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe' },
-    { code: 'uk-UA', name: 'Ukrainian', nativeName: 'Українська' },
-    { code: 'ur-IN', name: 'Urdu (India)', nativeName: 'اردو' },
-    { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
-];
+    { code: 'uk-UA', 'Ukrainian', nativeName: 'Українська' },
+    { code: 'ur-IN', 'Urdu (India)', nativeName: 'اردو' },
+    { code: 'vi-VN', 'Vietnamese', nativeName: 'Tiếng Việt' }
+  ];
 
   const francToLanguageCode: Record<string, string> = {
     'arb': 'ar-SA', 'asm': 'as-IN', 'bul': 'bg-BG', 'ben': 'bn-IN',
@@ -106,19 +106,44 @@ const ModernStepTwo = ({
     'srp': 'sr-RS', 'slk': 'sk-SK', 'slv': 'sl-SI',
     'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN', 'tel': 'te-IN',
     'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA', 'urd': 'ur-IN',
-    'vie': 'vi-VN', 'cmn': 'zh-CN','rum': 'ro-RO',
+    'vie': 'vi-VN', 'cmn': 'zh-CN', 'rum': 'ro-RO',
   };
 
-  const isCodeSnippet = (text: string) => /<[\w\s="'{}-]*>|{.*}|;/.test(text);
+  const isCodeSnippet = (text: string) => /<[\w\s="'{}-]>|{.}|;/.test(text);
+
+  // --- CHANGE START ---
+  /**
+   * Checks for mixed English (Latin) and Hindi (Devanagari) scripts.
+   * This is a more reliable way to detect "Hinglish" or mixed content
+   * than relying on franc, which finds the dominant language.
+   */
+  const isMixedLanguage = (text: string) => {
+    const hasLatin = /[a-zA-Z]/.test(text);
+    const hasDevanagari = /[\u0900-\u097F]/.test(text); // Devanagari Unicode range
+    return hasLatin && hasDevanagari;
+  };
+  // --- CHANGE END ---
 
   const detectLanguage = (text: string): { code: string; fallback: boolean; unsupported: boolean } => {
     const trimmed = text.trim();
     if (!trimmed) return { code: "en-US", fallback: false, unsupported: false };
+
+    // --- CHANGE START ---
+    // First, check for our special mixed-language case.
+    if (isMixedLanguage(trimmed)) {
+      // If language is mixed, force a fallback state.
+      return { code: "en-US", fallback: true, unsupported: false };
+    }
+    // --- CHANGE END ---
+
     if (trimmed.length < 3 || isCodeSnippet(trimmed)) return { code: "en-US", fallback: true, unsupported: false };
+    
     const cleaned = trimmed.replace(/[^\p{L}\s]/gu, "");
     if (cleaned.length < 3) return { code: "en-US", fallback: true, unsupported: false };
+    
     const detectedCode = franc(cleaned, { minLength: 3 });
     if (detectedCode === "und") return { code: "en-US", fallback: true, unsupported: false };
+
     const langCode = francToLanguageCode[detectedCode] || "en-US";
     const unsupported = !languages.find(l => l.code === langCode);
     return { code: langCode, fallback: false, unsupported };
@@ -132,7 +157,7 @@ const ModernStepTwo = ({
     setIsFallback(fallback);
     setIsUnsupported(unsupported);
     onLanguageSelect(code);
-  }, [extractedText]);
+  }, [extractedText, onLanguageSelect]);
 
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
@@ -153,6 +178,7 @@ const ModernStepTwo = ({
     setIsTranslating(true);
     onProcessingStart("Translating text...");
     try {
+      // This is a placeholder for your actual translation API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       const translated = `[Translated to ${selectedLanguage}] ${editedText}`;
       setEditedText(translated);
@@ -160,7 +186,7 @@ const ModernStepTwo = ({
       setDetectedLanguage(selectedLanguage);
       setIsFallback(false);
       setIsUnsupported(false);
-      toast({ title: "Text Translated (Simulated)", description: `Text translated to your selected language.` });
+      toast({ title: "Text Translated (Simulated)", description: "Text translated to your selected language." });
     } catch {
       toast({ title: "Translation Failed", variant: "destructive" });
     } finally {
@@ -197,15 +223,15 @@ const ModernStepTwo = ({
 
   const currentWordCount = calculateDisplayWordCount(editedText);
 
-  // ✅ Show translate icon only if selected language differs from detected language
+  // Show translate icon only if selected language differs from detected language
   const showTranslateIcon = editedText.trim() && !isFallback && selectedLanguage !== detectedLanguage;
 
-  // ✅ Disable continue button if translation needed or other conditions
+  // Disable continue button if translation needed or other conditions
   const isContinueDisabled =
     !editedText.trim() ||
     isImproving ||
     isTranslating ||
-    isFallback ||
+    isFallback || // This is the key part that will now be 'true' for mixed language
     isUnsupported ||
     showTranslateIcon;
 
@@ -271,7 +297,7 @@ const ModernStepTwo = ({
           )}
           {!isFallback && isUnsupported && (
             <p className="text-sm text-destructive mt-2">
-              The selected language is not supported for translation. Please choose a different language.
+              The detected language is not supported. Please choose a different language.
             </p>
           )}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
@@ -337,3 +363,4 @@ const ModernStepTwo = ({
 };
 
 export default ModernStepTwo;
+
