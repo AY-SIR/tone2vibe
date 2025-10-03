@@ -148,7 +148,7 @@ const Tool = () => {
           title: "Audio Generated",
         });
       } catch (err) {
-        console.error("Analytics tracking failed:", err);
+        // Silently fail analytics tracking
       }
     }
   };

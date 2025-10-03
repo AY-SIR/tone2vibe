@@ -4,6 +4,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mic, Square, Play, Pause, Trash2, Loader as Loader2, CircleCheck as CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface VoiceRecorderProps {
 onRecordingComplete: (blob: Blob) => void;
@@ -21,6 +31,7 @@ const [duration, setDuration] = useState(0);
 const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 const [isPlaying, setIsPlaying] = useState(false);
 const [isSaving, setIsSaving] = useState(false);
+const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -285,7 +296,18 @@ try {
 
 };
 
-const deleteRecording = () => reset();
+const handleDeleteClick = () => {
+  setShowDeleteDialog(true);
+};
+
+const confirmDelete = () => {
+  reset();
+  setShowDeleteDialog(false);
+  toast({
+    title: "Recording deleted",
+    description: "Your voice sample has been removed.",
+  });
+};
 
 const formatTime = (sec: number) => {
 const mins = Math.floor(sec / 60);
@@ -294,6 +316,7 @@ return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 };
 
 return (
+  <>
 <Card>
 <CardContent className="p-4 space-y-4 text-center">
 {/* Record / Stop Button */}
@@ -333,9 +356,9 @@ return (
             {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}  
             {isPlaying ? "Pause" : "Play"}  
           </Button>  
-          <Button onClick={deleteRecording} variant="destructive" size="sm" className="w-24" disabled={isSaving}>  
+          <Button onClick={handleDeleteClick} variant="destructive" size="sm" className="w-24" disabled={isSaving}>  
             <Trash2 className="h-4 w-4 mr-2" /> Delete  
-          </Button>  
+          </Button>
         </div>  
         <Button onClick={confirmRecording} className="w-full max-w-xs mx-auto" disabled={isSaving}>  
           {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {isSaving ? 'Saving Voice...' : 'Use This Recording'}  
@@ -365,6 +388,24 @@ return (
     )}  
   </CardContent>  
 </Card>
+
+<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete Recording?</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete this voice recording? This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+        Delete
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+</>
 
 );
 };

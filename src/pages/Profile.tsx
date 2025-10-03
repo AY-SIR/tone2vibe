@@ -427,6 +427,23 @@ const Profile: React.FC = () => {
                   </p>
                 </div>
 
+                {/* Word Balance Information */}
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Word Balance</h4>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Purchased Words:</span>
+                    <span className="text-sm font-medium text-blue-600">
+                      {(profile?.word_balance || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Total Available:</span>
+                    <span className="text-sm font-bold text-green-600">
+                      {((profile?.words_limit || 0) - (profile?.plan_words_used || 0) + (profile?.word_balance || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Plan Expiry Information */}
                 {profile?.plan !== 'free' && profile?.plan_expires_at && (
                   <div className="space-y-2">

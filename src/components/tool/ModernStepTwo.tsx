@@ -130,14 +130,20 @@ const ModernStepTwo = ({
       return { code: "en-US", fallback: true, unsupported: false };
     }
 
-    if (trimmed.length < 3 || isCodeSnippet(trimmed)) return { code: "en-US", fallback: true, unsupported: false };
+    if (trimmed.length < 10 || isCodeSnippet(trimmed)) return { code: "en-US", fallback: true, unsupported: false };
     
     const cleaned = trimmed.replace(/[^\p{L}\s]/gu, "");
-    if (cleaned.length < 3) return { code: "en-US", fallback: true, unsupported: false };
+    if (cleaned.length < 10) return { code: "en-US", fallback: true, unsupported: false };
     
-    // CHANGED: Use the `only` option to provide our whitelist to franc
-    const detectedCode = franc(cleaned, { minLength: 3, only: allowedFrancCodes });
+    // Use francAll to get confidence scores
+    const results = francAll(cleaned, { minLength: 10, only: allowedFrancCodes });
     
+    // If no results or confidence too low, return fallback
+    if (!results || results.length === 0 || results[0][1] < 0.5) {
+      return { code: "en-US", fallback: true, unsupported: false };
+    }
+    
+    const detectedCode = results[0][0];
     if (detectedCode === "und") return { code: "en-US", fallback: true, unsupported: false };
 
     const langCode = francToLanguageCode[detectedCode] || "en-US";

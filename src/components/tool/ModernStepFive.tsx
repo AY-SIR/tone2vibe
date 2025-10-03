@@ -56,8 +56,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           },
           profile.plan
         );
-
-        console.log('Analytics automatically updated on page load');
       } catch (error) {
         console.error('Failed to update analytics:', error);
       }
@@ -248,27 +246,36 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={togglePlayPause}
-              size="lg"
-              className="px-5 py-3 rounded-lg"
-              disabled={!audio}
-            >
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </Button>
-
-            <div className="flex-1">
-              <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(totalDuration)}</span>
+          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-6 border border-primary/20">
+            <div className="flex items-center justify-between mb-6">
+              <Button
+                onClick={togglePlayPause}
+                size="lg"
+                className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+                disabled={!audio}
+              >
+                {isPlaying ? (
+                  <Pause className="w-6 h-6" />
+                ) : (
+                  <Play className="w-6 h-6 ml-0.5" />
+                )}
+              </Button>
+              <div className="flex items-center space-x-3 text-sm font-medium">
+                <span className="text-primary">{formatTime(currentTime)}</span>
+                <span className="text-muted-foreground">/</span>
+                <span className="text-muted-foreground">{formatTime(totalDuration)}</span>
               </div>
-              <div className="w-full bg-secondary rounded-full h-2">
-                <div
-                  className="bg-primary h-2 rounded-full transition-all duration-100"
-                  style={{ width: totalDuration > 0 ? `${(currentTime / totalDuration) * 100}%` : '0%' }}
-                />
-              </div>
+            </div>
+            
+            {/* Modern progress bar with glow effect */}
+            <div className="relative w-full h-3 bg-muted/50 rounded-full overflow-hidden">
+              <div
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300 shadow-lg"
+                style={{ 
+                  width: totalDuration > 0 ? `${(currentTime / totalDuration) * 100}%` : '0%',
+                  boxShadow: '0 0 10px hsl(var(--primary) / 0.5)'
+                }}
+              />
             </div>
           </div>
         </CardContent>

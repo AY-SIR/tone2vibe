@@ -180,6 +180,11 @@ const ModernStepFour = ({
 
     setIsGenerating(true);
     const estimatedTime = calculateEstimatedTime();
+    
+    // Show word deduction loading first
+    onProcessingStart("Checking word balance and deducting words...");
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
     onProcessingStart("Generating full high-quality audio...");
 
     let currentProgress = 0;
