@@ -1,4 +1,4 @@
-
+// src/services/GrammarService.ts
 
 export interface ImprovementResult {
   success: boolean;
@@ -10,7 +10,7 @@ export class GrammarService {
   private static localeToISO: Record<string, string> = {
     'ar-SA': 'ar', 'as-IN': 'as', 'bn-BD': 'bn', 'bn-IN': 'bn', 'bg-BG': 'bg',
     'zh-CN': 'zh', 'zh-TW': 'zh-TW', 'hr-HR': 'hr', 'cs-CZ': 'cs', 'da-DK': 'da',
-    'nl-NL': 'nl', 'en-GB': 'en-GB', 'en-US': 'en-US', 'fi-FI': 'fi', 'fr-CA': 'fr',
+    'nl-NL': 'nl', 'en-GB': 'en', 'en-US': 'en', 'fi-FI': 'fi', 'fr-CA': 'fr',
     'fr-FR': 'fr', 'de-DE': 'de', 'el-GR': 'el', 'gu-IN': 'gu', 'he-IL': 'he',
     'hi-IN': 'hi', 'id-ID': 'id', 'it-IT': 'it', 'ja-JP': 'ja', 'kn-IN': 'kn',
     'ko-KR': 'ko', 'lt-LT': 'lt', 'ms-MY': 'ms', 'ml-IN': 'ml', 'mr-IN': 'mr',
@@ -22,7 +22,7 @@ export class GrammarService {
   };
 
   /**
-   * Improve text with AI grammar correction
+   * Improve text using LanguageTool API
    */
   static async improveText(
     text: string,
@@ -32,7 +32,7 @@ export class GrammarService {
       if (!text || text.trim().length < 3) {
         return {
           success: false,
-          error: 'Text must be at least 3 characters long'
+          error: 'Text must be at least 3 characters long',
         };
       }
 
@@ -46,7 +46,7 @@ export class GrammarService {
       const response = await fetch('https://api.languagetool.org/v2/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
+        body: formData.toString(),
       });
 
       const data = await response.json();
@@ -54,6 +54,7 @@ export class GrammarService {
       if (data.matches && data.matches.length > 0) {
         // Unicode-safe replacement
         let chars = [...text];
+        // Sort by offset descending to avoid messing up indexes
         const sortedMatches = [...data.matches].sort((a, b) => b.offset - a.offset);
 
         for (const match of sortedMatches) {
@@ -66,13 +67,14 @@ export class GrammarService {
         return { success: true, improvedText: chars.join('') };
       }
 
+      // No changes needed
       return { success: true, improvedText: text };
     } catch (error) {
       console.error('Text improvement error:', error);
       return {
         success: false,
         error: 'AI improvement service unavailable',
-        improvedText: text
+        improvedText: text,
       };
     }
   }
