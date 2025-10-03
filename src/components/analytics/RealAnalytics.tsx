@@ -234,7 +234,7 @@ const RealAnalytics = () => {
                   <CardContent>
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        
+
                           <PieChart>
                           <Pie
                             data={analytics.languageUsage}
@@ -255,7 +255,7 @@ const RealAnalytics = () => {
                           </Pie>
                           <Tooltip formatter={(value, name) => [value, name]} />
                         </PieChart>
-                          
+
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
@@ -314,7 +314,7 @@ const RealAnalytics = () => {
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <h4 className="font-medium text-black mb-2">Processing Performance</h4>
                       <p className="text-sm text-gray-700 mb-2">
-                        Average processing time: {premiumAnalytics.performanceInsights ? 
+                        Average processing time: {premiumAnalytics.performanceInsights ?
                         (premiumAnalytics.performanceInsights.avgProcessingTime / 1000).toFixed(1) : 0}s
                       </p>
                     </div>

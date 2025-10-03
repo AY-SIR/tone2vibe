@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom"; // 1. Import useNavigate
 import {
@@ -217,14 +216,7 @@ export function PaymentGateway({
       if (profileError) {
         throw new Error(`Failed to update user profile: ${profileError.message}`);
       }
-// Record plan history
-await supabase.from('plan_history').insert({
-  id: crypto.randomUUID(),
-  user_id: user.id,
-  plan: selectedPlan,
-  start_date: new Date().toISOString(),
-  end_date: new Date(new Date().getTime() + 30*24*60*60*1000).toISOString(), // 30 days from now
-});
+
 
       // 4️⃣ Record payment in existing payments table
       const { error: paymentError } = await supabase

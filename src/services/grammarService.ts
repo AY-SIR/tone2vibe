@@ -1,75 +1,79 @@
 
-import { supabase } from '@/integrations/supabase/client';
 
-// Simple offline grammar checker with basic rules
+export interface ImprovementResult {
+  success: boolean;
+  improvedText?: string;
+  error?: string;
+}
+
 export class GrammarService {
-  private static rules = [
-    { pattern: /\bi\b/g, replacement: 'I', description: 'Capitalize "I"' },
-    { pattern: /\bthe the\b/gi, replacement: 'the', description: 'Remove duplicate "the"' },
-    { pattern: /\band and\b/gi, replacement: 'and', description: 'Remove duplicate "and"' },
-    { pattern: /\bdont\b/gi, replacement: "don't", description: 'Add apostrophe to "dont"' },
-    { pattern: /\bcant\b/gi, replacement: "can't", description: 'Add apostrophe to "cant"' },
-    { pattern: /\bwont\b/gi, replacement: "won't", description: 'Add apostrophe to "wont"' },
-    { pattern: /\bits\s/gi, replacement: "it's ", description: 'Fix "its" to "it\'s"' },
-    { pattern: /\byour\s(?=welcome|right|wrong)/gi, replacement: "you're ", description: 'Fix "your" to "you\'re"' },
-    { pattern: /\bthere\s(?=happy|sad|excited)/gi, replacement: "they're ", description: 'Fix "there" to "they\'re"' },
-    { pattern: /\s+/g, replacement: ' ', description: 'Remove extra spaces' },
-    { pattern: /^\s+|\s+$/g, replacement: '', description: 'Trim whitespace' }
-  ];
+  private static localeToISO: Record<string, string> = {
+    'ar-SA': 'ar', 'as-IN': 'as', 'bn-BD': 'bn', 'bn-IN': 'bn', 'bg-BG': 'bg',
+    'zh-CN': 'zh', 'zh-TW': 'zh-TW', 'hr-HR': 'hr', 'cs-CZ': 'cs', 'da-DK': 'da',
+    'nl-NL': 'nl', 'en-GB': 'en-GB', 'en-US': 'en-US', 'fi-FI': 'fi', 'fr-CA': 'fr',
+    'fr-FR': 'fr', 'de-DE': 'de', 'el-GR': 'el', 'gu-IN': 'gu', 'he-IL': 'he',
+    'hi-IN': 'hi', 'id-ID': 'id', 'it-IT': 'it', 'ja-JP': 'ja', 'kn-IN': 'kn',
+    'ko-KR': 'ko', 'lt-LT': 'lt', 'ms-MY': 'ms', 'ml-IN': 'ml', 'mr-IN': 'mr',
+    'ne-IN': 'ne', 'no-NO': 'no', 'or-IN': 'or', 'fa-IR': 'fa', 'pt-BR': 'pt-BR',
+    'pt-PT': 'pt-PT', 'pa-IN': 'pa', 'ro-RO': 'ro', 'ru-RU': 'ru', 'sr-RS': 'sr',
+    'sk-SK': 'sk', 'sl-SI': 'sl', 'es-ES': 'es', 'es-MX': 'es', 'sv-SE': 'sv',
+    'ta-IN': 'ta', 'te-IN': 'te', 'th-TH': 'th', 'tr-TR': 'tr', 'uk-UA': 'uk',
+    'ur-IN': 'ur', 'vi-VN': 'vi'
+  };
 
-  static async checkGrammar(text: string): Promise<{ correctedText: string; suggestions: string[] }> {
-    // Simulate processing time for better UX
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    let correctedText = text;
-    const suggestions: string[] = [];
-    
-    // Apply grammar rules
-    this.rules.forEach(rule => {
-      const matches = text.match(rule.pattern);
-      if (matches && matches.length > 0) {
-        correctedText = correctedText.replace(rule.pattern, rule.replacement);
-        suggestions.push(`${rule.description} (${matches.length} fix${matches.length > 1 ? 'es' : ''})`);
+  /**
+   * Improve text with AI grammar correction
+   */
+  static async improveText(
+    text: string,
+    language: string
+  ): Promise<ImprovementResult> {
+    try {
+      if (!text || text.trim().length < 3) {
+        return {
+          success: false,
+          error: 'Text must be at least 3 characters long'
+        };
       }
-    });
-    
-    // Basic sentence structure checks
-    const sentences = correctedText.split(/[.!?]+/).filter(s => s.trim());
-    sentences.forEach((sentence, index) => {
-      const trimmed = sentence.trim();
-      if (trimmed && !trimmed.match(/^[A-Z]/)) {
-        const fixed = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-        correctedText = correctedText.replace(trimmed, fixed);
-        suggestions.push(`Capitalized sentence ${index + 1}`);
+
+      const languageISO = this.localeToISO[language] || 'en';
+
+      const formData = new URLSearchParams();
+      formData.append('text', text);
+      formData.append('language', languageISO);
+      formData.append('enabledOnly', 'false');
+
+      const response = await fetch('https://api.languagetool.org/v2/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.matches && data.matches.length > 0) {
+        // Unicode-safe replacement
+        let chars = [...text];
+        const sortedMatches = [...data.matches].sort((a, b) => b.offset - a.offset);
+
+        for (const match of sortedMatches) {
+          if (match.replacements && match.replacements.length > 0) {
+            const replacement = match.replacements[0].value;
+            chars.splice(match.offset, match.length, replacement);
+          }
+        }
+
+        return { success: true, improvedText: chars.join('') };
       }
-    });
-    
-    // Check for common spelling errors
-    const spellChecks = [
-      { wrong: /\brecieve\b/gi, correct: 'receive', desc: 'Fixed "recieve" to "receive"' },
-      { wrong: /\boccur\b/gi, correct: 'occur', desc: 'Fixed common spelling' },
-      { wrong: /\bseperate\b/gi, correct: 'separate', desc: 'Fixed "seperate" to "separate"' },
-      { wrong: /\bdefinately\b/gi, correct: 'definitely', desc: 'Fixed "definately" to "definitely"' }
-    ];
-    
-    spellChecks.forEach(check => {
-      const matches = correctedText.match(check.wrong);
-      if (matches) {
-        correctedText = correctedText.replace(check.wrong, check.correct);
-        suggestions.push(check.desc);
-      }
-    });
-    
-    if (suggestions.length === 0) {
-      suggestions.push('Text looks good! No grammar issues found.');
+
+      return { success: true, improvedText: text };
+    } catch (error) {
+      console.error('Text improvement error:', error);
+      return {
+        success: false,
+        error: 'AI improvement service unavailable',
+        improvedText: text
+      };
     }
-    
-    return { correctedText, suggestions };
-  }
-
-  static async enhancedGrammarCheck(text: string): Promise<{ correctedText: string; suggestions: string[] }> {
-    // For now, use the local grammar checker
-    // In the future, this could call an AI service for more advanced checking
-    return this.checkGrammar(text);
   }
 }
