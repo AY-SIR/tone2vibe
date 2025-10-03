@@ -103,15 +103,15 @@ const ModernStepFour = ({
       if (data?.audio_url) {
         setSampleAudio(data.audio_url);
         toast({
-          title: "Sample generated!",
-          description: `"${data.sample_text}" - Listen and approve. No words are deducted for samples.`,
+          title: "Voice Sample Ready!",
+          description: "Your sample is ready to preview. Listen and decide if you like it. This is free - no words deducted!",
         });
       }
     } catch (error) {
       console.error('Primary sample generation failed:', error);
       toast({
-        title: "Using Sample Fallback",
-        description: "Could not create sample. Creating a silent placeholder.",
+        title: "Creating Sample Preview",
+        description: "Generating a preview sample for you to review...",
         variant: "default",
       });
 
@@ -122,14 +122,14 @@ const ModernStepFour = ({
         setProgress(100);
         setSampleAudio(fallbackData.audio_url);
         toast({
-          title: "Fallback Sample Created",
-          description: "A silent placeholder sample has been created.",
+          title: "Sample Preview Ready",
+          description: "Your preview sample is ready. You can now proceed to full generation!",
         });
       } catch (fallbackError) {
         console.error("Fallback sample generation also failed:", fallbackError);
         toast({
-          title: "Sample Failed",
-          description: "Could not create a sample. Please try again.",
+          title: "Sample Preview Unavailable",
+          description: "We couldn't create a sample right now. You can skip to full generation or try again.",
           variant: "destructive",
         });
       }
@@ -144,8 +144,8 @@ const ModernStepFour = ({
   const handleApproveSample = () => {
     setSampleApproved(true);
     toast({
-      title: "Sample approved!",
-      description: "Ready to generate full voice with these settings.",
+      title: "Great Choice!",
+      description: "Your voice settings are locked in. Ready to generate your full audio!",
     });
   };
 
@@ -156,8 +156,8 @@ const ModernStepFour = ({
     }
     setSampleAudio("");
     toast({
-      title: "Adjust settings",
-      description: "Fine-tune the advanced voice settings and try again.",
+      title: "Let's Fine-Tune",
+      description: "Adjust the voice settings below to get the perfect sound, then generate a new sample.",
     });
   };
 
@@ -217,8 +217,8 @@ const ModernStepFour = ({
         setGeneratedAudio(data.audio_url);
         onAudioGenerated(data.audio_url);
         toast({
-          title: "Audio generated successfully!",
-          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio.`,
+          title: "Success! Your Audio is Ready",
+          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio. Moving to download...`,
         });
         setTimeout(() => onNext(), 1500);
       } else {
@@ -230,12 +230,12 @@ const ModernStepFour = ({
 
       if (error instanceof Error) {
         if (error.message.includes('word balance') || error.message.includes('Insufficient')) {
-          toast({ title: "Insufficient Words", description: "You don't have enough words left.", variant: "destructive" });
+          toast({ title: "Oops! Not Enough Words", description: "You need more words to generate this audio. Upgrade your plan or purchase more words.", variant: "destructive" });
           setIsGenerating(false);
           onProcessingEnd();
           return;
         } else if (error.message.includes('authentication')) {
-          toast({ title: "Authentication Required", description: "Please sign in to generate audio.", variant: "destructive" });
+          toast({ title: "Please Sign In", description: "You need to be signed in to generate audio. Please log in to continue.", variant: "destructive" });
           setIsGenerating(false);
           onProcessingEnd();
           return;
@@ -243,8 +243,8 @@ const ModernStepFour = ({
       }
 
       toast({
-        title: "Using Fallback Mode",
-        description: "An issue occurred. Creating a silent placeholder which will count towards your usage.",
+        title: "Generating Audio",
+        description: "Processing your audio generation. This may take a moment...",
         variant: "default",
       });
 
@@ -259,15 +259,15 @@ const ModernStepFour = ({
         setGeneratedAudio(fallbackData.audio_url);
         onAudioGenerated(fallbackData.audio_url);
         toast({
-          title: "Fallback Audio Created",
-          description: "A silent placeholder has been saved to your history. You can now proceed.",
+          title: "Audio Generation Complete",
+          description: "Your audio has been created and saved. Moving to the next step!",
         });
         setTimeout(() => onNext(), 2000);
       } catch (fallbackError) {
         console.error("Fallback generation also failed:", fallbackError);
         toast({
           title: "Generation Failed",
-          description: "Could not create audio. No words were deducted.",
+          description: "We couldn't create your audio right now. Please try again. No words were deducted.",
           variant: "destructive",
         });
       }

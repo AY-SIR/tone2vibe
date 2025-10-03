@@ -38,13 +38,14 @@ export class AnalyticsService {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
 
     try {
-      // Fetch project history
+      // Fetch project history (exclude projects created when user was on free plan)
       const { data: projects, error: projectsError } = await supabase
         .from('history')
         .select('*')
         .eq('user_id', userId)
         .not('voice_settings', 'cs', '{"type":"voice_sample"}')
         .not('voice_settings', 'cs', '{"isSample":true}')
+        .not('voice_settings', 'cs', '{"plan":"free"}')
         .order('created_at', { ascending: false });
 
       if (projectsError) throw projectsError;

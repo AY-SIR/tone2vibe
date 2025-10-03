@@ -150,6 +150,11 @@ const Tool = () => {
       } catch (err) {
         // Silently fail analytics tracking
       }
+
+      // Refresh profile to update word balance
+      if (refreshProfile) {
+        await refreshProfile();
+      }
     }
   };
 

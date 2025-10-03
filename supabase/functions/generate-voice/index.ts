@@ -54,8 +54,8 @@ Deno.serve(async (req: Request) => {
       throw new Error("User profile not found");
     }
 
-    // For free users, only deduct 1 word. For paid users, deduct actual word count
-    const wordsToDeduct = profile.plan === 'free' ? 1 : actualWordCount;
+    // Deduct actual word count for all users
+    const wordsToDeduct = actualWordCount;
 
     // Check word limits
     const totalWordsAvailable = (profile.words_limit - profile.plan_words_used) + profile.word_balance;
@@ -64,7 +64,7 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Insufficient word balance. Need ${wordsToDeduct} words but only ${totalWordsAvailable} available.`);
     }
 
-    // Create history record first
+    // Create history record first (store plan in voice_settings for filtering)
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
         title,
         original_text: text,
         language,
-        voice_settings: voice_settings || {},
+        voice_settings: { ...voice_settings, plan: profile.plan },
         words_used: wordsToDeduct,
         generation_started_at: new Date().toISOString(),
       })
@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
       console.error("Failed to update history:", updateError);
     }
 
-    // Deduct words from user account (1 for free, actual count for paid)
+    // Deduct words from user account
     const { error: deductError } = await supabaseService.rpc('deduct_words_smartly', {
       user_id_param: user.id,
       words_to_deduct: wordsToDeduct
