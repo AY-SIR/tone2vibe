@@ -94,6 +94,7 @@ export default function ModernStepThree({
   onVoiceRecorded,
   onVoiceSelect,
   selectedLanguage,
+  selectedVoiceId,
 }: ModernStepThreeProps) {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -110,25 +111,53 @@ export default function ModernStepThree({
   const [searchTerm, setSearchTerm] = useState("");
 
   const canUsePrebuilt = profile?.plan !== "free";
-
+  
   const clearSelection = () => {
     setSelectedVoice(null);
     onVoiceRecorded(new Blob());
     onVoiceSelect('');
   };
 
+  // Restore selection when user navigates back
+  useEffect(() => {
+    if (selectedVoiceId) {
+      setSelectedVoice({ type: 'prebuilt', id: selectedVoiceId, name: 'Prebuilt Voice' });
+      setVoiceMethod('prebuilt');
+      onVoiceSelect(selectedVoiceId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVoiceId]);
+
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
       if (voiceMethod !== 'prebuilt' || !canUsePrebuilt) return;
       setLoadingVoices(true);
-      try {
-        const voices = await PrebuiltVoiceService.getVoicesForPlan(profile?.plan || 'free');
-        setPrebuiltVoices(voices);
-      } catch (error) {
-        toast({ title: "Error", description: "Failed to load prebuilt voices.", variant: "destructive" });
-      } finally {
-        setLoadingVoices(false);
+      setPrebuiltVoices([]);
+      const allowedPlans = profile?.plan === 'premium' ? ['free','pro','premium'] : profile?.plan === 'pro' ? ['free','pro'] : ['free'];
+      const batchSize = 50;
+      let from = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('prebuilt_voices')
+          .select('*')
+          .eq('is_active', true)
+          .in('required_plan', allowedPlans)
+          .order('sort_order', { ascending: true })
+          .range(from, from + batchSize - 1);
+        if (error) {
+          toast({ title: 'Error', description: 'Failed to load prebuilt voices.', variant: 'destructive' });
+          break;
+        }
+        if (data && data.length > 0) {
+          setPrebuiltVoices(prev => [...prev, ...(data as any)]);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
       }
+      setLoadingVoices(false);
     };
     loadPrebuiltVoices();
   }, [voiceMethod, canUsePrebuilt, profile?.plan, toast]);

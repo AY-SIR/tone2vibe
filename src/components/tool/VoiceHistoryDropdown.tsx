@@ -77,46 +77,46 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId }: VoiceHi
     setPlayingVoiceId(null);
   };
 
-  const playVoice = (voice: UserVoice) => {
+  const playVoice = async (voice: UserVoice) => {
     if (!voice.audio_url) {
-      toast({
-        title: "No audio found",
-        description: "This voice cannot be played",
-        variant: "default",
-      });
+      toast({ title: "No audio found", description: "This voice cannot be played", variant: "default" });
       return;
     }
 
-    if (playingVoiceId === voice.id) {
-      stopPlayback();
-      return;
-    }
-
+    if (playingVoiceId === voice.id) { stopPlayback(); return; }
     stopPlayback();
 
     try {
-      const safeUrl = encodeURI(voice.audio_url);
-      const audio = new Audio(safeUrl);
+      const getPathFromUrl = (url: string) => {
+        try {
+          const u = new URL(url);
+          const idx = u.pathname.indexOf('/user-voices/');
+          if (idx !== -1) return u.pathname.slice(idx + '/user-voices/'.length);
+        } catch {}
+        return url.startsWith('http') ? '' : url;
+      };
+
+      const path = getPathFromUrl(voice.audio_url);
+      if (!path) throw new Error('Invalid audio path');
+
+      const { data: signed, error: signErr } = await supabase.storage
+        .from('user-voices')
+        .createSignedUrl(path, 3600);
+      if (signErr || !signed?.signedUrl) throw signErr || new Error('Failed to sign URL');
+
+      const audio = new Audio(signed.signedUrl);
       audioRef.current = audio;
       setPlayingVoiceId(voice.id);
 
       audio.onended = () => setPlayingVoiceId(null);
       audio.onerror = () => {
         stopPlayback();
-        toast({
-          title: "Playback failed",
-          description: "Unable to play this voice",
-          variant: "default",
-        });
+        toast({ title: "Playback failed", description: "Unable to play this voice", variant: "default" });
       };
 
-      audio.play();
+      await audio.play();
     } catch {
-      toast({
-        title: "Something went wrong",
-        description: "Please try again",
-        variant: "default",
-      });
+      toast({ title: "Something went wrong", description: "Please try again", variant: "default" });
     }
   };
 

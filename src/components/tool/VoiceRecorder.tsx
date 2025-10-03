@@ -78,14 +78,15 @@ recordedChunksRef.current = [];
 durationRef.current = 0;
 
 // --- STEP 1: Get High-Quality Audio Stream with noise reduction ---  
-  const stream = await navigator.mediaDevices.getUserMedia({  
-    audio: {  
-      sampleRate: 48000, // Higher sample rate for better quality  
-      echoCancellation: true, // Enable to remove echo/reverb  
-      noiseSuppression: true, // Enable to remove background noise  
-      autoGainControl: true, // Normalize volume levels  
-    },  
-  });  
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      sampleRate: 48000, // Higher sample rate for better quality
+      channelCount: 1, // Mono for better compatibility and smaller size
+      echoCancellation: true, // Enable to remove echo/reverb
+      noiseSuppression: true, // Enable to remove background noise
+      autoGainControl: true, // Normalize volume levels
+    },
+  });
   streamRef.current = stream;  
 
   // --- STEP 2: Boost Volume with Web Audio API ---  
@@ -103,8 +104,18 @@ durationRef.current = 0;
   gainNode.connect(dest);  
 
   // --- STEP 3: Record the Processed Stream at High Bitrate ---  
-  const mime = 'audio/webm;codecs=opus';  
-  const recorder = new MediaRecorder(dest.stream, MediaRecorder.isTypeSupported(mime) ? { mimeType: mime, audioBitsPerSecond: 256000 } : undefined);  
+  const preferredMimes = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4;codecs=mp4a',
+    'audio/ogg;codecs=opus',
+    'audio/mpeg'
+  ];
+  const mime = preferredMimes.find((t) => (window as any).MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  if (!mime) {
+    throw new Error('Recording not supported in this browser');
+  }
+  const recorder = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 256000 });  
   mediaRecorderRef.current = recorder;  
 
   recorder.ondataavailable = (e) => {  
@@ -244,9 +255,8 @@ try {
   const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);  
   if (uploadError) throw uploadError;  
 
-  const { data: urlData } = supabase.storage.from('user-voices').getPublicUrl(filePath);  
-  const publicUrl = urlData.publicUrl;  
-  if (!publicUrl) throw new Error("Failed to get public URL");  
+  // Store file path (bucket is private; we'll create signed URLs on demand)
+  const storedPath = filePath;
 
   await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);  
 
@@ -255,9 +265,9 @@ try {
   const voiceName = `Recorded Voice ${new Date().toISOString().split('T')[0]}`;  
 
   const { error: insertError } = await supabase.from('user_voices').insert({  
-    user_id: user.id,        // ✅ include this  
+    user_id: user.id,        
     name: voiceName,  
-    audio_url: publicUrl,  
+    audio_url: storedPath,  
     duration: audioDuration,  
     is_selected: true,  
   } as any);  
@@ -280,7 +290,7 @@ const deleteRecording = () => reset();
 const formatTime = (sec: number) => {
 const mins = Math.floor(sec / 60);
 const secs = sec % 60;
-return ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')};
+return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 return (

@@ -168,6 +168,9 @@ const ModernStepTwo = ({
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
     onLanguageSelect(languageCode);
+    // If user picked language manually, allow continuing
+    setIsFallback(false);
+    setIsUnsupported(false);
   };
 
   const handleTranslateText = async () => {
