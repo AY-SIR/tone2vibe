@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface WebSocketMessage {
   type: string;
@@ -32,8 +33,8 @@ export const useWebSocket = (
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  const connect = () => {
-    if (!user?.access_token) {
+  const connect = async () => {
+    if (!user) {
       console.warn("Cannot connect WebSocket: User not authenticated");
       return;
     }
@@ -46,7 +47,13 @@ export const useWebSocket = (
     setConnectionState("connecting");
 
     try {
-      const wsUrl = `wss://msbmyiqhohtjdfbjmxlf.supabase.co/realtime/v1?apikey=${user.access_token}&vsn=1.0.0`;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.warn("Cannot connect WebSocket: No access token");
+        return;
+      }
+
+      const wsUrl = `wss://msbmyiqhohtjdfbjmxlf.supabase.co/realtime/v1?apikey=${session.access_token}&vsn=1.0.0`;
       socketRef.current = new WebSocket(wsUrl);
 
       socketRef.current.onopen = () => {
@@ -129,12 +136,12 @@ export const useWebSocket = (
   };
 
   useEffect(() => {
-    if (autoConnect && user?.access_token) {
+    if (autoConnect && user) {
       connect();
     }
     return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelName, autoConnect, user?.access_token]);
+  }, [channelName, autoConnect, user]);
 
   return {
     isConnected,

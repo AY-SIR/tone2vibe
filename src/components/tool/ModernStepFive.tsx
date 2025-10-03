@@ -35,14 +35,14 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile) return;
 
     const updateAnalytics = async () => {
       try {
-        if (!user.plan || (user.plan !== 'pro' && user.plan !== 'premium')) return;
+        if (!profile.plan || (profile.plan !== 'pro' && profile.plan !== 'premium')) return;
 
         await AnalyticsService.trackActivity(
           user.id,
@@ -54,7 +54,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             title: 'Auto Recorded Generation',
             responseTime: 1200
           },
-          user.plan
+          profile.plan
         );
 
         console.log('Analytics automatically updated on page load');
@@ -64,7 +64,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     };
 
     updateAnalytics();
-  }, [user, selectedLanguage, wordCount, audioUrl]);
+  }, [user, profile, selectedLanguage, wordCount, audioUrl]);
 
   useEffect(() => {
     if (audioUrl || audioData) {
