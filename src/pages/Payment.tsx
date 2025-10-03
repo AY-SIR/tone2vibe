@@ -455,10 +455,7 @@ const Payment = () => {
             </div>
 
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
-              <p className="mb-4 text-xs sm:text-sm md:text-base px-4">
-                Pro plan: Buy up to 36,000 additional words at ₹11 per 1,000 words.
-                <br/>Premium plan: Buy up to 49,000 additional words at ₹9 per 1,000 words.
-              </p>
+              
               <div className="text-xs sm:text-sm">
                 Location: भारत | India • Currency: ₹ INR Only
               </div>
