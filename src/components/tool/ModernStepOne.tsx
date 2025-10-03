@@ -185,7 +185,7 @@ export default function ModernStepOne({
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Upload className="h-5 w-5" />
-                <span>Upload a Document or Image</span>
+                <span>Upload </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
