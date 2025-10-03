@@ -76,14 +76,13 @@ export class AnalyticsService {
    *  Fetch analytics for Pro/Premium only
    * ------------------------------- */
   static async getUserAnalytics(userId: string, plan?: string): Promise<ProAnalytics | PremiumAnalytics | null> {
-    // Skip analytics for free users
     if (!plan || (plan !== 'pro' && plan !== 'premium')) {
       console.log('Analytics not available for free users');
       return null;
     }
 
     try {
-      // Fetch project data
+      // ✅ Fetch project history
       const { data: projects, error: projectsError } = await supabase
         .from('history')
         .select('*')
@@ -94,7 +93,7 @@ export class AnalyticsService {
 
       if (projectsError) throw projectsError;
 
-      // Fetch profile data
+      // ✅ Fetch profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -105,20 +104,31 @@ export class AnalyticsService {
 
       const projectsArray = projects || [];
 
-      // Calculate basic stats
-      const totalProjects = projectsArray.length;
-      const totalWordsProcessed = profile?.plan_words_used || 0;
-      const planWordsRemaining = Math.max(0, (profile?.words_limit || 1000) - totalWordsProcessed);
+      // ✅ Words used → from history
+      const totalWordsUsed = projectsArray.reduce(
+        (sum, p) => sum + (p.words_used || 0),
+        0
+      );
+
+      // ✅ Plan + purchased
+      const planLimit = profile?.words_limit || 1000;
       const purchasedWords = profile?.word_balance || 0;
-      const wordsRemaining = planWordsRemaining + purchasedWords;
+      const totalLimit = planLimit + purchasedWords;
+
+      // ✅ Remaining words
+      const wordsRemaining = Math.max(0, totalLimit - totalWordsUsed);
+
+      // ✅ Total projects & audio
+      const totalProjects = projectsArray.length;
       const totalAudioGenerated = projectsArray.length;
 
-      // Recent activity (last 30 days)
+      // ✅ Recent activity (30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const recentProjects = projectsArray.filter(p => new Date(p.created_at) >= thirtyDaysAgo);
       const activityMap = new Map<string, { words: number; projects: number }>();
+
       recentProjects.forEach(project => {
         const date = new Date(project.created_at).toISOString().split('T')[0];
         const existing = activityMap.get(date) || { words: 0, projects: 0 };
@@ -132,7 +142,7 @@ export class AnalyticsService {
         .map(([date, data]) => ({ date, ...data }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Language usage
+      // ✅ Language usage
       const languageMap = new Map<string, number>();
       projectsArray.forEach(project => {
         const lang = this.formatLanguageCode(project.language || 'en-US');
@@ -146,22 +156,23 @@ export class AnalyticsService {
         percentage: totalLanguageUsage > 0 ? Math.round((count / totalLanguageUsage) * 100) : 0
       }));
 
+      // ✅ Base analytics
       const baseAnalytics: ProAnalytics = {
         totalProjects,
-        totalWordsProcessed,
+        totalWordsProcessed: totalWordsUsed,
         wordsRemaining,
         totalAudioGenerated,
         recentActivity,
         languageUsage,
         planInfo: {
           plan: profile?.plan || 'free',
-          wordsUsed: profile?.plan_words_used || 0,
-          wordsLimit: profile?.words_limit || 1000,
+          wordsUsed: totalWordsUsed,
+          wordsLimit: totalLimit, // ✅ Plan + Purchased
           planExpiry: profile?.plan_expires_at || null
         }
       };
 
-      // Premium users get extra insights
+      // ✅ Premium extras
       if (plan === 'premium') {
         const premiumAnalytics: PremiumAnalytics = {
           ...baseAnalytics,
@@ -237,7 +248,7 @@ export class AnalyticsService {
   }
 
   /** ------------------------------
-   *  Get detailed analytics for Pro/Premium only
+   *  Get detailed analytics
    * ------------------------------- */
   static async getDetailedAnalytics(userId: string, plan?: string): Promise<DetailedAnalytics[] | null> {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
@@ -274,7 +285,7 @@ export class AnalyticsService {
   }
 
   /** ------------------------------
-   *  Record analytics (Pro/Premium only)
+   *  Record analytics
    * ------------------------------- */
   static async recordAnalytics(userId: string, data: {
     language: string;
@@ -300,7 +311,7 @@ export class AnalyticsService {
   }
 
   /** ------------------------------
-   *  Track activity for Pro/Premium only
+   *  Track activity
    * ------------------------------- */
   static async trackActivity(userId: string, activityType: string, metadata?: any, plan?: string): Promise<void> {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) {
