@@ -30,6 +30,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogOverlay,
 } from "@/components/ui/alert-dialog";
 import {
   Play,
@@ -450,22 +451,34 @@ const History = () => {
         )}
       </div>
 
-      <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the item titled <span className="font-semibold text-foreground">"{deleteCandidate?.title}"</span> and remove its data from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, delete it
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
+<AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
+  <AlertDialogOverlay className="fixed inset-0 bg-black/0" />
+
+  <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg m- sm:m-auto">
+    <AlertDialogHeader className="text-left">
+      <AlertDialogTitle className="text-lg font-semibold">
+        Are you absolutely sure?
+      </AlertDialogTitle>
+      <AlertDialogDescription className="mt-2 text-sm text-muted-foreground">
+        This action cannot be undone. This will permanently delete the item titled{" "}
+        <span className="font-semibold text-foreground">"{deleteCandidate?.title}"</span>{" "}
+        and remove its data from our servers.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+
+    <AlertDialogFooter className="mt-4">
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={executeDelete}
+        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+      >
+        Yes, delete it
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+
     </div>
   );
 };
