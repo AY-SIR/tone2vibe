@@ -59,7 +59,7 @@ export class GrammarService {
         for (const match of sortedMatches) {
           if (match.replacements && match.replacements.length > 0) {
             const replacement = match.replacements[0].value;
-            chars.splice(match.offset, match.length, replacement);
+            chars.splice(match.offset, match.length, ...[...replacement]);
           }
         }
 
