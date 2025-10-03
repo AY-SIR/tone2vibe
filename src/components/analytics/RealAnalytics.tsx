@@ -234,7 +234,7 @@ const RealAnalytics = () => {
                   <CardContent>
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        
                           <PieChart>
                           <Pie
                             data={analytics.languageUsage}
@@ -255,8 +255,7 @@ const RealAnalytics = () => {
                           </Pie>
                           <Tooltip formatter={(value, name) => [value, name]} />
                         </PieChart>
-                          <Tooltip />
-                        </PieChart>
+                          
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
