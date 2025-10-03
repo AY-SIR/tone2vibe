@@ -24,7 +24,6 @@ const RealAnalytics = () => {
       navigate('/');
       return;
     }
-
     if (profile?.plan === 'free') {
       navigate('/payment');
       return;
@@ -35,7 +34,6 @@ const RealAnalytics = () => {
     queryKey: ['real-analytics', user?.id, profile?.plan],
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
-
       const result = await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
       return result;
     },
@@ -63,15 +61,20 @@ const RealAnalytics = () => {
   const isPremium = profile?.plan === 'premium';
   const premiumAnalytics = analytics as PremiumAnalytics;
 
+  // Helper to format words nicely
+  const formatWords = (words?: number) => {
+    if (!words) return '0';
+    if (words >= 1000) return `${(words / 1000).toFixed(1)}K`;
+    return words.toString();
+  };
+
   return (
     <div className="min-h-screen bg-white animate-fade-in">
-
-
-    <div className="flex justify-end w-full">
-  <Badge className={`${isPremium ? "bg-black" : "bg-gray-600"} text-white`}>
-    {isPremium ? "Premium" : "Pro"} Analytics
-  </Badge>
-</div>
+      <div className="flex justify-end w-full mb-4">
+        <Badge className={`${isPremium ? "bg-black" : "bg-gray-600"} text-white`}>
+          {isPremium ? "Premium" : "Pro"} Analytics
+        </Badge>
+      </div>
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Loading State */}
@@ -91,12 +94,8 @@ const RealAnalytics = () => {
               <CardContent className="p-6 text-center">
                 <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Analytics Unavailable</h3>
-                <p className="text-gray-600 mb-4">
-                  Unable to load analytics data
-                </p>
-                <Button onClick={() => window.location.reload()}>
-                  Try Again
-                </Button>
+                <p className="text-gray-600 mb-4">Unable to load analytics data</p>
+                <Button onClick={() => window.location.reload()}>Try Again</Button>
               </CardContent>
             </Card>
           </div>
@@ -124,7 +123,7 @@ const RealAnalytics = () => {
                 <Card>
                   <CardContent className="p-3 sm:p-4 lg:p-6 text-center">
                     <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-black mb-1">
-                      {((analytics?.totalWordsProcessed || 0) / 1000).toFixed(0)}K
+                      {formatWords(analytics?.totalWordsProcessed)}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600">Words</div>
                   </CardContent>
@@ -132,7 +131,7 @@ const RealAnalytics = () => {
                 <Card>
                   <CardContent className="p-3 sm:p-4 lg:p-6 text-center">
                     <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-green-600 mb-1">
-                      {((analytics?.wordsRemaining || 0) / 1000).toFixed(0)}K
+                      {formatWords(analytics?.wordsRemaining)}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600">Remaining</div>
                   </CardContent>
@@ -243,7 +242,7 @@ const RealAnalytics = () => {
                             outerRadius={80}
                             fill="#000000"
                             dataKey="count"
-                            label={({ language, percentage }) => `${language} (${percentage}%)`}
+                            label={({ name, value }) => `${name} (${value})`}
                           >
                             {analytics.languageUsage.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, ${index % 2 === 0 ? '40%' : '60%'})`} />
