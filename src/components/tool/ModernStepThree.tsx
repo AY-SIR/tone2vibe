@@ -27,7 +27,7 @@ const sampleParagraphs: { [key: string]: string } = {
   "nl-NL": "In de ochtend straalt de zon over de stad met een gouden gloed. Kinderen spelen en lachen in het park, terwijl volwassenen naar hun werk haasten. Straatverkopers zetten hun kraampjes op, en de lucht is gevuld met de geur van versgebakken brood. Vogels zingen in de bomen, en mensen groeten elkaar vriendelijk. Kleine cafés openen hun deuren voor vroege klanten.",
   "en-GB": "This morning, the city streets are bathed in warm sunlight. Children play in the parks, laughing and chasing each other. Street vendors prepare their stalls as people hurry to work. The scent of fresh flowers and baked bread fills the air. Some residents sit at cafés, enjoying the calm of the morning.",
   "en-US": "This morning, the streets are lively with people heading to work. Children play in the parks, chasing each other and laughing. Street vendors set up their stalls, while a gentle breeze carries the scent of flowers. People greet each other as the city wakes up to a new day. A few cafes already have early customers sipping coffee.",
-  "fi-FI": "Aamulla aurinko valaisee kaupungin kaduilla lämpimästi. Lapset leikkivät puistoissa ja nauravat. Katuruokamyyjät avaavat kojujaan, ja ilma on täynnä tuoreiden kukkien ja leivän tuoksua. Linnut laulavat puissa ja ihmiset tervehtivät toisiaan. Kahvilat valmistautuvat ottamaan vastaan ensimmäiset asiakkaat.",
+  "fi-FI": "Aamulla aurinko valaisee kaupungin kaduilla lämpimästi. Lapset leivät puistoissa ja nauravat. Katuruokamyyjät avaavat kojujaan, ja ilma on täynnä tuoreiden kukkien ja leivän tuoksua. Linnut laulavat puissa ja ihmiset tervehtivät toisiaan. Kahvilat valmistautuvat ottamaan vastaan ensimmäiset asiakkaat.",
   "fr-CA": "Ce matin, la ville est baignée de soleil. Les enfants jouent dans les parcs, riant et courant partout. Les marchands installent leurs étals tandis que les gens se dirigent vers le travail. L'air est parfumé de fleurs fraîches et de pain chaud. Quelques cafés accueillent déjà leurs premiers clients.",
   "fr-FR": "Ce matin, le parc et les rues de la ville sont animés par le soleil et les rires des enfants. Les marchands mettent en place leurs étals tandis que les adultes se hâtent pour aller au travail. L'air est empli du parfum des fleurs et du pain frais. Les oiseaux chantent sur les arbres, et certains habitants savourent un café matinal.",
   "de-DE": "Am Morgen taucht die Sonne die Straßen der Stadt in warmes Licht. Kinder spielen fröhlich im Park, während Erwachsene zur Arbeit eilen. Verkäufer bereiten ihre Stände vor, und die Luft ist erfüllt vom Duft frisch gebackenen Brotes und Blumen. Vögel singen in den Bäumen, und einige Menschen genießen einen Kaffee in kleinen Cafés.",
@@ -41,7 +41,7 @@ const sampleParagraphs: { [key: string]: string } = {
   "ja-JP": "今朝、街の通りは暖かい日差しに照らされています。子どもたちは公園で遊び、笑い声が響いています。露店商人は店を準備し、大人たちは仕事に急いでいます。空気には新鮮な花と焼きたてのパンの香りが漂っています。カフェで朝の時間を楽しむ人もいます。",
   "kn-IN": "ಈ ಬೆಳಿಗ್ಗೆ, ನಗರದ ಬೀದಿಗಳು ಸೂರ್ಯನ ಬೆಳಕುಗಳಿಂದ ಭಾಸವಾಗಿವೆ. ಮಕ್ಕಳು ಪಾರ್ಕ್‌ನಲ್ಲಿ ಆಟವಾಡುತ್ತಿದ್ದಾರೆ ಮತ್ತು ನಗುತ್ತಿದ್ದಾರೆ. ಬೀದಿ ವ್ಯಾಪಾರಿಗಳು ತಮ್ಮ ಸ್ಟಾಲ್‌ಗಳನ್ನು ಸಿದ್ಧಪಡಿಸುತ್ತಿದ್ದಾರೆ, ಜನರು ಕೆಲಸಕ್ಕೆ ಓಡುತ್ತಿದ್ದಾರೆ. ಹವೆಯಲ್ಲಿ ಹೊಸ ಹೂವುಗಳ ಮತ್ತು ರೊಟ್ಟಿ خوشಬೂ ಇದೆ. ಕೆಲವು ಜನ ಕಾಫಿ ಪಾನ ಮಾಡುತ್ತಿರುವುದು ಕಾಣಿಸುತ್ತದೆ.",
   "ko-KR": "오늘 아침, 도시의 거리에는 따뜻한 햇빛이 가득합니다. 아이들은 공원에서 뛰어놀며 웃습니다. 거리 상인들은 가게를 준비하고, 어른들은 일터로 향합니다. 공기에는 신선한 꽃과 갓 구운 빵 향기가 가득합니다. 일부 주민들은 카페에 앉아 아침을 즐깁니다.",
-  "lt-LT": "Šį rytą miesto gatves apšviečia šilta saulės šviesa. Vaikai žaidžia parkuose ir juokiasi. Prekeiviai ruošia savo stalus, o suaugusieji skuba į darbą. Ore jaučiasi šviežių gėlių ir duonos kvapas. Kai kurie žmonės sėdi kavinėse, mėgaudamiesi rytine ramybe.",
+  "lt-LT": "Šį rytą miesto gatves apšviečia šilta saulės šviesa. Vaikai žaidžia parkuose ir juokiasi. Prekeiviai ruošia savo stalus, o suaugusieji skuba į darbą. Ore jaučiasi šviežių gėlių ir duonos kvapas. Kai kurie žmonės sėdi kavinėse, mėgaudydamiesi rytine ramybe.",
   "ms-MY": "Pagi ini, sinar matahari menyinari bandar dengan hangat. Kanak-kanak bermain di taman sambil ketawa. Penjual jalanan menyediakan gerai mereka, sementara orang dewasa tergesa-gesa ke tempat kerja. Udara dipenuhi dengan aroma bunga segar dan roti panas. Sesetengah orang duduk di kafe menikmati pagi yang tenang.",
   "ml-IN": "ഈ രാവിലെ, നഗരത്തിലെ തെരുവുകൾ സൂര്യപ്രകാശത്തിൽ പ്രകാശിക്കുന്നു. കുട്ടികൾ പാർക്കിൽ കളിക്കുന്നു, ചിരിക്കുന്നു. തെരുവിൽ വ്യാപാരികൾ അവരുടെ സ്റ്റാൾ ഒരുക്കുന്നു, മുതിർന്നവർ ജോലി കൊതിക്കുന്നു. വായുവിൽ تاز تاز പൂവുകളും ബേക്കഡ് പാന്റെയും ഗന്ധം നിറഞ്ഞിരിക്കുന്നു. ചിലർ കഫേയിൽ ഇരുന്ന് രാവിലെ ആസ്വദിക്കുന്നു.",
   "mr-IN": "या सकाळी, शहरातील रस्ते सूर्यप्रकाशाने उजळले आहेत. मुले पार्कमध्ये खेळत आहेत आणि हसत आहेत. रस्त्यावरील विक्रेते आपली दुकाने सजवत आहेत, तर लोक कामावर जात आहेत. हवेतील ताज्या फुलांचा व गोड ब्रेडचा सुगंध आहे. काही लोक कॅफेमध्ये बसून सकाळचा आनंद घेत आहेत.",
@@ -64,7 +64,7 @@ const sampleParagraphs: { [key: string]: string } = {
   "th-TH": "เช้านี้ ถนนในเมืองสว่างไสวด้วยแสงแดดอบอุ่น เด็ก ๆ เล่นในสวนสาธารณะพร้อมหัวเราะ ผู้ขายตั้งแผงขายของของพวกเขา ขณะที่ผู้ใหญ่รีบไปทำงาน กลิ่นดอกไม้สดและขนมปังอบใหม่ลอยมาในอากาศ บางคนกำลังนั่งจิบกาแฟในร้านคาเฟ่",
   "tr-TR": "Bu sabah, şehir sokakları sıcak güneş ışığıyla aydınlanıyor. Çocuklar parkta oynuyor ve gülüyorlar. Sokak satıcıları tezgahlarını hazırlıyor, yetişkinler ise işe acele ediyor. Havadaki taze çiçekler ve yeni pişmiş ekmek kokusu yayılıyor. Bazı insanlar kafelerde oturup sabahın keyfini çıkarıyor.",
   "uk-UA": "Сьогодні вранці вулиці міста наповнені теплим сонячним світлом. Діти грають у парках та сміються. Вуличні торговці готують свої кіоски, а дорослі поспішають на роботу. Повітря сповнене ароматом свіжих квітів та випічки. Деякі люди насолоджуються ранковою кавою в кафе.",
-  "ur-IN": "اس صبح شہر کی گلیاں دھوپ سے روشن ہیں۔ بچے پارک میں کھیل رہے ہیں اور ہنس رہے ہیں۔ گلی کے دکاندار اپنے اسٹال تیار کر رہے ہیں جبکہ لوگ کام پر جا رہے ہیں۔ ہوا میں تازہ پھولوں اور پکے ہوئے روٹی کی خوشبو ہے۔ کچھ لوگ کیفے میں بیٹھ کر صبح کا لطف اٹھا رہے ہیں۔",
+  "ur-IN": "اس صبح شہر کی گلیاں دھوپ سے روشن ہیں۔ بچے پارک میں کھیل رہے ہیں اور ہنس رہے ہیں۔ گلی کے دکاندار اپنے اسٹال تیار کر رہے ہیں جبکہ لوگ کام پر جا رہے ہیں۔ ہوا میں تازہ پھولوں اور پکے ہوئے روٹی کی خوشبو ہے۔ کچھ لوگ کیفے میں بیٹھ کر صبح کا لطف اٹھا रहे ہیں۔",
   "vi-VN": "Sáng nay, các con phố trong thành phố rực rỡ ánh nắng. Trẻ em chơi đùa trong công viên và cười vui vẻ. Các người bán hàng chuẩn bị quầy hàng của mình, trong khi người lớn vội đến nơi làm việc. Không khí ngập tràn mùi hoa tươi và bánh mì mới nướng. Một số người ngồi ở quán cà phê thưởng thức buổi sáng.",
   "zh-CN": "今天早上，城市的街道沐浴在温暖的阳光下。孩子们在公园里玩耍，欢笑声不断。街头小贩在摆摊，而大人们匆忙去上班。空气中弥漫着新鲜花朵和刚出炉面包的香味。一些人坐在咖啡馆里享受早晨的时光。",
   "zh-TW": "今天早上，城市的街道沐浴在溫暖的陽光下。孩子們在公園裡玩耍，笑聲不斷。街頭小販在擺攤，大人們匆忙去上班。空氣中瀰漫著新鮮花朵和剛出爐麵包的香氣。一些人坐在咖啡館裡享受早晨的時光。"
@@ -111,7 +111,7 @@ export default function ModernStepThree({
   const [searchTerm, setSearchTerm] = useState("");
 
   const canUsePrebuilt = profile?.plan !== "free";
-  
+
   const clearSelection = () => {
     setSelectedVoice(null);
     onVoiceRecorded(new Blob());
@@ -285,7 +285,10 @@ export default function ModernStepThree({
                 <h4 className="font-medium mb-2">Sample Text to Read:</h4>
                 <p className="text-sm leading-relaxed">{currentParagraph}</p>
               </div>
-              <VoiceRecorder onRecordingComplete={handleVoiceRecorded} />
+              <VoiceRecorder
+                onRecordingComplete={handleVoiceRecorded}
+                selectedLanguage={selectedLanguage}
+              />
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>• Read the text naturally at a normal pace</p>
                 <p>• Ensure good audio quality and minimal background noise</p>
@@ -314,9 +317,10 @@ export default function ModernStepThree({
                 <h3 className="text-lg font-semibold text-gray-800">Your Voice History</h3>
               </div>
 
-              <VoiceHistoryDropdown
+                 <VoiceHistoryDropdown
                 onVoiceSelect={handleHistoryVoiceSelect}
                 selectedVoiceId={selectedVoice?.type === 'history' ? selectedVoice.id : ''}
+                selectedLanguage={selectedLanguage}
               />
 
               <div className="text-center mt-4">

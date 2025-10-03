@@ -11,7 +11,6 @@ import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages, AlertCircle } fro
 import { useToast } from "@/hooks/use-toast";
 import { TranslationService } from "@/services/translationService";
 
-// ... (interface ModernStepTwoProps remains the same)
 interface ModernStepTwoProps {
   extractedText: string;
   onNext: () => void;
@@ -45,7 +44,6 @@ const ModernStepTwo = ({
   const MIN_CHARS = 20;
 
   const languages = [
-    // ... (your languages array remains the same)
     { code: 'ar-SA', name: 'Arabic (Saudi Arabia)', nativeName: 'العربية' },
     { code: 'as-IN', name: 'Assamese', nativeName: 'অসমীয়া' },
     { code: 'bn-BD', name: 'Bengali (Bangladesh)', nativeName: 'বাংলা' },
@@ -79,7 +77,7 @@ const ModernStepTwo = ({
     { code: 'ne-IN', name: 'Nepali (India)', nativeName: 'नेपाली' },
     { code: 'no-NO', name: 'Norwegian', nativeName: 'Norsk' },
     { code: 'or-IN', name: 'Odia', nativeName: 'ଓଡ଼ିଆ' },
-    { code: 'fa-IR', name: 'Persian (Farsi)', nativeName: 'فारسی' },
+    { code: 'fa-IR', name: 'Persian (Farsi)', nativeName: 'فارسی' },
     { code: 'pt-BR', name: 'Portuguese (Brazil)', nativeName: 'Português' },
     { code: 'pt-PT', name: 'Portuguese (Portugal)', nativeName: 'Português' },
     { code: 'pa-IN', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
@@ -103,7 +101,7 @@ const ModernStepTwo = ({
   const textLengthError = useMemo(() => {
     const trimmedLength = editedText.trim().length;
     if (trimmedLength > 0 && trimmedLength < MIN_CHARS) {
-      return `Please enter at least ${MIN_CHARS} characters for optimal language detection and processing.`;
+      return `Please enter at least ${MIN_CHARS} characters for Process.`;
     }
     return null;
   }, [editedText]);
@@ -172,7 +170,6 @@ const ModernStepTwo = ({
       });
       return;
     }
-    // ... rest of the function is unchanged
     setIsTranslating(true);
     onProcessingStart("Translating text...");
     try {
@@ -214,7 +211,6 @@ const ModernStepTwo = ({
       });
       return;
     }
-    // ... rest of the function is unchanged
     setIsImproving(true);
     onProcessingStart("Improving text with AI...");
     try {
@@ -299,17 +295,7 @@ const ModernStepTwo = ({
               </Button>
             )}
           </div>
-          {isDetecting && (
-            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-              <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              Detecting language...
-            </p>
-          )}
-          {!isDetecting && detectionConfidence > 0.5 && !detectionError && !textLengthError &&(
-            <p className="text-sm text-green-600 mt-2">
-              ✓ Detected: {languages.find(l => l.code === detectedLanguage)?.name} ({Math.round(detectionConfidence * 100)}% confidence)
-            </p>
-          )}
+
         </CardContent>
       </Card>
 
@@ -337,6 +323,21 @@ const ModernStepTwo = ({
               <p className="text-sm text-red-600">{detectionError || textLengthError}</p>
             </div>
           )}
+
+
+           {isDetecting && (
+            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+              <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              Detecting language...
+            </p>
+          )}
+          {!isDetecting && detectionConfidence > 0.5 && !detectionError && !textLengthError &&(
+            <p className="text-sm text-green-600 mt-2">
+               Detected: {languages.find(l => l.code === detectedLanguage)?.name}
+            </p>
+          )}
+
+
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
             <Button
               onClick={handleImproveText}
@@ -364,7 +365,6 @@ const ModernStepTwo = ({
         </CardContent>
       </Card>
 
-      {/* Stats card and Buttons remain the same */}
       <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">

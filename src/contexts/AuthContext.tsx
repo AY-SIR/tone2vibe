@@ -45,10 +45,10 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   locationData: LocationData | null;
-  signUp: (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => Promise<{ data: any; error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
+  signUp: (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => Promise<{ data: any; error: any | null }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any | null }>;
   signInWithGoogle: () => Promise<void>;
-  signOut: () => Promise<{ error: Error | null }>;
+  signOut: () => Promise<{ error: any | null }>;
   refreshProfile: () => Promise<void>;
   updateProfile: (data: Partial<Profile>) => Promise<void>;
 }
@@ -152,7 +152,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Profile not found → create default
         if (error?.code === "PGRST116" && user.email) {
           const newProfile = await createDefaultProfile(user);
           if (newProfile) setProfile({ ...newProfile } as Profile);
@@ -165,11 +164,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   // -----------------------
-  // Handle session
+  // Handle session initialization and changes (including expiration)
   // -----------------------
   useEffect(() => {
     let mounted = true;
 
+    // This function handles all session updates.
     const handleSession = async (currentSession: Session | null) => {
       if (!mounted) return;
 
@@ -178,13 +178,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentUser);
 
       if (currentUser) {
+        // If there is a user, load their profile.
         await loadUserProfile(currentUser);
       } else {
+        // **THIS IS THE KEY PART FOR EXPIRATION**
+        // If the session is null (due to sign out or expiration), clear all user-specific state.
         setProfile(null);
         setLocationData(null);
       }
     };
 
+    // Check for an active session when the component mounts.
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session).finally(() => {
         if (mounted) {
@@ -194,7 +198,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     });
 
+    // Listen for any auth state changes. This is the magic part.
+    // It fires on SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.
+    // When the session auto-expires, Supabase detects it and fires a SIGNED_OUT event,
+    // which results in the 'session' object passed here being null.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // console.log(`Auth event: ${_event}`, session); // Uncomment for debugging
       handleSession(session);
     });
 
@@ -208,26 +217,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Listen to profile updates using Realtime
   // -----------------------
   useEffect(() => {
-    if (profileChannelRef.current) profileChannelRef.current.unsubscribe?.();
-
-    if (user?.id) {
-      const channel = supabase
-        .channel(`profile-updates-${user.id}`)
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
-          (payload) => {
-            const newProfile = payload.new as Profile;
-            const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
-            setProfile({ ...newProfile, word_balance: newProfile.word_balance ?? calculatedWordBalance });
-          }
-        )
-        .subscribe();
-
-      profileChannelRef.current = channel;
+    if (profileChannelRef.current) {
+        profileChannelRef.current.unsubscribe();
     }
 
-    return () => profileChannelRef.current?.unsubscribe?.();
+    if (user?.id) {
+        const channel = supabase
+            .channel(`profile-updates-${user.id}`)
+            .on(
+                "postgres_changes",
+                { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
+                (payload) => {
+                    const newProfile = payload.new as Profile;
+                    const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
+                    setProfile(prevProfile => ({ ...prevProfile, ...newProfile, word_balance: newProfile.word_balance ?? calculatedWordBalance }));
+                }
+            )
+            .subscribe();
+
+        profileChannelRef.current = channel;
+    }
+
+    return () => {
+        profileChannelRef.current?.unsubscribe();
+    };
   }, [user?.id]);
 
   // -----------------------
@@ -268,6 +281,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
+      // While onAuthStateChange will also clear state, setting it here provides a faster UI update.
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -279,9 +293,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const refreshProfile = async () => {
-    if (user) await loadUserProfile(user);
-  };
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+      await loadUserProfile(user);
+    }
+  }, [user, loadUserProfile]);
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
@@ -290,9 +306,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (!error) {
-        await refreshProfile();
+      if (error) {
+        console.error("Error updating profile:", error);
       }
+      // The realtime subscription should handle the update, but a manual refresh can be a fallback.
+      // await refreshProfile();
     } catch (err) {
       console.error("Exception during profile update:", err);
     }

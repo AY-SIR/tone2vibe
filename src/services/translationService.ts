@@ -1,5 +1,4 @@
-// src/services/translationService.ts
-// Install: npm install franc
+
 
 import { franc } from 'franc';
 
@@ -12,10 +11,7 @@ export interface TranslationResult {
 }
 
 export class TranslationService {
-  /**
-   * Comprehensive map from Franc's ISO 639-3 codes to your app's locale codes.
-   * This now covers all 51 supported languages.
-   */
+
   private static francToLocale: Record<string, string> = {
     'ara': 'ar-SA',   // Arabic
     'asm': 'as-IN',   // Assamese

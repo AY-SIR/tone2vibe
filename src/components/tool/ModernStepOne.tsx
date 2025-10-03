@@ -33,14 +33,13 @@ export default function ModernStepOne({
   const [manualText, setManualText] = useState(initialText);
   const [extractedText, setExtractedText] = useState(initialText);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [textError, setTextError] = useState<string | null>(null);
 
-  // Update state when initialText changes (on reset)
   useEffect(() => {
     setManualText(initialText);
     setExtractedText(initialText);
   }, [initialText]);
 
-  // Single source of truth for word count calculation
   const calculateWordCount = (text: string) => {
     if (!text) return 0;
     const words = text.trim().split(/\s+/).filter(Boolean);
@@ -70,11 +69,9 @@ export default function ModernStepOne({
       const text = await OCRService.extractText(file);
       if (text.trim()) {
         const wordCount = calculateWordCount(text);
-
         setExtractedText(text);
         onTextExtracted(text);
         onWordCountUpdate(wordCount);
-
         toast({
           title: "Text Extracted Successfully",
           description: `Extracted ${wordCount} words from your file.`,
@@ -119,12 +116,27 @@ export default function ModernStepOne({
       return;
     }
 
+    if (trimmedText.length < 20) {
+      const errorMessage = "Please enter at least 20 characters to process.";
+      setTextError(errorMessage);
+      return;
+    }
+
+    setTextError(null);
     const wordCount = calculateWordCount(trimmedText);
 
     setExtractedText(trimmedText);
     onTextExtracted(trimmedText);
     onWordCountUpdate(wordCount);
   };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setManualText(newText);
+    if (textError && newText.trim() === "") {
+      setTextError(null);
+    }
+  }
 
   const canContinue = extractedText.trim().length > 0;
 
@@ -161,10 +173,15 @@ export default function ModernStepOne({
               <Textarea
                 placeholder="Type or paste your text here..."
                 value={manualText}
-                onChange={(e) => setManualText(e.target.value)}
-                className="min-h-[200px] resize-none"
+                onChange={handleTextChange}
+                className={`min-h-[200px] resize-none ${
+                  textError ? "border-red-500 focus-visible:ring-red-500" : ""
+                }`}
                 disabled={isProcessing}
               />
+              {textError && (
+                <p className="text-sm text-red-600 -mt-2">{textError}</p>
+              )}
               <div className="flex justify-between items-center text-sm text-muted-foreground">
                 <span>{manualText.replace(/\s/g, '').length} characters</span>
                 <span>{calculateWordCount(manualText)} words</span>
@@ -233,13 +250,13 @@ export default function ModernStepOne({
       </Tabs>
 
       {extractedText && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
           <CardContent className="p-4">
             <div className="flex items-center space-x-2 mb-2">
               <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="font-medium text-green-800">Content Ready for Next Step</span>
+              <span className="font-medium text-green-800 dark:text-green-300">Content Ready for Next Step</span>
             </div>
-            <p className="text-sm text-green-700 line-clamp-3">
+            <p className="text-sm text-green-700 dark:text-green-400 line-clamp-3">
               {extractedText}
             </p>
           </CardContent>
