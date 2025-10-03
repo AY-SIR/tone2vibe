@@ -236,18 +236,21 @@ const RealAnalytics = () => {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={analytics.languageUsage}
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            fill="#000000"
-                            dataKey="count"
-                            label={({ name, value }) => `${name} (${value})`}
-                          >
-                            {analytics.languageUsage.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, ${index % 2 === 0 ? '40%' : '60%'})`} />
-                            ))}
-                          </Pie>
+  data={analytics.languageUsage}
+  cx="50%"
+  cy="50%"
+  outerRadius={80}
+  fill="#000000"
+  dataKey="count"
+  label={({ payload }) => payload.language} // ✅ use payload.language
+>
+  {analytics.languageUsage.map((entry, index) => (
+    <Cell
+      key={`cell-${index}`}
+      fill={`hsl(${index * 45}, 70%, ${index % 2 === 0 ? '40%' : '60%'})`}
+    />
+  ))}
+</Pie>
                           <Tooltip />
                         </PieChart>
                       </ResponsiveContainer>
