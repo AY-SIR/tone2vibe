@@ -113,7 +113,7 @@ const Index = () => {
       description: "Best for content creators and professionals",
       features: [
         "10,000 words/month","25MB upload limit","High quality audio","Last 30 voice history",
-        "30 Days History","Voice storage & reuse","Priority support","Speed & pitch control",
+        "30 Days History","Voice storage & reuse","Priority support","Speed & pitch control","Usage analytics & charts",
         `Buy extra words (${pricing.symbol}11 per 1000 words)`,
         "Max total: 46,000 words"
       ],
@@ -127,7 +127,7 @@ const Index = () => {
       description: "For teams and heavy users",
       features: [
         "50,000 words/month","100MB upload limit","Ultra-high quality","Last 90 voice history",
-        "90 Days History","Voice storage & reuse","Advanced Speed & pitch control",
+        "90 Days History","Voice storage & reuse","Advanced Speed & pitch control","Advanced analytics",
         "24/7 priority support",
         `Buy extra words (${pricing.symbol}9 per 1000 words)`,
         "Max total: 99,000 words"
