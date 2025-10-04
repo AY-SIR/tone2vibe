@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Card,
@@ -36,7 +37,6 @@ import {
 import {
   Play,
   Pause,
-  Download,
   Search,
   Filter,
   ArrowLeft,
@@ -58,6 +58,7 @@ type UserVoice = {
   audio_url: string;
   created_at: string;
   duration: string | null;
+  language: string | null; // ADDED: language field
 };
 
 const History = () => {
@@ -104,9 +105,10 @@ const History = () => {
       setVoicesLoading(true);
       setVoicesError(null);
       try {
+        // FIXED: Added 'language' to the select query
         const { data, error } = await supabase
           .from("user_voices")
-          .select("id, name, audio_url, created_at, duration")
+          .select("id, name, audio_url, created_at, duration, language")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
@@ -134,7 +136,6 @@ const History = () => {
     setDeleteCandidate(null);
 
     try {
-      // CHANGED: Simplified and corrected table name logic
       const isRecorded = itemToDelete.source_type === "recorded";
       const tableName = isRecorded ? "user_voices" : "history";
 
@@ -142,8 +143,6 @@ const History = () => {
       if (dbError) throw new Error(`Database Error: ${dbError.message}`);
 
       if (itemToDelete.audio_url) {
-        // CHANGED: Added logic to determine bucket name dynamically for safer deletion
-        // Make sure to replace 'generated-voices' with your actual bucket name for AI voices if different
         const bucketName = isRecorded ? "user-voices" : "generated-voices";
         const url = new URL(itemToDelete.audio_url);
         const pathParts = url.pathname.split("/");
@@ -178,7 +177,7 @@ const History = () => {
       audio_url: v.audio_url,
       created_at: v.created_at,
       original_text: "",
-      language: "Recorded Voice",
+      language: v.language || "N/A", // FIXED: Use the language from database
       word_count: 0,
       duration: v.duration,
       source_type: "recorded",
@@ -208,7 +207,7 @@ const History = () => {
 
   const generatedVoices = filteredItems.filter((p) => p.source_type === "generated");
   const recordedVoices = filteredItems.filter((p) => p.source_type === "recorded");
-  const languages = Array.from(new Set(allItems.map((p) => p.language).filter(lang => lang && lang !== 'Recorded Voice')));
+  const languages = Array.from(new Set(allItems.map((p) => p.language).filter(lang => lang && lang !== 'N/A')));
 
   const playAudio = async (project: any) => {
     if (audioRef.current) {
@@ -259,48 +258,9 @@ const History = () => {
     }
   };
 
-  const downloadAudio = async (project: any) => {
-    try {
-      if (!project.audio_url) {
-        toast({ title: "No audio to download", variant: "destructive" });
-        return;
-      }
-
-      let downloadUrl = project.audio_url;
-
-      if (project.source_type === "recorded") {
-        const url = new URL(project.audio_url);
-        const bucketName = "user-voices";
-        const pathParts = url.pathname.split("/");
-        const bucketIndex = pathParts.indexOf(bucketName);
-
-        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-          const filePath = pathParts.slice(bucketIndex + 1).join("/");
-          const { data, error } = await supabase.storage
-            .from(bucketName)
-            .createSignedUrl(filePath, 60, { download: true });
-
-          if (error) throw new Error("Could not create secure download link.");
-          downloadUrl = data.signedUrl;
-        } else {
-          throw new Error("Could not parse file path from URL.");
-        }
-      }
-
-      // Trigger download via dropdown
-      toast({ title: "Select download format from dropdown" });
-
-    } catch (err: any) {
-      toast({ title: "Download failed", description: err.message, variant: "destructive" });
-    }
-  };
-
-
-
   return (
     <div className="min-h-screen bg-background py-2 px-2 sm:py-4 sm:px-4 lg:px-8">
-      {/* ... The JSX remains largely the same, but the ProjectCard will now render the new badge ... */}
-       <div className="mx-auto">
+      <div className="mx-auto">
         <div className="mb-4 sm:mb-6">
           <div className="flex items-center justify-between mb-4">
             <Button
@@ -381,7 +341,6 @@ const History = () => {
                         project={project}
                         playingAudio={playingAudio}
                         onPlay={playAudio}
-                        onDownload={downloadAudio}
                         onDelete={handleDeleteRequest}
                         isDeleting={isDeleting === project.id}
                         type="generated"
@@ -411,7 +370,6 @@ const History = () => {
                         project={project}
                         playingAudio={playingAudio}
                         onPlay={playAudio}
-                        onDownload={downloadAudio}
                         onDelete={handleDeleteRequest}
                         isDeleting={isDeleting === project.id}
                         type="recorded"
@@ -437,43 +395,38 @@ const History = () => {
         )}
       </div>
 
-
-<AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
-  <AlertDialogOverlay className="fixed inset-0 bg-black/0" />
-
-  <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg m- sm:m-auto">
-    <AlertDialogHeader className="text-left">
-      <AlertDialogTitle className="text-lg font-semibold">
-        Are you absolutely sure?
-      </AlertDialogTitle>
-      <AlertDialogDescription className="mt-2 text-sm text-muted-foreground">
-        This action cannot be undone. This will permanently delete the item titled{" "}
-        <span className="font-semibold text-foreground">"{deleteCandidate?.title}"</span>{" "}
-        and remove its data from our servers.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-
-    <AlertDialogFooter className="mt-4">
-      <AlertDialogCancel>Cancel</AlertDialogCancel>
-      <AlertDialogAction
-        onClick={executeDelete}
-        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-      >
-        Yes, delete it
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
-
+      <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
+        <AlertDialogOverlay className="fixed inset-0 bg-black/0" />
+        <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg m- sm:m-auto">
+          <AlertDialogHeader className="text-left">
+            <AlertDialogTitle className="text-lg font-semibold">
+              Are you absolutely sure?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-2 text-sm text-muted-foreground">
+              This action cannot be undone. This will permanently delete the item titled{" "}
+              <span className="font-semibold text-foreground">"{deleteCandidate?.title}"</span>{" "}
+              and remove its data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, delete it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
 
-const ProjectCard = ({ project, playingAudio, onPlay, onDownload, onDelete, isDeleting, type }: {
+const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting, type }: {
   project: any;
   playingAudio: string | null;
   onPlay: (project: any) => void;
-  onDownload: (project: any) => void;
   onDelete?: (project: any) => void;
   isDeleting?: boolean;
   type: "generated" | "recorded";
@@ -491,8 +444,8 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, onDelete, isDe
               <Badge variant="outline" className={`text-xs ${type === "generated" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-primary"}`}>
                 {type === "generated" ? "AI Generated" : "User Recorded"}
               </Badge>
-              {/* Show language code for all voices */}
-              {project.language && project.language !== 'N/A' && project.language !== 'Recorded Voice' && (
+              {/* FIXED: Show language for both generated and recorded voices */}
+              {project.language && project.language !== 'N/A' && (
                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
@@ -511,17 +464,12 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, onDelete, isDe
             <Button onClick={() => onPlay(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
               {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
-            {type === 'recorded' ? (
-              <AudioDownloadDropdown
-                audioUrl={project.audio_url}
-                fileName={project.title}
-                isWebM={true}
-              />
-            ) : (
-              <Button onClick={() => onDownload(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
-                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-              </Button>
-            )}
+            {/* FIXED: Use AudioDownloadDropdown for BOTH types */}
+            <AudioDownloadDropdown
+              audioUrl={project.audio_url}
+              fileName={project.title}
+              isWebM={type === 'recorded'}
+            />
             {onDelete && (
               <Button onClick={() => onDelete(project)} variant="outline" size="sm" disabled={!!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive">
                 {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
