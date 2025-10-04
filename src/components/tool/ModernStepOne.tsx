@@ -142,12 +142,7 @@ export default function ModernStepOne({
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold mb-2">Add Your Content</h2>
-        <p className="text-muted-foreground">
-          Type your text directly or upload a file to extract content.
-        </p>
-      </div>
+      
 
       <Tabs value={inputMethod} onValueChange={(value) => setInputMethod(value as "text" | "file")}>
         <TabsList className="grid w-full grid-cols-2">
