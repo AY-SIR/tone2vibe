@@ -660,12 +660,12 @@ const ModernStepFour = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="neutral">😐 Neutral</SelectItem>
-                    <SelectItem value="happy">😊 Happy</SelectItem>
-                    <SelectItem value="sad">😢 Sad</SelectItem>
-                    <SelectItem value="excited">🤩 Excited</SelectItem>
-                    <SelectItem value="calm">😌 Calm</SelectItem>
-                    <SelectItem value="confident">😎 Confident</SelectItem>
+                    <SelectItem value="neutral"> Neutral</SelectItem>
+                    <SelectItem value="happy"> Happy</SelectItem>
+                    <SelectItem value="sad">Sad</SelectItem>
+                    <SelectItem value="excited"> Excited</SelectItem>
+                    <SelectItem value="calm"> Calm</SelectItem>
+                    <SelectItem value="confident"> Confident</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -676,11 +676,11 @@ const ModernStepFour = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">🌐 Default</SelectItem>
-                    <SelectItem value="american">🇺🇸 American</SelectItem>
-                    <SelectItem value="british">🇬🇧 British</SelectItem>
-                    <SelectItem value="australian">🇦🇺 Australian</SelectItem>
-                    <SelectItem value="canadian">🇨🇦 Canadian</SelectItem>
+                    <SelectItem value="default"> Default</SelectItem>
+                    <SelectItem value="american"> American</SelectItem>
+                    <SelectItem value="british">British</SelectItem>
+                    <SelectItem value="australian"> Australian</SelectItem>
+                    <SelectItem value="canadian"> Canadian</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
