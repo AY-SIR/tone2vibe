@@ -289,7 +289,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
         </CardContent>
        <p className="text-center mb-2 text-sm text-muted-foreground">
-  Download available in different formats: <span className="font-medium">.mp3</span> <span className="font-medium">.flac</span> <span className="font-medium">.wav</span>
+  Download available in different formats: 
+  <span className="block sm:inline font-medium">.mp3</span> 
+  <span className="block sm:inline font-medium">.flac</span> 
+  <span className="block sm:inline font-medium">.wav</span>
 </p>
 
       </Card>
