@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AudioDownloadDropdown } from "@/components/tool/AudioDownloadDropdown";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -51,14 +52,12 @@ import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
-// CHANGED: Added 'language' to the UserVoice type
 type UserVoice = {
   id: string;
   name: string;
   audio_url: string;
   created_at: string;
   duration: string | null;
-  language: string | null;
 };
 
 const History = () => {
@@ -105,10 +104,9 @@ const History = () => {
       setVoicesLoading(true);
       setVoicesError(null);
       try {
-        // CHANGED: Selected the new 'language' column
         const { data, error } = await supabase
           .from("user_voices")
-          .select("id, name, audio_url, created_at, duration, language")
+          .select("id, name, audio_url, created_at, duration")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
@@ -180,8 +178,7 @@ const History = () => {
       audio_url: v.audio_url,
       created_at: v.created_at,
       original_text: "",
-      // CHANGED: Mapped the language from the fetched data
-      language: v.language || "N/A",
+      language: "Recorded Voice",
       word_count: 0,
       duration: v.duration,
       source_type: "recorded",
@@ -205,15 +202,13 @@ const History = () => {
   const filteredItems = allItems.filter((item) => {
     const searchHaystack = `${item.title} ${item.original_text}`.toLowerCase();
     const matchesSearch = searchHaystack.includes(searchTerm.toLowerCase());
-    // CHANGED: Also check language for recorded voices during filtering
     const matchesLanguage = languageFilter === "all" || item.language === languageFilter;
     return matchesSearch && matchesLanguage;
   });
 
   const generatedVoices = filteredItems.filter((p) => p.source_type === "generated");
   const recordedVoices = filteredItems.filter((p) => p.source_type === "recorded");
-  // CHANGED: Include languages from recorded voices in the filter dropdown
-  const languages = Array.from(new Set(allItems.map((p) => p.language).filter(lang => lang && lang !== 'N/A')));
+  const languages = Array.from(new Set(allItems.map((p) => p.language).filter(lang => lang && lang !== 'Recorded Voice')));
 
   const playAudio = async (project: any) => {
     if (audioRef.current) {
@@ -264,7 +259,6 @@ const History = () => {
     }
   };
 
-  // CHANGED: Rewrote download function to handle signed URLs for recorded voices, fixing the playback/download issue.
   const downloadAudio = async (project: any) => {
     try {
       if (!project.audio_url) {
@@ -274,7 +268,6 @@ const History = () => {
 
       let downloadUrl = project.audio_url;
 
-      // For recorded voices, we must generate a temporary signed URL for download
       if (project.source_type === "recorded") {
         const url = new URL(project.audio_url);
         const bucketName = "user-voices";
@@ -283,7 +276,6 @@ const History = () => {
 
         if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
           const filePath = pathParts.slice(bucketIndex + 1).join("/");
-          // Use { download: true } to set Content-Disposition header
           const { data, error } = await supabase.storage
             .from(bucketName)
             .createSignedUrl(filePath, 60, { download: true });
@@ -295,14 +287,8 @@ const History = () => {
         }
       }
 
-      // Trigger the download
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `${project.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp3`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Download started" });
+      // Trigger download via dropdown
+      toast({ title: "Select download format from dropdown" });
 
     } catch (err: any) {
       toast({ title: "Download failed", description: err.message, variant: "destructive" });
@@ -525,9 +511,11 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, onDelete, isDe
             <Button onClick={() => onPlay(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
               {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
-            <Button onClick={() => onDownload(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
-              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
+            <AudioDownloadDropdown
+              audioUrl={project.audio_url}
+              fileName={project.title}
+              isWebM={project.source_type === 'recorded'}
+            />
             {onDelete && (
               <Button onClick={() => onDelete(project)} variant="outline" size="sm" disabled={!!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive">
                 {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}

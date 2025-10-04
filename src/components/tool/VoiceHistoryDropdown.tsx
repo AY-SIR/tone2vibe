@@ -114,7 +114,6 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
           .from("user_voices")
           .select("id, name, created_at, audio_url")
           .eq("user_id", user.id)
-          .eq("language", selectedLanguage)
           .order("created_at", { ascending: false })
           .limit(limit);
 

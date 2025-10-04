@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Download, Play, Pause, Volume2, FileAudio, Copy, Check } from 'lucide-react';
+import { Play, Pause, Volume2, FileAudio, Copy, Check, RotateCw, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnalyticsService } from '@/services/analyticsService';
+import { AudioDownloadDropdown } from './AudioDownloadDropdown';
 
 interface ModernStepFiveProps {
   audioUrl: string;
@@ -57,7 +58,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           profile.plan
         );
       } catch (error) {
-        console.error('Failed to update analytics:', error);
+        // Analytics update failed - non-critical
       }
     };
 

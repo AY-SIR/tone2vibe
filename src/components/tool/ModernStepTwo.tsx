@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { TranslationService } from "@/services/translationService";
+import { GrammarService } from "@/services/grammarService";
 
 interface ModernStepTwoProps {
   extractedText: string;
@@ -117,15 +117,34 @@ const ModernStepTwo = ({
     setDetectionError(null);
 
     try {
-      const result = await TranslationService.detectLanguage(text);
-      if (result.confidence > 0.5) {
-        setDetectedLanguage(result.code);
-        setSelectedLanguage(result.code);
-        setDetectionConfidence(result.confidence);
-        onLanguageSelect(result.code);
+      // Use franc for language detection
+      const franc = await import('franc');
+      const francAll = franc.francAll;
+      const detections = francAll(text, { minLength: 10 });
+      
+      if (detections.length > 0 && detections[0][1] > 0.5) {
+        const langCode = detections[0][0];
+        // Map franc codes to our language codes
+        const langMap: Record<string, string> = {
+          'eng': 'en-US', 'ara': 'ar-SA', 'ben': 'bn-IN', 'bul': 'bg-BG',
+          'ces': 'cs-CZ', 'dan': 'da-DK', 'nld': 'nl-NL', 'fin': 'fi-FI',
+          'fra': 'fr-FR', 'deu': 'de-DE', 'ell': 'el-GR', 'heb': 'he-IL',
+          'hin': 'hi-IN', 'hrv': 'hr-HR', 'ind': 'id-ID', 'ita': 'it-IT',
+          'jpn': 'ja-JP', 'kor': 'ko-KR', 'lit': 'lt-LT', 'mar': 'mr-IN',
+          'nor': 'no-NO', 'fas': 'fa-IR', 'pol': 'pl-PL', 'por': 'pt-BR',
+          'ron': 'ro-RO', 'rus': 'ru-RU', 'srp': 'sr-RS', 'slk': 'sk-SK',
+          'slv': 'sl-SI', 'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN',
+          'tel': 'te-IN', 'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA',
+          'urd': 'ur-IN', 'vie': 'vi-VN', 'cmn': 'zh-CN'
+        };
+        const code = langMap[langCode] || 'en-US';
+        setDetectedLanguage(code);
+        setSelectedLanguage(code);
+        setDetectionConfidence(detections[0][1]);
+        onLanguageSelect(code);
       } else {
         setDetectionError("Language could not be reliably detected. Please select manually.");
-        setDetectionConfidence(result.confidence);
+        setDetectionConfidence(0.3);
       }
     } catch (error) {
       console.error('Detection error:', error);
@@ -173,7 +192,7 @@ const ModernStepTwo = ({
     setIsTranslating(true);
     onProcessingStart("Translating text...");
     try {
-      const result = await TranslationService.translateText(editedText, selectedLanguage);
+      const result = { success: false, translatedText: editedText, error: "Translation service not available" };
       if (result.success && result.translatedText) {
         setEditedText(result.translatedText);
         onTextUpdated(result.translatedText);
@@ -214,7 +233,7 @@ const ModernStepTwo = ({
     setIsImproving(true);
     onProcessingStart("Improving text with AI...");
     try {
-      const result = await TranslationService.improveText(editedText, selectedLanguage);
+      const result = await GrammarService.improveText(editedText, selectedLanguage);
       if (result.success && result.improvedText) {
         setEditedText(result.improvedText);
         onTextUpdated(result.improvedText);
