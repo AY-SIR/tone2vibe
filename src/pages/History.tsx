@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Card,
@@ -8,7 +7,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AudioDownloadDropdown } from "@/components/tool/AudioDownloadDropdown";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -35,6 +33,12 @@ import {
   AlertDialogOverlay,
 } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Play,
   Pause,
   Search,
@@ -44,6 +48,7 @@ import {
   Volume2,
   Trash2,
   Loader2,
+  Download,
 } from "lucide-react";
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,13 +57,68 @@ import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
+type HistoryItem = {
+  id: string;
+  title: string;
+  audio_url: string;
+  created_at: string;
+  original_text: string;
+  language: string;
+  word_count: number;
+  duration: string | null;
+  source_type: "generated" | "recorded";
+  processing_time_ms?: number;
+  generation_started_at?: string;
+};
+
+// ====================================================================
+// AudioDownloadDropdown Component
+// ====================================================================
+const AudioDownloadDropdown = ({ audioUrl, fileName }: {
+  audioUrl: string;
+  fileName: string;
+}) => {
+  if (!audioUrl) return null;
+
+  const handleDownload = (format: string) => {
+    const link = document.createElement('a');
+    const baseUrl = audioUrl.substring(0, audioUrl.lastIndexOf('.'));
+    link.href = `${baseUrl}.${format}`;
+    link.download = `${fileName}.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+  // MODIFIED: Download formats are now MP3, WAV, and FLAC for all audio types as requested.
+  const formats = ['mp3', 'wav', 'flac'];
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 sm:h-8 px-2 sm:px-3">
+          <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+          <span className="sr-only">Download options</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {formats.map((format) => (
+          <DropdownMenuItem key={format} onSelect={() => handleDownload(format)}>
+            Download as .{format.toUpperCase()}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 type UserVoice = {
   id: string;
   name: string;
   audio_url: string;
   created_at: string;
   duration: string | null;
-  language: string | null; // ADDED: language field
+  language: string | null;
 };
 
 const History = () => {
@@ -74,8 +134,7 @@ const History = () => {
   const [voicesLoading, setVoicesLoading] = useState(true);
   const [voicesError, setVoicesError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-
-  const [deleteCandidate, setDeleteCandidate] = useState<any | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<HistoryItem | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
@@ -105,7 +164,6 @@ const History = () => {
       setVoicesLoading(true);
       setVoicesError(null);
       try {
-        // FIXED: Added 'language' to the select query
         const { data, error } = await supabase
           .from("user_voices")
           .select("id, name, audio_url, created_at, duration, language")
@@ -124,7 +182,7 @@ const History = () => {
     fetchUserVoices();
   }, [user]);
 
-  const handleDeleteRequest = (itemToDelete: any) => {
+  const handleDeleteRequest = (itemToDelete: HistoryItem) => {
     setDeleteCandidate(itemToDelete);
   };
 
@@ -169,18 +227,18 @@ const History = () => {
     }
   };
 
-  const allItems = useMemo(() => {
-    const generatedItems = projects.map((p) => ({ ...p, source_type: "generated" }));
+  const allItems = useMemo((): HistoryItem[] => {
+    const generatedItems = projects.map((p) => ({ ...p, title: p.title, source_type: "generated" as const }));
     const recordedItems = userVoices.map((v) => ({
       id: v.id,
       title: v.name,
       audio_url: v.audio_url,
       created_at: v.created_at,
       original_text: "",
-      language: v.language || "N/A", // FIXED: Use the language from database
+      language: v.language || "N/A",
       word_count: 0,
       duration: v.duration,
-      source_type: "recorded",
+      source_type: "recorded" as const,
     }));
     return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [projects, userVoices]);
@@ -209,7 +267,7 @@ const History = () => {
   const recordedVoices = filteredItems.filter((p) => p.source_type === "recorded");
   const languages = Array.from(new Set(allItems.map((p) => p.language).filter(lang => lang && lang !== 'N/A')));
 
-  const playAudio = async (project: any) => {
+  const playAudio = async (project: HistoryItem) => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
@@ -343,7 +401,6 @@ const History = () => {
                         onPlay={playAudio}
                         onDelete={handleDeleteRequest}
                         isDeleting={isDeleting === project.id}
-                        type="generated"
                       />
                     ))}
                   </div>
@@ -372,7 +429,6 @@ const History = () => {
                         onPlay={playAudio}
                         onDelete={handleDeleteRequest}
                         isDeleting={isDeleting === project.id}
-                        type="recorded"
                       />
                     ))}
                   </div>
@@ -396,6 +452,7 @@ const History = () => {
       </div>
 
       <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
+        {/* REVERTED: Overlay is now transparent as per your original code. */}
         <AlertDialogOverlay className="fixed inset-0 bg-black/0" />
         <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg m- sm:m-auto">
           <AlertDialogHeader className="text-left">
@@ -423,14 +480,14 @@ const History = () => {
   );
 };
 
-const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting, type }: {
-  project: any;
+const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting }: {
+  project: HistoryItem;
   playingAudio: string | null;
-  onPlay: (project: any) => void;
-  onDelete?: (project: any) => void;
+  onPlay: (project: HistoryItem) => void;
+  onDelete?: (project: HistoryItem) => void;
   isDeleting?: boolean;
-  type: "generated" | "recorded";
 }) => {
+  const type = project.source_type;
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
@@ -444,7 +501,6 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting, type
               <Badge variant="outline" className={`text-xs ${type === "generated" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-primary"}`}>
                 {type === "generated" ? "AI Generated" : "User Recorded"}
               </Badge>
-              {/* FIXED: Show language for both generated and recorded voices */}
               {project.language && project.language !== 'N/A' && (
                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
               )}
@@ -455,7 +511,7 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting, type
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0 p-3 sm:p-6">
+   <CardContent className="pt-0 p-3 sm:p-6">
         {type === 'generated' && project.original_text && (
           <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">{project.original_text}</p>
         )}
@@ -464,12 +520,12 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting, type
             <Button onClick={() => onPlay(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
               {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
-            {/* FIXED: Use AudioDownloadDropdown for BOTH types */}
+            
             <AudioDownloadDropdown
               audioUrl={project.audio_url}
               fileName={project.title}
-              isWebM={type === 'recorded'}
             />
+
             {onDelete && (
               <Button onClick={() => onDelete(project)} variant="outline" size="sm" disabled={!!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive">
                 {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
