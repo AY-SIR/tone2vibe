@@ -94,21 +94,26 @@ const AudioDownloadDropdown = ({ audioUrl, fileName }: {
   const formats = ['mp3', 'wav', 'flac'];
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 sm:h-8 px-2 sm:px-3">
-          <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-          <span className="sr-only">Download options</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        {formats.map((format) => (
-          <DropdownMenuItem key={format} onSelect={() => handleDownload(format)}>
-            Download as .{format.toUpperCase()}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+   <DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="outline" size="sm" className="h-8 px-3">
+      <Download className="h-4 w-4" />
+      <span className="sr-only">Download options</span>
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="start" sideOffset={5}>
+    {formats.map((format) => (
+      <DropdownMenuItem
+        key={format}
+        onSelect={() => handleDownload(format)}
+        aria-label={`Download as ${format.toUpperCase()}`}
+      >
+       Download .{format.toUpperCase()}
+      </DropdownMenuItem>
+    ))}
+  </DropdownMenuContent>
+</DropdownMenu>
+
   );
 };
 

@@ -76,8 +76,8 @@ export const AudioDownloadDropdown = ({ audioUrl, fileName, isWebM = false }: Au
             </>
           ) : (
             <>
-              <Download className="h-4 w-4 mr-2" />
-              Download
+              <Download className="h-4 w-4 " />
+
             </>
           )}
         </Button>

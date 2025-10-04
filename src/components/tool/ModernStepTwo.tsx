@@ -121,7 +121,7 @@ const ModernStepTwo = ({
       const franc = await import('franc');
       const francAll = franc.francAll;
       const detections = francAll(text, { minLength: 10 });
-      
+
       if (detections.length > 0 && detections[0][1] > 0.5) {
         const langCode = detections[0][0];
         // Map franc codes to our language codes
@@ -346,7 +346,7 @@ const ModernStepTwo = ({
 
            {isDetecting && (
             <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-              <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               Detecting language...
             </p>
           )}

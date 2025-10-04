@@ -229,12 +229,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 <span className="text-muted-foreground">{formatTime(totalDuration)}</span>
               </div>
             </div>
-            
+
             {/* Modern progress bar with glow effect */}
             <div className="relative w-full h-3 bg-muted/50 rounded-full overflow-hidden">
               <div
                 className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300 shadow-lg"
-                style={{ 
+                style={{
                   width: totalDuration > 0 ? `${(currentTime / totalDuration) * 100}%` : '0%',
                   boxShadow: '0 0 10px hsl(var(--primary) / 0.5)'
                 }}
@@ -266,20 +266,32 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-      <Card>
+         <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Download className="w-5 h-5" />
             Download Your Audio
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex justify-center">
-          <AudioDownloadDropdown
-            audioUrl={audioUrl}
-            fileName={`voice_${Date.now()}`}
-            isWebM={false}
-          />
+
+        <CardContent className="flex flex-col items-center gap-4 text-center ">
+        <div className="flex items-center space-x-2 border rounded-lg px-4 py-2 ">
+
+  <p className="text-sm text-black font-semibold">
+    Download in
+  </p>
+  <AudioDownloadDropdown
+    audioUrl={audioUrl}
+    fileName={`voice_${Date.now()}`}
+    isWebM={false}
+  />
+</div>
+
         </CardContent>
+       <p className="text-center mb-2 text-sm text-muted-foreground">
+  Download available in different formats: <span className="font-medium">.mp3</span> <span className="font-medium">.flac</span> <span className="font-medium">.wav</span>
+</p>
+
       </Card>
 
       <div className="flex justify-center">
