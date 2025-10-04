@@ -129,17 +129,21 @@ const RealAnalytics = () => {
                 </Card>
 
                 <Card className="border-2 hover:shadow-md transition-shadow">
-                  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
-                    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-green-600">
-                        {formatWords(analytics?.wordsRemaining)}
-                      </div>
-                      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
-                        Remaining
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
+    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
+      <div
+        className={`text-2xl sm:text-3xl font-bold ${
+          (analytics?.wordsRemaining || 0) < 100 ? 'text-red-600' : 'text-green-600'
+        }`}
+      >
+        {formatWords(analytics?.wordsRemaining)}
+      </div>
+      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
+        Remaining
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
                 <Card className="border-2 hover:shadow-md transition-shadow">
                   <CardContent className="pt-5 pb-5 px-3 sm:px-4">
