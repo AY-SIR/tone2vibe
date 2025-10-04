@@ -95,31 +95,20 @@ export const useVoiceHistory = () => {
     setError(null);
 
     try {
-      // Get retention dates for both types
-      const generatedRetentionDate = getHistoryRetentionDate('generated');
-      const recordedRetentionDate = getHistoryRetentionDate('recorded');
+      // Optimized: calculate limits first
       const generatedLimit = getVoiceLimit('generated');
       const recordedLimit = getVoiceLimit('recorded');
+      const limit = filterType === 'all' ? Math.max(generatedLimit, recordedLimit) : 
+                    filterType === 'generated' ? generatedLimit : recordedLimit;
       
-      // Removed sensitive logging
-
+      // Optimized query with minimal selection
       let query = supabase
         .from('history')
-        .select('*')
+        .select('id, title, original_text, language, words_used, audio_url, created_at, voice_settings, processing_time_ms, generation_started_at, generation_completed_at')
         .eq('user_id', user.id)
         .not('audio_url', 'is', null)
-        .order('created_at', { ascending: false });
-
-      // Apply filtering based on type and retention
-      if (filterType === 'generated') {
-        query = query.gte('created_at', generatedRetentionDate).limit(generatedLimit);
-      } else if (filterType === 'recorded') {
-        query = query.gte('created_at', recordedRetentionDate).limit(recordedLimit);
-      } else {
-        // For 'all', use the more restrictive date and combined limit
-        const earliestDate = generatedRetentionDate < recordedRetentionDate ? recordedRetentionDate : generatedRetentionDate;
-        query = query.gte('created_at', earliestDate).limit(Math.max(generatedLimit, recordedLimit));
-      }
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
       const { data, error } = await query;
 

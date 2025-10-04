@@ -85,15 +85,7 @@ const Tool = () => {
   };
 
   const handleNext = () => {
-    if (!hasEnoughWords() && currentStep === 4) {
-      toast({
-        title: "Insufficient Words",
-        description: "Please upgrade your plan to continue.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // Don't check word balance here - let step 4 handle it during actual generation
     if (currentStep < totalSteps) {
       setCompletedSteps((prev) => Array.from(new Set([...prev, currentStep])));
       setCurrentStep(currentStep + 1);

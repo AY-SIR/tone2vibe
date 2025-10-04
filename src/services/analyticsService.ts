@@ -83,7 +83,7 @@ export class AnalyticsService {
         : 0;
 
       const avgProjectTimeMs = filteredData.length > 0
-        ? Math.round(filteredData.reduce((sum, a) => sum + (a.response_time_ms || 0), 0) / filteredData.length)
+        ? Math.round(filteredData.filter(a => a.response_time_ms && a.response_time_ms > 0).reduce((sum, a) => sum + (a.response_time_ms || 0), 0) / filteredData.filter(a => a.response_time_ms && a.response_time_ms > 0).length || 1)
         : 0;
 
       // --- Recent activity (last 30 days) ---
@@ -190,10 +190,10 @@ export class AnalyticsService {
             efficiencyScore: this.calculateEfficiencyScore(filteredData),
             avgProcessingTime: avgProjectTimeMs,
             peakUsageHours: this.calculatePeakUsageHours(filteredData),
-            longestResponseTime: Math.max(...filteredData.map(a => a.response_time_ms || 0)),
-            shortestResponseTime: Math.min(...filteredData.map(a => a.response_time_ms || Infinity)),
+            longestResponseTime: filteredData.length > 0 ? Math.max(...filteredData.map(a => a.response_time_ms || 0), 0) : 0,
+            shortestResponseTime: filteredData.length > 0 ? Math.min(...filteredData.filter(a => a.response_time_ms && a.response_time_ms > 0).map(a => a.response_time_ms || 0), Infinity) : 0,
             errorRate: filteredData.length > 0
-              ? filteredData.filter(a => a.error).length / filteredData.length
+              ? (filteredData.filter(a => a.error || a.status === 'failed').length / filteredData.length) * 100
               : 0
           },
           last90DaysActivity

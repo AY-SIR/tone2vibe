@@ -206,7 +206,14 @@ export const VoiceRecorder = ({
 
   const confirmRecording = async () => {
     if (!audioBlob || isSaving) return;
+    
+    const savingStartTime = Date.now();
     setIsSaving(true);
+    
+    toast({
+      title: "Saving voice...",
+      description: "Processing your recording",
+    });
 
     try {
       onRecordingComplete(audioBlob);
@@ -240,7 +247,11 @@ export const VoiceRecorder = ({
 
       if (insertError) throw insertError;
 
-      toast({ title: "Voice saved successfully!" });
+      const savingTime = ((Date.now() - savingStartTime) / 1000).toFixed(1);
+      toast({ 
+        title: "Voice saved successfully!", 
+        description: `Saved in ${savingTime}s`
+      });
       setStatus('saved');
     } catch (err: any) {
       console.error("Save error:", err);
@@ -298,8 +309,14 @@ export const VoiceRecorder = ({
                 </Button>
               </div>
               <Button onClick={confirmRecording} className="w-full max-w-xs mx-auto" disabled={isSaving || status!=='completed'}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}{isSaving ? 'Saving Voice...' : 'Use This Recording'}
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                {isSaving ? 'Saving Voice...' : 'Continue'}
               </Button>
+              {!isSaving && status === 'completed' && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Continue button will be enabled after saving
+                </p>
+              )}
             </div>
           )}
 

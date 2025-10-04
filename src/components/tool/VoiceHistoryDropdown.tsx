@@ -154,36 +154,81 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
     stopPlayback();
 
     try {
+      // Enhanced path extraction with better error handling
       const getPathFromUrl = (url: string) => {
         try {
+          // Handle both full URLs and direct paths
+          if (!url.startsWith('http')) return url;
+          
           const u = new URL(url);
-          const idx = u.pathname.indexOf('/user-voices/');
-          if (idx !== -1) return u.pathname.slice(idx + '/user-voices/'.length);
-        } catch {}
-        return url.startsWith('http') ? '' : url;
+          const pathParts = u.pathname.split('/user-voices/');
+          if (pathParts.length > 1) {
+            return pathParts[1];
+          }
+          // Fallback: return full pathname without leading slash
+          return u.pathname.startsWith('/') ? u.pathname.substring(1) : u.pathname;
+        } catch (err) {
+          console.error('URL parsing error:', err);
+          // If it's not a URL, assume it's a direct path
+          return url.replace(/^\/+/, '');
+        }
       };
 
       const path = getPathFromUrl(voice.audio_url);
-      if (!path) throw new Error('Invalid audio path');
+      if (!path || path.length === 0) {
+        throw new Error('Could not extract valid path from audio URL');
+      }
 
+      // Get signed URL with extended expiry
       const { data: signed, error: signErr } = await supabase.storage
         .from('user-voices')
-        .createSignedUrl(path, 3600);
-      if (signErr || !signed?.signedUrl) throw signErr || new Error('Failed to sign URL');
+        .createSignedUrl(path, 7200); // 2 hours
+        
+      if (signErr) {
+        console.error('Signed URL error:', signErr);
+        throw new Error('Failed to get audio access');
+      }
+      
+      if (!signed?.signedUrl) {
+        throw new Error('No signed URL returned');
+      }
 
-      const audio = new Audio(signed.signedUrl);
+      // Create and configure audio element
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = signed.signedUrl;
+      
       audioRef.current = audio;
       setPlayingVoiceId(voice.id);
 
-      audio.onended = () => setPlayingVoiceId(null);
-      audio.onerror = () => {
+      audio.onended = () => {
+        setPlayingVoiceId(null);
+      };
+      
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
         stopPlayback();
-        toast({ title: "Playback failed", description: "Unable to play this voice", variant: "default" });
+        toast({ 
+          title: "Playback failed", 
+          description: "Could not play this audio. The file may be corrupted or expired.",
+          variant: "default" 
+        });
       };
 
-      await audio.play();
-    } catch {
-      toast({ title: "Something went wrong", description: "Please try again", variant: "default" });
+      // Attempt playback
+      await audio.play().catch(err => {
+        console.error('Play() failed:', err);
+        throw new Error('Audio playback was blocked or failed');
+      });
+      
+    } catch (error) {
+      console.error('Voice playback error:', error);
+      stopPlayback();
+      toast({ 
+        title: "Could not play voice", 
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "default" 
+      });
     }
   };
 

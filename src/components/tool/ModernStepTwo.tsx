@@ -267,8 +267,17 @@ const ModernStepTwo = ({
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-  const showTranslateIcon = editedText.trim().length >= 3 && selectedLanguage !== detectedLanguage && detectionConfidence > 0.5;
+  
+  // Enhanced translation detection logic
+  const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.5;
+  const isFallbackLanguage = detectionConfidence <= 0.5 || detectedLanguage === 'hi-IN' && editedText.trim().length >= MIN_CHARS;
+  const showTranslateIcon = (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
+  
   const hasError = detectionError !== null || textLengthError !== null;
+  
+  // Block continue if translation is needed but not done
+  const needsTranslation = showTranslateIcon && !isTranslating;
+  
   const isContinueDisabled =
     editedText.trim().length < MIN_CHARS ||
     isImproving ||
@@ -305,15 +314,24 @@ const ModernStepTwo = ({
                 variant="outline"
                 size="icon"
                 title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
+                className="border-2 border-orange-400 animate-pulse"
               >
                 {isTranslating ? (
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <Languages className="h-4 w-4" />
+                  <Languages className="h-4 w-4 text-orange-600" />
                 )}
               </Button>
             )}
           </div>
+          
+          {showTranslateIcon && !isTranslating && (
+            <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-md">
+              <p className="text-sm text-orange-700 font-medium">
+                Translation required: Please translate the text before proceeding
+              </p>
+            </div>
+          )}
 
         </CardContent>
       </Card>
@@ -413,8 +431,13 @@ const ModernStepTwo = ({
         <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating || isDetecting} className="order-2 sm:order-1">
           Back to Upload
         </Button>
-        <Button onClick={onNext} disabled={isContinueDisabled} size="lg" className="px-6 sm:px-8 order-1 sm:order-2">
-          Continue to Voice Selection
+        <Button 
+          onClick={onNext} 
+          disabled={isContinueDisabled || needsTranslation} 
+          size="lg" 
+          className="px-6 sm:px-8 order-1 sm:order-2"
+        >
+          {needsTranslation ? 'Translate First' : 'Continue to Voice Selection'}
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
       </div>

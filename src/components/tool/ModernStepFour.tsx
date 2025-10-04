@@ -265,11 +265,21 @@ const ModernStepFour = ({
         setTimeout(() => onNext(), 2000);
       } catch (fallbackError) {
         console.error("Fallback generation also failed:", fallbackError);
+        
+        // Mark as failed - no words deducted, no history saved
+        setProgress(0);
+        setGeneratedAudio('');
+        
         toast({
           title: "Generation Failed",
           description: "We couldn't create your audio right now. Please try again. No words were deducted.",
           variant: "destructive",
         });
+        
+        // Don't proceed to next step - stay on current step showing failure
+        setIsGenerating(false);
+        onProcessingEnd();
+        return; // Exit early - don't call onNext()
       }
     } finally {
       setIsGenerating(false);
@@ -318,31 +328,56 @@ const ModernStepFour = ({
         </CardContent>
       </Card>
 
-      {/* Advanced Settings - Paid Users Only */}
+      {/* Advanced Settings - Always visible, content based on plan */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center text-lg">
               <Settings className="h-5 w-5 mr-2" />
               Advanced Settings
+              {profile?.plan === 'premium' && <Crown className="h-4 w-4 ml-2 text-yellow-500" />}
             </CardTitle>
-            {isPaidUser ? (
+            {profile?.plan === 'free' ? (
+              <Badge variant="outline" className="text-xs">
+                <Lock className="h-3 w-3 mr-1" />
+                Upgrade to unlock
+              </Badge>
+            ) : (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowAdvanced(!showAdvanced)}
+                onClick={() => {
+                  setShowAdvanced(!showAdvanced);
+                  // Clear sample when settings are changed
+                  if (!showAdvanced && sampleAudio) {
+                    setSampleAudio('');
+                    setSampleApproved(false);
+                    toast({
+                      title: "Settings changed",
+                      description: "Generate a new sample with updated settings",
+                    });
+                  }
+                }}
                 className="text-sm"
               >
                 {showAdvanced ? "Hide" : "Show"}
               </Button>
-            ) : (
-              <Badge variant="outline" className="text-xs">
-                <Lock className="h-3 w-3 mr-1" />
-                Paid Only
-              </Badge>
             )}
           </div>
         </CardHeader>
+
+        {/* Free Plan - Show locked state */}
+        {profile?.plan === 'free' && !showAdvanced && (
+          <CardContent className="text-center py-8">
+            <Lock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-sm text-gray-500 mb-4">
+              Advanced voice controls are available on Pro and Premium plans
+            </p>
+            <Button size="sm" onClick={() => window.location.href = '/payment'}>
+              Upgrade Now
+            </Button>
+          </CardContent>
+        )}
 
         {isPaidUser ? (
           <CardContent className={`space-y-6 ${(showAdvanced || showAdvancedSettings) ? 'block' : 'hidden'}`}>
