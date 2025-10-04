@@ -269,21 +269,20 @@ const ModernStepTwo = ({
   const currentWordCount = calculateDisplayWordCount(editedText);
   
   // Enhanced translation detection logic
-  const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.5;
-  const isFallbackLanguage = detectionConfidence <= 0.5 || detectedLanguage === 'hi-IN' && editedText.trim().length >= MIN_CHARS;
+  const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.6;
+  const isFallbackLanguage = detectionConfidence <= 0.5 && editedText.trim().length >= MIN_CHARS;
   const showTranslateIcon = (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
   
   const hasError = detectionError !== null || textLengthError !== null;
   
-  // Block continue if translation is needed but not done
-  const needsTranslation = showTranslateIcon && !isTranslating;
-  
+  // Block continue button strictly
   const isContinueDisabled =
     editedText.trim().length < MIN_CHARS ||
     isImproving ||
     isTranslating ||
     isDetecting ||
-    hasError;
+    hasError ||
+    detectionConfidence === 0;
 
   return (
     <div className="space-y-6">
@@ -325,10 +324,18 @@ const ModernStepTwo = ({
             )}
           </div>
           
-          {showTranslateIcon && !isTranslating && (
-            <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-md">
-              <p className="text-sm text-orange-700 font-medium">
-                Translation required: Please translate the text before proceeding
+          {detectionError && (
+            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-600 font-medium">{detectionError}</p>
+            </div>
+          )}
+          
+          {showTranslateIcon && !isTranslating && !detectionError && (
+            <div className="mt-2 p-3 bg-orange-50 border-2 border-orange-300 rounded-md">
+              <p className="text-sm text-orange-800 font-semibold flex items-center gap-2">
+                <Languages className="h-4 w-4" />
+                Translation Required: Click the translate button before proceeding
               </p>
             </div>
           )}
@@ -433,11 +440,11 @@ const ModernStepTwo = ({
         </Button>
         <Button 
           onClick={onNext} 
-          disabled={isContinueDisabled || needsTranslation} 
+          disabled={isContinueDisabled} 
           size="lg" 
           className="px-6 sm:px-8 order-1 sm:order-2"
         >
-          {needsTranslation ? 'Translate First' : 'Continue to Voice Selection'}
+          {showTranslateIcon ? 'Translate Required' : 'Continue to Voice Selection'}
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
       </div>
