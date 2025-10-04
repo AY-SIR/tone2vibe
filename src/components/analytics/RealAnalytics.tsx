@@ -196,18 +196,7 @@ const RealAnalytics = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="border hover:shadow-md transition-shadow">
-                  <CardContent className="pt-4 pb-4 px-3 sm:px-4">
-                    <div className="flex flex-col items-center justify-center space-y-1">
-                      <div className="text-base sm:text-lg font-bold text-black truncate max-w-full px-1 text-center">
-                        {analytics?.topVoices?.map(v => v.voice).join(', ') || 'N/A'}
-                      </div>
-                      <div className="text-gray-600 text-xs sm:text-sm text-center">
-                        Top Voices
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                
               </div>
             </TabsContent>
 
