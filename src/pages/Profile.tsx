@@ -50,10 +50,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
+
 const Profile: React.FC = () => {
   const { user, profile, updateProfile, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
   // form data synced from profile/user
   const [formData, setFormData] = useState({
     full_name: "",
@@ -62,6 +64,7 @@ const Profile: React.FC = () => {
     country: "",
     preferred_language: "en-US",
   });
+
   // sync form values when profile or user changes
   useEffect(() => {
     setFormData({
@@ -72,36 +75,37 @@ const Profile: React.FC = () => {
       preferred_language: profile?.preferred_language || "en-US",
     });
   }, [profile, user]);
+
   // redirect when unauthenticated (after loading finishes)
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth");
     }
   }, [loading, user, navigate]);
+
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
+
   if (loading) {
     return <ProfileSkeleton />;
   }
 
-  // If not loading but user is missing, we already triggered navigate;
-  // avoid rendering UI
+  // If not loading but user is missing, we already triggered navigate; avoid rendering UI
   if (!user) {
     return null;
   }
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { id, value } = e.target;
-      setFormData((prev) => ({ ...prev, [id]: value }));
-    },
-    []
-  );
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
   const handleLanguageChange = useCallback((value: string) => {
     setFormData((prev) => ({ ...prev, preferred_language: value }));
   }, []);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -115,7 +119,6 @@ const Profile: React.FC = () => {
           country: formData.country,
           preferred_language: formData.preferred_language,
         });
-
         toast({
           title: "Profile updated",
           description: "Your profile has been successfully updated.",
@@ -124,8 +127,7 @@ const Profile: React.FC = () => {
         console.error("Profile update error:", err);
         toast({
           title: "Update failed",
-          description:
-            err?.message || "Could not update profile. Please try again.",
+          description: err?.message || "Could not update profile. Please try again.",
           variant: "destructive",
         });
       } finally {
@@ -134,6 +136,7 @@ const Profile: React.FC = () => {
     },
     [formData, updateProfile, toast, user]
   );
+
   const handleDeleteAccount = useCallback(async () => {
     if (!user) return;
 
@@ -162,13 +165,13 @@ const Profile: React.FC = () => {
       console.error("Delete account error:", error);
       toast({
         title: "Error",
-        description:
-          error?.message || "Failed to delete account. Please try again.",
+        description: error?.message || "Failed to delete account. Please try again.",
         variant: "destructive",
       });
       setIsDeleting(false);
     }
   }, [confirmEmail, user, toast, navigate]);
+
   const getInitials = useCallback(() => {
     if (formData.full_name) {
       return formData.full_name
@@ -183,6 +186,7 @@ const Profile: React.FC = () => {
     }
     return "U";
   }, [formData.full_name, formData.email]);
+
   const getPlanDetails = useCallback(() => {
     const plan = profile?.plan || "free";
     switch (plan) {
@@ -201,7 +205,6 @@ const Profile: React.FC = () => {
           ],
           description: "Everything you need for professional voice synthesis",
         };
-
       case "pro":
         return {
           name: "Pro",
@@ -235,41 +238,43 @@ const Profile: React.FC = () => {
   }, [profile?.plan]);
 
   const planDetails = useMemo(() => getPlanDetails(), [getPlanDetails]);
+
   const wordsLimit =
-    profile?.words_limit && profile.words_limit > 0 ? profile.words_limit : 1000;
+    profile?.words_limit && profile.words_limit > 0
+      ? profile.words_limit
+      : 1000;
   const planWordsUsed = profile?.plan_words_used || 0;
   const usagePercentage = Math.min((planWordsUsed / wordsLimit) * 100, 100);
-  const totalAvailable =
-    (profile?.words_limit || 0) -
-    (profile?.plan_words_used || 0) +
-    (profile?.word_balance || 0);
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col space-y-8">
-        {/* Page Header */}
-        <div className="sticky">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/")}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
+
+   <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+  <div className="flex flex-col space-y-8">
+    {/* Page Header */}
+    <div className="sticky">
+      <Button
+        variant="ghost"
+        onClick={() => navigate("/")}
+        className="text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Dashboard
+      </Button>
+    </div>
+
+
+
+
 
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-center">
-            Profile Settings
-          </h1>
+
+          <h1 className="text-3xl font-extrabold tracking-tight text-center">Profile Settings</h1>
           <p className="text-muted-foreground  text-center mt-4">
             Manage your account, preferences, and subscription.
           </p>
         </div>
 
         {/* Mobile Profile Card */}
-
         <div className="block md:hidden">
           <Card className="mb-6">
             <CardContent className="pt-6">
@@ -286,8 +291,8 @@ const Profile: React.FC = () => {
                     {formData.full_name || "User"}
                   </h2>
                   <p className="text-xs sm:text-sm md:text-base text-muted-foreground break-words text-center max-w-[90%] mx-auto">
-                    {formData.email}
-                  </p>
+  {formData.email}
+</p>
 
                   <Badge
                     variant="outline"
@@ -309,7 +314,8 @@ const Profile: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Personal Information</CardTitle>
-                  <CardDescription className="mt-2">
+                  <CardDescription
+                  className="mt-2">
                     Update your personal details and preferences.
                   </CardDescription>
                 </CardHeader>
@@ -347,7 +353,7 @@ const Profile: React.FC = () => {
                         id="company"
                         value={formData.company}
                         onChange={handleInputChange}
-                        placeholder="Optional"
+                         placeholder="Optional"
                         className="pl-10"
                       />
                     </div>
@@ -376,6 +382,7 @@ const Profile: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="en-US">English (US)</SelectItem>
+
                       </SelectContent>
                     </Select>
                   </div>
@@ -384,8 +391,7 @@ const Profile: React.FC = () => {
                   <Button type="submit" disabled={isUpdating}>
                     {isUpdating ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                        Updating...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...
                       </>
                     ) : (
                       <>
@@ -409,22 +415,13 @@ const Profile: React.FC = () => {
                 <div>
                   <div className="flex justify-between items-center mb-1 text-sm font-medium">
                     <span>Words Used</span>
-                    <span
-                      className={`break-words max-w-full text-center ${
-                        (profile?.word_balance || 0) < 100
-                          ? "text-red-600"
-                          : "text-black"
-                      }`}
-                    >
-                      {(profile?.word_balance || 0).toLocaleString()}
+                    <span>
+                      {planWordsUsed.toLocaleString()} / {wordsLimit.toLocaleString()}
                     </span>
                   </div>
-                  <Progress
-                    value={usagePercentage}
-                    className={`h-2 ${
-                      usagePercentage >= 100 ? "[&>div]:bg-red-600" : ""
-                    }`}
-                  />
+                  <Progress value={usagePercentage} className="h-2" />
+
+
                   <p className="text-xs text-muted-foreground mt-1 text-right">
                     {(100 - usagePercentage).toFixed(1)}% remaining this month
                   </p>
@@ -434,81 +431,48 @@ const Profile: React.FC = () => {
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm">Word Balance</h4>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      Purchased Words:
-                    </span>
-                    <span
-                      className={`text-sm font-medium ${
-                        (profile?.word_balance || 0) < 100
-                          ? "text-red-600"
-                          : "text-blue-600"
-                      }`}
-                    >
+                    <span className="text-sm text-muted-foreground">Purchased Words:</span>
+                    <span className="text-sm font-medium text-blue-600">
                       {(profile?.word_balance || 0).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      Total Available:
-                    </span>
-                    <span
-                      className={`text-sm font-bold ${
-                        totalAvailable < 100
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {totalAvailable.toLocaleString()}
+                    <span className="text-sm text-muted-foreground">Total Available:</span>
+                    <span className="text-sm font-bold text-green-600">
+                      {((profile?.words_limit || 0) - (profile?.plan_words_used || 0) + (profile?.word_balance || 0)).toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Plan Expiry Information */}
-                {profile?.plan !== "free" && profile?.plan_expires_at && (
+                {profile?.plan !== 'free' && profile?.plan_expires_at && (
                   <div className="space-y-2">
                     <h4 className="font-semibold text-sm">Plan Expiry</h4>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Expires on:
-                      </span>
+                      <span className="text-sm text-muted-foreground">Expires on:</span>
                       <span className="text-sm font-medium">
-                        {new Date(
-                          profile.plan_expires_at
-                        ).toLocaleDateString("en-IN", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
+                        {new Date(profile.plan_expires_at).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
                         })}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Days remaining:
-                      </span>
-                      <span
-                        className={`text-sm font-medium ${
-                          Math.ceil(
-                            (new Date(profile.plan_expires_at).getTime() -
-                              Date.now()) /
-                              (1000 * 60 * 60 * 24)
-                          ) <= 7
-                            ? "text-red-600"
-                            : "text-green-600"
-                        }`}
-                      >
-                        {Math.max(
-                          0,
-                          Math.ceil(
-                            (new Date(profile.plan_expires_at).getTime() -
-                              Date.now()) /
-                              (1000 * 60 * 60 * 24)
-                          )
-                        )}{" "}
-                        days
+                      <span className="text-sm text-muted-foreground">Days remaining:</span>
+                      <span className={`text-sm font-medium ${
+                        Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7
+                          ? 'text-red-600'
+                          : 'text-green-600'
+                      }`}>
+                        {Math.max(0, Math.ceil((new Date(profile.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} days
                       </span>
                     </div>
                   </div>
                 )}
+
+
+
 
                 <Separator />
                 <div className="space-y-2">
@@ -552,8 +516,8 @@ const Profile: React.FC = () => {
                       {formData.full_name || "User"}
                     </h2>
                     <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground break-words text-center max-w-[86%] mx-auto leading-snug">
-                      {formData.email}
-                    </p>
+  {formData.email}
+</p>
 
                     <Badge
                       variant="outline"
@@ -573,21 +537,23 @@ const Profile: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <CardDescription>
-                  Once you delete your account, there is no going back. Your
-                  email will be permanently banned from creating new accounts.
+                  Once you delete your account, there is no going back. Your email will be permanently banned from creating new accounts.
                 </CardDescription>
               </CardContent>
               <CardFooter>
                 <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full flex items-center justify-center gap-2 text-[11px] sm:text-xs md:text-sm lg:text-base py-2 sm:py-2.5 md:py-3 font-medium rounded-xl transition-all duration-200 hover:opacity-90 text-center whitespace-normal break-words leading-snug"
-                >
-                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span className="break-words max-w-full text-center">
-                    Delete My Account Forever
-                  </span>
-                </Button>
+  variant="destructive"
+  onClick={() => setShowDeleteConfirm(true)}
+  className="w-full flex items-center justify-center gap-2 text-[11px] sm:text-xs md:text-sm lg:text-base py-2 sm:py-2.5 md:py-3 font-medium rounded-xl transition-all duration-200 hover:opacity-90 text-center whitespace-normal break-words leading-snug"
+>
+  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+  <span className="break-words max-w-full text-center">
+    Delete My Account Forever
+  </span>
+</Button>
+
+
+
               </CardFooter>
             </Card>
           </div>
@@ -595,16 +561,12 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Delete Account Confirmation */}
-      <AlertDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-      >
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Permanently Delete Account</AlertDialogTitle>
             <AlertDialogDescription>
-              This action is irreversible. To confirm, please type your email
-              address:{" "}
+              This action is irreversible. To confirm, please type your email address:{" "}
               <span className="font-bold text-foreground">{user?.email}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
