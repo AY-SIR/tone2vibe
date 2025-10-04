@@ -353,23 +353,29 @@ export const VoiceRecorder = ({
             )}
           </div>
 
-          {/* Review Buttons */}
-          {status === 'completed' && audioBlob && (
-            <div className="space-y-3 animate-in fade-in">
-              <div className="flex justify-center gap-2">
-                <Button onClick={isPlaying ? pauseRecording : playRecording} variant="outline" size="sm" className="w-24" disabled={isSaving}>
-                  {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                  {isPlaying ? "Pause" : "Play"}
-                </Button>
-                <Button onClick={handleDeleteClick} variant="destructive" size="sm" className="w-24" disabled={isSaving}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </Button>
-              </div>
-              <Button onClick={confirmRecording} className="w-full max-w-xs mx-auto" disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {isSaving ? 'Saving Voice...' : 'Use This Recording'}
-              </Button>
-            </div>
-          )}
+         {/* Review Buttons */}
+{status === 'completed' && audioBlob && (
+  <div className="space-y-3 animate-in fade-in">
+    <div className="flex justify-center gap-2">
+      <Button onClick={isPlaying ? pauseRecording : playRecording} variant="outline" size="sm" className="w-24" disabled={isSaving}>
+        {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+        {isPlaying ? "Pause" : "Play"}
+      </Button>
+      <Button onClick={handleDeleteClick} variant="destructive" size="sm" className="w-24" disabled={isSaving}>
+        <Trash2 className="h-4 w-4 mr-2" /> Delete
+      </Button>
+    </div>
+    <Button
+      onClick={confirmRecording}
+      className="w-full max-w-xs mx-auto"
+      disabled={isSaving || status !== 'completed'} // <-- ensure disabled until saved
+    >
+      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {isSaving ? 'Saving Voice...' : 'Use This Recording'}
+    </Button>
+  </div>
+)}
+
 
           {/* Saved State */}
           {status === 'saved' && (

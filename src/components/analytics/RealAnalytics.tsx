@@ -18,7 +18,6 @@ const RealAnalytics = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const { toast } = useToast();
 
-  // Redirect if not authenticated or doesn't have analytics access
   useEffect(() => {
     if (!user) {
       navigate('/');
@@ -34,15 +33,13 @@ const RealAnalytics = () => {
     queryKey: ['real-analytics', user?.id, profile?.plan],
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
-      const result = await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
-      return result;
+      return await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
     },
     enabled: !!user && profile?.plan !== 'free',
     refetchInterval: 30000,
     retry: 3
   });
 
-  // Handle errors with toast
   useEffect(() => {
     if (error) {
       toast({
@@ -53,15 +50,12 @@ const RealAnalytics = () => {
     }
   }, [error, toast]);
 
-  if (!user || profile?.plan === 'free') {
-    return null;
-  }
+  if (!user || profile?.plan === 'free') return null;
 
   const isPro = profile?.plan === 'pro';
   const isPremium = profile?.plan === 'premium';
   const premiumAnalytics = analytics as PremiumAnalytics;
 
-  // Helper to format words nicely
   const formatWords = (words?: number) => {
     if (!words) return '0';
     if (words >= 1000) return `${(words / 1000).toFixed(1)}K`;
@@ -70,25 +64,21 @@ const RealAnalytics = () => {
 
   return (
     <div className="min-h-screen bg-white animate-fade-in">
-      <div className="flex justify-end w-full mb-4">
+      <div className="flex justify-end w-full mb-4 px-4">
         <Badge className={`${isPremium ? "bg-black" : "bg-gray-600"} text-white`}>
           {isPremium ? "Premium" : "Pro"} Analytics
         </Badge>
       </div>
 
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Loading State */}
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
         {isLoading ? (
           <div className="space-y-6">
             <Skeleton className="h-8 w-64" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className="h-20" />
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
             </div>
           </div>
         ) : error ? (
-          /* Error State */
           <div className="flex items-center justify-center py-20">
             <Card className="max-w-md mx-auto">
               <CardContent className="p-6 text-center">
@@ -100,162 +90,182 @@ const RealAnalytics = () => {
             </Card>
           </div>
         ) : (
-          /* Main Analytics UI */
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className={`grid w-full ${isPremium ? 'grid-cols-4' : 'grid-cols-3'} max-w-md`}>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="usage">Usage</TabsTrigger>
-              <TabsTrigger value="charts">Charts</TabsTrigger>
-              {isPremium && <TabsTrigger value="insights">Insights</TabsTrigger>}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+            <TabsList className={`grid w-full ${isPremium ? 'grid-cols-4' : 'grid-cols-3'} max-w-full sm:max-w-md mx-auto`}>
+              <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+              <TabsTrigger value="usage" className="text-xs sm:text-sm">Usage</TabsTrigger>
+              <TabsTrigger value="charts" className="text-xs sm:text-sm">Charts</TabsTrigger>
+              {isPremium && <TabsTrigger value="insights" className="text-xs sm:text-sm">Insights</TabsTrigger>}
             </TabsList>
 
-            {/* --- Overview Tab --- */}
-            <TabsContent value="overview" className="space-y-6 animate-scale-in">
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <Card>
-                  <CardContent className="p-3 sm:p-4 lg:p-6 text-center">
-                    <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-black mb-1">
-                      {analytics?.totalProjects || 0}
+            {/* --- Overview Tab with Perfect Responsive Design --- */}
+            <TabsContent value="overview" className="space-y-4 sm:space-y-6 animate-scale-in">
+              {/* Primary Metrics - 2 cols on mobile, 4 on desktop */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <Card className="border-2 hover:shadow-md transition-shadow">
+                  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
+                      <div className="text-2xl sm:text-3xl font-bold text-black">
+                        {analytics?.totalProjects || 0}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
+                        Projects
+                      </div>
                     </div>
-                    <div className="text-xs sm:text-sm text-gray-600">Projects</div>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardContent className="p-3 sm:p-4 lg:p-6 text-center">
-                    <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-black mb-1">
-                      {formatWords(analytics?.totalWordsProcessed)}
+
+                <Card className="border-2 hover:shadow-md transition-shadow">
+                  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
+                      <div className="text-2xl sm:text-3xl font-bold text-black">
+                        {formatWords(analytics?.totalWordsProcessed)}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
+                        Words Used
+                      </div>
                     </div>
-                    <div className="text-xs sm:text-sm text-gray-600">Words</div>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardContent className="p-3 sm:p-4 lg:p-6 text-center">
-                    <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-green-600 mb-1">
-                      {formatWords(analytics?.wordsRemaining)}
+
+                <Card className="border-2 hover:shadow-md transition-shadow">
+                  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
+                      <div className="text-2xl sm:text-3xl font-bold text-green-600">
+                        {formatWords(analytics?.wordsRemaining)}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
+                        Remaining
+                      </div>
                     </div>
-                    <div className="text-xs sm:text-sm text-gray-600">Remaining</div>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardContent className="p-3 sm:p-4 lg:p-6 text-center">
-                    <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-black mb-1">
-                      {analytics?.languageUsage?.length || 0}
+
+                <Card className="border-2 hover:shadow-md transition-shadow">
+                  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
+                      <div className="text-2xl sm:text-3xl font-bold text-black">
+                        {analytics?.languageUsage?.length || 0}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
+                        Languages
+                      </div>
                     </div>
-                    <div className="text-xs sm:text-sm text-gray-600">Languages</div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Premium Metrics */}
-              {isPremium && premiumAnalytics.performanceInsights && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Card className="border-black">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center space-x-2">
-                        <TrendingUp className="h-4 w-4 text-black" />
-                        <span>Efficiency</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="text-2xl font-bold text-black mb-1">
-                        {premiumAnalytics.performanceInsights.efficiencyScore}%
+              {/* Secondary Metrics - 1 col on mobile, 2 on tablet, 4 on desktop */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <Card className="border hover:shadow-md transition-shadow">
+                  <CardContent className="pt-4 pb-4 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <div className="text-xl sm:text-xl font-bold text-black">
+                        {analytics?.avgWordsPerProject?.toFixed(1) || '0.0'}
                       </div>
-                      <p className="text-xs text-gray-600">Performance</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-black">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Processing</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="text-2xl font-bold text-black mb-1">
-                        {(premiumAnalytics.performanceInsights.avgProcessingTime / 1000).toFixed(1)}s
+                      <div className="text-gray-600 text-xs sm:text-sm text-center">
+                        Avg Words/Project
                       </div>
-                      <p className="text-xs text-gray-600">Avg time</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-black">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Peak Hours</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="text-2xl font-bold text-green-600 mb-1">
-                        {premiumAnalytics.performanceInsights.peakUsageHours?.[0] || 'N/A'}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border hover:shadow-md transition-shadow">
+                  <CardContent className="pt-4 pb-4 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <div className="text-xl sm:text-xl font-bold text-black">
+                        {analytics?.peakDayOfWeek || 'N/A'}
                       </div>
-                      <p className="text-xs text-gray-600">Top usage</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+                      <div className="text-gray-600 text-xs sm:text-sm text-center">
+                        Peak Day
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border hover:shadow-md transition-shadow">
+                  <CardContent className="pt-4 pb-4 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <div className="text-xl sm:text-xl font-bold text-black">
+                        {analytics?.usageStreakDays || 0}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm text-center">
+                        Usage Streak (Days)
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border hover:shadow-md transition-shadow">
+                  <CardContent className="pt-4 pb-4 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <div className="text-base sm:text-lg font-bold text-black truncate max-w-full px-1 text-center">
+                        {analytics?.topVoices?.map(v => v.voice).join(', ') || 'N/A'}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm text-center">
+                        Top Voices
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             {/* --- Usage Tab --- */}
-            <TabsContent value="usage" className="space-y-6 animate-scale-in">
+            <TabsContent value="usage" className="space-y-4 sm:space-y-6 animate-scale-in">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base sm:text-lg">Recent Activity</CardTitle>
-                  <CardDescription>Your latest usage patterns</CardDescription>
+                  <CardTitle className="text-lg sm:text-xl">Recent Activity</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Latest usage patterns</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {analytics?.recentActivity && analytics.recentActivity.length > 0 ? (
-                    <div className="space-y-4">
-                      {analytics.recentActivity.slice(0, 10).map((activity, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <div className="font-medium">{activity.date}</div>
-                            <div className="text-sm text-gray-600">
-                              {activity.projects} project{activity.projects !== 1 ? 's' : ''}
-                            </div>
+                  {analytics?.recentActivity?.length > 0 ? (
+                    <div className="space-y-3 sm:space-y-4">
+                      {analytics.recentActivity.slice(0, 10).map((activity, idx) => (
+                        <div key={idx} className="flex justify-between items-center p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm sm:text-base">{activity.date}</div>
+                            <div className="text-xs sm:text-sm text-gray-600">{activity.projects} project(s)</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">{activity.words.toLocaleString()}</div>
-                            <div className="text-sm text-gray-600">words</div>
+                            <div className="font-medium text-sm sm:text-base">{activity.words.toLocaleString()}</div>
+                            <div className="text-xs sm:text-sm text-gray-600">words</div>
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <p className="text-gray-600">No recent activity found</p>
-                    </div>
-                  )}
+                  ) : <p className="text-center text-gray-600 py-12 text-sm sm:text-base">No recent activity</p>}
                 </CardContent>
               </Card>
             </TabsContent>
 
             {/* --- Charts Tab --- */}
-            <TabsContent value="charts" className="space-y-6 animate-scale-in">
-              {analytics?.languageUsage && analytics.languageUsage.length > 0 && (
+            <TabsContent value="charts" className="space-y-4 sm:space-y-6 animate-scale-in">
+              {analytics?.languageUsage?.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base sm:text-lg">Language Distribution</CardTitle>
-                    <CardDescription>Usage breakdown by language</CardDescription>
+                    <CardTitle className="text-lg sm:text-xl">Language Distribution</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Usage breakdown by language</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[300px] w-full">
+                    <div className="h-[250px] sm:h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-
-                          <PieChart>
+                        <PieChart>
                           <Pie
                             data={analytics.languageUsage}
+                            dataKey="count"
+                            nameKey="language"
                             cx="50%"
                             cy="50%"
                             outerRadius={80}
-                            fill="#000000"
-                            dataKey="count"
                             label={({ language }) => language}
-                            nameKey="language"
                           >
-                            {analytics.languageUsage.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={`hsl(${index * 45}, 70%, ${index % 2 === 0 ? '40%' : '60%'})`}
-                              />
+                            {analytics.languageUsage.map((_, idx) => (
+                              <Cell key={idx} fill={`hsl(${idx * 45}, 70%, ${idx % 2 === 0 ? '40%' : '60%'})`} />
                             ))}
                           </Pie>
-                          <Tooltip formatter={(value, name) => [value, name]} />
+                          <Tooltip />
                         </PieChart>
-
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
@@ -265,16 +275,16 @@ const RealAnalytics = () => {
               {isPremium && premiumAnalytics.weeklyTrends && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Weekly Trends</CardTitle>
-                    <CardDescription>Words and projects over time</CardDescription>
+                    <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Words and projects over time</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[300px] w-full">
+                    <div className="h-[250px] sm:h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={premiumAnalytics.weeklyTrends}>
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="week" />
-                          <YAxis />
+                          <XAxis dataKey="week" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
                           <Tooltip />
                           <Bar dataKey="words" fill="#000000" name="Words" />
                           <Bar dataKey="projects" fill="#666666" name="Projects" />
@@ -284,39 +294,61 @@ const RealAnalytics = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {isPremium && premiumAnalytics.monthlyTrends && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg sm:text-xl">Monthly Trends</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px] sm:h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={premiumAnalytics.monthlyTrends}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip />
+                          <Bar dataKey="words" fill="#1f2937" />
+                          <Bar dataKey="projects" fill="#6b7280" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
-            {/* --- Insights Tab (Premium only) --- */}
-            {isPremium && (
-              <TabsContent value="insights" className="space-y-6 animate-scale-in">
-                <Card className="border-black">
+            {/* --- Insights Tab (Premium) --- */}
+            {isPremium && premiumAnalytics.performanceInsights && (
+              <TabsContent value="insights" className="space-y-4 sm:space-y-6 animate-scale-in">
+                <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Crown className="h-5 w-5 text-black" />
-                      <span className="text-base sm:text-lg">Premium Insights</span>
-                      <Badge className="bg-black text-white">Premium</Badge>
+                    <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                      <Crown className="h-4 w-4 sm:h-5 sm:w-5 text-black" />
+                      <span>Premium Insights</span>
+                      <Badge className="bg-black text-white text-xs">Premium</Badge>
                     </CardTitle>
-                    <CardDescription className="mt-4">Advanced analysis of your usage patterns</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black mb-2">Peak Usage Hours</h4>
-                      <p className="text-sm text-gray-700 mb-2">
-                        Your most active hours: {premiumAnalytics.performanceInsights?.peakUsageHours?.join(', ') || 'No data available'}
+                  <CardContent className="space-y-3 sm:space-y-4">
+                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Peak Hours</h4>
+                      <p className="text-xs sm:text-sm text-gray-700">{premiumAnalytics.performanceInsights.peakUsageHours?.join(', ') || 'No data'}</p>
+                    </div>
+                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Efficiency Score</h4>
+                      <p className="text-xs sm:text-sm text-gray-700">{premiumAnalytics.performanceInsights.efficiencyScore}%</p>
+                    </div>
+                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Processing Times</h4>
+                      <p className="text-xs sm:text-sm text-gray-700">
+                        Avg: {(premiumAnalytics.performanceInsights.avgProcessingTime / 1000).toFixed(1)}s,
+                        Longest: {(premiumAnalytics.performanceInsights.longestResponseTime / 1000).toFixed(1)}s,
+                        Shortest: {(premiumAnalytics.performanceInsights.shortestResponseTime / 1000).toFixed(1)}s
                       </p>
                     </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black mb-2">Efficiency Analysis</h4>
-                      <p className="text-sm text-gray-700 mb-2">
-                        Your current efficiency score is {premiumAnalytics.performanceInsights?.efficiencyScore || 0}%
-                      </p>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black mb-2">Processing Performance</h4>
-                      <p className="text-sm text-gray-700 mb-2">
-                        Average processing time: {premiumAnalytics.performanceInsights ?
-                        (premiumAnalytics.performanceInsights.avgProcessingTime / 1000).toFixed(1) : 0}s
-                      </p>
+                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Error Rate</h4>
+                      <p className="text-xs sm:text-sm text-gray-700">{(premiumAnalytics.performanceInsights.errorRate * 100).toFixed(1)}%</p>
                     </div>
                   </CardContent>
                 </Card>

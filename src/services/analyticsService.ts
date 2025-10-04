@@ -7,19 +7,32 @@ export interface ProAnalytics {
   totalAudioGenerated: number;
   recentActivity: Array<{ date: string; words: number; projects: number }>;
   languageUsage: Array<{ language: string; count: number; percentage: number }>;
+  topVoices: Array<{ voice: string; count: number }>;
+  avgWordsPerProject: number;
+  peakDayOfWeek: string;
+  avgProjectTimeMs: number;
+  usageStreakDays: number;
   planInfo: { plan: string; wordsUsed: number; wordsLimit: number; planExpiry: string | null };
 }
 
 export interface PremiumAnalytics extends ProAnalytics {
   weeklyTrends: Array<{ week: string; words: number; projects: number; growth: number }>;
-  performanceInsights: { efficiencyScore: number; avgProcessingTime: number; peakUsageHours: string[] };
+  monthlyTrends: Array<{ month: string; words: number; projects: number }>;
+  performanceInsights: {
+    efficiencyScore: number;
+    avgProcessingTime: number;
+    peakUsageHours: string[];
+    longestResponseTime: number;
+    shortestResponseTime: number;
+    errorRate: number;
+  };
   last90DaysActivity: Array<{ date: string; words: number; projects: number }>;
 }
 
 export interface DetailedAnalytics {
   id: string;
   user_id: string;
-  project_id?: string;
+  project_id: string;
   language: string;
   input_words: number;
   output_words: number;
@@ -38,77 +51,102 @@ export class AnalyticsService {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
 
     try {
-      // Fetch profile first to get the plan_start_date
+      // --- Fetch user profile ---
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
-
       if (profileError) throw profileError;
+      if (!profile) return null;
 
-      // --- NEW, PRECISE LOGIC ---
-      // Set the filter to the exact plan start timestamp.
-      // This ensures analytics ONLY show data from the current subscription period.
-      const filterStartDate = profile?.plan_start_date ? new Date(profile.plan_start_date) : null;
-
-      // Fetch project history (exclude projects created when user was on free plan)
-      const { data: projects, error: projectsError } = await supabase
-        .from('history')
-        .select('*')
-        .eq('user_id', userId)
-        .not('voice_settings', 'cs', '{"type":"voice_sample"}')
-        .not('voice_settings', 'cs', '{"isSample":true}')
-        .not('voice_settings', 'cs', '{"plan":"free"}')
-        .order('created_at', { ascending: false });
-
-      if (projectsError) throw projectsError;
-
-      let projectsArray = projects || [];
-
-      // Always filter the projects to only include those created after the plan started.
-      if (filterStartDate) {
-        projectsArray = projectsArray.filter(p => new Date(p.created_at) >= filterStartDate);
-      }
-
-      // All subsequent calculations will now use the correctly filtered 'projectsArray'
-      const totalWordsUsed = projectsArray.reduce((sum, p) => sum + (p.words_used || 0), 0);
-      const planLimit = profile?.words_limit || 1000;
-      const purchasedWords = profile?.word_balance || 0;
+      const totalWordsUsed = profile.plan_words_used || 0;
+      const planLimit = profile.words_limit || 0;
+      const purchasedWords = profile.word_balance || 0;
       const totalLimit = planLimit + purchasedWords;
       const wordsRemaining = Math.max(0, totalLimit - totalWordsUsed);
 
-      const totalProjects = projectsArray.length;
-      const totalAudioGenerated = projectsArray.length;
+      // --- Fetch analytics ---
+      const { data: analyticsData, error: analyticsError } = await supabase
+        .from('analytics')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (analyticsError) throw analyticsError;
+      const filteredData = analyticsData || [];
 
-      // Recent activity (last 30 days within the plan)
+      // --- Basic calculations ---
+      const totalProjects = filteredData.length;
+      const totalAudioGenerated = filteredData.length;
+      const avgWordsPerProject = totalProjects > 0
+        ? filteredData.reduce((sum, a) => sum + (a.words_used || 0), 0) / totalProjects
+        : 0;
+
+      const avgProjectTimeMs = filteredData.length > 0
+        ? Math.round(filteredData.reduce((sum, a) => sum + (a.response_time_ms || 0), 0) / filteredData.length)
+        : 0;
+
+      // --- Recent activity (last 30 days) ---
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentData = filteredData.filter(a => new Date(a.created_at) >= thirtyDaysAgo);
 
-      const recentProjects = projectsArray.filter(p => new Date(p.created_at) >= thirtyDaysAgo);
       const activityMap = new Map<string, { words: number; projects: number }>();
-      recentProjects.forEach(p => {
-        const date = new Date(p.created_at).toISOString().split('T')[0];
+      recentData.forEach(a => {
+        const date = new Date(a.created_at).toISOString().split('T')[0];
         const existing = activityMap.get(date) || { words: 0, projects: 0 };
-        activityMap.set(date, { words: existing.words + (p.words_used || 0), projects: existing.projects + 1 });
+        activityMap.set(date, { words: existing.words + (a.words_used || 0), projects: existing.projects + 1 });
       });
-      const recentActivity = Array.from(activityMap.entries()).map(([date, data]) => ({ date, ...data }))
+      const recentActivity = Array.from(activityMap.entries())
+        .map(([date, data]) => ({ date, ...data }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Language usage within the plan
+      // --- Language usage ---
       const languageMap = new Map<string, number>();
-      projectsArray.forEach(p => {
-        const lang = this.formatLanguageCode(p.language || 'en-US');
+      filteredData.forEach(a => {
+        const lang = a.language || 'en-US';
         languageMap.set(lang, (languageMap.get(lang) || 0) + 1);
       });
       const totalLanguageUsage = Array.from(languageMap.values()).reduce((sum, count) => sum + count, 0);
       const languageUsage = Array.from(languageMap.entries()).map(([language, count]) => ({
         language,
         count,
-        percentage: totalLanguageUsage > 0 ? Math.round((count / totalLanguageUsage) * 100) : 0,
+        percentage: totalLanguageUsage > 0 ? Math.round((count / totalLanguageUsage) * 100) : 0
       })).sort((a, b) => b.count - a.count);
 
-      // Base Pro analytics object
+      // --- Voice usage ---
+      const voiceMap = new Map<string, number>();
+      filteredData.forEach(a => {
+        const voice = a.voice_type || 'generated';
+        voiceMap.set(voice, (voiceMap.get(voice) || 0) + 1);
+      });
+      const topVoices = Array.from(voiceMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([voice, count]) => ({ voice, count }))
+        .slice(0, 3); // Top 3 voices
+
+      // --- Peak day of week ---
+      const dayMap = new Map<number, number>();
+      filteredData.forEach(a => {
+        const day = new Date(a.created_at).getDay();
+        dayMap.set(day, (dayMap.get(day) || 0) + 1);
+      });
+      const peakDayOfWeek = dayMap.size > 0
+        ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+          [Array.from(dayMap.entries()).sort((a, b) => b[1] - a[1])[0][0]]
+        : 'Unknown';
+
+      // --- Usage streak (consecutive days) ---
+      const sortedDates = Array.from(new Set(filteredData.map(a => new Date(a.created_at).toISOString().split('T')[0]))).sort();
+      let streak = 0, maxStreak = 0;
+      for (let i = 1; i < sortedDates.length; i++) {
+        const prev = new Date(sortedDates[i - 1]);
+        const curr = new Date(sortedDates[i]);
+        const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
+        if (diff === 1) streak++; else streak = 1;
+        if (streak > maxStreak) maxStreak = streak;
+      }
+
       const baseAnalytics: ProAnalytics = {
         totalProjects,
         totalWordsProcessed: totalWordsUsed,
@@ -116,39 +154,51 @@ export class AnalyticsService {
         totalAudioGenerated,
         recentActivity,
         languageUsage,
+        topVoices,
+        avgWordsPerProject,
+        peakDayOfWeek,
+        avgProjectTimeMs,
+        usageStreakDays: maxStreak,
         planInfo: {
-          plan: profile?.plan || 'free',
+          plan: profile.plan || 'free',
           wordsUsed: totalWordsUsed,
           wordsLimit: totalLimit,
-          planExpiry: profile?.plan_expires_at || null,
-        },
+          planExpiry: profile.plan_expires_at || null
+        }
       };
 
-      // Enhance with Premium analytics if applicable
+      // --- Premium-specific metrics ---
       if (plan === 'premium') {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-        const last90Projects = projectsArray.filter(p => new Date(p.created_at) >= ninetyDaysAgo);
+        const last90Data = filteredData.filter(a => new Date(a.created_at) >= ninetyDaysAgo);
         const last90Map = new Map<string, { words: number; projects: number }>();
-        last90Projects.forEach(p => {
-          const date = new Date(p.created_at).toISOString().split('T')[0];
+        last90Data.forEach(a => {
+          const date = new Date(a.created_at).toISOString().split('T')[0];
           const existing = last90Map.get(date) || { words: 0, projects: 0 };
-          last90Map.set(date, { words: existing.words + (p.words_used || 0), projects: existing.projects + 1 });
+          last90Map.set(date, { words: existing.words + (a.words_used || 0), projects: existing.projects + 1 });
         });
-        const last90DaysActivity = Array.from(last90Map.entries()).map(([date, data]) => ({ date, ...data }))
+        const last90DaysActivity = Array.from(last90Map.entries())
+          .map(([date, data]) => ({ date, ...data }))
           .sort((a, b) => a.date.localeCompare(b.date));
 
         const premiumAnalytics: PremiumAnalytics = {
           ...baseAnalytics,
-          weeklyTrends: this.generateWeeklyTrends(projectsArray),
+          weeklyTrends: this.generateWeeklyTrends(filteredData),
+          monthlyTrends: this.generateMonthlyTrends(filteredData),
           performanceInsights: {
-            efficiencyScore: this.calculateEfficiencyScore(projectsArray),
-            avgProcessingTime: 1200, // Placeholder
-            peakUsageHours: this.calculatePeakUsageHours(projectsArray),
+            efficiencyScore: this.calculateEfficiencyScore(filteredData),
+            avgProcessingTime: avgProjectTimeMs,
+            peakUsageHours: this.calculatePeakUsageHours(filteredData),
+            longestResponseTime: Math.max(...filteredData.map(a => a.response_time_ms || 0)),
+            shortestResponseTime: Math.min(...filteredData.map(a => a.response_time_ms || Infinity)),
+            errorRate: filteredData.length > 0
+              ? filteredData.filter(a => a.error).length / filteredData.length
+              : 0
           },
-          last90DaysActivity,
+          last90DaysActivity
         };
+
         return premiumAnalytics;
       }
 
@@ -161,20 +211,54 @@ export class AnalyticsService {
   }
 
   /** ------------------------------
-   * Weekly trends (last 12 weeks)
+   * Detailed analytics per project
    * ------------------------------- */
-  private static generateWeeklyTrends(projects: any[]): Array<{ week: string; words: number; projects: number; growth: number }> {
+  static async getDetailedAnalytics(userId: string, plan?: string): Promise<DetailedAnalytics[] | null> {
+    if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('analytics')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) return [];
+
+      return (data || []).map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        project_id: item.history_id,
+        language: item.language || 'en-US',
+        input_words: item.words_used || 0,
+        output_words: item.words_used || 0,
+        voice_type: item.voice_type || 'generated',
+        voice_id: item.voice_id,
+        response_time_ms: item.response_time_ms || 0,
+        created_at: item.created_at
+      }));
+
+    } catch (error) {
+      console.error('Error fetching detailed analytics:', error);
+      return [];
+    }
+  }
+
+  /** ------------------------------
+   * Weekly trends
+   * ------------------------------- */
+  private static generateWeeklyTrends(data: any[]): Array<{ week: string; words: number; projects: number; growth: number }> {
     const weeklyMap = new Map<string, { words: number; projects: number }>();
     const twelveWeeksAgo = new Date();
     twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
 
-    projects.filter(p => new Date(p.created_at) >= twelveWeeksAgo).forEach(project => {
-      const date = new Date(project.created_at);
+    data.filter(a => new Date(a.created_at) >= twelveWeeksAgo).forEach(a => {
+      const date = new Date(a.created_at);
       const weekStart = new Date(date);
       weekStart.setDate(date.getDate() - date.getDay());
       const weekKey = weekStart.toISOString().split('T')[0];
       const existing = weeklyMap.get(weekKey) || { words: 0, projects: 0 };
-      weeklyMap.set(weekKey, { words: existing.words + (project.words_used || 0), projects: existing.projects + 1 });
+      weeklyMap.set(weekKey, { words: existing.words + (a.words_used || 0), projects: existing.projects + 1 });
     });
 
     const trends = Array.from(weeklyMap.entries()).map(([week, data]) => ({ week, ...data, growth: 0 }))
@@ -189,136 +273,43 @@ export class AnalyticsService {
   }
 
   /** ------------------------------
-   * Peak usage hours (Premium)
+   * Monthly trends
    * ------------------------------- */
-  private static calculatePeakUsageHours(projects: any[]): string[] {
+  private static generateMonthlyTrends(data: any[]): Array<{ month: string; words: number; projects: number }> {
+    const monthMap = new Map<string, { words: number; projects: number }>();
+    data.forEach(a => {
+      const date = new Date(a.created_at);
+      const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      const existing = monthMap.get(monthKey) || { words: 0, projects: 0 };
+      monthMap.set(monthKey, { words: existing.words + (a.words_used || 0), projects: existing.projects + 1 });
+    });
+    return Array.from(monthMap.entries()).map(([month, data]) => ({ month, ...data })).sort((a, b) => a.month.localeCompare(b.month));
+  }
+
+  /** ------------------------------
+   * Peak usage hours
+   * ------------------------------- */
+  private static calculatePeakUsageHours(data: any[]): string[] {
     const hourMap = new Map<number, number>();
-    projects.forEach(p => {
-      const hour = new Date(p.created_at).getHours();
+    data.forEach(a => {
+      const hour = new Date(a.created_at).getHours();
       hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
     });
     const sortedHours = Array.from(hourMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([hour]) => `${hour.toString().padStart(2, '0')}:00`);
-    return sortedHours.length > 0 ? sortedHours : ['10:00', '14:00', '18:00'];
+    return sortedHours;
   }
 
   /** ------------------------------
-   * Efficiency score (Premium)
+   * Efficiency score
    * ------------------------------- */
-  private static calculateEfficiencyScore(projects: any[]): number {
-    if (!projects.length) return 0;
-    const recentProjects = projects.slice(0, 30);
-    const avgWords = recentProjects.reduce((sum, p) => sum + (p.words_used || 0), 0) / recentProjects.length;
-    if (avgWords > 500) return 95;
-    if (avgWords > 300) return 85;
-    if (avgWords > 150) return 75;
-    return 65;
+  private static calculateEfficiencyScore(data: any[]): number {
+    if (!data.length) return 0;
+    const avgWords = data.reduce((sum, a) => sum + (a.words_used || 0), 0) / data.length;
+    const avgTime = data.reduce((sum, a) => sum + (a.response_time_ms || 0), 0) / data.length;
+    return Math.min(100, Math.round((avgWords / 500) * 50 + (1000 / Math.max(avgTime, 1)) * 50));
   }
 
-  /** ------------------------------
-   * Detailed analytics (per project)
-   * ------------------------------- */
-  static async getDetailedAnalytics(userId: string, plan?: string): Promise<DetailedAnalytics[] | null> {
-    if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('history')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) return [];
-      return (data || []).map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        project_id: undefined,
-        language: item.language,
-        input_words: item.words_used || 0,
-        output_words: item.words_used || 0,
-        voice_type: 'generated',
-        response_time_ms: 1200, // Placeholder
-        created_at: item.created_at
-      }));
-
-    } catch (error) {
-      console.error('Error fetching detailed analytics:', error);
-      return [];
-    }
-  }
-
-  /** ------------------------------
-   * Track activity
-   * ------------------------------- */
-  static async trackActivity(userId: string, activityType: string, metadata?: any, plan?: string): Promise<void> {
-    if (!plan || (plan !== 'pro' && plan !== 'premium')) return;
-    if (activityType === 'audio_generated' && metadata?.isSample) return;
-
-    console.log('Activity tracked:', { userId, activityType, metadata, timestamp: new Date().toISOString() });
-  }
-
-  /** ------------------------------
-   * Map language codes to human-readable names
-   * ------------------------------- */
-  static formatLanguageCode(code: string): string {
-    const languageNames: Record<string, string> = {
-      'ar-SA': 'Arabic (Saudi Arabia)',
-      'as-IN': 'Assamese',
-      'bg-BG': 'Bulgarian',
-      'bn-BD': 'Bengali (Bangladesh)',
-      'bn-IN': 'Bengali (India)',
-      'cs-CZ': 'Czech',
-      'da-DK': 'Danish',
-      'nl-NL': 'Dutch',
-      'en-GB': 'English (UK)',
-      'en-US': 'English (US)',
-      'fi-FI': 'Finnish',
-      'fr-CA': 'French (Canada)',
-      'fr-FR': 'French (France)',
-      'de-DE': 'German',
-      'el-GR': 'Greek',
-      'gu-IN': 'Gujarati',
-      'he-IL': 'Hebrew',
-      'hi-IN': 'Hindi',
-      'hr-HR': 'Croatian',
-      'id-ID': 'Indonesian',
-      'it-IT': 'Italian',
-      'ja-JP': 'Japanese',
-      'kn-IN': 'Kannada',
-      'ko-KR': 'Korean',
-      'lt-LT': 'Lithuanian',
-      'ms-MY': 'Malay',
-      'ml-IN': 'Malayalam',
-      'mr-IN': 'Marathi',
-      'ne-IN': 'Nepali (India)',
-      'no-NO': 'Norwegian',
-      'or-IN': 'Odia',
-      'pa-IN': 'Punjabi',
-      'fa-IR': 'Persian (Farsi)',
-      'pt-BR': 'Portuguese (Brazil)',
-      'pt-PT': 'Portuguese (Portugal)',
-      'ro-RO': 'Romanian',
-      'ru-RU': 'Russian',
-      'sr-RS': 'Serbian',
-      'sk-SK': 'Slovak',
-      'sl-SI': 'Slovenian',
-      'es-ES': 'Spanish (Spain)',
-      'es-MX': 'Spanish (Mexico)',
-      'sv-SE': 'Swedish',
-      'ta-IN': 'Tamil',
-      'te-IN': 'Telugu',
-      'th-TH': 'Thai',
-      'tr-TR': 'Turkish',
-      'uk-UA': 'Ukrainian',
-      'ur-IN': 'Urdu (India)',
-      'vi-VN': 'Vietnamese',
-      'zh-CN': 'Chinese (Simplified)',
-      'zh-TW': 'Chinese (Traditional)',
-    };
-
-    return languageNames[code] || code;
-  }
 }
