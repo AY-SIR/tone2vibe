@@ -79,10 +79,10 @@ export class AnalyticsService {
       };
       
       const { data: analyticsData, error: analyticsError } = await supabase
-        .from('analytics')
+        .from('analytics' as any)
         .select('id, user_id, history_id, title, language, words_used, created_at, extra_info')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any;
         
       if (analyticsError) {
         console.error('Analytics fetch error:', analyticsError);
@@ -243,23 +243,23 @@ export class AnalyticsService {
 
     try {
       const { data, error } = await supabase
-        .from('analytics')
+        .from('analytics' as any)
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(100) as any;
       if (error) return [];
 
-      return (data || []).map(item => ({
+      return ((data || []) as any[]).map((item: any) => ({
         id: item.id,
         user_id: item.user_id,
         project_id: item.history_id,
         language: item.language || 'en-US',
         input_words: item.words_used || 0,
         output_words: item.words_used || 0,
-        voice_type: item.voice_type || 'generated',
-        voice_id: item.voice_id,
-        response_time_ms: item.response_time_ms || 0,
+        voice_type: (item.extra_info as any)?.voice_type || 'generated',
+        voice_id: (item.extra_info as any)?.voice_id,
+        response_time_ms: (item.extra_info as any)?.response_time_ms || 0,
         created_at: item.created_at
       }));
 
