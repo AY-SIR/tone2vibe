@@ -298,7 +298,7 @@ export class TranslationService {
 
       // Try MyMemory API first
       try {
-        const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceISO}|${targetISO}`;
+        const myMemoryUrl = ``;
         const response = await fetch(myMemoryUrl);
         const data = await response.json();
 
@@ -337,7 +337,7 @@ export class TranslationService {
     detected: { code: string; confidence: number }
   ): Promise<TranslationResult> {
     try {
-      const response = await fetch('https://libretranslate.de/translate', {
+      const response = await fetch('', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -43,7 +43,7 @@ export class GrammarService {
       formData.append('language', languageISO);
       formData.append('enabledOnly', 'false');
 
-      const response = await fetch('https://api.languagetool.org/v2/check', {
+      const response = await fetch('', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData.toString(),
