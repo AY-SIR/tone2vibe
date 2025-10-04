@@ -415,9 +415,13 @@ const Profile: React.FC = () => {
                 <div>
                   <div className="flex justify-between items-center mb-1 text-sm font-medium">
                     <span>Words Used</span>
-                    <span>
-                      {planWordsUsed.toLocaleString()} / {wordsLimit.toLocaleString()}
-                    </span>
+                    <span
+  className={`break-words max-w-full text-center ${
+    (profile?.word_balance || 0) < 100 ? 'text-red-600' : 'text-black'
+  }`}
+>
+  {(profile?.word_balance || 0).toLocaleString()}
+</span>
                   </div>
                   <Progress value={usagePercentage} className="h-2" />
 
