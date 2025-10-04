@@ -29,8 +29,10 @@ Deno.serve(async (req: Request) => {
 
     const { voice_settings = {} } = await req.json();
 
+    // Sample text for preview (no word deduction, no history saving)
     const sampleText = "This is a test sample of your voice. Listen carefully to evaluate the quality.";
 
+    // Generate sample audio (mock for now)
     const audioData = new Uint8Array(1024);
 
     const supabaseService = createClient(
@@ -44,6 +46,7 @@ Deno.serve(async (req: Request) => {
       .from("user-generates")
       .upload(fileName, audioData, {
         contentType: "audio/mpeg",
+        upsert: true,
       });
 
     if (uploadError) {
@@ -55,6 +58,7 @@ Deno.serve(async (req: Request) => {
       .from("user-generates")
       .getPublicUrl(fileName);
 
+    // Auto-cleanup after 5 minutes
     setTimeout(async () => {
       try {
         await supabaseService.storage
@@ -69,7 +73,8 @@ Deno.serve(async (req: Request) => {
       success: true,
       audio_url: urlData.publicUrl,
       sample_text: sampleText,
-      expires_in_minutes: 5
+      expires_in_minutes: 5,
+      is_sample: true
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -79,7 +84,7 @@ Deno.serve(async (req: Request) => {
     console.error("Sample generation error:", error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error.message || "Unknown error"
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

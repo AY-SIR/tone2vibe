@@ -27,6 +27,8 @@ Deno.serve(async (req: Request) => {
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
+    // Generate a simple fallback audio sample (no word deduction, no history)
+    // This is just for preview purposes
     const audioData = new Uint8Array(512);
 
     const supabaseService = createClient(
@@ -40,6 +42,7 @@ Deno.serve(async (req: Request) => {
       .from("user-generates")
       .upload(fileName, audioData, {
         contentType: "audio/mpeg",
+        upsert: true,
       });
 
     if (uploadError) {
@@ -51,6 +54,7 @@ Deno.serve(async (req: Request) => {
       .from("user-generates")
       .getPublicUrl(fileName);
 
+    // Auto-cleanup after 5 minutes
     setTimeout(async () => {
       try {
         await supabaseService.storage
@@ -64,8 +68,9 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({
       success: true,
       audio_url: urlData.publicUrl,
-      sample_text: "Fallback sample",
-      expires_in_minutes: 5
+      sample_text: "Fallback sample for preview",
+      expires_in_minutes: 5,
+      is_fallback: true
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -75,7 +80,7 @@ Deno.serve(async (req: Request) => {
     console.error("Fallback sample generation error:", error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error.message || "Unknown error"
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

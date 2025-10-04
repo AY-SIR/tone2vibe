@@ -491,9 +491,9 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, onDelete, isDe
               <Badge variant="outline" className={`text-xs ${type === "generated" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-primary"}`}>
                 {type === "generated" ? "AI Generated" : "User Recorded"}
               </Badge>
-              {/* CHANGED: Added language badge for recorded voices as well */}
-              {project.language && project.language !== 'N/A' && (
-                <Badge variant="outline" className="text-xs">{project.language}</Badge>
+              {/* Show language code for all voices */}
+              {project.language && project.language !== 'N/A' && project.language !== 'Recorded Voice' && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
               {type === 'recorded' && project.duration && <Badge variant="secondary" className="text-xs">{project.duration}s duration</Badge>}
@@ -511,11 +511,17 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDownload, onDelete, isDe
             <Button onClick={() => onPlay(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
               {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
-            <AudioDownloadDropdown
-              audioUrl={project.audio_url}
-              fileName={project.title}
-              isWebM={project.source_type === 'recorded'}
-            />
+            {type === 'recorded' ? (
+              <AudioDownloadDropdown
+                audioUrl={project.audio_url}
+                fileName={project.title}
+                isWebM={true}
+              />
+            ) : (
+              <Button onClick={() => onDownload(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
+                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+              </Button>
+            )}
             {onDelete && (
               <Button onClick={() => onDelete(project)} variant="outline" size="sm" disabled={!!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive">
                 {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}

@@ -119,45 +119,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const downloadAudio = async (format: 'mp3' | 'wav' | 'ogg' = 'mp3') => {
-    try {
-      let audioBlob: Blob;
-
-      if (audioData) {
-        const byteCharacters = atob(audioData);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        audioBlob = new Blob([byteArray], { type: `audio/${format}` });
-      } else {
-        const response = await fetch(audioUrl);
-        audioBlob = await response.blob();
-      }
-
-      const url = URL.createObjectURL(audioBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `voice_${Date.now()}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: "Download Started",
-        description: `Your audio file (${format.toUpperCase()}) is downloading.`,
-      });
-    } catch (error) {
-      console.error('Download error:', error);
-      toast({
-        title: "Download Failed",
-        description: "Unable to download the audio file.",
-        variant: "destructive"
-      });
-    }
-  };
+  // Removed downloadAudio function - now using AudioDownloadDropdown component
 
   const copyToClipboard = async () => {
     try {
@@ -311,18 +273,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Download Your Audio
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Button onClick={() => downloadAudio('mp3')} variant="default" className="gap-2">
-              <Download className="w-4 h-4" /> Download MP3
-            </Button>
-            <Button onClick={() => downloadAudio('wav')} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" /> Download WAV
-            </Button>
-            <Button onClick={() => downloadAudio('ogg')} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" /> Download OGG
-            </Button>
-          </div>
+        <CardContent className="flex justify-center">
+          <AudioDownloadDropdown
+            audioUrl={audioUrl}
+            fileName={`voice_${Date.now()}`}
+            isWebM={false}
+          />
         </CardContent>
       </Card>
 
