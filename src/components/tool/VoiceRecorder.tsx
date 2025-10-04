@@ -72,15 +72,12 @@ export const VoiceRecorder = ({
       audioUrlRef.current = "";
     }
     cleanup();
-
   }, [cleanup]);
 
   useEffect(() => {
     return () => {
       cleanup();
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
-      }
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
   }, [cleanup]);
 
@@ -103,9 +100,8 @@ export const VoiceRecorder = ({
       streamRef.current = stream;
 
       const audioContext = new AudioContext();
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
+      if (audioContext.state === 'suspended') await audioContext.resume();
+
       const source = audioContext.createMediaStreamSource(stream);
       const gainNode = audioContext.createGain();
       gainNode.gain.value = 1.5;
@@ -120,20 +116,19 @@ export const VoiceRecorder = ({
         'audio/ogg;codecs=opus',
         'audio/mpeg'
       ];
-      const mime = preferredMimes.find((t) => (window as any).MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
-      if (!mime) {
-        throw new Error('Recording not supported in this browser');
-      }
+      const mime = preferredMimes.find(t => (window as any).MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+      if (!mime) throw new Error('Recording not supported in this browser');
+
       const recorder = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 256000 });
       mediaRecorderRef.current = recorder;
 
-      recorder.ondataavailable = (e) => {
+      recorder.ondataavailable = e => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
         if (recordedChunksRef.current.length === 0) {
-          toast({ title: "Recording failed", description: "No audio data captured. Please check microphone permissions.", variant: "destructive" });
+          toast({ title: "Recording failed", description: "No audio data captured.", variant: "destructive" });
           reset();
           cleanup();
           return;
@@ -152,7 +147,6 @@ export const VoiceRecorder = ({
       };
 
       recorder.start(100);
-
       intervalRef.current = setInterval(() => {
         durationRef.current += 1;
         setDuration(durationRef.current);
@@ -161,7 +155,7 @@ export const VoiceRecorder = ({
       toast({ title: "Recording started..." });
     } catch (err) {
       console.error("Error starting recording:", err);
-      toast({ title: "Microphone access denied", description: "Please allow microphone access in your browser settings.", variant: "destructive" });
+      toast({ title: "Microphone access denied", description: "Allow microphone access.", variant: "destructive" });
       setStatus('idle');
       cleanup();
     }
@@ -170,9 +164,7 @@ export const VoiceRecorder = ({
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       setStatus('stopping');
-      setTimeout(() => {
-        mediaRecorderRef.current?.stop();
-      }, 250);
+      setTimeout(() => mediaRecorderRef.current?.stop(), 250);
 
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -184,64 +176,32 @@ export const VoiceRecorder = ({
   const playRecording = () => {
     if (!audioBlob) return;
 
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-    }
+    if (!audioRef.current) {
+      const url = URL.createObjectURL(audioBlob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
 
-    const url = URL.createObjectURL(audioBlob);
-    audioUrlRef.current = url;
-    const audio = new Audio(url);
-    audioRef.current = audio;
-
-    audio.onended = () => setIsPlaying(false);
-    audio.onerror = (e) => {
-      console.error("Audio playback error:", e);
-      setIsPlaying(false);
-      toast({ title: "Playback failed", variant: "destructive" });
-    };
-
-    audio.play()
-      .then(() => setIsPlaying(true))
-      .catch((err) => {
-        console.error("Playback promise error:", err);
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = e => {
+        console.error("Audio playback error:", e);
         setIsPlaying(false);
         toast({ title: "Playback failed", variant: "destructive" });
-      });
-  };
+      };
+    }
 
-  const pauseRecording = () => {
-    if (audioRef.current) {
+    if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+    } else {
+      audioRef.current.play()
+        .then(() => setIsPlaying(true))
+        .catch(err => {
+          console.error("Playback error:", err);
+          setIsPlaying(false);
+          toast({ title: "Playback failed", variant: "destructive" });
+        });
     }
-  };
-
-  const getAudioDuration = (blob: Blob) => {
-    return new Promise<number>((resolve, reject) => {
-      const audio = document.createElement('audio');
-      const url = URL.createObjectURL(blob);
-      audio.src = url;
-
-      const cleanupAudio = () => {
-        URL.revokeObjectURL(url);
-        audio.removeEventListener('loadedmetadata', onLoaded);
-        audio.removeEventListener('error', onError);
-      };
-
-      const onLoaded = () => {
-        const duration = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
-        cleanupAudio();
-        resolve(duration > 0 ? duration : minimumDuration);
-      };
-
-      const onError = (e: Event) => {
-        cleanupAudio();
-        reject(e);
-      };
-
-      audio.addEventListener('loadedmetadata', onLoaded);
-      audio.addEventListener('error', onError);
-    });
   };
 
   const confirmRecording = async () => {
@@ -254,36 +214,25 @@ export const VoiceRecorder = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
-      // 1. Define the file path for storage
       const fileName = `user-voice-${user.id}-${Date.now()}.webm`;
       const filePath = `${user.id}/${fileName}`;
 
-      // 2. Upload the audio file
       const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
 
-      // 3. --- THIS IS THE FIX ---
-      // Get the full public URL of the file you just uploaded
-      const { data: urlData } = supabase.storage
-        .from('user-voices')
-        .getPublicUrl(filePath);
-
-      if (!urlData || !urlData.publicUrl) {
-        throw new Error("Failed to get the public URL for the voice recording.");
-      }
-
+      const { data: urlData } = supabase.storage.from('user-voices').getPublicUrl(filePath);
+      if (!urlData || !urlData.publicUrl) throw new Error("Failed to get public URL.");
       const publicUrl = urlData.publicUrl;
 
-      // 4. Update other records and get audio duration
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
-      const audioDuration = Math.ceil(await getAudioDuration(audioBlob));
-      const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`; // Using YYYY-MM-DD format
 
-      // 5. Insert the new record using the full publicUrl
+      const audioDuration = durationRef.current; // ✅ actual recording duration
+      const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`;
+
       const { error: insertError } = await supabase.from('user_voices').insert({
         user_id: user.id,
         name: voiceName,
-        audio_url: publicUrl, // <-- Use the correct full URL here
+        audio_url: publicUrl,
         duration: audioDuration,
         is_selected: true,
         language: selectedLanguage,
@@ -301,30 +250,15 @@ export const VoiceRecorder = ({
     }
   };
 
-  const handleDeleteClick = () => {
-    setShowDeleteDialog(true);
-  };
+  const handleDeleteClick = () => setShowDeleteDialog(true);
+  const confirmDelete = () => { reset(); setShowDeleteDialog(false); toast({ title: "Recording deleted", description: "Your voice sample has been removed." }); };
 
-  const confirmDelete = () => {
-    reset();
-    setShowDeleteDialog(false);
-    toast({
-      title: "Recording deleted",
-      description: "Your voice sample has been removed.",
-    });
-  };
-
-  const formatTime = (sec: number) => {
-    const mins = Math.floor(sec / 60);
-    const secs = sec % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  const formatTime = (sec: number) => `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`;
 
   return (
     <>
       <Card>
         <CardContent className="p-4 space-y-4 text-center">
-          {/* Record / Stop Button */}
           <div className="flex justify-center">
             {status !== 'recording' ? (
               <Button onClick={startRecording} disabled={disabled || status === 'stopping' || status === 'saved'} size="lg" className="bg-red-600 hover:bg-red-700 text-white rounded-full w-20 h-20">
@@ -337,63 +271,52 @@ export const VoiceRecorder = ({
             )}
           </div>
 
-          {/* Duration / Status */}
           <div className="h-12 flex flex-col items-center justify-center">
             {status !== 'saved' && (
               <>
                 <p className="text-2xl font-mono font-bold">{formatTime(duration)}</p>
                 <p className="text-sm text-muted-foreground h-5">
                   {status === 'recording' ? `Recording... (min: ${minimumDuration}s)` :
-                    status === 'stopping' ? "Finalizing..." :
-                      status === 'completed' ? "Recording ready for review" :
-                        "Record a voice sample"}
+                   status === 'stopping' ? "Finalizing..." :
+                   status === 'completed' ? "Recording ready for review" :
+                   "Record a voice sample"}
                 </p>
                 {status === 'stopping' && <Loader2 className="h-4 w-4 animate-spin mx-auto mt-1" />}
               </>
             )}
           </div>
 
-         {/* Review Buttons */}
-{status === 'completed' && audioBlob && (
-  <div className="space-y-3 animate-in fade-in">
-    <div className="flex justify-center gap-2">
-      <Button onClick={isPlaying ? pauseRecording : playRecording} variant="outline" size="sm" className="w-24" disabled={isSaving}>
-        {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-        {isPlaying ? "Pause" : "Play"}
-      </Button>
-      <Button onClick={handleDeleteClick} variant="destructive" size="sm" className="w-24" disabled={isSaving}>
-        <Trash2 className="h-4 w-4 mr-2" /> Delete
-      </Button>
-    </div>
-    <Button
-      onClick={confirmRecording}
-      className="w-full max-w-xs mx-auto"
-      disabled={isSaving || status !== 'completed'} // <-- ensure disabled until saved
-    >
-      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      {isSaving ? 'Saving Voice...' : 'Use This Recording'}
-    </Button>
-  </div>
-)}
+          {status === 'completed' && audioBlob && (
+            <div className="space-y-3 animate-in fade-in">
+              <div className="flex justify-center gap-2">
+                <Button onClick={playRecording} variant="outline" size="sm" className="w-24" disabled={isSaving}>
+                  {isPlaying ? <Pause className="h-4 w-4 mr-2"/> : <Play className="h-4 w-4 mr-2"/>}
+                  {isPlaying ? "Pause" : "Play"}
+                </Button>
+                <Button onClick={handleDeleteClick} variant="destructive" size="sm" className="w-24" disabled={isSaving}>
+                  <Trash2 className="h-4 w-4 mr-2"/> Delete
+                </Button>
+              </div>
+              <Button onClick={confirmRecording} className="w-full max-w-xs mx-auto" disabled={isSaving || status!=='completed'}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}{isSaving ? 'Saving Voice...' : 'Use This Recording'}
+              </Button>
+            </div>
+          )}
 
-
-          {/* Saved State */}
           {status === 'saved' && (
             <div className="space-y-3 animate-in fade-in">
               <div className="flex items-center justify-center gap-2 text-green-600">
-                <CheckCircle className="h-5 w-5" />
+                <CheckCircle className="h-5 w-5"/>
                 <p className="font-medium">Voice Saved Successfully!</p>
               </div>
-
               {audioBlob && (
                 <div className="flex justify-center gap-2">
-                  <Button onClick={isPlaying ? pauseRecording : playRecording} variant="outline" size="sm" className="w-48">
-                    {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                  <Button onClick={playRecording} variant="outline" size="sm" className="w-48">
+                    {isPlaying ? <Pause className="h-4 w-4 mr-2"/> : <Play className="h-4 w-4 mr-2"/>}
                     {isPlaying ? "Pause Playback" : "Play Saved Voice"}
                   </Button>
                 </div>
               )}
-
               <Button onClick={startRecording} variant="outline">Record another</Button>
             </div>
           )}
@@ -404,15 +327,11 @@ export const VoiceRecorder = ({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Recording?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this voice recording? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Are you sure you want to delete this voice recording? This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
