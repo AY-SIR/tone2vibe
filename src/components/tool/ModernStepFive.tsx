@@ -40,30 +40,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
   useEffect(() => {
     if (!user || !profile) return;
-
-    const updateAnalytics = async () => {
-      try {
-        if (!profile.plan || (profile.plan !== 'pro' && profile.plan !== 'premium')) return;
-
-        await AnalyticsService.trackActivity(
-          user.id,
-          'audio_generated',
-          {
-            language: selectedLanguage,
-            words: wordCount,
-            audioUrl,
-            title: 'Auto Recorded Generation',
-            responseTime: 1200
-          },
-          profile.plan
-        );
-      } catch (error) {
-        // Analytics update failed - non-critical
-      }
-    };
-
-    updateAnalytics();
-  }, [user, profile, selectedLanguage, wordCount, audioUrl]);
+    // Analytics tracking removed - handled by backend during generation
+  }, [user?.id, profile?.plan]);
 
   useEffect(() => {
     if (audioUrl || audioData) {

@@ -128,7 +128,6 @@ type UserVoice = {
   audio_url: string;
   created_at: string;
   duration: string | null;
-  language: string | null;
 };
 
 const History = () => {
@@ -176,7 +175,7 @@ const History = () => {
       try {
         const { data, error } = await supabase
           .from("user_voices")
-          .select("id, name, audio_url, created_at, duration, language")
+          .select("id, name, audio_url, created_at, duration")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
@@ -243,16 +242,21 @@ const History = () => {
   };
 
   const allItems = useMemo((): HistoryItem[] => {
-    const generatedItems = projects.map((p) => ({ ...p, title: p.title, source_type: "generated" as const }));
+      const generatedItems = projects.map((p) => ({ 
+        ...p, 
+        title: p.title, 
+        duration: "0", // Generated audio doesn't have duration field
+        source_type: "generated" as const 
+      }));
     const recordedItems = userVoices.map((v) => ({
       id: v.id,
       title: v.name,
       audio_url: v.audio_url,
       created_at: v.created_at,
       original_text: "",
-      language: v.language || "N/A",
+      language: "N/A",
       word_count: 0,
-      duration: v.duration,
+      duration: v.duration || "0",
       source_type: "recorded" as const,
     }));
     return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

@@ -233,17 +233,16 @@ export const VoiceRecorder = ({
 
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
 
-      const audioDuration = durationRef.current; // ✅ actual recording duration
+      const audioDuration = durationRef.current.toString(); // Convert to string for duration column
       const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`;
 
-      const { error: insertError } = await supabase.from('user_voices').insert({
+      const { error: insertError } = await supabase.from('user_voices').insert([{
         user_id: user.id,
         name: voiceName,
         audio_url: publicUrl,
         duration: audioDuration,
         is_selected: true,
-        language: selectedLanguage,
-      });
+      }]);
 
       if (insertError) throw insertError;
 

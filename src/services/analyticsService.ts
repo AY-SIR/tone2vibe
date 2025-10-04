@@ -66,30 +66,55 @@ export class AnalyticsService {
       const totalLimit = planLimit + purchasedWords;
       const wordsRemaining = Math.max(0, totalLimit - totalWordsUsed);
 
-      // --- Fetch analytics ---
+      // --- Fetch analytics from the analytics table with explicit typing ---
+      type AnalyticsRow = {
+        id: string;
+        user_id: string;
+        history_id: string;
+        title: string;
+        language: string | null;
+        words_used: number;
+        created_at: string;
+        extra_info: any;
+      };
+      
       const { data: analyticsData, error: analyticsError } = await supabase
         .from('analytics')
-        .select('*')
+        .select('id, user_id, history_id, title, language, words_used, created_at, extra_info')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
-      if (analyticsError) throw analyticsError;
-      const filteredData = analyticsData || [];
+        
+      if (analyticsError) {
+        console.error('Analytics fetch error:', analyticsError);
+        throw analyticsError;
+      }
+      
+      const filteredData = (analyticsData || []) as AnalyticsRow[];
+
+      // Extract response_time_ms from extra_info if available
+      const enrichedData = filteredData.map(item => ({
+        ...item,
+        response_time_ms: (item.extra_info as any)?.response_time_ms || 0,
+        voice_type: (item.extra_info as any)?.voice_type || 'generated',
+        error: (item.extra_info as any)?.error || false,
+        status: (item.extra_info as any)?.status || 'completed'
+      }));
 
       // --- Basic calculations ---
-      const totalProjects = filteredData.length;
-      const totalAudioGenerated = filteredData.length;
+      const totalProjects = enrichedData.length;
+      const totalAudioGenerated = enrichedData.length;
       const avgWordsPerProject = totalProjects > 0
-        ? filteredData.reduce((sum, a) => sum + (a.words_used || 0), 0) / totalProjects
+        ? enrichedData.reduce((sum, a) => sum + (a.words_used || 0), 0) / totalProjects
         : 0;
 
-      const avgProjectTimeMs = filteredData.length > 0
-        ? Math.round(filteredData.filter(a => a.response_time_ms && a.response_time_ms > 0).reduce((sum, a) => sum + (a.response_time_ms || 0), 0) / filteredData.filter(a => a.response_time_ms && a.response_time_ms > 0).length || 1)
+      const avgProjectTimeMs = enrichedData.length > 0
+        ? Math.round(enrichedData.filter(a => a.response_time_ms && a.response_time_ms > 0).reduce((sum, a) => sum + (a.response_time_ms || 0), 0) / enrichedData.filter(a => a.response_time_ms && a.response_time_ms > 0).length || 1)
         : 0;
 
       // --- Recent activity (last 30 days) ---
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentData = filteredData.filter(a => new Date(a.created_at) >= thirtyDaysAgo);
+      const recentData = enrichedData.filter(a => new Date(a.created_at) >= thirtyDaysAgo);
 
       const activityMap = new Map<string, { words: number; projects: number }>();
       recentData.forEach(a => {
@@ -103,7 +128,7 @@ export class AnalyticsService {
 
       // --- Language usage ---
       const languageMap = new Map<string, number>();
-      filteredData.forEach(a => {
+      enrichedData.forEach(a => {
         const lang = a.language || 'en-US';
         languageMap.set(lang, (languageMap.get(lang) || 0) + 1);
       });
@@ -116,7 +141,7 @@ export class AnalyticsService {
 
       // --- Voice usage ---
       const voiceMap = new Map<string, number>();
-      filteredData.forEach(a => {
+      enrichedData.forEach(a => {
         const voice = a.voice_type || 'generated';
         voiceMap.set(voice, (voiceMap.get(voice) || 0) + 1);
       });
@@ -127,7 +152,7 @@ export class AnalyticsService {
 
       // --- Peak day of week ---
       const dayMap = new Map<number, number>();
-      filteredData.forEach(a => {
+      enrichedData.forEach(a => {
         const day = new Date(a.created_at).getDay();
         dayMap.set(day, (dayMap.get(day) || 0) + 1);
       });
@@ -171,7 +196,7 @@ export class AnalyticsService {
       if (plan === 'premium') {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        const last90Data = filteredData.filter(a => new Date(a.created_at) >= ninetyDaysAgo);
+        const last90Data = enrichedData.filter(a => new Date(a.created_at) >= ninetyDaysAgo);
         const last90Map = new Map<string, { words: number; projects: number }>();
         last90Data.forEach(a => {
           const date = new Date(a.created_at).toISOString().split('T')[0];
@@ -184,16 +209,16 @@ export class AnalyticsService {
 
         const premiumAnalytics: PremiumAnalytics = {
           ...baseAnalytics,
-          weeklyTrends: this.generateWeeklyTrends(filteredData),
-          monthlyTrends: this.generateMonthlyTrends(filteredData),
+          weeklyTrends: this.generateWeeklyTrends(enrichedData),
+          monthlyTrends: this.generateMonthlyTrends(enrichedData),
           performanceInsights: {
-            efficiencyScore: this.calculateEfficiencyScore(filteredData),
+            efficiencyScore: this.calculateEfficiencyScore(enrichedData),
             avgProcessingTime: avgProjectTimeMs,
-            peakUsageHours: this.calculatePeakUsageHours(filteredData),
-            longestResponseTime: filteredData.length > 0 ? Math.max(...filteredData.map(a => a.response_time_ms || 0), 0) : 0,
-            shortestResponseTime: filteredData.length > 0 ? Math.min(...filteredData.filter(a => a.response_time_ms && a.response_time_ms > 0).map(a => a.response_time_ms || 0), Infinity) : 0,
-            errorRate: filteredData.length > 0
-              ? (filteredData.filter(a => a.error || a.status === 'failed').length / filteredData.length) * 100
+            peakUsageHours: this.calculatePeakUsageHours(enrichedData),
+            longestResponseTime: enrichedData.length > 0 ? Math.max(...enrichedData.map(a => a.response_time_ms || 0), 0) : 0,
+            shortestResponseTime: enrichedData.length > 0 ? Math.min(...enrichedData.filter(a => a.response_time_ms && a.response_time_ms > 0).map(a => a.response_time_ms || 0), Infinity) : 0,
+            errorRate: enrichedData.length > 0
+              ? (enrichedData.filter(a => a.error || a.status === 'failed').length / enrichedData.length) * 100
               : 0
           },
           last90DaysActivity

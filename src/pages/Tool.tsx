@@ -131,18 +131,6 @@ const Tool = () => {
     setProcessedAudioUrl(audioUrl);
 
     if (user) {
-      try {
-        await AnalyticsService.trackActivity(user.id, "audio_generated", {
-          language: selectedLanguage,
-          words: wordCount,
-          voiceType: selectedVoiceId || "custom",
-          responseTime: 0,
-          title: "Audio Generated",
-        });
-      } catch (err) {
-        // Silently fail analytics tracking
-      }
-
       // Refresh profile to update word balance
       if (refreshProfile) {
         await refreshProfile();
