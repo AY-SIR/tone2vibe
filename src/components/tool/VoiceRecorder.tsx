@@ -20,14 +20,14 @@ interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
   disabled?: boolean;
   minimumDuration?: number; // in seconds
-  selectedLanguage: string; // Add prop to receive language
+  selectedLanguage: string;
 }
 
 export const VoiceRecorder = ({
   onRecordingComplete,
   disabled = false,
   minimumDuration = 5,
-  selectedLanguage, // Destructure the prop
+  selectedLanguage,
 }: VoiceRecorderProps) => {
   const [status, setStatus] = useState<'idle' | 'recording' | 'stopping' | 'completed' | 'saved'>('idle');
   const [duration, setDuration] = useState(0);
@@ -91,33 +91,28 @@ export const VoiceRecorder = ({
       recordedChunksRef.current = [];
       durationRef.current = 0;
 
-      // --- STEP 1: Get High-Quality Audio Stream with noise reduction ---
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 48000, // Higher sample rate for better quality
-          channelCount: 1, // Mono for better compatibility and smaller size
-          echoCancellation: true, // Enable to remove echo/reverb
-          noiseSuppression: true, // Enable to remove background noise
-          autoGainControl: true, // Normalize volume levels
+          sampleRate: 48000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
         },
       });
       streamRef.current = stream;
 
-      // --- STEP 2: Boost Volume with Web Audio API ---
       const audioContext = new AudioContext();
-      // Ensure the context is active to prevent silent recordings
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
       const source = audioContext.createMediaStreamSource(stream);
       const gainNode = audioContext.createGain();
-      gainNode.gain.value = 1.5; // Boost volume by 50%
+      gainNode.gain.value = 1.5;
       const dest = audioContext.createMediaStreamDestination();
-      // Connect pipeline: Mic Source -> Gain (Volume) -> Final Destination
       source.connect(gainNode);
       gainNode.connect(dest);
 
-      // --- STEP 3: Record the Processed Stream at High Bitrate ---
       const preferredMimes = [
         'audio/webm;codecs=opus',
         'audio/webm',
@@ -170,7 +165,6 @@ export const VoiceRecorder = ({
       setStatus('idle');
       cleanup();
     }
-
   };
 
   const stopRecording = () => {
@@ -185,7 +179,6 @@ export const VoiceRecorder = ({
         intervalRef.current = null;
       }
     }
-
   };
 
   const playRecording = () => {
@@ -214,7 +207,6 @@ export const VoiceRecorder = ({
         setIsPlaying(false);
         toast({ title: "Playback failed", variant: "destructive" });
       });
-
   };
 
   const pauseRecording = () => {
@@ -250,7 +242,6 @@ export const VoiceRecorder = ({
       audio.addEventListener('loadedmetadata', onLoaded);
       audio.addEventListener('error', onError);
     });
-
   };
 
   const confirmRecording = async () => {
@@ -263,29 +254,40 @@ export const VoiceRecorder = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
+      // 1. Define the file path for storage
       const fileName = `user-voice-${user.id}-${Date.now()}.webm`;
       const filePath = `${user.id}/${fileName}`;
 
+      // 2. Upload the audio file
       const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
 
-      // Store file path (bucket is private; we'll create signed URLs on demand)
-      const storedPath = filePath;
+      // 3. --- THIS IS THE FIX ---
+      // Get the full public URL of the file you just uploaded
+      const { data: urlData } = supabase.storage
+        .from('user-voices')
+        .getPublicUrl(filePath);
 
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error("Failed to get the public URL for the voice recording.");
+      }
+
+      const publicUrl = urlData.publicUrl;
+
+      // 4. Update other records and get audio duration
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
-
       const audioDuration = Math.ceil(await getAudioDuration(audioBlob));
+      const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`; // Using YYYY-MM-DD format
 
-      const voiceName = `Recorded Voice ${new Date().toISOString().split('T')[0]}`;
-
+      // 5. Insert the new record using the full publicUrl
       const { error: insertError } = await supabase.from('user_voices').insert({
         user_id: user.id,
         name: voiceName,
-        audio_url: storedPath,
+        audio_url: publicUrl, // <-- Use the correct full URL here
         duration: audioDuration,
         is_selected: true,
-        language: selectedLanguage, // Save the selected language code
-      } as any);
+        language: selectedLanguage,
+      });
 
       if (insertError) throw insertError;
 
@@ -297,7 +299,6 @@ export const VoiceRecorder = ({
     } finally {
       setIsSaving(false);
     }
-
   };
 
   const handleDeleteClick = () => {
@@ -410,6 +411,5 @@ export const VoiceRecorder = ({
         </AlertDialogContent>
       </AlertDialog>
     </>
-
   );
 };

@@ -81,39 +81,44 @@ const AudioDownloadDropdown = ({ audioUrl, fileName }: {
   if (!audioUrl) return null;
 
   const handleDownload = (format: string) => {
-    const link = document.createElement('a');
-    const baseUrl = audioUrl.substring(0, audioUrl.lastIndexOf('.'));
-    link.href = `${baseUrl}.${format}`;
-    link.download = `${fileName}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // This will fail for invalid URLs, which is fine since they can't be downloaded anyway.
+      const url = new URL(audioUrl);
+      const link = document.createElement('a');
+      const baseUrl = url.href.substring(0, url.href.lastIndexOf('.'));
+      link.href = `${baseUrl}.${format}`;
+      link.download = `${fileName}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+       // Silently fail or show a toast if you prefer
+       console.error("Cannot download: Invalid URL provided.", audioUrl);
+    }
   };
-  
-  // MODIFIED: Download formats are now MP3, WAV, and FLAC for all audio types as requested.
+
   const formats = ['mp3', 'wav', 'flac'];
 
   return (
    <DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button variant="outline" size="sm" className="h-8 px-3">
-      <Download className="h-4 w-4" />
-      <span className="sr-only">Download options</span>
-    </Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent align="start" sideOffset={5}>
-    {formats.map((format) => (
-      <DropdownMenuItem
-        key={format}
-        onSelect={() => handleDownload(format)}
-        aria-label={`Download as ${format.toUpperCase()}`}
-      >
-       Download .{format.toUpperCase()}
-      </DropdownMenuItem>
-    ))}
-  </DropdownMenuContent>
-</DropdownMenu>
-
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 px-3">
+          <Download className="h-4 w-4" />
+          <span className="sr-only">Download options</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={5}>
+        {formats.map((format) => (
+          <DropdownMenuItem
+            key={format}
+            onSelect={() => handleDownload(format)}
+            aria-label={`Download as ${format.toUpperCase()}`}
+          >
+           Download .{format.toUpperCase()}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
@@ -206,15 +211,20 @@ const History = () => {
       if (dbError) throw new Error(`Database Error: ${dbError.message}`);
 
       if (itemToDelete.audio_url) {
-        const bucketName = isRecorded ? "user-voices" : "generated-voices";
-        const url = new URL(itemToDelete.audio_url);
-        const pathParts = url.pathname.split("/");
-        const bucketIndex = pathParts.indexOf(bucketName);
+        try {
+            // This will only work for valid URLs, safely ignore errors for old invalid ones
+            const url = new URL(itemToDelete.audio_url);
+            const bucketName = isRecorded ? "user-voices" : "generated-voices";
+            const pathParts = url.pathname.split("/");
+            const bucketIndex = pathParts.indexOf(bucketName);
 
-        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-          const filePath = pathParts.slice(bucketIndex + 1).join("/");
-          const { error: storageError } = await supabase.storage.from(bucketName).remove([filePath]);
-          if (storageError) console.error(`Storage Error:`, storageError.message);
+            if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
+              const filePath = pathParts.slice(bucketIndex + 1).join("/");
+              const { error: storageError } = await supabase.storage.from(bucketName).remove([filePath]);
+              if (storageError) console.error(`Storage Error:`, storageError.message);
+            }
+        } catch (e) {
+            console.warn("Could not process storage deletion for invalid URL:", itemToDelete.audio_url);
         }
       }
 
@@ -293,18 +303,40 @@ const History = () => {
     try {
       let audioUrl = project.audio_url;
 
+      // --- START OF THE FIX ---
+      // This logic now handles both old (invalid path) and new (full URL) data.
       if (project.source_type === "recorded") {
-        const url = new URL(project.audio_url);
-        const bucketName = "user-voices";
-        const pathParts = url.pathname.split("/");
-        const bucketIndex = pathParts.indexOf(bucketName);
-        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-          const filePath = pathParts.slice(bucketIndex + 1).join("/");
-          const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 60);
-          if (error) throw error;
-          audioUrl = signedData.signedUrl;
+        try {
+          // This line will throw an error for old data (which is what we want)
+          const url = new URL(project.audio_url);
+
+          // If it succeeds, it's a valid new URL. Get a signed URL for playback.
+          const bucketName = "user-voices";
+          const pathParts = url.pathname.split("/");
+          const bucketIndex = pathParts.indexOf(bucketName);
+          if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
+            const filePath = pathParts.slice(bucketIndex + 1).join("/");
+            const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 60);
+            if (error) throw error;
+            audioUrl = signedData.signedUrl;
+          }
+        } catch (e) {
+          // If constructing the URL failed, it's an old recording with a bad path.
+          if (e instanceof TypeError) {
+            console.error("Invalid URL format for recorded voice (likely old data):", project.audio_url);
+            toast({
+              title: "Playback Failed",
+              description: "This is an older recording with an invalid URL format and cannot be played.",
+              variant: "destructive",
+            });
+            setPlayingAudio(null);
+            return; // Stop the function here.
+          }
+          // If it was a different kind of error, let the outer catch block handle it.
+          throw e;
         }
       }
+      // --- END OF THE FIX ---
 
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
@@ -315,8 +347,10 @@ const History = () => {
       };
       setPlayingAudio(project.id);
       await audio.play();
-    } catch (err) {
-      toast({ title: "Playback Error", description: "Could not play audio.", variant: "destructive" });
+    } catch (err: any) {
+      console.error("Audio playback failed:", err);
+      const description = err.message || "Could not play the selected audio file.";
+      toast({ title: "Playback Error", description: description, variant: "destructive" });
       setPlayingAudio(null);
     }
   };
@@ -457,7 +491,6 @@ const History = () => {
       </div>
 
       <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
-        {/* REVERTED: Overlay is now transparent as per your original code. */}
         <AlertDialogOverlay className="fixed inset-0 bg-black/0" />
         <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg m- sm:m-auto">
           <AlertDialogHeader className="text-left">
@@ -516,7 +549,7 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting }: {
           </div>
         </div>
       </CardHeader>
-   <CardContent className="pt-0 p-3 sm:p-6">
+      <CardContent className="pt-0 p-3 sm:p-6">
         {type === 'generated' && project.original_text && (
           <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">{project.original_text}</p>
         )}
@@ -525,7 +558,7 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting }: {
             <Button onClick={() => onPlay(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
               {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </Button>
-            
+
             <AudioDownloadDropdown
               audioUrl={project.audio_url}
               fileName={project.title}
