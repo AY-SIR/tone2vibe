@@ -34,54 +34,30 @@ export class AnalyticsService {
   /** ------------------------------
    * Fetch Pro/Premium analytics
    * ------------------------------- */
-  static async getUserAnalytics(userId: string, plan?: string): Promise<ProAnalytics | PremiumAnalytics | null> {
+  static async getUserAnalytics(plan?: string): Promise<ProAnalytics | PremiumAnalytics | null> {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
 
     try {
-      // Fetch profile first to get the plan_start_date
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (profileError) throw profileError;
-
-      // --- NEW, PRECISE LOGIC ---
-      // Set the filter to the exact plan start timestamp.
-      // This ensures analytics ONLY show data from the current subscription period.
-      const filterStartDate = profile?.plan_start_date ? new Date(profile.plan_start_date) : null;
-
-      // Fetch project history (exclude projects created when user was on free plan)
+      // Supabase RLS ensures only current user's data is fetched
       const { data: projects, error: projectsError } = await supabase
-        .from('history')
+        .from('analytics_history')
         .select('*')
-        .eq('user_id', userId)
-        .not('voice_settings', 'cs', '{"type":"voice_sample"}')
-        .not('voice_settings', 'cs', '{"isSample":true}')
-        .not('voice_settings', 'cs', '{"plan":"free"}')
         .order('created_at', { ascending: false });
 
       if (projectsError) throw projectsError;
 
-      let projectsArray = projects || [];
+      const projectsArray = projects || [];
 
-      // Always filter the projects to only include those created after the plan started.
-      if (filterStartDate) {
-        projectsArray = projectsArray.filter(p => new Date(p.created_at) >= filterStartDate);
-      }
-
-      // All subsequent calculations will now use the correctly filtered 'projectsArray'
       const totalWordsUsed = projectsArray.reduce((sum, p) => sum + (p.words_used || 0), 0);
-      const planLimit = profile?.words_limit || 1000;
-      const purchasedWords = profile?.word_balance || 0;
+      const planLimit = projectsArray[0]?.words_limit || 1000;
+      const purchasedWords = projectsArray[0]?.word_balance || 0;
       const totalLimit = planLimit + purchasedWords;
       const wordsRemaining = Math.max(0, totalLimit - totalWordsUsed);
 
       const totalProjects = projectsArray.length;
       const totalAudioGenerated = projectsArray.length;
 
-      // Recent activity (last 30 days within the plan)
+      // Recent activity (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -95,7 +71,7 @@ export class AnalyticsService {
       const recentActivity = Array.from(activityMap.entries()).map(([date, data]) => ({ date, ...data }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Language usage within the plan
+      // Language usage
       const languageMap = new Map<string, number>();
       projectsArray.forEach(p => {
         const lang = this.formatLanguageCode(p.language || 'en-US');
@@ -108,7 +84,6 @@ export class AnalyticsService {
         percentage: totalLanguageUsage > 0 ? Math.round((count / totalLanguageUsage) * 100) : 0,
       })).sort((a, b) => b.count - a.count);
 
-      // Base Pro analytics object
       const baseAnalytics: ProAnalytics = {
         totalProjects,
         totalWordsProcessed: totalWordsUsed,
@@ -117,14 +92,13 @@ export class AnalyticsService {
         recentActivity,
         languageUsage,
         planInfo: {
-          plan: profile?.plan || 'free',
+          plan: projectsArray[0]?.plan || 'free',
           wordsUsed: totalWordsUsed,
           wordsLimit: totalLimit,
-          planExpiry: profile?.plan_expires_at || null,
+          planExpiry: projectsArray[0]?.plan_expiry || null,
         },
       };
 
-      // Enhance with Premium analytics if applicable
       if (plan === 'premium') {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -144,7 +118,7 @@ export class AnalyticsService {
           weeklyTrends: this.generateWeeklyTrends(projectsArray),
           performanceInsights: {
             efficiencyScore: this.calculateEfficiencyScore(projectsArray),
-            avgProcessingTime: 1200, // Placeholder
+            avgProcessingTime: 1200,
             peakUsageHours: this.calculatePeakUsageHours(projectsArray),
           },
           last90DaysActivity,
@@ -161,7 +135,46 @@ export class AnalyticsService {
   }
 
   /** ------------------------------
-   * Weekly trends (last 12 weeks)
+   * Detailed analytics per project
+   * ------------------------------- */
+  static async getDetailedAnalytics(): Promise<DetailedAnalytics[] | null> {
+    try {
+      const { data, error } = await supabase
+        .from('analytics_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) return [];
+
+      return (data || []).map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        project_id: item.project_id,
+        language: item.language,
+        input_words: item.words_used || 0,
+        output_words: item.words_used || 0,
+        voice_type: item.voice_type || 'generated',
+        voice_id: item.voice_id,
+        response_time_ms: item.response_time_ms || 1200,
+        created_at: item.created_at
+      }));
+    } catch (error) {
+      console.error('Error fetching detailed analytics:', error);
+      return [];
+    }
+  }
+
+  /** ------------------------------
+   * Track activity (optional)
+   * ------------------------------- */
+  static async trackActivity(activityType: string, metadata?: any): Promise<void> {
+    if (activityType === 'audio_generated' && metadata?.isSample) return;
+    console.log('Activity tracked:', { activityType, metadata, timestamp: new Date().toISOString() });
+  }
+
+  /** ------------------------------
+   * Weekly trends (Premium)
    * ------------------------------- */
   private static generateWeeklyTrends(projects: any[]): Array<{ week: string; words: number; projects: number; growth: number }> {
     const weeklyMap = new Map<string, { words: number; projects: number }>();
@@ -188,9 +201,6 @@ export class AnalyticsService {
     return trends;
   }
 
-  /** ------------------------------
-   * Peak usage hours (Premium)
-   * ------------------------------- */
   private static calculatePeakUsageHours(projects: any[]): string[] {
     const hourMap = new Map<number, number>();
     projects.forEach(p => {
@@ -204,9 +214,6 @@ export class AnalyticsService {
     return sortedHours.length > 0 ? sortedHours : ['10:00', '14:00', '18:00'];
   }
 
-  /** ------------------------------
-   * Efficiency score (Premium)
-   * ------------------------------- */
   private static calculateEfficiencyScore(projects: any[]): number {
     if (!projects.length) return 0;
     const recentProjects = projects.slice(0, 30);
@@ -217,48 +224,7 @@ export class AnalyticsService {
     return 65;
   }
 
-  /** ------------------------------
-   * Detailed analytics (per project)
-   * ------------------------------- */
-  static async getDetailedAnalytics(userId: string, plan?: string): Promise<DetailedAnalytics[] | null> {
-    if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('history')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) return [];
-      return (data || []).map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        project_id: undefined,
-        language: item.language,
-        input_words: item.words_used || 0,
-        output_words: item.words_used || 0,
-        voice_type: 'generated',
-        response_time_ms: 1200, // Placeholder
-        created_at: item.created_at
-      }));
-
-    } catch (error) {
-      console.error('Error fetching detailed analytics:', error);
-      return [];
-    }
-  }
-
-  /** ------------------------------
-   * Track activity
-   * ------------------------------- */
-  static async trackActivity(userId: string, activityType: string, metadata?: any, plan?: string): Promise<void> {
-    if (!plan || (plan !== 'pro' && plan !== 'premium')) return;
-    if (activityType === 'audio_generated' && metadata?.isSample) return;
-
-    console.log('Activity tracked:', { userId, activityType, metadata, timestamp: new Date().toISOString() });
-  }
+  
 
   /** ------------------------------
    * Map language codes to human-readable names
