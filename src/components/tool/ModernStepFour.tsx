@@ -102,37 +102,20 @@ const ModernStepFour = ({
       setProgress(100);
       if (data?.audio_url) {
         setSampleAudio(data.audio_url);
+        setShowAdvancedSettings(true); // Auto-show settings after sample
         toast({
-          title: "Voice Sample Ready!",
-          description: "Your sample is ready to preview. Listen and decide if you like it. This is free - no words deducted!",
+          title: "Sample Generated!",
+          description: "Listen to your sample and adjust settings if needed before full generation.",
         });
       }
     } catch (error) {
-      console.error('Primary sample generation failed:', error);
+      console.error('Sample generation failed:', error);
+      setProgress(0);
       toast({
-        title: "Creating Sample Preview",
-        description: "Generating a preview sample for you to review...",
-        variant: "default",
+        title: "Sample Generation Failed",
+        description: "Couldn't create sample. Try adjusting settings or proceed to full generation.",
+        variant: "destructive",
       });
-
-      try {
-        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('generate-fallback-sample');
-        if (fallbackError) throw fallbackError;
-
-        setProgress(100);
-        setSampleAudio(fallbackData.audio_url);
-        toast({
-          title: "Sample Preview Ready",
-          description: "Your preview sample is ready. You can now proceed to full generation!",
-        });
-      } catch (fallbackError) {
-        console.error("Fallback sample generation also failed:", fallbackError);
-        toast({
-          title: "Sample Preview Unavailable",
-          description: "We couldn't create a sample right now. You can skip to full generation or try again.",
-          variant: "destructive",
-        });
-      }
     } finally {
       clearInterval(progressInterval);
       setIsGenerating(false);
@@ -146,18 +129,6 @@ const ModernStepFour = ({
     toast({
       title: "Great Choice!",
       description: "Your voice settings are locked in. Ready to generate your full audio!",
-    });
-  };
-
-  const handleRejectSample = () => {
-    if (advancedPanelCount < 1) {
-      setShowAdvancedSettings(true);
-      setAdvancedPanelCount(1);
-    }
-    setSampleAudio("");
-    toast({
-      title: "Let's Fine-Tune",
-      description: "Adjust the voice settings below to get the perfect sound, then generate a new sample.",
     });
   };
 
@@ -265,20 +236,20 @@ const ModernStepFour = ({
         setTimeout(() => onNext(), 2000);
       } catch (fallbackError) {
         console.error("Fallback generation also failed:", fallbackError);
+        clearInterval(progressInterval);
         
         // Mark as failed - no words deducted, no history saved
         setProgress(0);
         setGeneratedAudio('');
+        setIsGenerating(false);
+        onProcessingEnd();
         
         toast({
           title: "Generation Failed",
-          description: "We couldn't create your audio right now. Please try again. No words were deducted.",
+          description: "Audio generation failed. Please try again. No words were deducted.",
           variant: "destructive",
         });
         
-        // Don't proceed to next step - stay on current step showing failure
-        setIsGenerating(false);
-        onProcessingEnd();
         return; // Exit early - don't call onNext()
       }
     } finally {
@@ -367,7 +338,7 @@ const ModernStepFour = ({
         </CardHeader>
 
         {/* Free Plan - Show locked state */}
-        {profile?.plan === 'free' && !showAdvanced && (
+        {profile?.plan === 'free' && (
           <CardContent className="text-center py-8">
             <Lock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p className="text-sm text-gray-500 mb-4">
@@ -379,11 +350,15 @@ const ModernStepFour = ({
           </CardContent>
         )}
 
-        {isPaidUser ? (
-          <CardContent className={`space-y-6 ${(showAdvanced || showAdvancedSettings) ? 'block' : 'hidden'}`}>
-            {/* Pro Settings */}
+        {/* Pro/Premium Settings - Always visible when expanded */}
+        {isPaidUser && (showAdvanced || showAdvancedSettings) && (
+          <CardContent className="space-y-6">
+            {/* Basic Settings (Pro & Premium) */}
             <div className="space-y-4">
-              <h4 className="font-semibold text-sm text-gray-700 border-b pb-2">Basic Advanced Controls</h4>
+              <h4 className="font-semibold text-sm text-gray-700 border-b pb-2 flex items-center gap-2">
+                Basic Controls
+                {profile?.plan === 'pro' && <Badge variant="secondary" className="text-xs">Pro</Badge>}
+              </h4>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Speed: {speed[0]}x</label>
@@ -566,33 +541,6 @@ const ModernStepFour = ({
               </div>
             )}
           </CardContent>
-        ) : (
-          <CardContent>
-            <div className="text-center py-6 space-y-4">
-              <Crown className="h-12 w-12 mx-auto text-gray-400" />
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Advanced Voice Controls</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Unlock professional-grade voice customization with precise control over:
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4">
-                  <div>• Voice Stability</div>
-                  <div>• Breathing Effects</div>
-                  <div>• Pause Timing</div>
-                  <div>• Word Emphasis</div>
-                  <div>• Clarity Control</div>
-                  <div>• Advanced Features</div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Button variant="outline" size="sm" onClick={() => window.open("/payment", "_blank")}>
-                  <Crown className="h-4 w-4 mr-2" />
-                  Upgrade to Pro
-                </Button>
-                <p className="text-xs text-gray-500">Paid users get Advanced controls</p>
-              </div>
-            </div>
-          </CardContent>
         )}
       </Card>
 
@@ -630,12 +578,12 @@ const ModernStepFour = ({
                   ✓ Perfect! Generate Full Audio
                 </Button>
                 <Button
-                  onClick={handleRejectSample}
+                  onClick={handleGenerateSample}
                   variant="outline"
                   className="w-full sm:flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
-                  disabled={advancedPanelCount >= 1}
+                  disabled={isSampleGeneration}
                 >
-                  {advancedPanelCount >= 1 ? 'Settings Panel Open' : '⚙ Adjust Settings'}
+                  {isSampleGeneration ? 'Generating...' : '🔄 Regenerate Sample'}
                 </Button>
               </div>
             </div>

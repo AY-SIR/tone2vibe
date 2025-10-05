@@ -27,60 +27,21 @@ Deno.serve(async (req: Request) => {
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    // Generate a simple fallback audio sample (no word deduction, no history)
-    // This is just for preview purposes
-    const audioData = new Uint8Array(512);
-
-    const supabaseService = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
-
-    const fileName = `samples/${user.id}/fallback-sample-${Date.now()}.mp3`;
-    const { error: uploadError } = await supabaseService.storage
-      .from("user-generates")
-      .upload(fileName, audioData, {
-        contentType: "audio/mpeg",
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error("Failed to upload fallback sample:", uploadError);
-      throw new Error("Failed to save fallback sample");
-    }
-
-    const { data: urlData } = supabaseService.storage
-      .from("user-generates")
-      .getPublicUrl(fileName);
-
-    // Auto-cleanup after 5 minutes
-    setTimeout(async () => {
-      try {
-        await supabaseService.storage
-          .from("user-generates")
-          .remove([fileName]);
-      } catch (error) {
-        console.error("Fallback sample cleanup failed:", error);
-      }
-    }, 5 * 60 * 1000);
-
-    return new Response(JSON.stringify({
-      success: true,
-      audio_url: urlData.publicUrl,
-      sample_text: "Fallback sample for preview",
-      expires_in_minutes: 5,
-      is_fallback: true
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    console.log("Fallback Sample: Attempting to generate sample - this is a placeholder implementation");
+    
+    // CRITICAL: This is a fallback sample function that creates PLACEHOLDER audio
+    // It should NOT deduct words or create history
+    // Samples are always free
+    // Real implementation would call actual TTS service for sample
+    
+    // For now, return error to prevent false success
+    throw new Error("Fallback sample generation not configured. Please set up a proper TTS service.");
 
   } catch (error) {
     console.error("Fallback sample generation error:", error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || "Unknown error"
+      error: error.message
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
