@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics: {
+        Row: {
+          created_at: string
+          extra_info: Json | null
+          history_id: string
+          id: string
+          language: string | null
+          title: string
+          user_id: string
+          words_used: number
+        }
+        Insert: {
+          created_at?: string
+          extra_info?: Json | null
+          history_id: string
+          id?: string
+          language?: string | null
+          title: string
+          user_id: string
+          words_used?: number
+        }
+        Update: {
+          created_at?: string
+          extra_info?: Json | null
+          history_id?: string
+          id?: string
+          language?: string | null
+          title?: string
+          user_id?: string
+          words_used?: number
+        }
+        Relationships: []
+      }
       banned_emails: {
         Row: {
           created_at: string
@@ -678,6 +711,7 @@ export type Database = {
           duration: string | null
           id: string
           is_selected: boolean | null
+          language: string | null
           name: string
           user_id: string
         }
@@ -688,6 +722,7 @@ export type Database = {
           duration?: string | null
           id?: string
           is_selected?: boolean | null
+          language?: string | null
           name: string
           user_id: string
         }
@@ -698,6 +733,7 @@ export type Database = {
           duration?: string | null
           id?: string
           is_selected?: boolean | null
+          language?: string | null
           name?: string
           user_id?: string
         }
@@ -839,6 +875,18 @@ export type Database = {
       check_plan_expiry: {
         Args: { user_id_param: string }
         Returns: Json
+      }
+      deduct_words_and_log_history: {
+        Args: {
+          p_audio_url: string
+          p_char_count: number
+          p_metadata: Json
+          p_text_sample: string
+          p_title: string
+          p_user_id: string
+          p_word_count: number
+        }
+        Returns: undefined
       }
       deduct_words_smartly: {
         Args: { user_id_param: string; words_to_deduct: number }

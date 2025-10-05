@@ -181,7 +181,7 @@ const History = () => {
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        setUserVoices(data || []);
+        setUserVoices((data as any) || []);
       } catch (err: any) {
         setVoicesError("Failed to fetch recorded voices.");
       } finally {

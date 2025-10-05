@@ -121,7 +121,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
           .limit(limit);
 
         if (error) throw error;
-        setVoices(data || []);
+        setVoices((data as any) || []);
       } catch {
         toast({
           title: "Could not load voices",
