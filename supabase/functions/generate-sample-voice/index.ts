@@ -29,12 +29,37 @@ Deno.serve(async (req: Request) => {
 
     const { voice_settings = {} } = await req.json();
 
+    console.log("🎤 Sample generation request - NO WORD DEDUCTION");
+    console.log("⚠️  This is placeholder - connect real TTS for samples");
+
     // Sample text for preview (no word deduction, no history saving)
     const sampleText = "This is a test sample of your voice. Listen carefully to evaluate the quality.";
 
-    // Generate sample audio (mock for now)
-    const audioData = new Uint8Array(1024);
+    // IMPORTANT: Replace with actual TTS API call for sample
+    // For now, throw error to prevent false success
+    throw new Error("Sample TTS service not configured. Please connect ElevenLabs or OpenAI TTS.");
 
+    /* TEMPLATE FOR REAL SAMPLE GENERATION:
+    
+    const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': Deno.env.get('ELEVENLABS_API_KEY')
+      },
+      body: JSON.stringify({
+        text: sampleText,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: voice_settings
+      })
+    });
+
+    if (!elevenLabsResponse.ok) {
+      throw new Error(`Sample TTS API error: ${elevenLabsResponse.statusText}`);
+    }
+
+    const audioData = await elevenLabsResponse.arrayBuffer();
+    
     const supabaseService = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -44,13 +69,12 @@ Deno.serve(async (req: Request) => {
     const fileName = `samples/${user.id}/sample-${Date.now()}.mp3`;
     const { error: uploadError } = await supabaseService.storage
       .from("user-generates")
-      .upload(fileName, audioData, {
+      .upload(fileName, new Uint8Array(audioData), {
         contentType: "audio/mpeg",
         upsert: true,
       });
 
     if (uploadError) {
-      console.error("Failed to upload sample:", uploadError);
       throw new Error("Failed to save sample audio");
     }
 
@@ -61,9 +85,7 @@ Deno.serve(async (req: Request) => {
     // Auto-cleanup after 5 minutes
     setTimeout(async () => {
       try {
-        await supabaseService.storage
-          .from("user-generates")
-          .remove([fileName]);
+        await supabaseService.storage.from("user-generates").remove([fileName]);
       } catch (error) {
         console.error("Sample cleanup failed:", error);
       }
@@ -79,12 +101,14 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
+    
+    */
 
   } catch (error) {
     console.error("Sample generation error:", error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || "Unknown error"
+      error: error.message || "Sample generation failed"
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

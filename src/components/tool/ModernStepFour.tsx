@@ -102,18 +102,24 @@ const ModernStepFour = ({
       setProgress(100);
       if (data?.audio_url) {
         setSampleAudio(data.audio_url);
-        setShowAdvancedSettings(true); // Auto-show settings after sample
+        
+        // Auto-show settings panel for Pro/Premium users after sample
+        if (isPaidUser && !showAdvancedSettings) {
+          setShowAdvancedSettings(true);
+        }
+        
         toast({
-          title: "Sample Generated!",
-          description: "Listen to your sample and adjust settings if needed before full generation.",
+          title: "Sample Ready!",
+          description: "Listen and adjust settings if needed, then approve or regenerate.",
         });
       }
     } catch (error) {
       console.error('Sample generation failed:', error);
       setProgress(0);
+      setSampleAudio('');
       toast({
         title: "Sample Generation Failed",
-        description: "Couldn't create sample. Try adjusting settings or proceed to full generation.",
+        description: "Couldn't create sample. Adjust settings and try again, or skip to full generation.",
         variant: "destructive",
       });
     } finally {
@@ -442,13 +448,15 @@ const ModernStepFour = ({
               </div>
             </div>
 
-            {/* Premium God-Level Settings */}
+            {/* Premium Fine-Tune Settings */}
             {isPremiumUser && (
               <div className="space-y-4 border-t pt-4">
-                <h4 className="font-semibold text-sm text-purple-700 border-b border-purple-200 pb-2 flex items-center">
-                  <Crown className="h-4 w-4 mr-2" />
-                  Premium God-Level Controls
+                <h4 className="font-semibold text-sm text-purple-700 border-b border-purple-200 pb-2 flex items-center gap-2">
+                  <Crown className="h-4 w-4" />
+                  Premium Fine-Tune Controls
+                  <Badge variant="default" className="text-xs bg-purple-600">Premium Only</Badge>
                 </h4>
+                <p className="text-xs text-gray-600 mb-3">Advanced voice parameters for professional quality</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-purple-700">Voice Stability: {voiceStability[0].toFixed(2)}</label>
