@@ -128,6 +128,7 @@ type UserVoice = {
   audio_url: string;
   created_at: string;
   duration: string | null;
+  language: string | null;
 };
 
 const History = () => {
@@ -175,7 +176,7 @@ const History = () => {
       try {
         const { data, error } = await supabase
           .from("user_voices")
-          .select("id, name, audio_url, created_at, duration")
+          .select("id, name, audio_url, created_at, duration, language")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
@@ -254,7 +255,7 @@ const History = () => {
       audio_url: v.audio_url,
       created_at: v.created_at,
       original_text: "",
-      language: "N/A",
+      language: v.language || "N/A",
       word_count: 0,
       duration: v.duration || "0",
       source_type: "recorded" as const,

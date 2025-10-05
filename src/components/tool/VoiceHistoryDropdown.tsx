@@ -111,20 +111,16 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
       try {
         const limit = getLimitForPlan();
         
-        // Fetch user voices
-        // NOTE: Language filtering is prepared but commented out until 'language' column is added to user_voices table
+        // Fetch user voices filtered by language
         const { data, error } = await supabase
           .from("user_voices")
           .select("id, name, created_at, audio_url")
           .eq("user_id", user.id)
-          // TODO: Add language filter once column exists: .eq("language", selectedLanguage)
+          .eq("language", selectedLanguage)
           .order("created_at", { ascending: false })
           .limit(limit);
 
         if (error) throw error;
-        
-        // Client-side filtering by language would go here if metadata contains language
-        // For now, show all voices
         setVoices(data || []);
       } catch {
         toast({
