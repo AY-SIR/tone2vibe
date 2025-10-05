@@ -112,7 +112,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
         const limit = getLimitForPlan();
         
         // Fetch user voices filtered by language
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("user_voices")
           .select("id, name, created_at, audio_url")
           .eq("user_id", user.id)
@@ -121,7 +121,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
           .limit(limit);
 
         if (error) throw error;
-        setVoices((data as any) || []);
+        setVoices(data || []);
       } catch {
         toast({
           title: "Could not load voices",

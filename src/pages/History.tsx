@@ -174,14 +174,14 @@ const History = () => {
       setVoicesLoading(true);
       setVoicesError(null);
       try {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("user_voices")
           .select("id, name, audio_url, created_at, duration, language")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        setUserVoices((data as any) || []);
+        setUserVoices(data || []);
       } catch (err: any) {
         setVoicesError("Failed to fetch recorded voices.");
       } finally {
