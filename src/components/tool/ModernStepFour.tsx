@@ -1,4 +1,4 @@
-// src/components/tool/ModernStepFour.tsx - Complete Fixed Version
+// src/components/tool/ModernStepFour.tsx - With Tab Switcher for Settings
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Wand2, Volume2, Clock, CheckCircle, Settings, Lock, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,8 +42,6 @@ const ModernStepFour = ({
   const [sampleAudio, setSampleAudio] = useState<string>("");
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [advancedPanelCount, setAdvancedPanelCount] = useState(0);
   const [sampleApproved, setSampleApproved] = useState(false);
 
   const [speed, setSpeed] = useState([1.0]);
@@ -61,6 +60,7 @@ const ModernStepFour = ({
   const { profile } = useAuth();
   const isPaidUser = profile?.plan === 'premium' || profile?.plan === 'pro';
   const isPremiumUser = profile?.plan === 'premium';
+  const isProUser = profile?.plan === 'pro';
 
   const calculateEstimatedTime = () => {
     const baseTime = Math.max(3, Math.ceil(wordCount / 100) * 3);
@@ -102,12 +102,6 @@ const ModernStepFour = ({
       setProgress(100);
       if (data?.audio_url) {
         setSampleAudio(data.audio_url);
-        
-        // Auto-show settings panel for Pro/Premium users after sample
-        if (isPaidUser && !showAdvancedSettings) {
-          setShowAdvancedSettings(true);
-        }
-        
         toast({
           title: "Sample Ready!",
           description: "Listen and adjust settings if needed, then approve or regenerate.",
@@ -158,7 +152,6 @@ const ModernStepFour = ({
     setIsGenerating(true);
     const estimatedTime = calculateEstimatedTime();
     
-    // Show word deduction loading first
     onProcessingStart("Checking word balance and deducting words...");
     await new Promise(resolve => setTimeout(resolve, 800));
     
@@ -244,7 +237,6 @@ const ModernStepFour = ({
         console.error("Fallback generation also failed:", fallbackError);
         clearInterval(progressInterval);
         
-        // Mark as failed - no words deducted, no history saved
         setProgress(0);
         setGeneratedAudio('');
         setIsGenerating(false);
@@ -256,7 +248,7 @@ const ModernStepFour = ({
           variant: "destructive",
         });
         
-        return; // Exit early - don't call onNext()
+        return;
       }
     } finally {
       setIsGenerating(false);
@@ -290,13 +282,13 @@ const ModernStepFour = ({
               <div className="text-xs sm:text-sm text-gray-600">Est. Duration</div>
             </div>
             <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold text-blue-600">
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">
                 {selectedLanguage.split('-')[0].toUpperCase()}
               </div>
               <div className="text-xs sm:text-sm text-gray-600">Language</div>
             </div>
             <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold text-green-600">
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">
                 {profile?.plan === 'premium' ? 'HD' : 'STD'}
               </div>
               <div className="text-xs sm:text-sm text-gray-600">Quality</div>
@@ -305,14 +297,14 @@ const ModernStepFour = ({
         </CardContent>
       </Card>
 
-      {/* Advanced Settings - Always visible, content based on plan */}
+      {/* Advanced Settings with Tabs - Always visible BEFORE generation */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center text-lg">
               <Settings className="h-5 w-5 mr-2" />
               Advanced Settings
-              {profile?.plan === 'premium' && <Crown className="h-4 w-4 ml-2 text-yellow-500" />}
+              {isPremiumUser && <Crown className="h-4 w-4 ml-2 text-yellow-500" />}
             </CardTitle>
             {profile?.plan === 'free' ? (
               <Badge variant="outline" className="text-xs">
@@ -325,7 +317,6 @@ const ModernStepFour = ({
                 size="sm"
                 onClick={() => {
                   setShowAdvanced(!showAdvanced);
-                  // Clear sample when settings are changed
                   if (!showAdvanced && sampleAudio) {
                     setSampleAudio('');
                     setSampleApproved(false);
@@ -343,7 +334,7 @@ const ModernStepFour = ({
           </div>
         </CardHeader>
 
-        {/* Free Plan - Show locked state */}
+        {/* Free Plan - Locked state */}
         {profile?.plan === 'free' && (
           <CardContent className="text-center py-8">
             <Lock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -356,214 +347,204 @@ const ModernStepFour = ({
           </CardContent>
         )}
 
-        {/* Pro/Premium Settings - Always visible when expanded */}
-        {isPaidUser && (showAdvanced || showAdvancedSettings) && (
-          <CardContent className="space-y-6">
-            {/* Basic Settings (Pro & Premium) */}
-            <div className="space-y-4">
-              <h4 className="font-semibold text-sm text-gray-700 border-b pb-2 flex items-center gap-2">
-                Basic Controls
-                {profile?.plan === 'pro' && <Badge variant="secondary" className="text-xs">Pro</Badge>}
-              </h4>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Speed: {speed[0]}x</label>
-                  <Slider
-                    value={speed}
-                    onValueChange={setSpeed}
-                    min={0.5}
-                    max={2.0}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Pitch: {pitch[0]}x</label>
-                  <Slider
-                    value={pitch}
-                    onValueChange={setPitch}
-                    min={0.5}
-                    max={2.0}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Volume: {volume[0]}x</label>
-                  <Slider
-                    value={volume}
-                    onValueChange={setVolume}
-                    min={0.1}
-                    max={1.5}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Voice Style</label>
-                  <Select value={voiceStyle} onValueChange={setVoiceStyle}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="natural">Natural</SelectItem>
-                      <SelectItem value="news">News Reader</SelectItem>
-                      <SelectItem value="conversational">Conversational</SelectItem>
-                      <SelectItem value="cheerful">Cheerful</SelectItem>
-                      <SelectItem value="empathetic">Empathetic</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Emotion</label>
-                  <Select value={emotion} onValueChange={setEmotion}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="neutral">Neutral</SelectItem>
-                      <SelectItem value="happy">Happy</SelectItem>
-                      <SelectItem value="sad">Sad</SelectItem>
-                      <SelectItem value="angry">Angry</SelectItem>
-                      <SelectItem value="excited">Excited</SelectItem>
-                      <SelectItem value="calm">Calm</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Accent</label>
-                  <Select value={accent} onValueChange={setAccent}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Default</SelectItem>
-                      <SelectItem value="american">American</SelectItem>
-                      <SelectItem value="british">British</SelectItem>
-                      <SelectItem value="australian">Australian</SelectItem>
-                      <SelectItem value="canadian">Canadian</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
+        {/* Pro/Premium Settings with Tabs */}
+        {isPaidUser && showAdvanced && (
+          <CardContent>
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full" style={{ gridTemplateColumns: isPremiumUser ? '1fr 1fr 1fr' : '1fr' }}>
+                <TabsTrigger value="basic">Basic</TabsTrigger>
+                {isPremiumUser && <TabsTrigger value="normal">Normal</TabsTrigger>}
+                {isPremiumUser && (
+                  <TabsTrigger value="premium" className="flex items-center gap-1">
+                    <Crown className="h-3 w-3" />
+                    Premium
+                  </TabsTrigger>
+                )}
+              </TabsList>
 
-            {/* Premium Fine-Tune Settings */}
-            {isPremiumUser && (
-              <div className="space-y-4 border-t pt-4">
-                <h4 className="font-semibold text-sm text-purple-700 border-b border-purple-200 pb-2 flex items-center gap-2">
-                  <Crown className="h-4 w-4" />
-                  Premium Fine-Tune Controls
-                  <Badge variant="default" className="text-xs bg-purple-600">Premium Only</Badge>
-                </h4>
-                <p className="text-xs text-gray-600 mb-3">Advanced voice parameters for professional quality</p>
+              {/* Basic Tab - Available for Pro & Premium */}
+              <TabsContent value="basic" className="space-y-4 mt-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-purple-700">Voice Stability: {voiceStability[0].toFixed(2)}</label>
+                    <label className="text-sm font-medium">Speed: {speed[0]}x</label>
                     <Slider
-                      value={voiceStability}
-                      onValueChange={setVoiceStability}
-                      min={0.0}
-                      max={1.0}
-                      step={0.01}
-                      className="w-full [&>[role=slider]]:bg-purple-500"
-                    />
-                    <p className="text-xs text-gray-500">Controls voice consistency throughout generation</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-purple-700">Voice Clarity: {voiceClarity[0].toFixed(2)}</label>
-                    <Slider
-                      value={voiceClarity}
-                      onValueChange={setVoiceClarity}
-                      min={0.0}
-                      max={1.0}
-                      step={0.01}
-                      className="w-full [&>[role=slider]]:bg-purple-500"
-                    />
-                    <p className="text-xs text-gray-500">Boosts clarity vs. naturalness</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-purple-700">Breathing Sound: {breathingSound[0].toFixed(2)}</label>
-                    <Slider
-                      value={breathingSound}
-                      onValueChange={setBreathingSound}
-                      min={0.0}
-                      max={1.0}
-                      step={0.01}
-                      className="w-full [&>[role=slider]]:bg-purple-500"
-                    />
-                    <p className="text-xs text-gray-500">Add realistic breathing between sentences</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-purple-700">Pause Length: {pauseLength[0].toFixed(1)}x</label>
-                    <Slider
-                      value={pauseLength}
-                      onValueChange={setPauseLength}
-                      min={0.5}
-                      max={3.0}
-                      step={0.1}
-                      className="w-full [&>[role=slider]]:bg-purple-500"
-                    />
-                    <p className="text-xs text-gray-500">Control natural pauses and timing</p>
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <label className="text-sm font-medium text-purple-700">Word Emphasis: {wordEmphasis[0].toFixed(2)}</label>
-                    <Slider
-                      value={wordEmphasis}
-                      onValueChange={setWordEmphasis}
+                      value={speed}
+                      onValueChange={setSpeed}
                       min={0.5}
                       max={2.0}
-                      step={0.01}
-                      className="w-full [&>[role=slider]]:bg-purple-500"
+                      step={0.1}
+                      className="w-full"
                     />
-                    <p className="text-xs text-gray-500">Fine-tune word emphasis and expression</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Pitch: {pitch[0]}x</label>
+                    <Slider
+                      value={pitch}
+                      onValueChange={setPitch}
+                      min={0.5}
+                      max={2.0}
+                      step={0.1}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Volume: {volume[0]}x</label>
+                    <Slider
+                      value={volume}
+                      onValueChange={setVolume}
+                      min={0.1}
+                      max={1.5}
+                      step={0.1}
+                      className="w-full"
+                    />
                   </div>
                 </div>
-              </div>
-            )}
+              </TabsContent>
 
-            {/* Settings adjusted notification */}
-            {showAdvancedSettings && sampleAudio && (
-              <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-yellow-800 mb-2">
-                      <strong>Settings Updated!</strong> Generate a new sample to hear the changes.
-                    </p>
-                    <Button onClick={handleGenerateSample} variant="outline" size="sm" className="mr-2">
-                      Generate New Sample
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setShowAdvancedSettings(false);
-                        setAdvancedPanelCount(0);
-                        setSampleAudio("");
-                      }}
-                      variant="ghost"
-                      size="sm"
-                    >
-                      Close Panel
-                    </Button>
+              {/* Normal Tab - Premium Only */}
+              {isPremiumUser && (
+                <TabsContent value="normal" className="space-y-4 mt-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Voice Style</label>
+                      <Select value={voiceStyle} onValueChange={setVoiceStyle}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="natural">Natural</SelectItem>
+                          <SelectItem value="news">News Reader</SelectItem>
+                          <SelectItem value="conversational">Conversational</SelectItem>
+                          <SelectItem value="cheerful">Cheerful</SelectItem>
+                          <SelectItem value="empathetic">Empathetic</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Emotion</label>
+                      <Select value={emotion} onValueChange={setEmotion}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="neutral">Neutral</SelectItem>
+                          <SelectItem value="happy">Happy</SelectItem>
+                          <SelectItem value="sad">Sad</SelectItem>
+                          <SelectItem value="angry">Angry</SelectItem>
+                          <SelectItem value="excited">Excited</SelectItem>
+                          <SelectItem value="calm">Calm</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Accent</label>
+                      <Select value={accent} onValueChange={setAccent}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="american">American</SelectItem>
+                          <SelectItem value="british">British</SelectItem>
+                          <SelectItem value="australian">Australian</SelectItem>
+                          <SelectItem value="canadian">Canadian</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+                </TabsContent>
+              )}
+
+              {/* Premium Tab - Premium Only */}
+              {isPremiumUser && (
+                <TabsContent value="premium" className="space-y-4 mt-4">
+                  <div className="p-3 bg-purple-50 rounded-lg mb-4">
+                    <p className="text-xs text-purple-700">
+                      <Crown className="h-3 w-3 inline mr-1" />
+                      <strong>Premium Fine-Tune Controls</strong> - Advanced parameters for professional quality
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Voice Stability: {voiceStability[0].toFixed(2)}</label>
+                      <Slider
+                        value={voiceStability}
+                        onValueChange={setVoiceStability}
+                        min={0.0}
+                        max={1.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Controls voice consistency</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Voice Clarity: {voiceClarity[0].toFixed(2)}</label>
+                      <Slider
+                        value={voiceClarity}
+                        onValueChange={setVoiceClarity}
+                        min={0.0}
+                        max={1.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Boosts clarity vs. naturalness</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Breathing Sound: {breathingSound[0].toFixed(2)}</label>
+                      <Slider
+                        value={breathingSound}
+                        onValueChange={setBreathingSound}
+                        min={0.0}
+                        max={1.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Add realistic breathing</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Pause Length: {pauseLength[0].toFixed(1)}x</label>
+                      <Slider
+                        value={pauseLength}
+                        onValueChange={setPauseLength}
+                        min={0.5}
+                        max={3.0}
+                        step={0.1}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Control natural pauses</p>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="text-sm font-medium">Word Emphasis: {wordEmphasis[0].toFixed(2)}</label>
+                      <Slider
+                        value={wordEmphasis}
+                        onValueChange={setWordEmphasis}
+                        min={0.5}
+                        max={2.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Fine-tune word emphasis</p>
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+            </Tabs>
           </CardContent>
         )}
       </Card>
 
-      {/* Sample Audio Player and Approval */}
+      {/* Sample Audio Player */}
       {sampleAudio && !sampleApproved && (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader>
-            <CardTitle className="text-lg text-blue-900 flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2">
               <Volume2 className="h-5 w-5" />
               Voice Sample - Test Quality
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="bg-white/70 p-4 rounded-lg">
+              <div className="bg-white p-4 rounded-lg">
                 <p className="text-sm text-gray-700 italic">
                   "{getSampleText()}..."
                 </p>
@@ -574,8 +555,7 @@ const ModernStepFour = ({
               </audio>
               <div className="bg-yellow-50 p-3 rounded-lg">
                 <p className="text-xs text-yellow-800">
-                  ✨ <strong>Test Sample:</strong> This is just the first 50 words.
-                  No words deducted, no history saved.
+                  ✨ <strong>Test Sample:</strong> First 50 words. No words deducted, no history saved.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
@@ -583,12 +563,12 @@ const ModernStepFour = ({
                   onClick={handleApproveSample}
                   className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white"
                 >
-                  ✓ Perfect! Generate Full Audio
+                  ✓ Approve & Continue
                 </Button>
                 <Button
                   onClick={handleGenerateSample}
                   variant="outline"
-                  className="w-full sm:flex-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                  className="w-full sm:flex-1"
                   disabled={isSampleGeneration}
                 >
                   {isSampleGeneration ? 'Generating...' : '🔄 Regenerate Sample'}
@@ -599,134 +579,7 @@ const ModernStepFour = ({
         </Card>
       )}
 
-      {/* Advanced Settings for Fine-tuning (appears after rejection) */}
-      {showAdvancedSettings && (
-        <Card className="border-orange-200 bg-orange-50/50">
-          <CardHeader>
-            <CardTitle className="text-lg text-orange-900">
-              ⚙ Fine-tune Voice Settings
-            </CardTitle>
-            <p className="text-sm text-orange-700">
-              Adjust these settings to perfect your voice quality, then generate a new sample.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Speed: {speed[0]}x</label>
-                <Slider
-                  value={speed}
-                  onValueChange={setSpeed}
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Slow</span>
-                  <span>Normal</span>
-                  <span>Fast</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Pitch: {pitch[0]}x</label>
-                <Slider
-                  value={pitch}
-                  onValueChange={setPitch}
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Lower</span>
-                  <span>Natural</span>
-                  <span>Higher</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Emotion</label>
-                <Select value={emotion} onValueChange={setEmotion}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="neutral"> Neutral</SelectItem>
-                    <SelectItem value="happy"> Happy</SelectItem>
-                    <SelectItem value="sad">Sad</SelectItem>
-                    <SelectItem value="excited"> Excited</SelectItem>
-                    <SelectItem value="calm"> Calm</SelectItem>
-                    <SelectItem value="confident"> Confident</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Accent</label>
-                <Select value={accent} onValueChange={setAccent}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default"> Default</SelectItem>
-                    <SelectItem value="american"> American</SelectItem>
-                    <SelectItem value="british">British</SelectItem>
-                    <SelectItem value="australian"> Australian</SelectItem>
-                    <SelectItem value="canadian"> Canadian</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Voice Style</label>
-                <Select value={voiceStyle} onValueChange={setVoiceStyle}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="natural">🎭 Natural</SelectItem>
-                    <SelectItem value="news">📰 News Reader</SelectItem>
-                    <SelectItem value="conversational">💬 Conversational</SelectItem>
-                    <SelectItem value="dramatic">🎬 Dramatic</SelectItem>
-                    <SelectItem value="storytelling">📚 Storytelling</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Volume: {volume[0]}x</label>
-                <Slider
-                  value={volume}
-                  onValueChange={setVolume}
-                  min={0.1}
-                  max={1.5}
-                  step={0.1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Quiet</span>
-                  <span>Normal</span>
-                  <span>Loud</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={handleGenerateSample}
-                disabled={isSampleGeneration}
-                className="flex-1"
-              >
-                {isSampleGeneration ? "Generating..." : "Generate New Sample"}
-              </Button>
-              <Button
-                onClick={() => setShowAdvancedSettings(false)}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Generation Status - DUAL BUTTON FOR PAID USERS */}
+      {/* Generation Controls */}
       {!hasAudio && !sampleAudio && !sampleApproved && (
         <Card>
           <CardContent className="p-6">
@@ -758,7 +611,7 @@ const ModernStepFour = ({
                     disabled={!canGenerate}
                     variant="outline"
                     size="lg"
-                    className="px-6 sm:px-8 py-2 sm:py-3 border-blue-300 hover:bg-blue-50"
+                    className="px-6 sm:px-8 py-2 sm:py-3 border-2 border-gray-300 hover:bg-gray-50"
                   >
                     <Volume2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                     Generate Sample (50 words)
@@ -767,7 +620,7 @@ const ModernStepFour = ({
                     onClick={handleGenerateFullAudio}
                     disabled={!canGenerate}
                     size="lg"
-                    className="px-6 sm:px-8 py-2 sm:py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600"
+                    className="px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
                   >
                     <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                     Generate Full Audio ({wordCount} words)
@@ -778,7 +631,7 @@ const ModernStepFour = ({
                   onClick={handleGenerateFullAudio}
                   disabled={!canGenerate}
                   size="lg"
-                  className="px-6 sm:px-8 py-2 sm:py-3"
+                  className="px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
                 >
                   <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                   Generate Full Audio
@@ -814,7 +667,7 @@ const ModernStepFour = ({
                 onClick={handleGenerateFullAudio}
                 disabled={!canGenerate}
                 size="lg"
-                className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-green-600 hover:bg-green-700"
+                className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white"
               >
                 <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 Generate Complete Audio ({wordCount} words)
@@ -858,7 +711,7 @@ const ModernStepFour = ({
 
       {/* Success Status */}
       {hasAudio && (
-        <Card className="border-green-200 bg-green-50/50 animate-fade-in">
+        <Card className="border-green-200 bg-green-50/50">
           <CardContent className="p-6">
             <div className="text-center space-y-4">
               <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
@@ -896,7 +749,7 @@ const ModernStepFour = ({
           onClick={onNext}
           disabled={!hasAudio}
           size="lg"
-          className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 text-white rounded-lg transition-colors"
+          className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white"
         >
           Continue to Final Results
           <ArrowRight className="h-4 w-4 ml-2" />

@@ -86,7 +86,7 @@ export function PaymentGateway({
         "Usage analytics & charts"
       ],
       icon: <Crown className="h-5 w-5" />,
-      gradient: "from-amber-500 to-yellow-600"
+      color: "bg-gray-900"
     },
     premium: {
       name: "Premium",
@@ -107,7 +107,7 @@ export function PaymentGateway({
         "Advanced Analytics"
       ],
       icon: <Star className="h-5 w-5" />,
-      gradient: "from-purple-500 to-pink-600"
+      color: "bg-black"
     }
   };
 
@@ -261,7 +261,7 @@ export function PaymentGateway({
     return (
       <Card className="w-full max-w-md mx-auto border-2">
         <CardHeader className="text-center p-6">
-          <div className={`bg-gradient-to-br ${plan.gradient} w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white shadow-lg`}>
+          <div className={`${plan.color} w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
             {plan.icon}
           </div>
           <CardTitle className="text-2xl">Already Subscribed</CardTitle>
@@ -311,11 +311,11 @@ export function PaymentGateway({
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl shadow-2xl border-2">
-        {/* Header with gradient */}
-        <div className={`bg-gradient-to-br ${plan.gradient} p-8 text-white rounded-t-lg`}>
+      <Card className="w-full max-w-2xl border-2">
+        {/* Header with solid black/white */}
+        <div className={`${plan.color} p-8 text-white`}>
           <div className="flex items-center justify-center mb-4">
-            <div className="bg-white/20 backdrop-blur-sm w-16 h-16 rounded-2xl flex items-center justify-center">
+            <div className="bg-white/10 w-16 h-16 rounded-lg flex items-center justify-center border border-white/20">
               {plan.icon}
             </div>
           </div>
@@ -344,8 +344,8 @@ export function PaymentGateway({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {plan.features.map((feature, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50 transition-all">
-                  <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors">
+                  <Check className="h-5 w-5 text-black flex-shrink-0 mt-0.5" />
                   <span className="text-sm font-medium">{feature}</span>
                 </div>
               ))}
@@ -369,8 +369,8 @@ export function PaymentGateway({
 
           <Separator />
 
-          {/* Pricing - Enhanced */}
-          <div className="space-y-4 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl">
+          {/* Pricing - Black & White */}
+          <div className="space-y-4 bg-white border-2 border-gray-900 p-6 rounded-lg">
             <h4 className="font-semibold text-lg">Payment Summary</h4>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
@@ -378,7 +378,7 @@ export function PaymentGateway({
                 <span className="font-semibold text-lg">{pricing.symbol}{baseAmount}</span>
               </div>
               {couponValidation.isValid && (
-                <div className="flex justify-between text-sm text-green-600 bg-green-50 p-2 rounded-lg">
+                <div className="flex justify-between text-sm text-green-600 bg-green-50 p-2 rounded-lg border border-green-200">
                   <span className="font-medium">Coupon Discount ({couponValidation.code})</span>
                   <span className="font-semibold">-{pricing.symbol}{discount}</span>
                 </div>
@@ -386,11 +386,11 @@ export function PaymentGateway({
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total Amount</span>
-                <span className={`text-2xl ${finalAmount === 0 ? 'text-green-600' : `bg-gradient-to-r ${plan.gradient} bg-clip-text text-transparent`}`}>
+                <span className={`text-2xl ${finalAmount === 0 ? 'text-green-600' : 'text-black'}`}>
                   {pricing.symbol}{finalAmount}
                 </span>
               </div>
-              <div className="text-xs text-center text-muted-foreground bg-white/50 p-2 rounded">
+              <div className="text-xs text-center text-gray-600 bg-gray-50 p-2 rounded border">
                 {finalAmount === 0 ? '🎉 Free activation with coupon' :
                  isExpired ? '🔄 Plan renewal • INR Currency Only' :
                  '📅 Billed monthly • INR Currency Only'}
@@ -405,8 +405,8 @@ export function PaymentGateway({
             </div>
           )}
 
-          {/* Payment Confirmation - Enhanced */}
-          <div className="flex items-start space-x-3 p-4 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl border-2 border-orange-200">
+          {/* Payment Confirmation - Black & White */}
+          <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border-2 border-gray-900">
             <Checkbox
               id="confirm-payment"
               checked={confirmPayment}
@@ -422,14 +422,14 @@ export function PaymentGateway({
             </div>
           </div>
 
-          {/* Payment Button - Enhanced */}
+          {/* Payment Button - Black & White */}
           <Button
             onClick={handlePayment}
             disabled={isProcessing || isActivating || !confirmPayment || (finalAmount === 0 && !couponValidation.isValid)}
-            className={`w-full h-14 text-lg font-bold shadow-lg hover:shadow-xl transition-all ${
+            className={`w-full h-14 text-lg font-bold transition-all ${
               finalAmount === 0 
-                ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700' 
-                : `bg-gradient-to-r ${plan.gradient}`
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-black hover:bg-gray-800 text-white'
             }`}
             size="lg"
           >
