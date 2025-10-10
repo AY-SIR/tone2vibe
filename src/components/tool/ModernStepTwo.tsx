@@ -313,12 +313,12 @@ const ModernStepTwo = ({
   variant="outline"
   size="icon"
   title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
-  className="border-2 border-black"
+  className="border-2  animate-pulse"
 >
   {isTranslating ? (
     <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
   ) : (
-    <Languages className="h-4 w-4 text-white" />
+    <Languages className="h-4 w-4 text-black" />
   )}
 </Button>
             )}
