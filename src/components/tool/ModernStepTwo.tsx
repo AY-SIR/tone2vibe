@@ -444,7 +444,7 @@ const ModernStepTwo = ({
           size="lg" 
           className="px-6 sm:px-8 order-1 sm:order-2"
         >
-          {showTranslateIcon ? 'Translate Required' : 'Continue to Voice Selection'}
+          {showTranslateIcon ? 'Translate Required' : ''}
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
       </div>
