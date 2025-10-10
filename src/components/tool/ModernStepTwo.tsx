@@ -40,7 +40,6 @@ const ModernStepTwo = ({
   const [isTranslating, setIsTranslating] = useState(false);
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [translationError, setTranslationError] = useState<string | null>(null);
-  const [showTranslateIcon, setShowTranslateIcon] = useState(false);
   const [translationAlertDismissed, setTranslationAlertDismissed] = useState(false);
   const { toast } = useToast();
 
@@ -199,7 +198,8 @@ const ModernStepTwo = ({
       if (result.success && result.translatedText) {
         setEditedText(result.translatedText);
         onTextUpdated(result.translatedText);
-        setDetectedLanguage(selectedLanguage); // Update detected lang after translation
+        setDetectedLanguage(selectedLanguage);
+        setTranslationAlertDismissed(true);
         toast({
           title: "Translation Complete",
           description: `Text translated to ${languages.find(l => l.code === selectedLanguage)?.name}`,
