@@ -39,6 +39,9 @@ const ModernStepTwo = ({
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [detectionError, setDetectionError] = useState<string | null>(null);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [showTranslateIcon, setShowTranslateIcon] = useState(false);
+  const [translationAlertDismissed, setTranslationAlertDismissed] = useState(false);
   const { toast } = useToast();
 
   const MIN_CHARS = 20;
@@ -331,7 +334,7 @@ const ModernStepTwo = ({
             </div>
           )}
           
-          {showTranslateIcon && !isTranslating && !detectionError && (
+          {showTranslateIcon && !isTranslating && !detectionError && !translationAlertDismissed && (
   <p className="mt-2 text-sm text-red-600 font-semibold flex items-center gap-2">
     <Languages className="h-4 w-4" />
     Translation Required

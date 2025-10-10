@@ -113,28 +113,85 @@ export class TranslationService {
         };
       }
 
-      const scriptResult = this.detectByScript(cleanText);
-      if (scriptResult && scriptResult.confidence > 0.8) {
-        return scriptResult;
-      }
-
+      // Step 1: Detect by franc first
       const francCode = franc(cleanText, { minLength: 20 });
+      let francResult: { code: string; confidence: number; iso: string } | null = null;
+      
       if (francCode && francCode !== 'und') {
         const localeCode = this.francToLocale[francCode] || 'en-US';
         const isoCode = this.localeToISO[localeCode] || 'en';
-        return {
+        francResult = {
           code: localeCode,
-          confidence: 0.9,
-          iso: isoCode,
+          confidence: 0.85,
+          iso: isoCode
+        };
+      }
+
+      // Step 2: Combined check - script detection + common words simultaneously
+      const scriptResult = this.detectByScript(cleanText);
+      const wordResult = this.detectByCommonWords(cleanText);
+
+      // If script and word detection agree, very high confidence
+      if (scriptResult && wordResult && scriptResult.code === wordResult.code) {
+        return {
+          code: scriptResult.code,
+          confidence: 0.98,
+          iso: scriptResult.iso,
           needsMoreText: false
         };
       }
 
-      const wordResult = this.detectByCommonWords(cleanText);
-      if (wordResult && wordResult.confidence > 0.6) {
-        return wordResult;
+      // If franc and script agree, high confidence
+      if (francResult && scriptResult && francResult.code === scriptResult.code) {
+        return {
+          code: scriptResult.code,
+          confidence: 0.95,
+          iso: scriptResult.iso,
+          needsMoreText: false
+        };
       }
 
+      // If franc and word detection agree, high confidence
+      if (francResult && wordResult && francResult.code === wordResult.code) {
+        return {
+          code: wordResult.code,
+          confidence: 0.92,
+          iso: wordResult.iso,
+          needsMoreText: false
+        };
+      }
+
+      // Prioritize script detection for non-Latin scripts
+      if (scriptResult && scriptResult.confidence > 0.85) {
+        return {
+          code: scriptResult.code,
+          confidence: scriptResult.confidence,
+          iso: scriptResult.iso,
+          needsMoreText: false
+        };
+      }
+
+      // Prioritize franc for Latin scripts
+      if (francResult && francResult.confidence > 0.8) {
+        return {
+          code: francResult.code,
+          confidence: francResult.confidence,
+          iso: francResult.iso,
+          needsMoreText: false
+        };
+      }
+
+      // Fallback to word detection
+      if (wordResult && wordResult.confidence > 0.6) {
+        return {
+          code: wordResult.code,
+          confidence: wordResult.confidence,
+          iso: wordResult.iso,
+          needsMoreText: false
+        };
+      }
+
+      // Final fallback
       return {
         code: 'hi-IN',
         confidence: 0.3,

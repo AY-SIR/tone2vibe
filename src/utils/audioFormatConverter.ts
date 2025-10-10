@@ -65,7 +65,7 @@ class AudioFormatConverter {
         mp3Data.push(mp3buf);
       }
       
-      const mp3Blob = new Blob(mp3Data, { type: 'audio/mpeg' });
+      const mp3Blob = new Blob(mp3Data as BlobPart[], { type: 'audio/mpeg' });
       return mp3Blob;
     } catch (error) {
       console.error('WebM to MP3 conversion error:', error);
