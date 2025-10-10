@@ -308,19 +308,19 @@ const ModernStepTwo = ({
             </Select>
             {showTranslateIcon && (
               <Button
-                onClick={handleTranslateText}
-                disabled={isTranslating || isImproving || !editedText.trim()}
-                variant="outline"
-                size="icon"
-                title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
-                className="border-2 border-red-400 animate-pulse"
-              >
-                {isTranslating ? (
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Languages className="h-4 w-4 text-orange-600" />
-                )}
-              </Button>
+  onClick={handleTranslateText}
+  disabled={isTranslating || isImproving || !editedText.trim()}
+  variant="outline"
+  size="icon"
+  title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
+  className="border-2 border-black"
+>
+  {isTranslating ? (
+    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+  ) : (
+    <Languages className="h-4 w-4 text-white" />
+  )}
+</Button>
             )}
           </div>
           
@@ -332,13 +332,11 @@ const ModernStepTwo = ({
           )}
           
           {showTranslateIcon && !isTranslating && !detectionError && (
-            <div className="mt-2 p-3 bg-red-50 border-2 border-red-300 rounded-md">
-              <p className="text-sm text-red-800 font-semibold flex items-center gap-2">
-                <Languages className="h-4 w-4" />
-                Translation Required
-              </p>
-            </div>
-          )}
+  <p className="mt-2 text-sm text-red-600 font-semibold flex items-center gap-2">
+    <Languages className="h-4 w-4" />
+    Translation Required
+  </p>
+)}
 
         </CardContent>
       </Card>
