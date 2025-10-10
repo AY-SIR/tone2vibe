@@ -1,4 +1,4 @@
-// src/components/tool/ModernStepTwo.tsx
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -313,7 +313,7 @@ const ModernStepTwo = ({
                 variant="outline"
                 size="icon"
                 title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
-                className="border-2 border-orange-400 animate-pulse"
+                className="border-2 border-red-400 animate-pulse"
               >
                 {isTranslating ? (
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -332,7 +332,7 @@ const ModernStepTwo = ({
           )}
           
           {showTranslateIcon && !isTranslating && !detectionError && (
-            <div className="mt-2 p-3 bg-orange-50 border-2 border-red-300 rounded-md">
+            <div className="mt-2 p-3 bg-red-50 border-2 border-red-300 rounded-md">
               <p className="text-sm text-red-800 font-semibold flex items-center gap-2">
                 <Languages className="h-4 w-4" />
                 Translation Required
