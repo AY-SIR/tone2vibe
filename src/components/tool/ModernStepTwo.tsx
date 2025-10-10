@@ -335,7 +335,11 @@ const ModernStepTwo = ({
             <div className="mt-2 p-3 bg-orange-50 border-2 border-orange-300 rounded-md">
               <p className="text-sm text-orange-800 font-semibold flex items-center gap-2">
                 <Languages className="h-4 w-4" />
-                Translation Required: Click the translate button before proceeding
+                Translation Required
+
+
+
+            
               </p>
             </div>
           )}
