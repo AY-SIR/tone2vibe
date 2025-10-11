@@ -339,7 +339,7 @@ export function PaymentGateway({
           {/* Plan Features - Enhanced */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-yellow-500" />
+              
               <h4 className="font-semibold text-lg">Premium Features Included:</h4>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -357,7 +357,7 @@ export function PaymentGateway({
           {/* Coupon Section */}
           <div>
             <h4 className="font-semibold text-lg mb-3 flex items-center gap-2">
-              <span className="text-green-600">💰</span> Have a Coupon Code?
+              <span className="text-green-600"></span> Have a Coupon Code?
             </h4>
             <CouponInput
               amount={baseAmount}
@@ -391,16 +391,16 @@ export function PaymentGateway({
                 </span>
               </div>
               <div className="text-xs text-center text-gray-600 bg-gray-50 p-2 rounded border">
-                {finalAmount === 0 ? '🎉 Free activation with coupon' :
-                 isExpired ? '🔄 Plan renewal • INR Currency Only' :
-                 '📅 Billed monthly • INR Currency Only'}
+                {finalAmount === 0 ? ' Free activation with coupon' :
+                 isExpired ? ' Plan renewal • INR Currency Only' :
+                 ' • INR Currency Only'}
               </div>
             </div>
           </div>
 
           {finalAmount === 0 && !couponValidation.isValid && (
             <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-              <p className="text-sm text-red-600 font-semibold">⚠️ Invalid Free Activation</p>
+              <p className="text-sm text-red-600 font-semibold"> Invalid Free Activation</p>
               <p className="text-xs text-red-500 mt-1">A valid coupon code is required for free plan activation.</p>
             </div>
           )}
@@ -449,7 +449,7 @@ export function PaymentGateway({
           {/* Security Notice */}
           <div className="text-center space-y-2">
             <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-              <span className="text-xl">🔒</span>
+              <span className="text-xl"></span>
               <span className="font-medium">{finalAmount === 0 ? 'Secure free activation' : 'Secure payment processing'}</span>
             </div>
             <div className="text-xs text-muted-foreground">
