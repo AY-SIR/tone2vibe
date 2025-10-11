@@ -33,7 +33,8 @@ const RealAnalytics = () => {
     queryKey: ['real-analytics', user?.id, profile?.plan],
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
-      return await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
+      // Assuming weeklyTrends is part of ProAnalytics as well
+      return await AnalyticsService.getUserAnalytics(user.id, profile?.plan) as (ProAnalytics & { weeklyTrends?: any[] });
     },
     enabled: !!user && profile?.plan !== 'free',
     refetchInterval: 30000,
@@ -129,21 +130,21 @@ const RealAnalytics = () => {
                 </Card>
 
                 <Card className="border-2 hover:shadow-md transition-shadow">
-  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
-    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
-      <div
-  className={`text-2xl sm:text-3xl font-bold ${
-    (analytics?.wordsRemaining ?? 0) < 100 ? 'text-red-600' : 'text-green-600'
-  }`}
->
-  {formatWords(analytics?.wordsRemaining)}
-</div>
-      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
-        Remaining
-      </div>
-    </div>
-  </CardContent>
-</Card>
+                  <CardContent className="pt-5 pb-5 px-3 sm:px-4">
+                    <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
+                      <div
+                        className={`text-2xl sm:text-3xl font-bold ${
+                          (analytics?.wordsRemaining ?? 0) < 100 ? 'text-red-600' : 'text-green-600'
+                        }`}
+                      >
+                        {formatWords(analytics?.wordsRemaining)}
+                      </div>
+                      <div className="text-gray-600 text-xs sm:text-sm font-medium text-center">
+                        Remaining
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <Card className="border-2 hover:shadow-md transition-shadow">
                   <CardContent className="pt-5 pb-5 px-3 sm:px-4">
@@ -265,7 +266,8 @@ const RealAnalytics = () => {
                 </Card>
               )}
 
-              {isPremium && premiumAnalytics.weeklyTrends && (
+              {/* === MODIFICATION: Weekly Trends now available for Pro & Premium === */}
+              {(isPro || isPremium) && analytics?.weeklyTrends && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
@@ -274,7 +276,7 @@ const RealAnalytics = () => {
                   <CardContent>
                     <div className="h-[250px] sm:h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={premiumAnalytics.weeklyTrends}>
+                        <BarChart data={analytics.weeklyTrends}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="week" tick={{ fontSize: 12 }} />
                           <YAxis tick={{ fontSize: 12 }} />
@@ -287,6 +289,30 @@ const RealAnalytics = () => {
                   </CardContent>
                 </Card>
               )}
+              
+              {/* === NEW CHART ADDED: Projects per Language (Premium Only) === */}
+              {isPremium && analytics?.languageUsage && analytics.languageUsage.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg sm:text-xl">Projects per Language</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Total projects for each language used</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px] sm:h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analytics.languageUsage}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="language" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip />
+                          <Bar dataKey="count" name="Projects" fill="#4a5568" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
 
               {isPremium && premiumAnalytics.monthlyTrends && (
                 <Card>
