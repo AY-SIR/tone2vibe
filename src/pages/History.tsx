@@ -243,6 +243,15 @@ const History = () => {
     }
   };
 
+const formatDuration = (duration: string | number | null) => {
+  if (!duration) return "--:--";
+  const totalSeconds = typeof duration === "string" ? parseInt(duration) : duration;
+  if (isNaN(totalSeconds)) return "--:--";
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+  
   const allItems = useMemo((): HistoryItem[] => {
       const generatedItems = projects.map((p) => ({ 
         ...p, 
@@ -251,16 +260,16 @@ const History = () => {
         source_type: "generated" as const 
       }));
     const recordedItems = userVoices.map((v) => ({
-      id: v.id,
-      title: v.name,
-      audio_url: v.audio_url,
-      created_at: v.created_at,
-      original_text: "",
-      language: v.language || "N/A",
-      word_count: 0,
-      duration: v.duration || "0",
-      source_type: "recorded" as const,
-    }));
+  id: v.id,
+  title: v.name,
+  audio_url: v.audio_url,
+  created_at: v.created_at,
+  original_text: "",
+  language: v.language || "N/A",
+  word_count: 0,
+  duration: formatDuration(v.duration), // <-- format here
+  source_type: "recorded" as const,
+}));
     return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [projects, userVoices]);
 
