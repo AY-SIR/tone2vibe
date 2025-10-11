@@ -169,12 +169,26 @@ const ModernStepTwo = ({
     onTextUpdated(newText);
     setDetectionError(null); // Clear previous errors on new input
 
-    const timeoutId = setTimeout(() => {
-      detectTextLanguage(newText);
-    }, 800);
-
-    return () => clearTimeout(timeoutId);
+    
   };
+  // State for debounced detection
+const [textForDetection, setTextForDetection] = useState(editedText);
+
+// Update text for detection when editedText changes
+useEffect(() => {
+  setTextForDetection(editedText);
+}, [editedText]);
+
+// Debounced language detection
+useEffect(() => {
+  if (textForDetection.trim().length < MIN_CHARS) return;
+
+  const timeout = setTimeout(() => {
+    detectTextLanguage(textForDetection);
+  }, 400);
+
+  return () => clearTimeout(timeout);
+}, [textForDetection]);
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
