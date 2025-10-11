@@ -349,7 +349,7 @@ export function PaymentGateway({
           )}
 
           {/* Plan Features */}
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-3 ">
             <h4 className="font-medium text-sm text-gray-900">What's included:</h4>
             <ul className="space-y-2">
               {plan.features.map((feature, index) => (
@@ -400,7 +400,7 @@ export function PaymentGateway({
             <div className="text-xs text-gray-500 text-center">
               {finalAmount === 0 ? 'Free activation with coupon' :
                isExpired ? 'Plan renewal • INR Currency Only' :
-               'Billed monthly • INR Currency Only'}
+               ' • INR Currency Only'}
             </div>
           </div>
 
@@ -450,7 +450,7 @@ export function PaymentGateway({
           {/* Security Notice */}
           <div className="text-sm text-gray-500 text-center mt-2">
             <div className="flex items-center justify-center space-x-2">
-              <span>🔒</span>
+              <span></span>
               <span>{finalAmount === 0 ? 'Secure free activation' : 'Secure payment processing'}</span>
             </div>
             <div className="mt-1 text-xs">
