@@ -138,6 +138,7 @@ const History = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
 
   const [projects, setProjects] = useState(projectsFromHook || []);
   const [userVoices, setUserVoices] = useState<UserVoice[]>([]);
@@ -296,26 +297,28 @@ const History = () => {
 
     if (playingAudio === project.id) {
       setPlayingAudio(null);
+      setLoadingAudio(null);
       audioRef.current = null;
       return;
     }
 
     if (!project.audio_url) {
-      toast({ title: "No audio available", variant: "destructive" });
+      toast({ 
+        title: "Audio Not Available", 
+        description: "This audio file is no longer available. It may have been deleted.",
+        variant: "destructive" 
+      });
       return;
     }
+
+    setLoadingAudio(project.id);
 
     try {
       let audioUrl = project.audio_url;
 
-      // --- START OF THE FIX ---
-      // This logic now handles both old (invalid path) and new (full URL) data.
       if (project.source_type === "recorded") {
         try {
-          // This line will throw an error for old data (which is what we want)
           const url = new URL(project.audio_url);
-
-          // If it succeeds, it's a valid new URL. Get a signed URL for playback.
           const bucketName = "user-voices";
           const pathParts = url.pathname.split("/");
           const bucketIndex = pathParts.indexOf(bucketName);
@@ -326,37 +329,59 @@ const History = () => {
             audioUrl = signedData.signedUrl;
           }
         } catch (e) {
-          // If constructing the URL failed, it's an old recording with a bad path.
           if (e instanceof TypeError) {
             console.error("Invalid URL format for recorded voice (likely old data):", project.audio_url);
             toast({
-              title: "Playback Failed",
-              description: "This is an older recording with an invalid URL format and cannot be played.",
+              title: "Cannot Play Audio",
+              description: "This recording has an outdated format. Please record a new voice sample.",
               variant: "destructive",
             });
             setPlayingAudio(null);
-            return; // Stop the function here.
+            setLoadingAudio(null);
+            return;
           }
-          // If it was a different kind of error, let the outer catch block handle it.
           throw e;
         }
       }
-      // --- END OF THE FIX ---
 
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
-      audio.onended = () => setPlayingAudio(null);
-      audio.onerror = () => {
-        toast({ title: "Playback Failed", variant: "destructive" });
+      
+      audio.onended = () => {
         setPlayingAudio(null);
+        setLoadingAudio(null);
       };
-      setPlayingAudio(project.id);
+      
+      audio.onerror = () => {
+        toast({ 
+          title: "Playback Error", 
+          description: "The audio file could not be loaded. It may be corrupted or expired.",
+          variant: "destructive" 
+        });
+        setPlayingAudio(null);
+        setLoadingAudio(null);
+      };
+
       await audio.play();
+      setPlayingAudio(project.id);
+      setLoadingAudio(null);
     } catch (err: any) {
       console.error("Audio playback failed:", err);
-      const description = err.message || "Could not play the selected audio file.";
-      toast({ title: "Playback Error", description: description, variant: "destructive" });
+      let description = "Could not play the audio file. Please try again.";
+      
+      if (err.message?.includes('network')) {
+        description = "Network error. Check your connection and try again.";
+      } else if (err.message?.includes('expired')) {
+        description = "This audio file has expired. Please generate a new one.";
+      }
+      
+      toast({ 
+        title: "Playback Failed", 
+        description: description, 
+        variant: "destructive" 
+      });
       setPlayingAudio(null);
+      setLoadingAudio(null);
     }
   };
 
@@ -442,6 +467,7 @@ const History = () => {
                         key={project.id}
                         project={project}
                         playingAudio={playingAudio}
+                        loadingAudio={loadingAudio}
                         onPlay={playAudio}
                         onDelete={handleDeleteRequest}
                         isDeleting={isDeleting === project.id}
@@ -470,6 +496,7 @@ const History = () => {
                         key={project.id}
                         project={project}
                         playingAudio={playingAudio}
+                        loadingAudio={loadingAudio}
                         onPlay={playAudio}
                         onDelete={handleDeleteRequest}
                         isDeleting={isDeleting === project.id}
@@ -523,9 +550,10 @@ const History = () => {
   );
 };
 
-const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting }: {
+const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, isDeleting }: {
   project: HistoryItem;
   playingAudio: string | null;
+  loadingAudio: string | null;
   onPlay: (project: HistoryItem) => void;
   onDelete?: (project: HistoryItem) => void;
   isDeleting?: boolean;
@@ -560,8 +588,20 @@ const ProjectCard = ({ project, playingAudio, onPlay, onDelete, isDeleting }: {
         )}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
-            <Button onClick={() => onPlay(project)} variant="outline" size="sm" disabled={!project.audio_url || !!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3">
-              {playingAudio === project.id ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
+            <Button 
+              onClick={() => onPlay(project)} 
+              variant="outline" 
+              size="sm" 
+              disabled={!project.audio_url || !!isDeleting || loadingAudio === project.id} 
+              className="h-7 sm:h-8 px-2 sm:px-3"
+            >
+              {loadingAudio === project.id ? (
+                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+              ) : playingAudio === project.id ? (
+                <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+              ) : (
+                <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+              )}
             </Button>
 
             <AudioDownloadDropdown

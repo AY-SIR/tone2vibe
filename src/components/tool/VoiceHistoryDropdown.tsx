@@ -111,8 +111,8 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
       try {
         const limit = getLimitForPlan();
         
-        // Fetch user voices filtered by language
-        const { data, error } = await (supabase as any)
+        // Optimized query: only fetch necessary fields
+        const { data, error } = await supabase
           .from("user_voices")
           .select("id, name, created_at, audio_url")
           .eq("user_id", user.id)

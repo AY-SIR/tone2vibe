@@ -87,16 +87,21 @@ const ModernStepFour = ({
     }, 300);
 
     try {
+      const sampleText = getSampleText();
       const { data, error } = await supabase.functions.invoke('generate-sample-voice', {
         body: {
+          text: sampleText,
+          language: selectedLanguage,
           voice_settings: {
             stability: voiceStability[0],
             similarity_boost: voiceClarity[0],
             style: voiceStyle === 'natural' ? 0.0 : 0.5,
-            use_speaker_boost: true
+            use_speaker_boost: true,
+            is_sample: true
           }
         }
       });
+      
       if (error) throw error;
 
       setProgress(100);
@@ -106,6 +111,8 @@ const ModernStepFour = ({
           title: "Sample Ready!",
           description: "Listen and adjust settings if needed, then approve or regenerate.",
         });
+      } else {
+        throw new Error("No audio URL in response");
       }
     } catch (error) {
       console.error('Sample generation failed:', error);
@@ -113,7 +120,7 @@ const ModernStepFour = ({
       setSampleAudio('');
       toast({
         title: "Sample Generation Failed",
-        description: "Couldn't create sample. Adjust settings and try again, or skip to full generation.",
+        description: error instanceof Error ? error.message : "Couldn't create sample. Try adjusting settings or skip to full generation.",
         variant: "destructive",
       });
     } finally {
