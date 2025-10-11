@@ -307,7 +307,8 @@ const ModernStepFour = ({
       {/* Advanced Settings with Tabs - Always visible BEFORE generation */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+            
             <CardTitle className="flex items-center text-lg">
               <Settings className="h-5 w-5 mr-2" />
               Advanced Settings
