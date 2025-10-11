@@ -238,9 +238,7 @@ const Tool = () => {
                       Need {wordCount} words, have {remainingWords} remaining.
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => navigate("/payment")} className="w-full sm:w-auto text-xs">
-                    Upgrade Plan
-                  </Button>
+                  
                 </div>
               </CardContent>
             </Card>
