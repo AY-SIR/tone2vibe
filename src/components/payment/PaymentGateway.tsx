@@ -400,7 +400,7 @@ export function PaymentGateway({
             <div className="text-xs text-gray-500 text-center">
               {finalAmount === 0 ? 'Free activation with coupon' :
                isExpired ? 'Plan renewal • INR Currency Only' :
-               ' • INR Currency Only'}
+               '• Secure • INR Currency Only'}
             </div>
           </div>
 
