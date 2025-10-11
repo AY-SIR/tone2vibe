@@ -1,467 +1,799 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // 1. Import useNavigate
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Check, Crown, Star, Zap, TriangleAlert as AlertTriangle } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowRight, Wand2, Volume2, Clock, CheckCircle, Settings, Lock, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { CouponInput } from "@/components/payment/couponInput";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-interface PaymentGatewayProps {
-  selectedPlan: 'pro' | 'premium';
-  onPayment: (plan: 'pro' | 'premium') => void;
-  isProcessing: boolean;
+interface ModernStepFourProps {
+  extractedText: string;
+  selectedLanguage: string;
+  voiceRecording: Blob | null;
+  wordCount: number;
+  onNext: () => void;
+  onPrevious: () => void;
+  onAudioGenerated: (audioUrl: string) => void;
+  onProcessingStart: (step: string) => void;
+  onProcessingEnd: () => void;
 }
 
-export function PaymentGateway({
-  selectedPlan = 'pro',
-  onPayment,
-  isProcessing = false
-}: PaymentGatewayProps) {
-  const { profile, user } = useAuth();
+const ModernStepFour = ({
+  extractedText,
+  selectedLanguage,
+  voiceRecording,
+  wordCount,
+  onNext,
+  onPrevious,
+  onAudioGenerated,
+  onProcessingStart,
+  onProcessingEnd,
+}: ModernStepFourProps) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSampleGeneration, setIsSampleGeneration] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [generatedAudio, setGeneratedAudio] = useState<string>("");
+  const [sampleAudio, setSampleAudio] = useState<string>("");
+  const [estimatedTime, setEstimatedTime] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [sampleApproved, setSampleApproved] = useState(false);
+
+  const [speed, setSpeed] = useState([1.0]);
+  const [pitch, setPitch] = useState([1.0]);
+  const [volume, setVolume] = useState([1.0]);
+  const [voiceStability, setVoiceStability] = useState([0.75]);
+  const [voiceClarity, setVoiceClarity] = useState([0.75]);
+  const [voiceStyle, setVoiceStyle] = useState("natural");
+  const [emotion, setEmotion] = useState("neutral");
+  const [accent, setAccent] = useState("default");
+  const [breathingSound, setBreathingSound] = useState([0.1]);
+  const [pauseLength, setPauseLength] = useState([1.0]);
+  const [wordEmphasis, setWordEmphasis] = useState([1.0]);
+
   const { toast } = useToast();
-  const navigate = useNavigate(); // 2. Initialize useNavigate
-  const [confirmPayment, setConfirmPayment] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const [couponValidation, setCouponValidation] = useState({
-    isValid: false,
-    discount: 0,
-    message: '',
-    code: ''
-  });
-
-  const pricing = {
-    currency: 'INR',
-    symbol: '₹',
-    plans: {
-      pro: { price: 99, originalPrice: 99 },
-      premium: { price: 299, originalPrice: 299 }
-    }
+  const { profile } = useAuth();
+  const isPaidUser = profile?.plan === 'premium' || profile?.plan === 'pro';
+  const isPremiumUser = profile?.plan === 'premium';
+  const isProUser = profile?.plan === 'pro';
+  const calculateEstimatedTime = () => {
+    const baseTime = Math.max(3, Math.ceil(wordCount / 100) * 3);
+    setEstimatedTime(baseTime);
+    return baseTime;
   };
 
-  const planDetails = {
-    pro: {
-      name: "Pro",
-      price: pricing.plans.pro.price,
-      originalPrice: pricing.plans.pro.originalPrice,
-      features: [
-      "10,000 words/month base limit",
-"Buy up to 36,000 additional words",
-"25MB upload limit",
-"₹11 for every 1,000 words",
-
-"High quality audio",
-"Last 30 voices ",
-"30 Days History",
-"Voice storage & reuse",
-"Priority support",
-"Speed & pitch control",
-"Usage analytics & charts",
-
-
-      ],
-      icon: <Crown className="h-4 w-4 sm:h-5 sm:w-5" />,
-      color: "bg-gray-700"
-    },
-    premium: {
-      name: "Premium",
-      price: pricing.plans.premium.price,
-      originalPrice: pricing.plans.premium.originalPrice,
-      features: [
-       "50,000 words/month base limit",
-"Buy up to 49,000 additional words",
-"100MB upload limit",
-"Ultra-high quality",
-"₹9 for every 1,000 words",
-
-"90 days history",
-"Language usage tracking",
-"Last 90 Days voices ",
-"Voice storage & reuse",
-"Advanced Speed & pitch control",
-"24/7 support",
-"Advanced Analytics"
-
-      ],
-      icon: <Star className="h-4 w-4 sm:h-5 sm:w-5" />,
-      color: "bg-gray-700"
-    }
+  const getSampleText = () => {
+    const words = extractedText.trim().split(/\s+/);
+    return words.slice(0, 50).join(' ');
   };
 
-  const plan = planDetails[selectedPlan];
-  const discount = Math.max(0, couponValidation.discount);
-  const baseAmount = plan.price;
-  const finalAmount = Math.max(0, baseAmount - discount);
+  const handleGenerateSample = async () => {
+    if (!extractedText.trim() || isGenerating || isSampleGeneration) return;
 
-  const currentPlan = profile?.plan || 'free';
-  const isUpgrade = currentPlan === 'pro' && selectedPlan === 'premium';
-  const isDowngrade = currentPlan === 'premium' && selectedPlan === 'pro';
-  const isChange = isUpgrade || isDowngrade;
+    setIsSampleGeneration(true);
+    setIsGenerating(true);
+    onProcessingStart("Generating voice sample...");
 
-  // Allow purchase if:
-  // 1. User is on free plan
-  // 2. User is upgrading (pro to premium)
-  // 3. User's plan has expired (regardless of current plan)
-  const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) <= new Date();
-  const canPurchase = currentPlan === 'free' || isUpgrade || isExpired;
-
-  const handleCouponApplied = (validation: typeof couponValidation) => {
-    setCouponValidation(validation);
-  };
-
-  const getPaymentButtonText = () => {
-    if(finalAmount === 0) return `Activate ${plan.name} Plan (FREE!)`;
-    if(isUpgrade) return `Upgrade for ${pricing.symbol}${finalAmount}`;
-    if(isDowngrade) return `Downgrade for ${pricing.symbol}${finalAmount}`;
-    return `Subscribe for ${pricing.symbol}${finalAmount}`;
-  };
-
-  const handlePayment = async () => {
-    if (!confirmPayment) return;
-    setIsActivating(true);
-
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      currentProgress += Math.random() * 20;
+      if (currentProgress < 90) setProgress(currentProgress);
+    }, 300);
     try {
-      if (finalAmount === 0) {
-        // Free activation
-        if (!couponValidation.isValid || !couponValidation.code) {
-          toast({
-            title: "Invalid Coupon",
-            description: "A valid coupon is required for free plan activation.",
-            variant: "destructive"
-          });
-          setIsActivating(false);
+      const sampleText = getSampleText();
+      const { data, error } = await supabase.functions.invoke('generate-sample-voice', {
+        body: {
+          text: sampleText,
+          language: selectedLanguage,
+          is_sample: true,
+          voice_settings: {
+            stability: voiceStability[0],
+            similarity_boost: voiceClarity[0],
+            style: voiceStyle === 'natural' ? 0.0 : 0.5,
+            use_speaker_boost: true
+          }
+        }
+      });
+      if (error) throw error;
+
+      setProgress(100);
+      if (data?.audio_url) {
+        setSampleAudio(data.audio_url);
+        toast({
+          title: "Sample Ready!",
+          description: "Listen and adjust settings if needed, then approve or regenerate.",
+        });
+      } else {
+        throw new Error("No audio URL in response");
+      }
+    } catch (error) {
+      console.error('Sample generation failed:', error);
+      setProgress(0);
+      setSampleAudio('');
+      toast({
+        title: "Sample Generation Failed",
+        description: error instanceof Error ? error.message : "Couldn't create sample. Try adjusting settings or skip to full generation.",
+        variant: "destructive",
+      });
+    } finally {
+      clearInterval(progressInterval);
+      setIsGenerating(false);
+      setIsSampleGeneration(false);
+      onProcessingEnd();
+    }
+  };
+  const handleApproveSample = () => {
+    setSampleApproved(true);
+    toast({
+      title: "Great Choice!",
+      description: "Your voice settings are locked in. Ready to generate your full audio!",
+    });
+  };
+
+  const handleGenerateFullAudio = async () => {
+    if (!extractedText.trim() || isGenerating) return;
+    if (profile) {
+      const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
+      const purchasedWords = profile.word_balance || 0;
+      const totalAvailable = planWordsAvailable + purchasedWords;
+      if (wordCount > totalAvailable) {
+        toast({
+          title: "Not enough words",
+          description: `You need ${wordCount.toLocaleString()} words but only have ${totalAvailable.toLocaleString()} available.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setIsGenerating(true);
+    const estimatedTime = calculateEstimatedTime();
+    
+    onProcessingStart("Checking word balance and deducting words...");
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    onProcessingStart("Generating full high-quality audio...");
+
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      currentProgress += Math.random() * 15;
+      if (currentProgress < 90) setProgress(currentProgress);
+    }, 500);
+    try {
+      const title = `Audio Generation - ${new Date().toLocaleDateString()}`;
+      const { data, error } = await supabase.functions.invoke('generate-voice', {
+        body: {
+          text: extractedText,
+          title: title,
+          voice_settings: {
+            stability: voiceStability[0],
+            similarity_boost: voiceClarity[0],
+            style: voiceStyle === 'natural' ? 0.0 : 0.5,
+            use_speaker_boost: true
+          },
+          language: selectedLanguage
+        }
+      });
+      if (error) throw new Error(error.message || 'Failed to generate audio');
+      if (data && data.audio_url) {
+        clearInterval(progressInterval);
+        setProgress(100);
+        setGeneratedAudio(data.audio_url);
+        onAudioGenerated(data.audio_url);
+        toast({
+          title: "Success! Your Audio is Ready",
+          description: `Created ${Math.ceil(wordCount / 150)} minutes of high-quality audio. Moving to download...`,
+        });
+        setTimeout(() => onNext(), 1500);
+      } else {
+        throw new Error("No audio content received");
+      }
+    } catch (error) {
+      clearInterval(progressInterval);
+      console.error("Primary generation failed, initiating server-side fallback:", error);
+
+      if (error instanceof Error) {
+        if (error.message.includes('word balance') || error.message.includes('Insufficient')) {
+          toast({ title: "Oops! Not Enough Words", description: "You need more words to generate this audio. Upgrade your plan or purchase more words.", variant: "destructive" });
+          setIsGenerating(false);
+          onProcessingEnd();
+          return;
+        } else if (error.message.includes('authentication')) {
+          toast({ title: "Please Sign In", description: "You need to be signed in to generate audio. Please log in to continue.", variant: "destructive" });
+          setIsGenerating(false);
+          onProcessingEnd();
           return;
         }
-        await handleFreeActivation();
-      } else {
-        // Paid activation
-        console.log("Payment/Activation initiated for plan:", selectedPlan, "Final Amount:", finalAmount);
-        onPayment(selectedPlan);
       }
-    } catch (error) {
+
       toast({
-        title: "Activation Failed",
-        description: error instanceof Error ? error.message : "Failed to activate plan",
-        variant: "destructive"
+        title: "Generating Audio",
+        description: "Processing your audio generation. This may take a moment...",
+        variant: "default",
       });
-      console.error(error);
-    } finally {
-      setIsActivating(false);
-    }
-  };
-
-  const handleFreeActivation = async () => {
-    try {
-      if (!user) throw new Error('User not logged in');
-
-      const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // 1️⃣ Verify coupon
-      const { data: couponCheck, error: couponError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponValidation.code)
-        .in('type', ['subscription', 'both'])
-        .single();
-
-      if (couponError || !couponCheck) throw new Error('Coupon is no longer valid for subscription');
-      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
-        throw new Error('Coupon usage limit exceeded');
-      }
-
-      // 2️⃣ Plan limits
-      const planLimits = {
-        pro: { words_limit: 10000, upload_limit_mb: 25, plan_words_used: 0 },
-        premium: { words_limit: 50000, upload_limit_mb: 100, plan_words_used: 0 }
-      };
-
-      const limits = planLimits[selectedPlan];
-      if (!limits) throw new Error('Invalid plan selected');
-
-      const now = new Date();
-      const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-      const updateData = {
-        plan: selectedPlan,
-        words_limit: limits.words_limit, // plan base limit
-        word_balance: profile?.word_balance || 0, // Keep existing purchased words
-        plan_words_used: 0, // reset plan usage
-        upload_limit_mb: limits.upload_limit_mb,
-        plan_start_date: now.toISOString(),
-        plan_end_date: planEndDate.toISOString(),
-        plan_expires_at: planEndDate.toISOString(),
-        last_payment_amount: 0,
-        last_payment_id: freeTransactionId,
-        updated_at: now.toISOString()
-      };
-
-
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('user_id', user.id)
-        .select()
-        .single();
-
-      if (profileError) {
-        throw new Error(`Failed to update user profile: ${profileError.message}`);
-      }
-
-
-      // 4️⃣ Record payment in existing payments table
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          user_id: user.id,
-          plan: selectedPlan,
-          amount: 0,                  // Free activation
-          currency: 'INR',
-          status: 'completed',
-          payment_id: freeTransactionId,
-          payment_method: 'coupon',
-          coupon_code: couponValidation.code,
-          created_at: now.toISOString()
+      try {
+        const title = `Fallback Generation - ${new Date().toLocaleDateString()}`;
+        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('generate-fallback-voice', {
+          body: { text: extractedText, title: title }
         });
+        if (fallbackError) throw fallbackError;
 
-      if (paymentError) {
-        throw new Error(`Failed to record free activation: ${paymentError.message}`);
+        setProgress(100);
+        setGeneratedAudio(fallbackData.audio_url);
+        onAudioGenerated(fallbackData.audio_url);
+        toast({
+          title: "Audio Generation Complete",
+          description: "Your audio has been created and saved. Moving to the next step!",
+        });
+        setTimeout(() => onNext(), 2000);
+      } catch (fallbackError) {
+        console.error("Fallback generation also failed:", fallbackError);
+        clearInterval(progressInterval);
+        
+        setProgress(0);
+        setGeneratedAudio('');
+        setIsGenerating(false);
+        onProcessingEnd();
+        
+        toast({
+          title: "Generation Failed",
+          description: "Audio generation failed. Please try again. No words were deducted.",
+          variant: "destructive",
+        });
+        return;
       }
-
-      // 5️⃣ Update coupon usage count
-      const { error: couponUpdateError } = await supabase
-        .from('coupons')
-        .update({
-          used_count: (couponCheck.used_count || 0) + 1,
-          last_used_at: now.toISOString()
-        })
-        .eq('id', couponCheck.id);
-
-      if (couponUpdateError) {
-        throw new Error(`Failed to update coupon usage: ${couponUpdateError.message}`);
-      }
-
-      // 6️⃣ Show success toast & redirect
-      toast({
-        title: 'Plan Activated Successfully!',
-        description: `Your ${selectedPlan} plan has been activated for free using coupon ${couponValidation.code}!`,
-      });
-
-      // 3. Replace window.location.href with navigate
-      navigate(
-        `/payment-success?plan=${selectedPlan}&type=subscription&amount=0&coupon=${couponValidation.code}&method=free`,
-        { replace: true } // 'replace: true' prevents user from navigating back to the payment page
-      );
-
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to activate plan');
+    } finally {
+      setIsGenerating(false);
+      onProcessingEnd();
     }
   };
-
-  // ... rest of your component code remains the same ...
-
-  // Already subscribed card
-  if (!canPurchase && currentPlan === selectedPlan && !isExpired) {
-    return (
-      <Card className="w-full max-w-md mx-auto border-orange-200">
-        <CardHeader className="text-center p-3 sm:p-6">
-          <div className={`${plan.color} w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
-            {plan.icon}
-          </div>
-          <CardTitle className="text-base sm:text-lg md:text-2xl">Already Subscribed</CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            You're already on the {plan.name} plan
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center p-3 sm:p-6">
-          <Badge className="mb-4 text-xs">Current Plan</Badge>
-          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
-            You're currently enjoying all {plan.name} features
-          </p>
-          <Button onClick={() => navigate('/')} className="w-full text-xs sm:text-sm" variant="outline">
-            Back to Dashboard
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Invalid plan change card
-  if (!canPurchase && !isExpired) {
-    return (
-      <Card className="w-full max-w-md mx-auto border-red-200">
-        <CardHeader className="text-center p-3 sm:p-6">
-          <AlertTriangle className="h-10 w-10 sm:h-12 sm:w-12 text-red-500 mx-auto mb-4" />
-          <CardTitle className="text-base sm:text-lg md:text-2xl">Plan Change Not Allowed</CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            You can only upgrade from Pro to Premium. Downgrades are not allowed during active subscription.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center p-3 sm:p-6">
-          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
-            Current plan: <Badge variant="outline" className="text-xs">{currentPlan}</Badge>
-            {profile?.plan_expires_at && (
-              <span className="block mt-1">
-                Expires: {new Date(profile.plan_expires_at).toLocaleDateString()}
-              </span>
-            )}
-          </p>
-          <Button onClick={() => navigate('/payment')} className="w-full text-xs sm:text-sm" variant="outline">
-            View Available Plans
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Main payment gateway
+  const canGenerate = extractedText.trim().length > 0 && !isGenerating;
+  const hasAudio = generatedAudio.length > 0;
   return (
-    <div className="min-h-screen  flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center p-6 block lg:hidden">
-          <div className={`${plan.color} w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
-            {plan.icon}
-          </div>
-          <CardTitle className="text-lg lg:text-xl">
-            {isUpgrade ? 'Upgrade to ' : isDowngrade ? 'Downgrade to ' : 'Subscribe to '}{plan.name}
+    <div className="space-y-6">
+      {/* Generation Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center text-lg">
+            <Wand2 className="h-5 w-5 mr-2" />
+            Audio Generation Summary
           </CardTitle>
-          <CardDescription className="text-sm">
-            {isChange ? `Change your ${currentPlan} plan to ${selectedPlan} plan` : 'Embark on your voice creation adventure.'}
-          </CardDescription>
+        </CardHeader>
+        <CardContent>
+  
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">{wordCount}</div>
+              <div className="text-xs sm:text-sm text-gray-600">Words</div>
+            </div>
+            <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-lg">
+       
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">
+                {Math.ceil(wordCount / 150)}min
+              </div>
+              <div className="text-xs sm:text-sm text-gray-600">Est. Duration</div>
+            </div>
+            <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-lg">
+          
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">
+                {selectedLanguage.split('-')[0].toUpperCase()}
+              </div>
+              <div className="text-xs sm:text-sm text-gray-600">Language</div>
+            </div>
+            <div className="text-center p-3 sm:p-4 bg-gray-50 rounded-lg">
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">
+                {profile?.plan === 'premium' ?
+                  'HD' : 'STD'}
+              </div>
+              <div className="text-xs sm:text-sm text-gray-600">Quality</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Advanced Settings with Tabs - Always visible BEFORE generation */}
+      <Card>
+        <CardHeader>
+ 
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+            
+            <CardTitle className="flex items-center text-lg">
+              <Settings className="h-5 w-5 mr-2" />
+              Advanced Settings
+              {isPremiumUser && <Crown className="h-4 w-4 ml-2 text-yellow-500" />}
+   
+            </CardTitle>
+            {profile?.plan === 'free' ?
+              (
+              <Badge variant="outline" className="text-xs">
+                <Lock className="h-3 w-3 mr-1" />
+                Upgrade to unlock
+              </Badge>
+            ) : (
+              <Button
+    
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowAdvanced(!showAdvanced);
+                  if (!showAdvanced && sampleAudio) {
+              
+                    setSampleAudio('');
+                    setSampleApproved(false);
+                    toast({
+                      title: "Settings changed",
+                      description: "Generate a new sample with updated settings",
+ 
+                    });
+                  }
+                }}
+                className="text-sm"
+              >
+                {showAdvanced ? "Hide" : "Show"}
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
-        <CardContent className="space-y-6 p-6">
-          {currentPlan && currentPlan !== 'free' && (
-            <div className="text-center">
-              <Badge variant="outline" className="text-sm">
-                Currently on {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
+        {/* Free Plan - Locked state */}
+        {profile?.plan === 'free' && (
+          <CardContent className="text-center py-8">
+            <Lock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-sm text-gray-500 mb-4">
+              Advanced voice controls are available on Pro and Premium plans
+            </p>
+            <Button size="sm" onClick={() => window.location.href = '/payment'}>
+              Upgrade Now
+            </Button>
+  
+          </CardContent>
+        )}
+
+        {/* Pro/Premium Settings with Tabs */}
+        {isPaidUser && showAdvanced && (
+          <CardContent>
+            {/* === MODIFICATION START === */}
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full" style={{ gridTemplateColumns: isPremiumUser ? '1fr 1fr 1fr' : '1fr 1fr' }}>
+                <TabsTrigger value="basic">Basic</TabsTrigger>
+                <TabsTrigger value="normal">Normal</TabsTrigger>
+                {isPremiumUser && (
+                  <TabsTrigger value="premium" className="flex items-center gap-1">
+                    <Crown className="h-3 w-3" />
+                    Premium
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              {/* Basic Tab - Available for Pro & Premium */}
+              <TabsContent value="basic" className="space-y-4 mt-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Speed: {speed[0]}x</label>
+                    <Slider
+                      value={speed}
+                      onValueChange={setSpeed}
+                      min={0.5}
+                      max={2.0}
+                      step={0.1}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Pitch: {pitch[0]}x</label>
+                    <Slider
+                      value={pitch}
+                      onValueChange={setPitch}
+                      min={0.5}
+                      max={2.0}
+                      step={0.1}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Volume: {volume[0]}x</label>
+                    <Slider
+                      value={volume}
+                      onValueChange={setVolume}
+                      min={0.1}
+                      max={1.5}
+                      step={0.1}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Normal Tab - Available for Pro & Premium */}
+              <TabsContent value="normal" className="space-y-4 mt-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Voice Style</label>
+                      <Select value={voiceStyle} onValueChange={setVoiceStyle}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="natural">Natural</SelectItem>
+                          <SelectItem value="news">News Reader</SelectItem>
+                          <SelectItem value="conversational">Conversational</SelectItem>
+                          <SelectItem value="cheerful">Cheerful</SelectItem>
+                          <SelectItem value="empathetic">Empathetic</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Emotion</label>
+                      <Select value={emotion} onValueChange={setEmotion}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="neutral">Neutral</SelectItem>
+                          <SelectItem value="happy">Happy</SelectItem>
+                          <SelectItem value="sad">Sad</SelectItem>
+                          <SelectItem value="angry">Angry</SelectItem>
+                          <SelectItem value="excited">Excited</SelectItem>
+                          <SelectItem value="calm">Calm</SelectItem>
+                        </SelectContent>
+                             </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Accent</label>
+                      <Select value={accent} onValueChange={setAccent}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="american">American</SelectItem>
+                          <SelectItem value="british">British</SelectItem>
+                          <SelectItem value="australian">Australian</SelectItem>
+                          <SelectItem value="canadian">Canadian</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+              </TabsContent>
+
+              {/* Premium Tab - Premium Only */}
+              {isPremiumUser && (
+                <TabsContent value="premium" className="space-y-4 mt-4">
+                  <div className="p-3 bg-purple-50 rounded-lg mb-4">
+                    <p className="text-xs text-purple-700">
+                      <Crown className="h-3 w-3 inline mr-1" />
+                      <strong>Premium Fine-Tune Controls</strong> - Advanced parameters for professional quality
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Voice Stability: {voiceStability[0].toFixed(2)}</label>
+                      <Slider
+                        value={voiceStability}
+                        onValueChange={setVoiceStability}
+                        min={0.0}
+                        max={1.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Controls voice consistency</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Voice Clarity: {voiceClarity[0].toFixed(2)}</label>
+                      <Slider
+                        value={voiceClarity}
+                        onValueChange={setVoiceClarity}
+                        min={0.0}
+                        max={1.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Boosts clarity vs. naturalness</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Breathing Sound: {breathingSound[0].toFixed(2)}</label>
+                      <Slider
+                        value={breathingSound}
+                        onValueChange={setBreathingSound}
+                        min={0.0}
+                        max={1.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Add realistic breathing</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Pause Length: {pauseLength[0].toFixed(1)}x</label>
+                      <Slider
+                        value={pauseLength}
+                        onValueChange={setPauseLength}
+                        min={0.5}
+                        max={3.0}
+                        step={0.1}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Control natural pauses</p>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="text-sm font-medium">Word Emphasis: {wordEmphasis[0].toFixed(2)}</label>
+                      <Slider
+                        value={wordEmphasis}
+                        onValueChange={setWordEmphasis}
+                        min={0.5}
+                        max={2.0}
+                        step={0.01}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500">Fine-tune word emphasis</p>
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+            </Tabs>
+            {/* === MODIFICATION END === */}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Sample Audio Player */}
+      {sampleAudio && !sampleApproved && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Volume2 className="h-5 w-5" />
+ 
+              Voice Sample - Test Quality
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-lg">
+                <p className="text-sm text-gray-700 italic">
+  
+                  "{getSampleText()}..."
+                </p>
+              </div>
+              <audio controls className="w-full">
+                <source src={sampleAudio} type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+              <div className="bg-yellow-50 p-3 rounded-lg">
+                <p className="text-xs text-yellow-800">
+                  ✨ <strong>Test Sample:</strong> First 50 words.
+                  No words deducted, no history saved.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={handleApproveSample}
+                  className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white"
+      
+                >
+                  ✓ Approve & Continue
+                </Button>
+                <Button
+                  onClick={handleGenerateSample}
+                  variant="outline"
+ 
+                  className="w-full sm:flex-1"
+                  disabled={isSampleGeneration}
+                >
+                  {isSampleGeneration ? 'Generating...' : '🔄 Regenerate Sample'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Generation Controls */}
+      {!hasAudio && !sampleAudio && !sampleApproved && (
+        <Card>
+ 
+          <CardContent className="p-6">
+            <div className="text-center space-y-6">
+              <div className="p-6 bg-gray-50 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
+                <Volume2 className="h-10 w-10 text-gray-400" />
+              </div>
+              <div>
+     
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
+                  {isPaidUser ? "Choose Your Generation Method" : "Ready to Generate Audio"}
+                </h3>
+                <p className="text-sm sm:text-base text-gray-600">
+                  {isPaidUser
+                    ? "Test with a 50-word sample first, or generate the full audio directly."
+                    : "Your text will be converted to high-quality speech using advanced AI."
+                  }
+                </p>
+      
+              </div>
+              {estimatedTime > 0 && !isGenerating && (
+                <div className="flex items-center justify-center space-x-2 text-xs sm:text-sm text-gray-500">
+                  <Clock className="h-4 w-4" />
+                  <span>Estimated time: ~{estimatedTime} seconds</span>
+       
+                </div>
+              )}
+              {isPaidUser ?
+                (
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    onClick={handleGenerateSample}
+                    disabled={!canGenerate}
+                    variant="outline"
+ 
+                    size="lg"
+                    className="px-6 sm:px-8 py-2 sm:py-3 border-2 border-gray-300 hover:bg-gray-50"
+                  >
+                    <Volume2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+           
+                    Generate Sample (50 words)
+                  </Button>
+                  <Button
+                    onClick={handleGenerateFullAudio}
+                    disabled={!canGenerate}
+            
+                    size="lg"
+                    className="px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
+                  >
+                    <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                    Generate Full Audio ({wordCount} words)
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleGenerateFullAudio}
+              
+                  disabled={!canGenerate}
+                  size="lg"
+                  className="px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
+                >
+                  <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              
+                  Generate Full Audio
+                </Button>
+              )}
+              {isPaidUser && (
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Sample generation is free and doesn't use your word balance
+ 
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ready for Full Generation */}
+      {sampleApproved && !hasAudio && (
+        <Card className="border-green-200 bg-green-50/50">
+    
+          <CardContent className="p-6">
+            <div className="text-center space-y-6">
+              <div className="p-6 bg-green-100 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
+                <CheckCircle className="h-10 w-10 text-green-600" />
+              </div>
+              <div>
+        
+                <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
+                  Ready for Full Generation
+                </h3>
+                <p className="text-sm sm:text-base text-green-700">
+                  Sample approved!
+                  Generate the complete {wordCount}-word audio with your selected settings.
+                </p>
+              </div>
+              <Button
+                onClick={handleGenerateFullAudio}
+                disabled={!canGenerate}
+                size="lg"
+               
+                className="w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white"
+              >
+                <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                Generate Complete Audio ({wordCount} words)
+              </Button>
+            </div>
+        
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Processing Status */}
+      {isGenerating && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                
+                <h3 className="font-semibold text-blue-900">
+                  {isSampleGeneration ? "Generating Sample..." : "Generating Your Audio..."}
+                </h3>
+                    <Badge className="bg-blue-100 text-blue-800">
+                  {Math.round(progress)}%
+                </Badge>
+     
+              </div>
+              <Progress value={progress} className="h-3" />
+              <div className="text-center space-y-2">
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              
+                  <span className="text-xs sm:text-sm text-blue-700">
+                    {isSampleGeneration ?
+                      "Processing 50-word sample..." : `Processing ${wordCount} words...`}
+                  </span>
+                </div>
+                {!isSampleGeneration && (
+                  <p className="text-xs text-blue-600">
+                    This may take up to {estimatedTime} seconds
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Success Status */}
+   
+      {hasAudio && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+   
+              <div>
+                <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
+                  Audio Generated Successfully!
+                </h3>
+                <p className="text-sm sm:text-base text-green-700">
+             
+                  Your high-quality audio is ready for download and playback.
+                </p>
+              </div>
+              <Badge className="bg-green-100 text-green-800">
+                ✓ Generation Complete
               </Badge>
             </div>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Plan Features */}
-          <div className="space-y-3 ">
-            <h4 className="font-medium text-sm text-gray-900">What's included:</h4>
-            <ul className="space-y-2">
-              {plan.features.map((feature, index) => (
-                <li key={index} className="flex items-center space-x-3 text-xs">
-                  <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <Separator className="lg:hidden" />
-
-          {/* Coupon Section */}
-          <div>
-            <h4 className="font-medium text-sm text-gray-900 mb-3">Coupon Code</h4>
-            <CouponInput
-              amount={baseAmount}
-              type="subscription"
-              onCouponApplied={handleCouponApplied}
-              disabled={isProcessing || isActivating}
-            />
-          </div>
-
-          <Separator />
-
-          {/* Pricing */}
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm text-gray-900">Pricing Summary</h4>
-            <div className="flex justify-between text-sm">
-              <span>Plan Price</span>
-              <span className="font-medium">{pricing.symbol}{baseAmount}</span>
-            </div>
-            {couponValidation.isValid && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Coupon Discount ({couponValidation.code})</span>
-                <span className="font-medium">-{pricing.symbol}{discount}</span>
-              </div>
-            )}
-            <Separator />
-            <div className="flex justify-between text-sm font-semibold">
-              <span>Total Amount</span>
-             <span className={finalAmount === 0 ? 'text-green-600' : ''}>
-  {pricing.symbol}{finalAmount}
-</span>
-
-            </div>
-            <div className="text-xs text-gray-500 text-center">
-              {finalAmount === 0 ? 'Free activation with coupon' :
-               isExpired ? 'Plan renewal • INR Currency Only' :
-               '• Secure • INR Currency Only'}
-            </div>
-          </div>
-
-          {finalAmount === 0 && !couponValidation.isValid && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 font-medium"> Invalid Free Activation</p>
-              <p className="text-xs text-red-500 mt-1">A valid coupon code is required for free plan activation.</p>
-            </div>
-          )}
-
-          {/* Payment Confirmation */}
-          <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
-            <Checkbox
-              id="confirm-payment"
-              checked={confirmPayment}
-              onCheckedChange={(checked) => setConfirmPayment(checked as boolean)}
-              disabled={finalAmount === 0 && !couponValidation.isValid}
-            />
-            <div className="text-sm text-gray-600 flex-1">
-              <label htmlFor="confirm-payment" className="cursor-pointer">
-                I confirm {finalAmount === 0 ? 'the free activation' : `the payment of ${pricing.symbol}${finalAmount}`} for the {plan.name} plan.
-                {finalAmount === 0 && couponValidation.isValid && ` Using coupon code: ${couponValidation.code}`}
-              </label>
-            </div>
-          </div>
-
-          {/* Payment Button */}
+  
+      {/* Navigation */}
+      <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
+        {!hasAudio && (
           <Button
-            onClick={handlePayment}
-            disabled={isProcessing || isActivating || !confirmPayment || (finalAmount === 0 && !couponValidation.isValid)}
-            className={`w-full ${finalAmount === 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'} text-white py-3 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-            size="lg"
+            onClick={onPrevious}
+            variant="outline"
+            disabled={isGenerating}
+            className="order-2 sm:order-1 w-full sm:w-auto text-sm"
+          
           >
-            {isProcessing || isActivating ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>{finalAmount === 0 ? 'Activating...' : 'Processing...'}</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center space-x-2">
-                <Zap className="h-4 w-4" />
-                <span>{getPaymentButtonText()}</span>
-              </div>
-            )}
+            Back to Voice Selection
           </Button>
-
-          {/* Security Notice */}
-          <div className="text-sm text-gray-500 text-center mt-2">
-            <div className="flex items-center justify-center space-x-2">
-              <span></span>
-              <span>{finalAmount === 0 ? 'Secure free activation' : 'Secure payment processing'}</span>
-            </div>
-            <div className="mt-1 text-xs">
-              {finalAmount === 0 ? 'Your account will be upgraded immediately upon confirmation' : 'Your payment information is encrypted and secure'}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        )}
+        <Button
+          onClick={onNext}
+          disabled={!hasAudio}
+          size="lg"
+          className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white"
+        
+        >
+          Continue to Final Results
+          <ArrowRight className="h-4 w-4 ml-2" />
+        </Button>
+      </div>
     </div>
   );
-}
+};
 
-export default PaymentGateway;
-
+export default ModernStepFour;
