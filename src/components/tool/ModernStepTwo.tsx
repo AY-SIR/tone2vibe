@@ -418,7 +418,7 @@ const ModernStepTwo = ({
               <div className="text-xs sm:text-sm text-muted-foreground">Words</div>
             </div>
             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold">{editedText.length}</div>
+              <div className="text-lg sm:text-2xl font-bold">{editedText.replace(/\s/g, '').length}</div>
               <div className="text-xs sm:text-sm text-muted-foreground">Characters</div>
             </div>
             <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
