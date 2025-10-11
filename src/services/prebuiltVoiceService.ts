@@ -17,8 +17,8 @@ export interface PrebuiltVoice {
 }
 
 export class PrebuiltVoiceService {
-  // Get voices available for user's plan
-  static async getVoicesForPlan(userPlan: string): Promise<PrebuiltVoice[]> {
+  // Get voices available for user's plan with progressive loading
+  static async getVoicesForPlan(userPlan: string, limit?: number, offset?: number): Promise<PrebuiltVoice[]> {
     try {
       let allowedPlans = ['free'];
       
@@ -28,12 +28,19 @@ export class PrebuiltVoiceService {
         allowedPlans = ['free', 'pro', 'premium'];
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('prebuilt_voices')
         .select('*')
         .eq('is_active', true)
         .in('required_plan', allowedPlans)
         .order('sort_order', { ascending: true });
+
+      // Add pagination for progressive loading
+      if (limit) {
+        query = query.range(offset || 0, (offset || 0) + limit - 1);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching prebuilt voices:', error);

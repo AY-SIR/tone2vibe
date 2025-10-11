@@ -1,1 +1,25 @@
 project_id = "msbmyiqhohtjdfbjmxlf"
+
+[functions.activate-free-plan]
+verify_jwt = false
+
+[functions.create-instamojo-payment]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.generate-sample-voice]
+verify_jwt = true
+
+[functions.generate-voice]
+verify_jwt = true
+
+[functions.verify-instamojo-payment]
+verify_jwt = false
+
+[functions.translate-text]
+verify_jwt = true
+
+[functions.improve-grammar]
+verify_jwt = true

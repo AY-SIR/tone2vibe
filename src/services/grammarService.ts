@@ -22,7 +22,7 @@ export class GrammarService {
   };
 
   /**
-   * Improve text using LanguageTool API
+   * Improve text using OpenAI GPT-3.5
    */
   static async improveText(
     text: string,
@@ -38,36 +38,28 @@ export class GrammarService {
 
       const languageISO = this.localeToISO[language] || 'en';
 
-      const formData = new URLSearchParams();
-      formData.append('text', text);
-      formData.append('language', languageISO);
-      formData.append('enabledOnly', 'false');
-
-      const response = await fetch('', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      const { data, error } = await supabase.functions.invoke('improve-grammar', {
+        body: { text, language: languageISO }
       });
 
-      const data = await response.json();
-
-      if (data.matches && data.matches.length > 0) {
-        // Unicode-safe replacement
-        let chars = [...text];
-        // Sort by offset descending to avoid messing up indexes
-        const sortedMatches = [...data.matches].sort((a, b) => b.offset - a.offset);
-
-        for (const match of sortedMatches) {
-          if (match.replacements && match.replacements.length > 0) {
-            const replacement = match.replacements[0].value;
-            chars.splice(match.offset, match.length, ...[...replacement]);
-          }
-        }
-
-        return { success: true, improvedText: chars.join('') };
+      if (error) {
+        console.error('Grammar improvement error:', error);
+        return {
+          success: false,
+          error: 'Grammar improvement service unavailable',
+          improvedText: text,
+        };
       }
 
-      // No changes needed
+      if (data && data.success) {
+        return { 
+          success: true, 
+          improvedText: data.improvedText 
+        };
+      }
+
       return { success: true, improvedText: text };
     } catch (error) {
       console.error('Text improvement error:', error);

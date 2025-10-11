@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createWorker } from 'tesseract.js';
 
 export interface OCRResult {
   success: boolean;
@@ -20,20 +20,31 @@ export class OCRService {
 
   static async extractTextFromImage(imageFile: File): Promise<OCRResult> {
     try {
-      // Convert file to base64
-      const base64 = await this.fileToBase64(imageFile);
+      console.log('Starting OCR with Tesseract.js');
       
-      // For now, return placeholder text - real OCR would use Tesseract.js or cloud API
+      const worker = await createWorker('eng', 1, {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+          }
+        }
+      });
+
+      const { data } = await worker.recognize(imageFile);
+      await worker.terminate();
+
+      console.log('OCR completed successfully');
+
       return {
         success: true,
-        text: `Text extracted from ${imageFile.name}. To use real OCR, integrate with Tesseract.js or a cloud OCR service like Google Vision API or Azure Computer Vision.`,
-        confidence: 0.85
+        text: data.text,
+        confidence: data.confidence / 100
       };
     } catch (error) {
       console.error('OCR Error:', error);
       return {
         success: false,
-        error: 'Failed to extract text from image'
+        error: 'Failed to extract text from image. Please try again.'
       };
     }
   }
@@ -52,15 +63,16 @@ export class OCRService {
 
   static async extractTextFromPDF(pdfFile: File): Promise<OCRResult> {
     try {
+      // PDF extraction requires PDF.js - for now return basic message
       return {
         success: true,
-        text: `Text extracted from PDF: ${pdfFile.name}. To use real PDF text extraction, integrate with PDF.js or a cloud service.`,
-        confidence: 0.90
+        text: `PDF file detected: ${pdfFile.name}. Please copy and paste text from the PDF or convert pages to images for OCR processing.`,
+        confidence: 0.5
       };
     } catch (error) {
       return {
         success: false,
-        error: 'Failed to extract text from PDF'
+        error: 'PDF text extraction not available. Please use images instead.'
       };
     }
   }

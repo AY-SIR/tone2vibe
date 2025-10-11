@@ -92,12 +92,12 @@ const ModernStepFour = ({
         body: {
           text: sampleText,
           language: selectedLanguage,
+          is_sample: true,
           voice_settings: {
             stability: voiceStability[0],
             similarity_boost: voiceClarity[0],
             style: voiceStyle === 'natural' ? 0.0 : 0.5,
-            use_speaker_boost: true,
-            is_sample: true
+            use_speaker_boost: true
           }
         }
       });
