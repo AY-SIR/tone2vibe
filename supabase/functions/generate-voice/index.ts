@@ -7,12 +7,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+// OpenRouter API load balancing
+const getOpenRouterKey = () => {
+  const keys = [
+    Deno.env.get("OPENROUTER_API_KEY_1"),
+    Deno.env.get("OPENROUTER_API_KEY_2"),
+  ].filter(Boolean);
+  
+  if (keys.length === 0) throw new Error("No OpenRouter API keys configured");
+  
+  // Simple round-robin selection
+  const index = Math.floor(Math.random() * keys.length);
+  return keys[index];
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -21,23 +32,23 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
     );
 
-    // Get authenticated user
     const authHeader = req.headers.get("Authorization")!;
     const token = authHeader.replace("Bearer ", "");
     const { data } = await supabaseClient.auth.getUser(token);
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { text, voice_settings, title, language = "en-US" } = await req.json();
+    const requestBody = await req.json();
+    const { text, voice_settings, title, language = "en-US", voiceId, sampleText } = requestBody;
+
+    console.log("📝 Full request data:", JSON.stringify(requestBody, null, 2));
 
     if (!text || !title) {
       throw new Error("Text and title are required");
     }
 
-    // Count words for billing
-    const actualWordCount = text.split(/\s+/).length;
+    const actualWordCount = text.split(/\s+/).filter(w => w.length > 0).length;
 
-    // Get user profile to check limits
     const supabaseService = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -50,48 +61,41 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id)
       .single();
 
-    if (!profile) {
-      throw new Error("User profile not found");
-    }
+    if (!profile) throw new Error("User profile not found");
 
-    // Check word limits BEFORE creating any records
     const totalWordsAvailable = (profile.words_limit - profile.plan_words_used) + profile.word_balance;
     if (actualWordCount > totalWordsAvailable) {
       throw new Error(`Insufficient word balance. Need ${actualWordCount} words but only ${totalWordsAvailable} available.`);
     }
 
-    console.log("🚨 CRITICAL: Voice generation with placeholder audio - NO REAL TTS SERVICE CONFIGURED");
-    console.log("⚠️  This will create placeholder audio and deduct words");
-    console.log("⚠️  To connect real TTS service, update this edge function");
+    console.log("🎯 Generating voice with OpenRouter TTS");
     
-    // IMPORTANT: This is placeholder implementation
-    // Replace this section with actual TTS API call (ElevenLabs, OpenAI, etc.)
-    // For now, throw error to prevent false success and word deduction
-    throw new Error("TTS service not configured. Please connect ElevenLabs or OpenAI TTS in edge function.");
-
-    /* TEMPLATE FOR REAL TTS IMPLEMENTATION:
-    
-    // Example: Call ElevenLabs API
-    const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: 'POST',
+    // Call OpenRouter TTS API
+    const openRouterKey = getOpenRouterKey();
+    const ttsResponse = await fetch("https://openrouter.ai/api/v1/audio/speech", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'xi-api-key': Deno.env.get('ELEVENLABS_API_KEY')
+        "Authorization": `Bearer ${openRouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://msbmyiqhohtjdfbjmxlf.supabase.co",
       },
       body: JSON.stringify({
-        text: text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: voice_settings
-      })
+        model: "openai/tts-1",
+        input: text,
+        voice: voiceId || "alloy",
+        speed: voice_settings?.speed || 1.0,
+      }),
     });
 
-    if (!elevenLabsResponse.ok) {
-      throw new Error(`TTS API error: ${elevenLabsResponse.statusText}`);
+    if (!ttsResponse.ok) {
+      const errorText = await ttsResponse.text();
+      console.error("OpenRouter TTS error:", errorText);
+      throw new Error(`TTS generation failed: ${ttsResponse.statusText}`);
     }
 
-    const audioData = await elevenLabsResponse.arrayBuffer();
-    
-    // Now proceed with creating history record and uploading...
+    const audioData = await ttsResponse.arrayBuffer();
+
+    // Create history record
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
@@ -99,7 +103,7 @@ Deno.serve(async (req: Request) => {
         title,
         original_text: text,
         language,
-        voice_settings: { ...voice_settings, plan: profile.plan },
+        voice_settings: { ...voice_settings, plan: profile.plan, voiceId, sampleText },
         words_used: actualWordCount,
         generation_started_at: new Date().toISOString(),
       })
@@ -116,7 +120,6 @@ Deno.serve(async (req: Request) => {
       });
 
     if (uploadError) {
-      // Delete history record if upload fails
       await supabaseService.from("history").delete().eq("id", historyRecord.id);
       throw new Error("Failed to save audio file");
     }
@@ -134,7 +137,7 @@ Deno.serve(async (req: Request) => {
       })
       .eq("id", historyRecord.id);
 
-    // Deduct words ONLY after successful generation
+    // Deduct words after successful generation
     const { error: deductError } = await supabaseService.rpc('deduct_words_smartly', {
       user_id_param: user.id,
       words_to_deduct: actualWordCount
@@ -144,6 +147,7 @@ Deno.serve(async (req: Request) => {
       console.error("Failed to deduct words:", deductError);
     }
 
+    // Auto-cleanup for free users
     if (profile.plan === 'free') {
       setTimeout(async () => {
         try {
@@ -165,8 +169,6 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-    
-    */
 
   } catch (error) {
     console.error("Voice generation error:", error);

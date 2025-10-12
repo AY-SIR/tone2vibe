@@ -26,6 +26,8 @@ import Profile from "./pages/Profile";
 import EmailConfirmation from "./pages/EmailConfirmation";
 import ResetPassword from "./pages/ResetPassword";
 
+import { WordLimitPopup } from './components/common/WordLimitPopup';
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -68,6 +70,7 @@ function App() {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
+              <WordLimitPopup />
               <Toaster />
               <Sonner />
             </AuthProvider>

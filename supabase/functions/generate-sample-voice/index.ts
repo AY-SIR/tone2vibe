@@ -7,12 +7,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+const getOpenRouterKey = () => {
+  const keys = [
+    Deno.env.get("OPENROUTER_API_KEY_1"),
+    Deno.env.get("OPENROUTER_API_KEY_2"),
+  ].filter(Boolean);
+  
+  if (keys.length === 0) throw new Error("No OpenRouter API keys configured");
+  return keys[Math.floor(Math.random() * keys.length)];
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -27,38 +34,35 @@ Deno.serve(async (req: Request) => {
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { voice_settings = {} } = await req.json();
+    const { voice_settings = {}, voiceId, sampleText } = await req.json();
 
-    console.log("🎤 Sample generation request - NO WORD DEDUCTION");
-    console.log("⚠️  This is placeholder - connect real TTS for samples");
+    console.log("🎤 Sample generation - FREE (no word deduction)");
 
-    // Sample text for preview (no word deduction, no history saving)
-    const sampleText = "This is a test sample of your voice. Listen carefully to evaluate the quality.";
+    const text = sampleText || "This is a test sample of your voice. Listen carefully to evaluate the quality.";
 
-    // IMPORTANT: Replace with actual TTS API call for sample
-    // For now, throw error to prevent false success
-    throw new Error("Sample TTS service not configured. Please connect ElevenLabs or OpenAI TTS.");
-
-    /* TEMPLATE FOR REAL SAMPLE GENERATION:
-    
-    const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: 'POST',
+    const openRouterKey = getOpenRouterKey();
+    const ttsResponse = await fetch("https://openrouter.ai/api/v1/audio/speech", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'xi-api-key': Deno.env.get('ELEVENLABS_API_KEY')
+        "Authorization": `Bearer ${openRouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://msbmyiqhohtjdfbjmxlf.supabase.co",
       },
       body: JSON.stringify({
-        text: sampleText,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: voice_settings
-      })
+        model: "openai/tts-1",
+        input: text,
+        voice: voiceId || "alloy",
+        speed: voice_settings?.speed || 1.0,
+      }),
     });
 
-    if (!elevenLabsResponse.ok) {
-      throw new Error(`Sample TTS API error: ${elevenLabsResponse.statusText}`);
+    if (!ttsResponse.ok) {
+      const errorText = await ttsResponse.text();
+      console.error("Sample TTS error:", errorText);
+      throw new Error(`Sample generation failed: ${ttsResponse.statusText}`);
     }
 
-    const audioData = await elevenLabsResponse.arrayBuffer();
+    const audioData = await ttsResponse.arrayBuffer();
     
     const supabaseService = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -74,9 +78,7 @@ Deno.serve(async (req: Request) => {
         upsert: true,
       });
 
-    if (uploadError) {
-      throw new Error("Failed to save sample audio");
-    }
+    if (uploadError) throw new Error("Failed to save sample audio");
 
     const { data: urlData } = supabaseService.storage
       .from("user-generates")
@@ -94,15 +96,13 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({
       success: true,
       audio_url: urlData.publicUrl,
-      sample_text: sampleText,
+      sample_text: text,
       expires_in_minutes: 5,
       is_sample: true
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-    
-    */
 
   } catch (error) {
     console.error("Sample generation error:", error);
