@@ -73,7 +73,6 @@ const ModernStepFour = ({
     return words.slice(0, 50).join(' ');
   };
 
-  // === MODIFICATION: CATCH BLOCK UPDATED ===
   const handleGenerateSample = async () => {
     if (!extractedText.trim() || isGenerating || isSampleGeneration) return;
 
@@ -81,6 +80,7 @@ const ModernStepFour = ({
     setIsGenerating(true);
     onProcessingStart("Generating voice sample...");
     setProgress(0);
+    setSampleAudio('');
 
     let currentProgress = 0;
     const progressInterval = setInterval(() => {
@@ -111,11 +111,15 @@ const ModernStepFour = ({
         throw new Error("No audio URL in response");
       }
     } catch (error) {
-      // On error, fail silently without showing a disruptive error toast.
-      // The finally block will handle resetting the state.
+      // === MODIFICATION: CATCH BLOCK UPDATED ===
+      // On error, show a proper error message instead of failing silently.
       console.error('Sample generation failed:', error);
       setProgress(0);
-      setSampleAudio('');
+      toast({
+        title: "Sample Generation Failed",
+        description: "Could not generate the audio sample. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       clearInterval(progressInterval);
       setIsGenerating(false);
@@ -123,6 +127,7 @@ const ModernStepFour = ({
       onProcessingEnd();
     }
   };
+
 
   const handleApproveSample = () => {
     setSampleApproved(true);
@@ -132,7 +137,6 @@ const ModernStepFour = ({
     });
   };
 
-  // === MODIFICATION: CATCH BLOCK UPDATED ===
   const handleGenerateFullAudio = async () => {
     if (!extractedText.trim() || isGenerating) return;
 
@@ -187,25 +191,30 @@ const ModernStepFour = ({
           title: "Success! Your Audio is Ready",
           description: "Moving to the next step...",
         });
+        setProgress(100);
+        setGenerationComplete(true);
+        setTimeout(() => onNext(), 2000); // Proceed to next step only on success
       } else {
         throw new Error("No audio content received");
       }
+    // === MODIFICATION: CATCH BLOCK UPDATED ===
     } catch (error) {
-      // On error, treat it as a success for the UI flow.
-      console.error("Audio generation failed, but proceeding as success:", error);
-      setGeneratedAudio("");
-      onAudioGenerated(""); // Inform parent component there is no audio
+      // On error, show a proper error message and stay on the current step.
+      console.error("Audio generation failed:", error);
+      setProgress(0); // Reset progress on failure
       toast({
-        title: "Process Complete",
-        description: "Your request has been processed. Moving to the final results.",
+        title: "Audio Generation Failed",
+        description: "An error occurred while creating your audio. Please try again.",
+        variant: "destructive",
       });
+      setGeneratedAudio(""); // Ensure no old audio data persists
+      onAudioGenerated("");
+    // === MODIFICATION: FINALLY BLOCK UPDATED ===
     } finally {
+      // Cleanup logic that runs on both success and failure.
       clearInterval(progressInterval);
-      setProgress(100);
-      setGenerationComplete(true);
       setIsGenerating(false);
       onProcessingEnd();
-      setTimeout(() => onNext(), 2000); // Always proceed to the next step.
     }
   };
 
@@ -213,7 +222,6 @@ const ModernStepFour = ({
 
   return (
     <div className="space-y-6">
-      {/* ... (All JSX from Generation Summary to Processing Status remains the same) ... */}
        {/* Generation Summary */}
        <Card>
         <CardHeader>

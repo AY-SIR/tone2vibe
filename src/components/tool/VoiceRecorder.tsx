@@ -1,4 +1,3 @@
-// src/components/tool/VoiceRecorder.tsx
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +31,7 @@ export const VoiceRecorder = ({
   const [status, setStatus] = useState<'idle' | 'recording' | 'stopping' | 'completed' | 'saved'>('idle');
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [recordedDuration, setRecordedDuration] = useState(0); // State to hold final duration
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -59,6 +59,7 @@ export const VoiceRecorder = ({
   const reset = useCallback(() => {
     setAudioBlob(null);
     setDuration(0);
+    setRecordedDuration(0); // Reset the final duration
     setIsPlaying(false);
     setStatus('idle');
     setIsSaving(false);
@@ -127,23 +128,25 @@ export const VoiceRecorder = ({
       };
 
       recorder.onstop = () => {
+        const finalDuration = durationRef.current; // Capture duration before cleanup
+        cleanup(); // Clean up resources like stream and interval
+
         if (recordedChunksRef.current.length === 0) {
           toast({ title: "Recording failed", description: "No audio data captured.", variant: "destructive" });
           reset();
-          cleanup();
           return;
         }
 
         const blob = new Blob(recordedChunksRef.current, { type: mime });
-        if (durationRef.current >= minimumDuration) {
+        if (finalDuration >= minimumDuration) {
           setAudioBlob(blob);
+          setRecordedDuration(finalDuration); // Store final duration in state
           setStatus('completed');
           toast({ title: "Recording completed" });
         } else {
           toast({ title: "Recording too short", description: `Record at least ${minimumDuration}s`, variant: "destructive" });
           reset();
         }
-        cleanup();
       };
 
       recorder.start(100);
@@ -164,8 +167,9 @@ export const VoiceRecorder = ({
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       setStatus('stopping');
-      setTimeout(() => mediaRecorderRef.current?.stop(), 250);
-
+      // Stop the recorder immediately. The onstop event will handle the rest.
+      // Removing the setTimeout simplifies logic and prevents potential race conditions.
+      mediaRecorderRef.current.stop();
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -206,10 +210,10 @@ export const VoiceRecorder = ({
 
   const confirmRecording = async () => {
     if (!audioBlob || isSaving) return;
-    
+
     const savingStartTime = Date.now();
     setIsSaving(true);
-    
+
     toast({
       title: "Saving voice...",
       description: "Processing your recording",
@@ -233,8 +237,8 @@ export const VoiceRecorder = ({
 
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
 
-      // Store duration as STRING in database (as per schema)
-      const audioDuration = Math.floor(durationRef.current);
+      // Use the duration from state, which was set on completion
+      const audioDuration = Math.floor(recordedDuration);
       const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`;
 
       const { error: insertError } = await supabase.from('user_voices').insert([{
@@ -249,8 +253,8 @@ export const VoiceRecorder = ({
       if (insertError) throw insertError;
 
       const savingTime = ((Date.now() - savingStartTime) / 1000).toFixed(1);
-      toast({ 
-        title: "Voice saved successfully!", 
+      toast({
+        title: "Voice saved successfully!",
         description: `Saved in ${savingTime}s`
       });
       setStatus('saved');
@@ -313,11 +317,6 @@ export const VoiceRecorder = ({
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                 {isSaving ? 'Saving Voice...' : 'Continue'}
               </Button>
-              {!isSaving && status === 'completed' && (
-                <p className="text-xs text-muted-foreground text-center mt-2">
-                  Continue button will be enabled after saving
-                </p>
-              )}
             </div>
           )}
 

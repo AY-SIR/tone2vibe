@@ -243,33 +243,33 @@ const History = () => {
     }
   };
 
-const formatDuration = (duration: string | number | null) => {
-  if (!duration) return "--:--";
-  const totalSeconds = typeof duration === "string" ? parseInt(duration) : duration;
-  if (isNaN(totalSeconds)) return "--:--";
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-  
+  const formatDuration = (duration: string | number | null) => {
+    if (!duration) return "--:--";
+    const totalSeconds = typeof duration === "string" ? parseInt(duration, 10) : duration;
+    if (isNaN(totalSeconds) || totalSeconds < 0) return "--:--";
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
   const allItems = useMemo((): HistoryItem[] => {
-      const generatedItems = projects.map((p) => ({ 
-        ...p, 
-        title: p.title, 
+      const generatedItems = projects.map((p) => ({
+        ...p,
+        title: p.title,
         duration: "0", // Generated audio doesn't have duration field
-        source_type: "generated" as const 
+        source_type: "generated" as const
       }));
     const recordedItems = userVoices.map((v) => ({
-  id: v.id,
-  title: v.name,
-  audio_url: v.audio_url,
-  created_at: v.created_at,
-  original_text: "",
-  language: v.language || "N/A",
-  word_count: 0,
-  duration: formatDuration(v.duration), // <-- format here
-  source_type: "recorded" as const,
-}));
+      id: v.id,
+      title: v.name,
+      audio_url: v.audio_url,
+      created_at: v.created_at,
+      original_text: "",
+      language: v.language || "N/A",
+      word_count: 0,
+      duration: formatDuration(v.duration), // Formats raw seconds (e.g., "95") to "1:35"
+      source_type: "recorded" as const,
+    }));
     return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [projects, userVoices]);
 
@@ -312,10 +312,10 @@ const formatDuration = (duration: string | number | null) => {
     }
 
     if (!project.audio_url) {
-      toast({ 
-        title: "Audio Not Available", 
+      toast({
+        title: "Audio Not Available",
         description: "This audio file is no longer available. It may have been deleted.",
-        variant: "destructive" 
+        variant: "destructive"
       });
       return;
     }
@@ -355,17 +355,17 @@ const formatDuration = (duration: string | number | null) => {
 
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
-      
+
       audio.onended = () => {
         setPlayingAudio(null);
         setLoadingAudio(null);
       };
-      
+
       audio.onerror = () => {
-        toast({ 
-          title: "Playback Error", 
+        toast({
+          title: "Playback Error",
           description: "The audio file could not be loaded. It may be corrupted or expired.",
-          variant: "destructive" 
+          variant: "destructive"
         });
         setPlayingAudio(null);
         setLoadingAudio(null);
@@ -377,17 +377,17 @@ const formatDuration = (duration: string | number | null) => {
     } catch (err: any) {
       console.error("Audio playback failed:", err);
       let description = "Could not play the audio file. Please try again.";
-      
+
       if (err.message?.includes('network')) {
         description = "Network error. Check your connection and try again.";
       } else if (err.message?.includes('expired')) {
         description = "This audio file has expired. Please generate a new one.";
       }
-      
-      toast({ 
-        title: "Playback Failed", 
-        description: description, 
-        variant: "destructive" 
+
+      toast({
+        title: "Playback Failed",
+        description: description,
+        variant: "destructive"
       });
       setPlayingAudio(null);
       setLoadingAudio(null);
@@ -585,7 +585,10 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
-              {type === 'recorded' && project.duration && <Badge variant="secondary" className="text-xs">{project.duration}s duration</Badge>}
+              {/* === FIX START === */}
+              {/* Changed this line to correctly display the pre-formatted duration */}
+              {type === 'recorded' && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
+              {/* === FIX END === */}
               {project.processing_time_ms && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{(project.processing_time_ms / 1000).toFixed(1)}s</Badge>}
             </div>
           </div>
@@ -597,11 +600,11 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
         )}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
-            <Button 
-              onClick={() => onPlay(project)} 
-              variant="outline" 
-              size="sm" 
-              disabled={!project.audio_url || !!isDeleting || loadingAudio === project.id} 
+            <Button
+              onClick={() => onPlay(project)}
+              variant="outline"
+              size="sm"
+              disabled={!project.audio_url || !!isDeleting || loadingAudio === project.id}
               className="h-7 sm:h-8 px-2 sm:px-3"
             >
               {loadingAudio === project.id ? (

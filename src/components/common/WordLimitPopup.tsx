@@ -39,7 +39,7 @@ export const WordLimitPopup = () => {
 
   return (
     <Dialog open={showPopup} onOpenChange={setShowPopup}>
-      <DialogContent className="sm:max-w-md">
+<DialogContent className="w-[calc(100%-2rem)] max-w-md mx-auto rounded-xl p-4">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <AlertCircle className={`h-5 w-5 ${isOutOfWords ? 'text-red-600' : 'text-yellow-600'}`} />
