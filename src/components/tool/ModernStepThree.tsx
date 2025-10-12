@@ -1,4 +1,3 @@
-// src/components/tool/ModernStepThree.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,7 +63,7 @@ const sampleParagraphs: { [key: string]: string } = {
   "th-TH": "เช้านี้ ถนนในเมืองสว่างไสวด้วยแสงแดดอบอุ่น เด็ก ๆ เล่นในสวนสาธารณะพร้อมหัวเราะ ผู้ขายตั้งแผงขายของของพวกเขา ขณะที่ผู้ใหญ่รีบไปทำงาน กลิ่นดอกไม้สดและขนมปังอบใหม่ลอยมาในอากาศ บางคนกำลังนั่งจิบกาแฟในร้านคาเฟ่",
   "tr-TR": "Bu sabah, şehir sokakları sıcak güneş ışığıyla aydınlanıyor. Çocuklar parkta oynuyor ve gülüyorlar. Sokak satıcıları tezgahlarını hazırlıyor, yetişkinler ise işe acele ediyor. Havadaki taze çiçekler ve yeni pişmiş ekmek kokusu yayılıyor. Bazı insanlar kafelerde oturup sabahın keyfini çıkarıyor.",
   "uk-UA": "Сьогодні вранці вулиці міста наповнені теплим сонячним світлом. Діти грають у парках та сміються. Вуличні торговці готують свої кіоски, а дорослі поспішають на роботу. Повітря сповнене ароматом свіжих квітів та випічки. Деякі люди насолоджуються ранковою кавою в кафе.",
-  "ur-IN": "اس صبح شہر کی گلیاں دھوپ سے روشن ہیں۔ بچے پارک میں کھیل رہے ہیں اور ہنس رہے ہیں۔ گلی کے دکاندار اپنے اسٹال تیار کر رہے ہیں جبکہ لوگ کام پر جا رہے ہیں۔ ہوا میں تازہ پھولوں اور پکے ہوئے روٹی کی خوشبو ہے۔ کچھ لوگ کیفے میں بیٹھ کر صبح کا لطف اٹھا रहे ہیں۔",
+  "ur-IN": "اس صبح شہر کی گلیاں دھوپ سے روشن ہیں۔ بچے پارک میں کھیل رہے ہیں اور ہنس رہے ہیں۔ گلی کے دکاندار اپنے اسٹال تیار کر रहे ہیں جبکہ لوگ کام پر جا رہے ہیں۔ ہوا میں تازہ پھولوں اور پکے ہوئے روٹی کی خوشبو ہے۔ کچھ لوگ کیفے میں بیٹھ کر صبح کا لطف اٹھا रहे ہیں۔",
   "vi-VN": "Sáng nay, các con phố trong thành phố rực rỡ ánh nắng. Trẻ em chơi đùa trong công viên và cười vui vẻ. Các người bán hàng chuẩn bị quầy hàng của mình, trong khi người lớn vội đến nơi làm việc. Không khí ngập tràn mùi hoa tươi và bánh mì mới nướng. Một số người ngồi ở quán cà phê thưởng thức buổi sáng.",
   "zh-CN": "今天早上，城市的街道沐浴在温暖的阳光下。孩子们在公园里玩耍，欢笑声不断。街头小贩在摆摊，而大人们匆忙去上班。空气中弥漫着新鲜花朵和刚出炉面包的香味。一些人坐在咖啡馆里享受早晨的时光。",
   "zh-TW": "今天早上，城市的街道沐浴在溫暖的陽光下。孩子們在公園裡玩耍，笑聲不斷。街頭小販在擺攤，大人們匆忙去上班。空氣中瀰漫著新鮮花朵和剛出爐麵包的香氣。一些人坐在咖啡館裡享受早晨的時光。"
@@ -183,7 +182,7 @@ export default function ModernStepThree({
     clearSelection();
     setSelectedVoice({ type: 'record', id: `rec-${Date.now()}`, name: 'New Recording' });
     onVoiceRecorded(blob);
-    toast({ title: "Voice Recorded", description: "Your voice is ready for generation." });
+    toast({ title: "Voice Ready", description: "Your saved voice is ready for generation." });
   };
 
   const handleHistoryVoiceSelect = async (voiceId: string) => {
@@ -288,6 +287,7 @@ export default function ModernStepThree({
               <VoiceRecorder
                 onRecordingComplete={handleVoiceRecorded}
                 selectedLanguage={selectedLanguage}
+                onRecordingStart={clearSelection}
               />
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>• Read the text naturally at a normal pace</p>
