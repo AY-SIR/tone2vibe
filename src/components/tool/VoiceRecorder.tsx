@@ -17,7 +17,7 @@ import {
 
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
-  onRecordingStart?: () => void; // New prop to notify parent
+  onRecordingStart?: () => void;
   disabled?: boolean;
   minimumDuration?: number; // in seconds
   selectedLanguage: string;
@@ -27,7 +27,7 @@ export const VoiceRecorder = ({
   onRecordingComplete,
   onRecordingStart,
   disabled = false,
-  minimumDuration = 5,
+  minimumDuration = 10, // default minimum changed to 10
   selectedLanguage,
 }: VoiceRecorderProps) => {
   const [status, setStatus] = useState<'idle' | 'recording' | 'stopping' | 'completed' | 'saved'>('idle');
@@ -44,6 +44,7 @@ export const VoiceRecorder = ({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const durationRef = useRef(0);
+  const recordingStartTimeRef = useRef<number>(0);
   const audioUrlRef = useRef<string>("");
   const { toast } = useToast();
 
@@ -56,6 +57,7 @@ export const VoiceRecorder = ({
     streamRef.current = null;
     mediaRecorderRef.current = null;
     durationRef.current = 0;
+    recordingStartTimeRef.current = 0;
   }, []);
 
   const reset = useCallback(() => {
@@ -85,43 +87,24 @@ export const VoiceRecorder = ({
   }, [cleanup]);
 
   const startRecording = async () => {
-    onRecordingStart?.(); // Notify parent that a new recording has started
+    onRecordingStart?.();
     reset();
     try {
       setStatus('recording');
       recordedChunksRef.current = [];
-      durationRef.current = 0;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 48000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
       const audioContext = new AudioContext();
       if (audioContext.state === 'suspended') await audioContext.resume();
 
       const source = audioContext.createMediaStreamSource(stream);
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = 1.5;
       const dest = audioContext.createMediaStreamDestination();
-      source.connect(gainNode);
-      gainNode.connect(dest);
+      source.connect(dest);
 
-      const preferredMimes = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4;codecs=mp4a',
-        'audio/ogg;codecs=opus',
-        'audio/mpeg'
-      ];
-      const mime = preferredMimes.find(t => (window as any).MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
-      if (!mime) throw new Error('Recording not supported in this browser');
+      const mime = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mime)) throw new Error("Recording not supported");
 
       const recorder = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 256000 });
       mediaRecorderRef.current = recorder;
@@ -141,6 +124,7 @@ export const VoiceRecorder = ({
         }
 
         const blob = new Blob(recordedChunksRef.current, { type: mime });
+
         if (finalDuration >= minimumDuration) {
           setAudioBlob(blob);
           setRecordedDuration(finalDuration);
@@ -153,10 +137,14 @@ export const VoiceRecorder = ({
       };
 
       recorder.start(100);
+
+      recordingStartTimeRef.current = Date.now();
+      setDuration(0);
+
       intervalRef.current = setInterval(() => {
-        durationRef.current += 1;
-        setDuration(durationRef.current);
-      }, 1000);
+        const elapsedSeconds = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+        setDuration(elapsedSeconds);
+      }, 500);
 
       toast({ title: "Recording started..." });
     } catch (err) {
@@ -169,8 +157,13 @@ export const VoiceRecorder = ({
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      durationRef.current = recordingStartTimeRef.current > 0
+        ? Math.floor((Date.now() - recordingStartTimeRef.current) / 1000)
+        : 0;
+
       setStatus('stopping');
       mediaRecorderRef.current.stop();
+
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -188,37 +181,17 @@ export const VoiceRecorder = ({
       audioRef.current = audio;
 
       audio.onended = () => setIsPlaying(false);
-      audio.onerror = e => {
-        console.error("Audio playback error:", e);
-        setIsPlaying(false);
-        toast({ title: "Playback failed", variant: "destructive" });
-      };
+      audio.onerror = () => setIsPlaying(false);
     }
 
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play()
-        .then(() => setIsPlaying(true))
-        .catch(err => {
-          console.error("Playback error:", err);
-          setIsPlaying(false);
-          toast({ title: "Playback failed", variant: "destructive" });
-        });
-    }
+    if (isPlaying) audioRef.current.pause(), setIsPlaying(false);
+    else audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
   };
 
   const confirmRecording = async () => {
     if (!audioBlob || isSaving) return;
 
-    const savingStartTime = Date.now();
     setIsSaving(true);
-
-    toast({
-      title: "Saving voice...",
-      description: "Processing your recording",
-    });
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -236,7 +209,7 @@ export const VoiceRecorder = ({
 
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
 
-      const audioDuration = Math.floor(recordedDuration);
+      const audioDuration = Math.floor(recordedDuration); // exact seconds
       const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`;
 
       const { error: insertError } = await supabase.from('user_voices').insert([{
@@ -249,20 +222,16 @@ export const VoiceRecorder = ({
       }]);
 
       if (insertError) throw insertError;
-
-      // CORRECT: Notify parent only after successful save
       onRecordingComplete(audioBlob);
 
-      const savingTime = ((Date.now() - savingStartTime) / 1000).toFixed(1);
-      toast({
-        title: "Voice saved successfully!",
-        description: `Saved in ${savingTime}s`
-      });
+      // ✅ Show exact recorded time
+      toast({ title: "Voice saved successfully!", description: `Recorded ${audioDuration}s` });
       setStatus('saved');
+
     } catch (err: any) {
       console.error("Save error:", err);
       toast({ title: "Failed to save voice", description: err.message, variant: "destructive" });
-      setIsSaving(false); // Reset saving state on failure
+      setIsSaving(false);
     }
   };
 
