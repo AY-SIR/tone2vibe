@@ -408,57 +408,74 @@ const ModernStepFour = ({
                 </div>
               </TabsContent>
 
-              {/* Normal Tab - Available for Pro & Premium */}
-              <TabsContent value="normal" className="space-y-4 mt-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Voice Style</label>
-                      <Select value={voiceStyle} onValueChange={setVoiceStyle}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="natural">Natural</SelectItem>
-                          <SelectItem value="news">News Reader</SelectItem>
-                          <SelectItem value="conversational">Conversational</SelectItem>
-                          <SelectItem value="cheerful">Cheerful</SelectItem>
-                          <SelectItem value="empathetic">Empathetic</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Emotion</label>
-                      <Select value={emotion} onValueChange={setEmotion}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="neutral">Neutral</SelectItem>
-                          <SelectItem value="happy">Happy</SelectItem>
-                          <SelectItem value="sad">Sad</SelectItem>
-                          <SelectItem value="angry">Angry</SelectItem>
-                          <SelectItem value="excited">Excited</SelectItem>
-                          <SelectItem value="calm">Calm</SelectItem>
-                        </SelectContent>
-                             </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Accent</label>
-                      <Select value={accent} onValueChange={setAccent}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="default">Default</SelectItem>
-                          <SelectItem value="american">American</SelectItem>
-                          <SelectItem value="british">British</SelectItem>
-                          <SelectItem value="australian">Australian</SelectItem>
-                          <SelectItem value="canadian">Canadian</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-              </TabsContent>
+             {/* Normal Tab - Available for Pro & Premium */}
+<TabsContent value="normal" className="space-y-4 mt-4">
+  <div className="grid gap-4 sm:grid-cols-2">
+
+    {/* Voice Style */}
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Voice Style</label>
+      <Select value={voiceStyle} onValueChange={setVoiceStyle}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="natural">Natural</SelectItem>
+          <SelectItem value="news">News Reader</SelectItem>
+          <SelectItem value="conversational">Conversational</SelectItem>
+          <SelectItem value="cheerful">Cheerful</SelectItem>
+          <SelectItem value="empathetic">Empathetic</SelectItem>
+          <SelectItem value="dramatic">Dramatic</SelectItem>
+          <SelectItem value="storytelling">Storytelling</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Emotion */}
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Emotion</label>
+      <Select value={emotion} onValueChange={setEmotion}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="neutral">Neutral</SelectItem>
+          <SelectItem value="happy">Happy</SelectItem>
+          <SelectItem value="sad">Sad</SelectItem>
+          <SelectItem value="angry">Angry</SelectItem>
+          <SelectItem value="excited">Excited</SelectItem>
+          <SelectItem value="calm">Calm</SelectItem>
+          <SelectItem value="surprised">Surprised</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Accent */}
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Accent</label>
+      <Select value={accent} onValueChange={setAccent}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="default">Default</SelectItem>
+          <SelectItem value="american">American</SelectItem>
+          <SelectItem value="british">British</SelectItem>
+          <SelectItem value="australian">Australian</SelectItem>
+          <SelectItem value="canadian">Canadian</SelectItem>
+          <SelectItem value="irish">Irish</SelectItem>
+          <SelectItem value="southern">Southern US</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+
+
+
+
+  </div>
+</TabsContent>
+
 
               {/* Premium Tab - Premium Only */}
               {isPremiumUser && (
@@ -582,7 +599,7 @@ const ModernStepFour = ({
                   className="w-full sm:flex-1"
                   disabled={isSampleGeneration}
                 >
-                  {isSampleGeneration ? 'Generating...' : '🔄 Regenerate Sample'}
+                  {isSampleGeneration ? 'Generating...' : ' Regenerate Sample'}
                 </Button>
               </div>
             </div>
@@ -600,7 +617,7 @@ const ModernStepFour = ({
                 <Volume2 className="h-10 w-10 text-gray-400" />
               </div>
               <div>
-     
+
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
                   {isPaidUser ? "Choose Your Generation Method" : "Ready to Generate Audio"}
                 </h3>
@@ -610,58 +627,56 @@ const ModernStepFour = ({
                     : "Your text will be converted to high-quality speech using advanced AI."
                   }
                 </p>
-      
+
               </div>
               {estimatedTime > 0 && !isGenerating && (
                 <div className="flex items-center justify-center space-x-2 text-xs sm:text-sm text-gray-500">
                   <Clock className="h-4 w-4" />
                   <span>Estimated time: ~{estimatedTime} seconds</span>
-       
+
                 </div>
               )}
               {isPaidUser ?
                 (
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button
-                    onClick={handleGenerateSample}
-                    disabled={!canGenerate}
-                    variant="outline"
- 
-                    size="lg"
-                    className="px-6 sm:px-8 py-2 sm:py-3 border-2 border-gray-300 hover:bg-gray-50"
-                  >
-                    <Volume2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-           
-                    Generate Sample (50 words)
-                  </Button>
-                  <Button
-                    onClick={handleGenerateFullAudio}
-                    disabled={!canGenerate}
-            
-                    size="lg"
-                    className="px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
-                  >
-                    <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                    Generate Full Audio ({wordCount} words)
-                  </Button>
-                </div>
+               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 justify-center">
+  <Button
+    onClick={handleGenerateSample}
+    disabled={!canGenerate}
+    variant="outline"
+    size="lg"
+    className="w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 border-2 border-gray-300 hover:bg-gray-50"
+  >
+    <Volume2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+    Generate Sample (50 words)
+  </Button>
+  <Button
+    onClick={handleGenerateFullAudio}
+    disabled={!canGenerate}
+    size="lg"
+    className="w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
+  >
+    <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+    Generate Full Audio ({wordCount} words)
+  </Button>
+</div>
+
               ) : (
                 <Button
                   onClick={handleGenerateFullAudio}
-              
+
                   disabled={!canGenerate}
                   size="lg"
                   className="px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white"
                 >
                   <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-              
+
                   Generate Full Audio
                 </Button>
               )}
               {isPaidUser && (
                 <p className="text-xs text-gray-500 mt-2">
                   💡 Sample generation is free and doesn't use your word balance
- 
+
                 </p>
               )}
             </div>

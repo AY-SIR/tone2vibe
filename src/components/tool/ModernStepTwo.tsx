@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -10,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, Edit3, Globe, BookOpen, Wand2, Languages, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GrammarService } from "@/services/grammarService";
+import { translateText } from "@/services/translationService";
 
 interface ModernStepTwoProps {
   extractedText: string;
@@ -20,7 +20,6 @@ interface ModernStepTwoProps {
   onLanguageSelect: (language: string) => void;
   onTextUpdated: (text: string) => void;
 }
-
 
 const ModernStepTwo = ({
   extractedText,
@@ -39,8 +38,8 @@ const ModernStepTwo = ({
   const [isImproving, setIsImproving] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [detectionError, setDetectionError] = useState<string | null>(null);
-  const [translationError, setTranslationError] = useState<string | null>(null);
   const [translationAlertDismissed, setTranslationAlertDismissed] = useState(false);
+  const [hasDetectedOnce, setHasDetectedOnce] = useState(false);
   const { toast } = useToast();
 
   const MIN_CHARS = 20;
@@ -85,6 +84,7 @@ const ModernStepTwo = ({
     { code: 'pa-IN', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
     { code: 'ro-RO', name: 'Romanian', nativeName: 'Română' },
     { code: 'ru-RU', name: 'Russian', nativeName: 'Русский' },
+    { code: 'sa-IN', name: 'Sanskrit', nativeName: 'संस्कृतम्' },
     { code: 'sr-RS', name: 'Serbian', nativeName: 'Српски' },
     { code: 'sk-SK', name: 'Slovak', nativeName: 'Slovenčina' },
     { code: 'sl-SI', name: 'Slovenian', nativeName: 'Slovenščina' },
@@ -103,7 +103,7 @@ const ModernStepTwo = ({
   const textLengthError = useMemo(() => {
     const trimmedLength = editedText.trim().length;
     if (trimmedLength > 0 && trimmedLength < MIN_CHARS) {
-      return `Please enter at least ${MIN_CHARS} characters for Process.`;
+      return `Please enter at least ${MIN_CHARS} characters to proceed.`;
     }
     return null;
   }, [editedText]);
@@ -111,7 +111,13 @@ const ModernStepTwo = ({
   const detectTextLanguage = async (text: string) => {
     if (text.trim().length < MIN_CHARS) {
       setDetectionConfidence(0);
-      setDetectedLanguage('en-US'); // Reset
+      setDetectedLanguage('en-US');
+      setHasDetectedOnce(false);
+      return;
+    }
+
+    // Skip if already detected
+    if (hasDetectedOnce) {
       return;
     }
 
@@ -137,21 +143,24 @@ const ModernStepTwo = ({
           'ron': 'ro-RO', 'rus': 'ru-RU', 'srp': 'sr-RS', 'slk': 'sk-SK',
           'slv': 'sl-SI', 'spa': 'es-ES', 'swe': 'sv-SE', 'tam': 'ta-IN',
           'tel': 'te-IN', 'tha': 'th-TH', 'tur': 'tr-TR', 'ukr': 'uk-UA',
-          'urd': 'ur-IN', 'vie': 'vi-VN', 'cmn': 'zh-CN'
+          'urd': 'ur-IN', 'vie': 'vi-VN', 'cmn': 'zh-CN', 'san': 'sa-IN'
         };
         const code = langMap[langCode] || 'en-US';
         setDetectedLanguage(code);
         setSelectedLanguage(code);
         setDetectionConfidence(detections[0][1]);
+        setHasDetectedOnce(true);
         onLanguageSelect(code);
       } else {
         setDetectionError("Language could not be reliably detected. Please select manually.");
         setDetectionConfidence(0.3);
+        setHasDetectedOnce(true);
       }
     } catch (error) {
       console.error('Detection error:', error);
       setDetectionError("Language detection failed. Please select manually.");
       setDetectionConfidence(0);
+      setHasDetectedOnce(true);
     } finally {
       setIsDetecting(false);
     }
@@ -159,6 +168,7 @@ const ModernStepTwo = ({
 
   useEffect(() => {
     setEditedText(extractedText);
+    setHasDetectedOnce(false); // Reset detection flag for new text
     if (extractedText && extractedText.trim().length >= MIN_CHARS) {
       detectTextLanguage(extractedText);
     }
@@ -167,37 +177,20 @@ const ModernStepTwo = ({
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
     onTextUpdated(newText);
-    setDetectionError(null); // Clear previous errors on new input
-
-    
+    setDetectionError(null);
+    // Don't reset hasDetectedOnce - keep the detected language
   };
-  // State for debounced detection
-const [textForDetection, setTextForDetection] = useState(editedText);
-
-// Update text for detection when editedText changes
-useEffect(() => {
-  setTextForDetection(editedText);
-}, [editedText]);
-
-// Debounced language detection
-useEffect(() => {
-  if (textForDetection.trim().length < MIN_CHARS) return;
-
-  const timeout = setTimeout(() => {
-    detectTextLanguage(textForDetection);
-  }, 400);
-
-  return () => clearTimeout(timeout);
-}, [textForDetection]);
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
     onLanguageSelect(languageCode);
     setDetectionError(null);
+    setHasDetectedOnce(true); // Mark as manually selected
+    setTranslationAlertDismissed(false); // Show translation alert again if needed
   };
 
   const handleTranslateText = async () => {
-    if (editedText.trim().length < 3) { // Translation can work on shorter text
+    if (editedText.trim().length < 3) {
       toast({
         title: "Error",
         description: "Text is too short to translate",
@@ -205,15 +198,20 @@ useEffect(() => {
       });
       return;
     }
+
     setIsTranslating(true);
     onProcessingStart("Translating text...");
+
     try {
-      const result = { success: false, translatedText: editedText, error: "Translation service not available" };
+      const result = await translateText(editedText, selectedLanguage, detectedLanguage);
+
       if (result.success && result.translatedText) {
         setEditedText(result.translatedText);
         onTextUpdated(result.translatedText);
         setDetectedLanguage(selectedLanguage);
         setTranslationAlertDismissed(true);
+        setDetectionConfidence(1.0); // Set confidence to 100% after translation
+
         toast({
           title: "Translation Complete",
           description: `Text translated to ${languages.find(l => l.code === selectedLanguage)?.name}`,
@@ -284,22 +282,22 @@ useEffect(() => {
   };
 
   const currentWordCount = calculateDisplayWordCount(editedText);
-  
+
   // Enhanced translation detection logic
   const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.6;
   const isFallbackLanguage = detectionConfidence <= 0.5 && editedText.trim().length >= MIN_CHARS;
   const showTranslateIcon = (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
-  
+
   const hasError = detectionError !== null || textLengthError !== null;
-  
-  // Block continue button strictly
+
+  // Block continue button strictly - also block if translation is required
   const isContinueDisabled =
     editedText.trim().length < MIN_CHARS ||
     isImproving ||
     isTranslating ||
     isDetecting ||
     hasError ||
-    detectionConfidence === 0;
+    showTranslateIcon; // Block if translation icon is shown (language mismatch)
 
   return (
     <div className="space-y-6">
@@ -313,7 +311,16 @@ useEffect(() => {
           <div className="flex gap-2 items-center">
             <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
               <SelectTrigger className={`flex-1 ${detectionError ? 'border-red-500 focus:ring-red-500' : ''}`}>
-                <SelectValue placeholder="Choose language" />
+                <SelectValue placeholder="Choose language">
+                  {isDetecting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Detecting...
+                    </span>
+                  ) : (
+                    languages.find(l => l.code === selectedLanguage)?.name
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {languages.map((lang) => (
@@ -325,35 +332,35 @@ useEffect(() => {
             </Select>
             {showTranslateIcon && (
               <Button
-  onClick={handleTranslateText}
-  disabled={isTranslating || isImproving || !editedText.trim()}
-  variant="outline"
-  size="icon"
-  title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
-  className="border-2  animate-pulse"
->
-  {isTranslating ? (
-    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-  ) : (
-    <Languages className="h-4 w-4 text-black" />
-  )}
-</Button>
+                onClick={handleTranslateText}
+                disabled={isTranslating || isImproving || !editedText.trim()}
+                variant="outline"
+                size="icon"
+                title={`Translate to ${languages.find(l => l.code === selectedLanguage)?.name}`}
+                className="border-2 animate-pulse"
+              >
+                {isTranslating ? (
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Languages className="h-4 w-4 text-black" />
+                )}
+              </Button>
             )}
           </div>
-          
+
           {detectionError && (
             <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-red-600 font-medium">{detectionError}</p>
             </div>
           )}
-          
+
           {showTranslateIcon && !isTranslating && !detectionError && !translationAlertDismissed && (
-  <p className="mt-2 text-sm text-red-600 font-semibold flex items-center gap-2">
-    <Languages className="h-4 w-4" />
-    Translation Required
-  </p>
-)}
+            <p className="mt-2 text-sm text-red-600 font-semibold flex items-center gap-2">
+              <Languages className="h-4 w-4" />
+              Translation Required
+            </p>
+          )}
 
         </CardContent>
       </Card>
@@ -383,8 +390,7 @@ useEffect(() => {
             </div>
           )}
 
-
-           {isDetecting && (
+          {isDetecting && (
             <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
               <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               Detecting language...
@@ -395,7 +401,6 @@ useEffect(() => {
                Detected: {languages.find(l => l.code === detectedLanguage)?.name}
             </p>
           )}
-
 
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
             <Button
@@ -453,13 +458,13 @@ useEffect(() => {
         <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating || isDetecting} className="order-2 sm:order-1">
           Back to Upload
         </Button>
-        <Button 
-          onClick={onNext} 
-          disabled={isContinueDisabled} 
-          size="lg" 
+        <Button
+          onClick={onNext}
+          disabled={isContinueDisabled}
+          size="lg"
           className="px-6 sm:px-8 order-1 sm:order-2"
         >
-          {showTranslateIcon ? 'Translate Required' : 'Continue to Voice Selection'}
+          {showTranslateIcon ? 'Please Translate First' : 'Continue to Voice Selection'}
           <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
       </div>
