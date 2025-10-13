@@ -370,6 +370,11 @@ const Index = () => {
                   </div>
                 ))}
               </div>
+              <div className="flex items-center my-8">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <Mic className="mx-3 h-5 w-5 text-gray-900" />
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
               <div className="mt-24">
                 <WorkflowSection />
               </div>
@@ -378,7 +383,7 @@ const Index = () => {
         );
       case "pricing":
         return (
-          <section className="py-28 px-4 min-h-screen">
+          <section className="py-28 px-4 ">
             <div className="container mx-auto">
               <div className="text-center mb-16 animate-fade-in">
                 <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
