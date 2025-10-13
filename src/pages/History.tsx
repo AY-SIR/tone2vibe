@@ -416,12 +416,15 @@ const History = () => {
           <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
             Your voice projects • {retentionInfo("all")} retention
           </p>
-          <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
-            <div className="text-xs sm:text-sm flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
-              <span>Retention: {retentionInfo("all")} • {filteredItems.length} of {allItems.length} items shown</span>
-            </div>
-          </div>
+        <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
+  <div className="text-xs sm:text-sm flex items-center gap-2">
+    <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
+    <span>
+      Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown
+    </span>
+  </div>
+</div>
+
         </div>
 
         <Card className="mb-4 sm:mb-6">

@@ -2,37 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Pause, Volume2, FileAudio, Copy, Check, RotateCw, Download } from 'lucide-react';
+import { Volume2, FileAudio, Copy, Check, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { AnalyticsService } from '@/services/analyticsService';
-import { AudioDownloadDropdown } from './AudioDownloadDropdown';
+import { AudioDownloadDropdown } from '@/components/tool/AudioDownloadDropdown';
+import { ModernAudioPlayer } from '@/components/tool/ModernAudioPlayer'; // Import the new player
 
 interface ModernStepFiveProps {
   audioUrl: string;
   audioData?: string;
+  audioMimeType: 'audio/mpeg' | 'audio/webm'; // Prop to specify audio format
   extractedText: string;
   selectedLanguage: string;
   wordCount: number;
   duration?: number;
-  onBack?: () => void;
-  onStartOver?: () => void;
   onNextGeneration?: () => void;
 }
 
 export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   audioUrl,
   audioData,
+  audioMimeType,
   extractedText,
   selectedLanguage,
   wordCount,
   duration,
   onNextGeneration,
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(duration || 0);
-  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
@@ -40,64 +36,15 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
   useEffect(() => {
     if (!user || !profile) return;
-    // Analytics tracking removed - handled by backend during generation
+    // Analytics are handled by the backend during generation.
   }, [user?.id, profile?.plan]);
 
-  useEffect(() => {
-    if (audioUrl || audioData) {
-      const audioElement = new Audio();
-
-      if (audioData) {
-        const byteCharacters = atob(audioData);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
-        audioElement.src = URL.createObjectURL(blob);
-      } else {
-        audioElement.src = audioUrl;
-      }
-
-      audioElement.addEventListener('loadedmetadata', () => {
-        setTotalDuration(audioElement.duration);
-      });
-
-      audioElement.addEventListener('timeupdate', () => {
-        setCurrentTime(audioElement.currentTime);
-      });
-
-      audioElement.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setCurrentTime(0);
-      });
-
-      setAudio(audioElement);
-
-      return () => {
-        audioElement.pause();
-        if (audioData) {
-          URL.revokeObjectURL(audioElement.src);
-        }
-      };
-    }
-  }, [audioUrl, audioData]);
-
-  const togglePlayPause = () => {
-    if (!audio) return;
-    if (isPlaying) audio.pause();
-    else audio.play();
-    setIsPlaying(!isPlaying);
-  };
-
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
+  const formatTime = (timeInSeconds: number = 0) => {
+    if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
-
-  // Removed downloadAudio function - now using AudioDownloadDropdown component
 
   const copyToClipboard = async () => {
     try {
@@ -153,7 +100,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Your Generated Audio
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-primary">{wordCount}</div>
@@ -161,7 +108,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-primary">
-                {formatTime(totalDuration)}
+                {formatTime(duration)}
               </div>
               <div className="text-sm text-muted-foreground">Duration</div>
             </div>
@@ -186,39 +133,13 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Audio Player
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-6 border border-primary/20">
-            <div className="flex items-center justify-between mb-6">
-              <Button
-                onClick={togglePlayPause}
-                size="lg"
-                className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
-                disabled={!audio}
-              >
-                {isPlaying ? (
-                  <Pause className="w-6 h-6" />
-                ) : (
-                  <Play className="w-6 h-6 ml-0.5" />
-                )}
-              </Button>
-              <div className="flex items-center space-x-3 text-sm font-medium">
-                <span className="text-primary">{formatTime(currentTime)}</span>
-                <span className="text-muted-foreground">/</span>
-                <span className="text-muted-foreground">{formatTime(totalDuration)}</span>
-              </div>
-            </div>
-
-            {/* Modern progress bar with glow effect */}
-            <div className="relative w-full h-3 bg-muted/50 rounded-full overflow-hidden">
-              <div
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300 shadow-lg"
-                style={{
-                  width: totalDuration > 0 ? `${(currentTime / totalDuration) * 100}%` : '0%',
-                  boxShadow: '0 0 10px hsl(var(--primary) / 0.5)'
-                }}
-              />
-            </div>
-          </div>
+        <CardContent>
+          <ModernAudioPlayer
+            srcUrl={audioUrl}
+            srcData={audioData}
+            mimeType={audioMimeType}
+            trackTitle="Generated Voice Output"
+          />
         </CardContent>
       </Card>
 
@@ -244,35 +165,31 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-         <Card>
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Download className="w-5 h-5" />
             Download Your Audio
           </CardTitle>
         </CardHeader>
-
         <CardContent className="flex flex-col items-center gap-4 text-center ">
-        <div className="flex items-center space-x-2 border rounded-lg px-4 py-2 ">
-
-  <p className="text-sm text-black font-semibold">
-    Download in
-  </p>
-  <AudioDownloadDropdown
-    audioUrl={audioUrl}
-    fileName={`voice_${Date.now()}`}
-    isWebM={false}
-  />
-</div>
-
+          <div className="flex items-center space-x-2 border rounded-lg px-4 py-2 ">
+            <p className="text-sm text-black font-semibold">
+              Download in
+            </p>
+            <AudioDownloadDropdown
+              audioUrl={audioUrl}
+              fileName={`voice_${Date.now()}`}
+              isWebM={audioMimeType === 'audio/webm'}
+            />
+          </div>
         </CardContent>
-       <p className="text-center mb-2 text-sm text-muted-foreground">
-  Download available in different formats: 
-  <span className="inline font-medium">.mp3</span> 
-  <span className="inline font-medium">.flac</span> 
-  <span className="inline font-medium">.wav</span>
-</p>
-
+        <p className="text-center mb-2 text-sm text-muted-foreground">
+          Download available in different formats:
+          <span className="inline font-medium">.mp3</span>
+          <span className="inline font-medium">.flac</span>
+          <span className="inline font-medium">.wav</span>
+        </p>
       </Card>
 
       <div className="flex justify-center">
@@ -285,8 +202,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           <Button
             onClick={handleNextGeneration}
             size="lg"
-            className="px-8 py-3 text-lg font-semibold bg-gradient-to-r from-gray-700 to-black
-            hover:from-gray-900 hover:to-black text-white rounded-lg transition-colors"
+            className="px-8 py-3 text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-colors"
           >
             Next Generation
           </Button>
