@@ -27,10 +27,13 @@ import EmailConfirmation from "./pages/EmailConfirmation";
 import ResetPassword from "./pages/ResetPassword";
 
 import { WordLimitPopup } from './components/common/WordLimitPopup';
+import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
-function App() {
+function AppContent() {
+  const { planExpiryActive } = useAuth();
+
   // ✅ Disable right click globally
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -41,38 +44,46 @@ function App() {
   }, []);
 
   return (
+    <>
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        }
+      >
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+          <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/cookies" element={<Cookies />} />
+          <Route path="/email-confirmation" element={<EmailConfirmation />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+      <WordLimitPopup planExpiryActive={planExpiryActive} />
+      <Toaster />
+      <Sonner />
+    </>
+  );
+}
+
+function App() {
+  return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <TooltipProvider>
           <ResponsiveGuard>
             <AuthProvider>
-              <Suspense
-                fallback={
-                  <div className="min-h-screen flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  </div>
-                }
-              >
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
-                  <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                  <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-                  <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-                  <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/terms" element={<Terms />} />
-                  <Route path="/cookies" element={<Cookies />} />
-                  <Route path="/email-confirmation" element={<EmailConfirmation />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-              <WordLimitPopup />
-              <Toaster />
-              <Sonner />
+              <AppContent />
             </AuthProvider>
           </ResponsiveGuard>
         </TooltipProvider>

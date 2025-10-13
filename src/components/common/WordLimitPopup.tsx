@@ -12,13 +12,17 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 
-export const WordLimitPopup = () => {
+interface WordLimitPopupProps {
+  planExpiryActive?: boolean; // Prop to check if plan expiry popup is active
+}
+
+export const WordLimitPopup = ({ planExpiryActive = false }: WordLimitPopupProps) => {
   const { profile } = useAuth();
   const [showPopup, setShowPopup] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || planExpiryActive) return; // Don't show if plan expiry is active
 
     const planWordsRemaining = Math.max(0, profile.words_limit - profile.plan_words_used);
     const totalAvailable = planWordsRemaining + profile.word_balance;
@@ -29,7 +33,7 @@ export const WordLimitPopup = () => {
     } else if (totalAvailable <= 0) {
       setShowPopup(true);
     }
-  }, [profile]);
+  }, [profile, planExpiryActive]);
 
   if (!profile || !showPopup) return null;
 

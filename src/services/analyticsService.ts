@@ -66,6 +66,12 @@ export class AnalyticsService {
       const totalLimit = planLimit + purchasedWords;
       const wordsRemaining = Math.max(0, totalLimit - totalWordsUsed);
 
+      // --- Determine retention period based on plan ---
+      const retentionDays = plan === 'premium' ? 90 : 30; // Pro: 30 days, Premium: 90 days
+      const retentionDate = new Date();
+      retentionDate.setDate(retentionDate.getDate() - retentionDays);
+      const retentionDateStr = retentionDate.toISOString();
+
       // --- Fetch analytics from the analytics table with explicit typing ---
       type AnalyticsRow = {
         id: string;
@@ -78,10 +84,12 @@ export class AnalyticsService {
         extra_info: any;
       };
       
+      // Filter data by retention period for the current plan
       const { data: analyticsData, error: analyticsError } = await supabase
         .from('analytics' as any)
         .select('id, user_id, history_id, title, language, words_used, created_at, extra_info')
         .eq('user_id', userId)
+        .gte('created_at', retentionDateStr)
         .order('created_at', { ascending: false }) as any;
         
       if (analyticsError) {
@@ -242,10 +250,17 @@ export class AnalyticsService {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
 
     try {
+      // Determine retention period based on plan
+      const retentionDays = plan === 'premium' ? 90 : 30;
+      const retentionDate = new Date();
+      retentionDate.setDate(retentionDate.getDate() - retentionDays);
+      const retentionDateStr = retentionDate.toISOString();
+
       const { data, error } = await supabase
         .from('analytics' as any)
         .select('*')
         .eq('user_id', userId)
+        .gte('created_at', retentionDateStr)
         .order('created_at', { ascending: false })
         .limit(100) as any;
       if (error) return [];

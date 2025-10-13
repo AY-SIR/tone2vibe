@@ -45,6 +45,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   locationData: LocationData | null;
+  planExpiryActive: boolean;
   signUp: (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => Promise<{ data: any; error: any | null }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any | null }>;
   signInWithGoogle: () => Promise<void>;
@@ -322,6 +323,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     profile,
     loading: loading || !authInitialized,
     locationData,
+    planExpiryActive: shouldShowPopup,
     signUp,
     signIn,
     signInWithGoogle,

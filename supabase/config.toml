@@ -3,6 +3,9 @@ project_id = "msbmyiqhohtjdfbjmxlf"
 [functions.activate-free-plan]
 verify_jwt = false
 
+[functions.cleanup-old-data]
+verify_jwt = false
+
 [functions.create-instamojo-payment]
 verify_jwt = true
 
@@ -22,4 +25,10 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.improve-grammar]
+verify_jwt = true
+
+[functions.generate-fallback-voice]
+verify_jwt = true
+
+[functions.generate-fallback-sample]
 verify_jwt = true
