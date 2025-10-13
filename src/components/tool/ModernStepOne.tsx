@@ -50,6 +50,21 @@ export default function ModernStepOne({
     return totalWordCount;
   };
 
+  const isCodeDetected = (text: string): boolean => {
+    const codePatterns = [
+      /function\s+\w+\s*\(|def\s+\w+\s*\(/,
+      /(const|let|var)\s+\w+\s*=[^>]/,
+      /class\s+\w+/,
+      /<[^>]+>/,
+      /\/\/[^\n]|\/\*[\s\S]*?\*\/|#[^\n]+/,
+      /(import|export)\s+.*\s+from/,
+      /console\.log\(|System\.out\.println\(/,
+      /\([^)]*\)\s*=>/,
+      /{\s*"\w+"\s*:/,
+    ];
+    return codePatterns.some(pattern => pattern.test(text));
+  };
+
   const uploadLimit = UploadLimitService.getUploadLimit(profile?.plan || 'free');
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -116,9 +131,13 @@ export default function ModernStepOne({
       return;
     }
 
+    if (isCodeDetected(trimmedText)) {
+      setTextError("Code detected. Please enter regular prose, not programming code.");
+      return;
+    }
+
     if (trimmedText.length < 20) {
-      const errorMessage = "Please enter at least 20 characters to process.";
-      setTextError(errorMessage);
+      setTextError("Please enter at least 20 characters to process.");
       return;
     }
 
@@ -133,17 +152,32 @@ export default function ModernStepOne({
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     setManualText(newText);
-    if (textError && newText.trim() === "") {
+
+    if (newText && isCodeDetected(newText)) {
+      setTextError("Code detected. Please enter regular prose, not programming code.");
+    } else {
       setTextError(null);
     }
   }
 
-  const canContinue = extractedText.trim().length > 0;
+  // <<< MODIFIED >>> This now only depends on whether valid text has been submitted
+  const canContinue = extractedText.trim().length > 0 && !isCodeDetected(extractedText);
+
+  // <<< MODIFIED >>> The paste action is no longer blocked
+  const handleTextPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData.getData("text");
+
+    if (isCodeDetected(pastedText)) {
+      // e.preventDefault() is REMOVED to allow the paste
+      // Set the error state to show the red border and message.
+      // The subsequent onChange event will handle setting the text.
+      setTextError("Pasted content appears to be code. Please use regular text.");
+    }
+  };
+
 
   return (
     <div className="space-y-6">
-      
-
       <Tabs value={inputMethod} onValueChange={(value) => setInputMethod(value as "text" | "file")}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="text" className="flex items-center space-x-2">
@@ -168,14 +202,18 @@ export default function ModernStepOne({
               <Textarea
                 placeholder="Type or paste your text here..."
                 value={manualText}
+                onPaste={handleTextPaste}
                 onChange={handleTextChange}
-                className={`min-h-[200px] resize-none ${
+                className={`min-h-[200px] resize-none transition-colors ${
                   textError ? "border-red-500 focus-visible:ring-red-500" : ""
                 }`}
                 disabled={isProcessing}
               />
               {textError && (
-                <p className="text-sm text-red-600 -mt-2">{textError}</p>
+                <div className="flex items-center space-x-2 text-sm text-red-600 -mt-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0"/>
+                  <p>{textError}</p>
+                </div>
               )}
               <div className="flex justify-between items-center text-sm text-muted-foreground">
                 <span>{manualText.replace(/\s/g, '').length} characters</span>
@@ -183,7 +221,8 @@ export default function ModernStepOne({
               </div>
               <Button
                 onClick={handleManualTextSubmit}
-                disabled={!manualText.trim() || isProcessing}
+                // <<< MODIFIED >>> Button is now disabled if there is any textError
+                disabled={!manualText.trim() || isProcessing || !!textError}
                 className="w-full"
               >
                 Use This Text

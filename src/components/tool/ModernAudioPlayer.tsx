@@ -4,9 +4,9 @@ import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ModernAudioPlayerProps {
-  srcUrl?: string;      // Audio file URL
-  srcData?: string;     // Base64 audio data
-  mimeType: 'audio/webm'; // Only WEBM
+  srcUrl?: string;                // Audio file URL
+  srcData?: string;               // Base64 audio data
+  mimeType: 'audio/webm';         // Only WEBM supported
   trackTitle: string;
 }
 
@@ -31,7 +31,6 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
     setIsAudioReady(false);
     setIsSupported(true);
 
-    // Only allow WEBM
     if (mimeType !== 'audio/webm') {
       toast({
         title: 'Audio Error',
@@ -44,6 +43,7 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
 
     const audioElement = new Audio();
 
+    // ======= Load base64 or URL source =======
     if (srcData) {
       try {
         const base64String = srcData.includes(',') ? srcData.split(',')[1] : srcData;
@@ -55,7 +55,7 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
         const blob = new Blob([byteArray], { type: mimeType });
         audioElement.src = URL.createObjectURL(blob);
       } catch (error) {
-        console.error('Error decoding base64 audio data:', error);
+        console.error('Error decoding base64 audio:', error);
         toast({
           title: 'Audio Error',
           description: 'Invalid Base64 audio data.',
@@ -76,20 +76,29 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
       return;
     }
 
+    // ======= Event Handlers =======
     const onLoadedMetadata = () => {
       setDuration(audioElement.duration);
       setIsAudioReady(true);
     };
+
     const onTimeUpdate = () => setCurrentTime(audioElement.currentTime);
+
     const onEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
     };
-    const onError = (e: Event) => {
-      console.error('Audio element error:', e);
+
+    const onError = () => {
+      console.error('Audio failed to load.', {
+        src: audioElement.src,
+        networkState: audioElement.networkState,
+        readyState: audioElement.readyState,
+        error: audioElement.error,
+      });
       toast({
         title: 'Audio Error',
-        description: 'Could not load the audio file.',
+        description: 'Could not load the audio file. Check the URL or Base64 data.',
         variant: 'destructive',
       });
     };
@@ -113,8 +122,10 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
     };
   }, [srcUrl, srcData, mimeType, toast]);
 
+  // ======= Play / Pause =======
   const togglePlayPause = async () => {
     if (!audio || !isAudioReady || !isSupported) return;
+
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
@@ -133,12 +144,14 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
     }
   };
 
+  // ======= Volume =======
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
     if (audio) audio.volume = newVolume;
   };
 
+  // ======= Scrub Progress =======
   const handleProgressScrub = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audio || !isAudioReady || !progressBarRef.current) return;
     const rect = progressBarRef.current.getBoundingClientRect();
@@ -158,6 +171,7 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  // ======= JSX =======
   return (
     <div className="bg-gradient-to-br from-primary/5 to-primary/15 rounded-xl p-4 sm:p-6 border border-primary/20 space-y-4">
       <p className="font-semibold text-center sm:text-left text-foreground truncate">{trackTitle}</p>

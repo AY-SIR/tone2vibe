@@ -40,6 +40,7 @@ const ModernStepTwo = ({
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [translationAlertDismissed, setTranslationAlertDismissed] = useState(false);
   const [hasDetectedOnce, setHasDetectedOnce] = useState(false);
+  const [pasteError, setPasteError] = useState<string | null>(null); // <<< NEW >>> State for paste errors
   const { toast } = useToast();
 
   const MIN_CHARS = 20;
@@ -100,6 +101,21 @@ const ModernStepTwo = ({
     { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
   ];
 
+  const isCodeDetected = (text: string): boolean => {
+    const codePatterns = [
+      /function\s+\w+\s*\(|def\s+\w+\s*\(/,
+      /(const|let|var)\s+\w+\s*=[^>]/,
+      /class\s+\w+/,
+      /<[^>]+>/,
+      /\/\/[^\n]|\/\*[\s\S]*?\*\/|#[^\n]+/,
+      /(import|export)\s+.*\s+from/,
+      /console\.log\(|System\.out\.println\(/,
+      /\([^)]*\)\s*=>/,
+      /{\s*"\w+"\s*:/,
+    ];
+    return codePatterns.some(pattern => pattern.test(text));
+  };
+
   const textLengthError = useMemo(() => {
     const trimmedLength = editedText.trim().length;
     if (trimmedLength > 0 && trimmedLength < MIN_CHARS) {
@@ -107,6 +123,16 @@ const ModernStepTwo = ({
     }
     return null;
   }, [editedText]);
+
+  const codeDetectionError = useMemo(() => {
+    if (isCodeDetected(editedText)) {
+      return "Code detected. Please enter regular prose, not programming code.";
+    }
+    return null;
+  }, [editedText]);
+
+  // <<< MODIFIED >>> Combine all possible text area errors including the new pasteError
+  const displayedTextAreaError = textLengthError || codeDetectionError || pasteError;
 
   const detectTextLanguage = async (text: string) => {
     if (text.trim().length < MIN_CHARS) {
@@ -116,23 +142,18 @@ const ModernStepTwo = ({
       return;
     }
 
-    // Skip if already detected
-    if (hasDetectedOnce) {
-      return;
-    }
+    if (hasDetectedOnce) return;
 
     setIsDetecting(true);
     setDetectionError(null);
 
     try {
-      // Use franc for language detection
       const franc = await import('franc');
       const francAll = franc.francAll;
       const detections = francAll(text, { minLength: 10 });
 
       if (detections.length > 0 && detections[0][1] > 0.5) {
         const langCode = detections[0][0];
-        // Map franc codes to our language codes
         const langMap: Record<string, string> = {
           'eng': 'en-US', 'ara': 'ar-SA', 'ben': 'bn-IN', 'bul': 'bg-BG',
           'ces': 'cs-CZ', 'dan': 'da-DK', 'nld': 'nl-NL', 'fin': 'fi-FI',
@@ -168,25 +189,37 @@ const ModernStepTwo = ({
 
   useEffect(() => {
     setEditedText(extractedText);
-    setHasDetectedOnce(false); // Reset detection flag for new text
+    setHasDetectedOnce(false);
     if (extractedText && extractedText.trim().length >= MIN_CHARS) {
       detectTextLanguage(extractedText);
     }
   }, [extractedText]);
 
+  // <<< MODIFIED >>> Clear paste error when user types
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
     onTextUpdated(newText);
     setDetectionError(null);
-    // Don't reset hasDetectedOnce - keep the detected language
+    if (pasteError) {
+      setPasteError(null); // Clear paste error on new input
+    }
+  };
+
+  // <<< MODIFIED >>> Prevent paste and show alert, but do not change the text
+  const handleTextPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData.getData("text");
+    if (isCodeDetected(pastedText)) {
+      e.preventDefault();
+      setPasteError("Pasting code is not allowed. Please paste regular text.");
+    }
   };
 
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
     onLanguageSelect(languageCode);
     setDetectionError(null);
-    setHasDetectedOnce(true); // Mark as manually selected
-    setTranslationAlertDismissed(false); // Show translation alert again if needed
+    setHasDetectedOnce(true);
+    setTranslationAlertDismissed(false);
   };
 
   const handleTranslateText = async () => {
@@ -198,20 +231,16 @@ const ModernStepTwo = ({
       });
       return;
     }
-
     setIsTranslating(true);
     onProcessingStart("Translating text...");
-
     try {
       const result = await translateText(editedText, selectedLanguage, detectedLanguage);
-
       if (result.success && result.translatedText) {
         setEditedText(result.translatedText);
         onTextUpdated(result.translatedText);
         setDetectedLanguage(selectedLanguage);
         setTranslationAlertDismissed(true);
-        setDetectionConfidence(1.0); // Set confidence to 100% after translation
-
+        setDetectionConfidence(1.0);
         toast({
           title: "Translation Complete",
           description: `Text translated to ${languages.find(l => l.code === selectedLanguage)?.name}`,
@@ -283,21 +312,19 @@ const ModernStepTwo = ({
 
   const currentWordCount = calculateDisplayWordCount(editedText);
 
-  // Enhanced translation detection logic
   const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.6;
   const isFallbackLanguage = detectionConfidence <= 0.5 && editedText.trim().length >= MIN_CHARS;
   const showTranslateIcon = (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
 
-  const hasError = detectionError !== null || textLengthError !== null;
+  const hasError = detectionError !== null || displayedTextAreaError !== null;
 
-  // Block continue button strictly - also block if translation is required
   const isContinueDisabled =
     editedText.trim().length < MIN_CHARS ||
     isImproving ||
     isTranslating ||
     isDetecting ||
     hasError ||
-    showTranslateIcon; // Block if translation icon is shown (language mismatch)
+    showTranslateIcon;
 
   return (
     <div className="space-y-6">
@@ -378,15 +405,16 @@ const ModernStepTwo = ({
           <Textarea
             value={editedText}
             onChange={(e) => handleTextChange(e.target.value)}
+            onPaste={handleTextPaste}
             placeholder="Your text will appear here. You can edit it before proceeding..."
             className={`min-h-[200px] resize-none text-base leading-relaxed transition-all ${
               hasError ? 'border-red-500 focus-visible:ring-red-500' : ''
             }`}
           />
-          {(detectionError || textLengthError) && (
+          {displayedTextAreaError && (
             <div className="flex items-start gap-2 mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
               <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-red-600">{detectionError || textLengthError}</p>
+              <p className="text-sm text-red-600">{displayedTextAreaError}</p>
             </div>
           )}
 
@@ -396,7 +424,7 @@ const ModernStepTwo = ({
               Detecting language...
             </p>
           )}
-          {!isDetecting && detectionConfidence > 0.5 && !detectionError && !textLengthError &&(
+          {!isDetecting && detectionConfidence > 0.5 && !detectionError && !displayedTextAreaError &&(
             <p className="text-sm text-green-600 mt-2">
                Detected: {languages.find(l => l.code === detectedLanguage)?.name}
             </p>
