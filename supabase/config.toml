@@ -27,8 +27,4 @@ verify_jwt = true
 [functions.improve-grammar]
 verify_jwt = true
 
-[functions.generate-fallback-voice]
-verify_jwt = true
 
-[functions.generate-fallback-sample]
-verify_jwt = true
