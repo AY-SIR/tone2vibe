@@ -107,7 +107,7 @@ useEffect(() => {
             <Mail className="h-16 w-16 text-black mx-auto mb-6" />
             <h1 className="text-4xl md:text-5xl font-bold mb-4 text-black">Get in Touch</h1>
             <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto">
-              Have questions about Tone2Vibe? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+              Have questions about Tone2Vibe? 
             </p>
           </div>
 
