@@ -42,6 +42,7 @@ const ModernStepTwo = ({
   const [hasDetectedOnce, setHasDetectedOnce] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null); // <<< NEW >>> State for paste errors
   const { toast } = useToast();
+const [isEnhanced, setIsEnhanced] = useState(false);
 
   const MIN_CHARS = 20;
 
@@ -202,7 +203,10 @@ const ModernStepTwo = ({
     setDetectionError(null);
     if (pasteError) {
       setPasteError(null); // Clear paste error on new input
+
+
     }
+ if (isEnhanced) setIsEnhanced(false); // <<< Reset enhancement
   };
 
   // <<< MODIFIED >>> Prevent paste and show alert, but do not change the text
@@ -265,45 +269,47 @@ const ModernStepTwo = ({
     }
   };
 
-  const handleImproveText = async () => {
-    if (editedText.trim().length < 3) {
+ const handleImproveText = async () => {
+  if (editedText.trim().length < 3) {
+    toast({
+      title: "Error",
+      description: "Text is too short to improve",
+      variant: "destructive"
+    });
+    return;
+  }
+  setIsImproving(true);
+  onProcessingStart("Improving text with AI...");
+  try {
+    const result = await GrammarService.improveText(editedText, selectedLanguage);
+    if (result.success && result.improvedText) {
+      setEditedText(result.improvedText);
+      onTextUpdated(result.improvedText);
+      setIsEnhanced(true); // <<< Mark as enhanced
       toast({
-        title: "Error",
-        description: "Text is too short to improve",
+        title: "Text Improved",
+        description: "Grammar and clarity enhanced",
+      });
+    } else {
+      toast({
+        title: "Improvement Failed",
+        description: result.error || "Could not improve text",
         variant: "destructive"
       });
-      return;
     }
-    setIsImproving(true);
-    onProcessingStart("Improving text with AI...");
-    try {
-      const result = await GrammarService.improveText(editedText, selectedLanguage);
-      if (result.success && result.improvedText) {
-        setEditedText(result.improvedText);
-        onTextUpdated(result.improvedText);
-        toast({
-          title: "Text Improved",
-          description: "Grammar and clarity enhanced",
-        });
-      } else {
-        toast({
-          title: "Improvement Failed",
-          description: result.error || "Could not improve text",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Improvement error:', error);
-      toast({
-        title: "Improvement Error",
-        description: "An error occurred during text improvement",
-        variant: "destructive"
-      });
-    } finally {
-      setIsImproving(false);
-      onProcessingEnd();
-    }
-  };
+  } catch (error) {
+    console.error('Improvement error:', error);
+    toast({
+      title: "Improvement Error",
+      description: "An error occurred during text improvement",
+      variant: "destructive"
+    });
+  } finally {
+    setIsImproving(false);
+    onProcessingEnd();
+  }
+};
+
 
   const calculateDisplayWordCount = (text: string) => {
     const words = text.trim().split(/\s+/).filter(Boolean);
@@ -314,7 +320,8 @@ const ModernStepTwo = ({
 
   const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.6;
   const isFallbackLanguage = detectionConfidence <= 0.5 && editedText.trim().length >= MIN_CHARS;
-  const showTranslateIcon = (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
+const showTranslateIcon =
+  !isDetecting && hasDetectedOnce && (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
 
   const hasError = detectionError !== null || displayedTextAreaError !== null;
 
@@ -431,24 +438,31 @@ const ModernStepTwo = ({
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
-            <Button
-              onClick={handleImproveText}
-              disabled={isImproving || isTranslating || editedText.trim().length < MIN_CHARS || hasError}
-              variant="outline"
-              className="flex-1"
-            >
-              {isImproving ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                  Improving...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  Improve with AI
-                </>
-              )}
-            </Button>
+          <Button
+  onClick={handleImproveText}
+  disabled={isImproving || isTranslating || editedText.trim().length < MIN_CHARS || hasError || isEnhanced} // <<< added isEnhanced
+  variant="outline"
+  className="flex-1"
+>
+  {isImproving ? (
+    <>
+      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+      Improving...
+    </>
+  ) : isEnhanced ? (
+    <>
+      <Wand2 className="h-4 w-4 mr-2" />
+      Enhanced
+    </>
+  ) : (
+    <>
+      <Wand2 className="h-4 w-4 mr-2" />
+      Improve with AI
+    </>
+  )}
+</Button>
+
+
             <div className="flex items-center space-x-2 justify-center text-muted-foreground">
               <BookOpen className="h-4 w-4" />
               <span className="text-sm">Auto-enhances for natural speech</span>

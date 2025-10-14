@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, BarChart3, TrendingUp, Crown, AlertCircle } from "lucide-react";
+import { Crown, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +33,6 @@ const RealAnalytics = () => {
     queryKey: ['real-analytics', user?.id, profile?.plan],
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
-      // Assuming weeklyTrends is part of ProAnalytics as well
       return await AnalyticsService.getUserAnalytics(user.id, profile?.plan) as (ProAnalytics & { weeklyTrends?: any[] });
     },
     enabled: !!user && profile?.plan !== 'free',
@@ -58,10 +57,32 @@ const RealAnalytics = () => {
   const premiumAnalytics = analytics as PremiumAnalytics;
 
   const formatWords = (words?: number) => {
-    if (!words) return '0';
+    if (words === null || typeof words === 'undefined') return '0';
     if (words >= 1000) return `${(words / 1000).toFixed(1)}K`;
     return words.toString();
   };
+
+  // --- Data for Premium Insights Tab ---
+  // This refactor makes data handling safer and the code cleaner
+  const performanceInsights = premiumAnalytics?.performanceInsights;
+  const insightsData = [
+    {
+      label: "Peak Hours",
+      value: performanceInsights?.peakUsageHours?.join(', ') || 'N/A',
+    },
+    {
+      label: "Efficiency Score",
+      value: `${performanceInsights?.efficiencyScore ?? 0}%`,
+    },
+    {
+      label: "Processing Times",
+      value: `Avg: ${((performanceInsights?.avgProcessingTime ?? 0) / 1000).toFixed(1)}s, Max: ${((performanceInsights?.longestResponseTime ?? 0) / 1000).toFixed(1)}s`,
+    },
+    {
+      label: "Error Rate",
+      value: `${((performanceInsights?.errorRate ?? 0) * 100).toFixed(1)}%`,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-white animate-fade-in">
@@ -78,6 +99,7 @@ const RealAnalytics = () => {
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
             </div>
+            <Skeleton className="h-40 w-full" />
           </div>
         ) : error ? (
           <div className="flex items-center justify-center py-20">
@@ -85,7 +107,7 @@ const RealAnalytics = () => {
               <CardContent className="p-6 text-center">
                 <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Analytics Unavailable</h3>
-                <p className="text-gray-600 mb-4">Unable to load analytics data</p>
+                <p className="text-gray-600 mb-4">Unable to load analytics data at this time.</p>
                 <Button onClick={() => window.location.reload()}>Try Again</Button>
               </CardContent>
             </Card>
@@ -99,9 +121,8 @@ const RealAnalytics = () => {
               {isPremium && <TabsTrigger value="insights" className="text-xs sm:text-sm">Insights</TabsTrigger>}
             </TabsList>
 
-            {/* --- Overview Tab with Perfect Responsive Design --- */}
+            {/* --- Overview Tab --- */}
             <TabsContent value="overview" className="space-y-4 sm:space-y-6 animate-scale-in">
-              {/* Primary Metrics - 2 cols on mobile, 4 on desktop */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <Card className="border-2 hover:shadow-md transition-shadow">
                   <CardContent className="pt-5 pb-5 px-3 sm:px-4">
@@ -115,7 +136,6 @@ const RealAnalytics = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border-2 hover:shadow-md transition-shadow">
                   <CardContent className="pt-5 pb-5 px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
@@ -128,13 +148,12 @@ const RealAnalytics = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border-2 hover:shadow-md transition-shadow">
                   <CardContent className="pt-5 pb-5 px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
                       <div
                         className={`text-2xl sm:text-3xl font-bold ${
-                          (analytics?.wordsRemaining ?? 0) < 100 ? 'text-red-600' : 'text-green-600'
+                          (analytics?.wordsRemaining ?? 0) < 1000 ? 'text-red-600' : 'text-green-600'
                         }`}
                       >
                         {formatWords(analytics?.wordsRemaining)}
@@ -145,7 +164,6 @@ const RealAnalytics = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border-2 hover:shadow-md transition-shadow">
                   <CardContent className="pt-5 pb-5 px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center space-y-1 sm:space-y-2">
@@ -160,8 +178,7 @@ const RealAnalytics = () => {
                 </Card>
               </div>
 
-              {/* Secondary Metrics - 1 col on mobile, 2 on tablet, 4 on desktop */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <Card className="border hover:shadow-md transition-shadow">
                   <CardContent className="pt-4 pb-4 px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center space-y-1">
@@ -174,7 +191,6 @@ const RealAnalytics = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border hover:shadow-md transition-shadow">
                   <CardContent className="pt-4 pb-4 px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center space-y-1">
@@ -187,7 +203,6 @@ const RealAnalytics = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border hover:shadow-md transition-shadow">
                   <CardContent className="pt-4 pb-4 px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center space-y-1">
@@ -200,8 +215,6 @@ const RealAnalytics = () => {
                     </div>
                   </CardContent>
                 </Card>
-
-                
               </div>
             </TabsContent>
 
@@ -210,7 +223,7 @@ const RealAnalytics = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg sm:text-xl">Recent Activity</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Latest usage patterns</CardDescription>
+                  <CardDescription className="text-xs sm:text-sm">Your last 10 days of activity</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {analytics?.recentActivity?.length > 0 ? (
@@ -228,7 +241,7 @@ const RealAnalytics = () => {
                         </div>
                       ))}
                     </div>
-                  ) : <p className="text-center text-gray-600 py-12 text-sm sm:text-base">No recent activity</p>}
+                  ) : <p className="text-center text-gray-600 py-12 text-sm sm:text-base">No recent activity to display</p>}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -236,6 +249,7 @@ const RealAnalytics = () => {
             {/* --- Charts Tab --- */}
             <TabsContent value="charts" className="space-y-4 sm:space-y-6 animate-scale-in">
               {analytics?.languageUsage?.length > 0 && (
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg sm:text-xl">Language Distribution</CardTitle>
@@ -251,14 +265,14 @@ const RealAnalytics = () => {
                             nameKey="language"
                             cx="50%"
                             cy="50%"
-                            outerRadius={80}
-                            label={({ language }) => language}
+                            outerRadius="80%"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                           >
                             {analytics.languageUsage.map((_, idx) => (
-                              <Cell key={idx} fill={`hsl(${idx * 45}, 70%, ${idx % 2 === 0 ? '40%' : '60%'})`} />
+                              <Cell key={`cell-${idx}`} fill={`hsl(${idx * 60}, 70%, ${50 + (idx % 2 * 10)}%)`} />
                             ))}
                           </Pie>
-                          <Tooltip />
+                          <Tooltip formatter={(value, name) => [value, name]} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
@@ -266,31 +280,76 @@ const RealAnalytics = () => {
                 </Card>
               )}
 
-              {/* === MODIFICATION: Weekly Trends now available for Pro & Premium === */}
-              {(isPro || isPremium) && analytics?.weeklyTrends && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Words and projects over time</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[250px] sm:h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={analytics.weeklyTrends}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="week" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip />
-                          <Bar dataKey="words" fill="#000000" name="Words" />
-                          <Bar dataKey="projects" fill="#666666" name="Projects" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {/* === NEW CHART ADDED: Projects per Language (Premium Only) === */}
+{/* --- THIS IS THE NEW CHART TO ADD --- */}
+{isPremium && premiumAnalytics.hourlyUsage && premiumAnalytics.hourlyUsage.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg sm:text-xl">Hourly Activity Breakdown</CardTitle>
+      <CardDescription className="text-xs sm:text-sm">Word usage by hour of the day</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="h-[250px] sm:h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={premiumAnalytics.hourlyUsage}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip cursor={{ fill: 'rgba(200, 200, 200, 0.2)' }} />
+            <Bar dataKey="words" name="Words Processed" fill="#FFA500" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </CardContent>
+  </Card>
+)}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                {(isPro || isPremium) && analytics?.weeklyTrends && analytics.weeklyTrends.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Words and projects over the last 7 weeks</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[250px] sm:h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={analytics.weeklyTrends}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="week" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Bar dataKey="words" fill="#000000" name="Words" />
+                            <Bar dataKey="projects" fill="#666666" name="Projects" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {isPremium && premiumAnalytics?.monthlyTrends && premiumAnalytics.monthlyTrends.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg sm:text-xl">Monthly Trends</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Words and projects over the last 6 months</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[250px] sm:h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={premiumAnalytics.monthlyTrends}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Bar dataKey="words" fill="#1f2937" name="Words" />
+                            <Bar dataKey="projects" fill="#6b7280" name="Projects" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+
+                 {/* === NEW CHART ADDED: Projects per Language (Premium Only) === */}
               {isPremium && analytics?.languageUsage && analytics.languageUsage.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -314,31 +373,11 @@ const RealAnalytics = () => {
               )}
 
 
-              {isPremium && premiumAnalytics.monthlyTrends && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg sm:text-xl">Monthly Trends</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[250px] sm:h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={premiumAnalytics.monthlyTrends}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip />
-                          <Bar dataKey="words" fill="#1f2937" />
-                          <Bar dataKey="projects" fill="#6b7280" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              </div>
             </TabsContent>
 
             {/* --- Insights Tab (Premium) --- */}
-            {isPremium && premiumAnalytics.performanceInsights && (
+            {isPremium && (
               <TabsContent value="insights" className="space-y-4 sm:space-y-6 animate-scale-in">
                 <Card>
                   <CardHeader>
@@ -349,26 +388,12 @@ const RealAnalytics = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Peak Hours</h4>
-                      <p className="text-xs sm:text-sm text-gray-700">{premiumAnalytics.performanceInsights.peakUsageHours?.join(', ') || 'No data'}</p>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Efficiency Score</h4>
-                      <p className="text-xs sm:text-sm text-gray-700">{premiumAnalytics.performanceInsights.efficiencyScore}%</p>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Processing Times</h4>
-                      <p className="text-xs sm:text-sm text-gray-700">
-                        Avg: {(premiumAnalytics.performanceInsights.avgProcessingTime / 1000).toFixed(1)}s,
-                        Longest: {(premiumAnalytics.performanceInsights.longestResponseTime / 1000).toFixed(1)}s,
-                        Shortest: {(premiumAnalytics.performanceInsights.shortestResponseTime / 1000).toFixed(1)}s
-                      </p>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-black text-sm sm:text-base mb-1">Error Rate</h4>
-                      <p className="text-xs sm:text-sm text-gray-700">{(premiumAnalytics.performanceInsights.errorRate * 100).toFixed(1)}%</p>
-                    </div>
+                    {insightsData.map((insight, index) => (
+                       <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg flex justify-between items-center text-sm sm:text-base">
+                         <h4 className="font-medium text-gray-800">{insight.label}</h4>
+                         <p className="font-semibold text-black">{insight.value}</p>
+                       </div>
+                    ))}
                   </CardContent>
                 </Card>
               </TabsContent>

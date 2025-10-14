@@ -1,25 +1,34 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
+import { VitePWA } from "vite-plugin-pwa";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-  },
+export default defineConfig({
+  server: { host: "::", port: 8080 },
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  build: {
-    chunkSizeWarningLimit: 2000, // 2MB, warning will disappear
-    sourcemap: false,             // optional, build smaller
-  },
-}));
+    VitePWA({
+      registerType: "autoUpdate",
+      manifest: {
+        name: "Tone2vibe",
+        short_name: "Tone2vibe",
+        start_url: "/",
+        display: "standalone",
+        theme_color: "#ffffff",
+        background_color: "#ffffff",
+        icons: [
+          {
+            src: "/favicon.png",
+            sizes: "192x192",
+          },
+          {
+            src: "/favicon.png",
+            sizes: "512x512",
+          }
+        ]
+      }
+    })
+  ],
+  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+  build: { chunkSizeWarningLimit: 2000, sourcemap: false }
+});

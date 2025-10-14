@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         plan_expires_at: null,
         last_login_at: new Date().toISOString(),
         ip_address: null,
-        country: null,
+        country: "India",
         email: user.email!,
         company: "",
         preferred_language: "en",
