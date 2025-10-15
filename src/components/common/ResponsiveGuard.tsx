@@ -8,13 +8,30 @@ interface ResponsiveGuardProps {
 
 export const ResponsiveGuard: React.FC<ResponsiveGuardProps> = ({ children }) => {
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const handleResize = () => setScreenWidth(window.innerWidth);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
+  // If offline, always render children (Offline component)
+  if (!isOnline) {
+    return <>{children}</>;
+  }
+
+  // If online but screen too small, show guard message
   if (screenWidth < 320) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-indigo-50 to-purple-50">

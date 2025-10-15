@@ -1,9 +1,7 @@
-const CACHE_NAME = "offline-page-cache-v1";
+const CACHE_NAME = "offline-cache-v1";
+const urlsToCache = ["/", "/index.html", "/main.js", "/index.css"]; // precache app shell
 
-// Only cache the Offline route
-const urlsToCache = ["/offline"];
-
-self.addEventListener("install", (event: ExtendableEvent) => {
+self.addEventListener("install", (event) => {
   console.log("[SW] Installing...");
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
@@ -11,7 +9,7 @@ self.addEventListener("install", (event: ExtendableEvent) => {
   self.skipWaiting();
 });
 
-self.addEventListener("activate", (event: ExtendableEvent) => {
+self.addEventListener("activate", (event) => {
   console.log("[SW] Activating...");
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -21,14 +19,47 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
   self.clients.claim();
 });
 
-self.addEventListener("fetch", (event: FetchEvent) => {
+self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  // Handle navigation (page reloads)
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          // Clone and cache the response for future use
+          const responseClone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return res;
+        })
+        .catch(() => {
+          // When offline, return the cached index.html (SPA shell)
+          // This ensures React Router can handle the routing
+          return caches.match("/index.html").then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Fallback to root
+            return caches.match("/");
+          });
+        })
+    );
+    return;
+  }
+
+  // For static assets (CSS, JS, images, etc.)
   event.respondWith(
     fetch(event.request)
-      .catch(() =>
-        // On network failure, return cached Offline route
-        caches.match("/offline")
-      )
+      .then((res) => {
+        // Cache static assets
+        const responseClone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone);
+        });
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

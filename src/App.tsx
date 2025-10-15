@@ -1,4 +1,3 @@
-
 import React, { Suspense, useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -34,7 +33,8 @@ const queryClient = new QueryClient();
 function AppContent() {
   const { planExpiryActive } = useAuth();
   const online = useOnline();
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [showOffline, setShowOffline] = useState(false);
 
   // ✅ Disable right click globally
   useEffect(() => {
@@ -45,13 +45,21 @@ function AppContent() {
     };
   }, []);
 
-  // Track offline status
+  // Track offline status with a slight delay to avoid flash
   useEffect(() => {
-    setIsOffline(!online);
+    const timer = setTimeout(() => {
+      setIsOffline(!online);
+      setShowOffline(!online);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [online]);
 
   // If offline, show Offline Page instead of normal routes
-  if (isOffline) return <Offline />;
+  if (!online || showOffline) {
+    return <Offline />;
+  }
+
   return (
     <>
       <Suspense
@@ -76,7 +84,6 @@ function AppContent() {
           <Route path="/email-confirmation" element={<EmailConfirmation />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<NotFound />} />
-
         </Routes>
       </Suspense>
       <WordLimitPopup planExpiryActive={planExpiryActive} />
