@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
@@ -6,8 +5,7 @@ import App from './App';
 import './index.css';
 import EmailConfirmation from "./pages/EmailConfirmation";
 
-
-// Entry point
+// Mount React App
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -19,14 +17,23 @@ createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );
 
+// ✅ Register Service Worker only once (safe for production)
+if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      // Check if already registered
+      const existingRegistration = await navigator.serviceWorker.getRegistration("/sw/serviceWorker.js");
 
-
-// Register Service Worker
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw/serviceWorker.js")
-      .then(() => console.log("Service Worker registered"))
-      .catch((err) => console.error("SW registration failed:", err));
+      if (!existingRegistration) {
+        const registration = await navigator.serviceWorker.register("/sw/serviceWorker.js", {
+          scope: "/",
+        });
+        console.log("[SW] Registered successfully:", registration);
+      } else {
+        console.log("[SW] Already registered:", existingRegistration);
+      }
+    } catch (error) {
+      console.error("[SW] Registration failed:", error);
+    }
   });
 }

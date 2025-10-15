@@ -1,5 +1,4 @@
 
-
 import React, { Suspense, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -71,6 +70,7 @@ function AppContent() {
           <Route path="/email-confirmation" element={<EmailConfirmation />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<NotFound />} />
+
         </Routes>
       </Suspense>
       <WordLimitPopup planExpiryActive={planExpiryActive} />

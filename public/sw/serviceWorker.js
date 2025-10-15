@@ -1,54 +1,34 @@
-const CACHE_NAME = "site-cache-v1";
+const CACHE_NAME = "offline-page-cache-v1";
 
-// List of files to cache
-const urlsToCache = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/main.js",
-  "/logo.png" // Add other assets you want cached
-];
+// Only cache the Offline route
+const urlsToCache = ["/offline"];
 
-// Install event – caching files
-self.addEventListener("install", (event) => {
-  console.log("[Service Worker] Installing...");
+self.addEventListener("install", (event: ExtendableEvent) => {
+  console.log("[SW] Installing...");
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log("[Service Worker] Caching app shell");
-      return cache.addAll(urlsToCache);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
   );
   self.skipWaiting();
 });
 
-// Activate event – cleanup old caches
-self.addEventListener("activate", (event) => {
-  console.log("[Service Worker] Activating...");
+self.addEventListener("activate", (event: ExtendableEvent) => {
+  console.log("[SW] Activating...");
   event.waitUntil(
-    caches.keys().then((cacheNames) =>
-      Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log("[Service Worker] Removing old cache:", cache);
-            return caches.delete(cache);
-          }
-        })
-      )
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => key !== CACHE_NAME && caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
-// Fetch event – serve cache when offline
-self.addEventListener("fetch", (event) => {
+self.addEventListener("fetch", (event: FetchEvent) => {
+  if (event.request.method !== "GET") return;
+
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        // Optional: update cache with latest response
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-        return response;
-      })
-      .catch(() => caches.match(event.request) || caches.match("/"))
+      .catch(() =>
+        // On network failure, return cached Offline route
+        caches.match("/offline")
+      )
   );
 });
