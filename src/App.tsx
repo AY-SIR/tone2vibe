@@ -1,5 +1,5 @@
 
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -33,7 +33,8 @@ const queryClient = new QueryClient();
 
 function AppContent() {
   const { planExpiryActive } = useAuth();
-  const online = useOnline(); // ← Detect online/offline
+  const online = useOnline();
+  const [isOffline, setIsOffline] = useState(false);
 
   // ✅ Disable right click globally
   useEffect(() => {
@@ -44,8 +45,13 @@ function AppContent() {
     };
   }, []);
 
+  // Track offline status
+  useEffect(() => {
+    setIsOffline(!online);
+  }, [online]);
+
   // If offline, show Offline Page instead of normal routes
-  if (!online) return <Offline />;
+  if (isOffline) return <Offline />;
   return (
     <>
       <Suspense

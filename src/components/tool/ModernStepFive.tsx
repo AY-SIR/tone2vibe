@@ -11,7 +11,7 @@ import { ModernAudioPlayer } from '@/components/tool/ModernAudioPlayer'; // Impo
 interface ModernStepFiveProps {
   audioUrl: string;
   audioData?: string;
-  audioMimeType: 'audio/mpeg' | 'audio/webm'; // Prop to specify audio format
+  audioMimeType?: 'audio/mpeg' | 'audio/webm'; // Optional prop to specify audio format
   extractedText: string;
   selectedLanguage: string;
   wordCount: number;

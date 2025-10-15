@@ -18,9 +18,8 @@ const MathRunner = ({ onBack }) => {
     if (savedHighScore) setHighScore(parseInt(savedHighScore));
   }, []);
 
-  // Save high score to localStorage
   useEffect(() => {
-    localStorage.setItem("mathRunnerHighScore", highScore);
+    localStorage.setItem("mathRunnerHighScore", highScore.toString());
   }, [highScore]);
 
   function generateEquation() {
@@ -104,7 +103,7 @@ const MathRunner = ({ onBack }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full bg-white p-4 relative">
+    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-white p-4 relative">
       {/* Back Button fixed in top-left */}
       <button
         onClick={onBack}
@@ -114,7 +113,7 @@ const MathRunner = ({ onBack }) => {
         <span className="text-sm font-medium">Back</span>
       </button>
 
-      <div className="w-full max-w-md flex flex-col items-center space-y-4 sm:space-y-6">
+      <div className="w-full max-w-lg flex flex-col items-center space-y-4 md:space-y-6">
 
         {/* Header */}
         <div className="text-center mt-6">
@@ -194,31 +193,31 @@ const MathRunner = ({ onBack }) => {
             </div>
 
             {/* Number Pad */}
-            <div className="grid grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 w-full mt-4">
+            <div className="grid grid-cols-3 gap-2 md:gap-3 w-full mt-4">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
                   key={num}
                   onClick={() => handleNumberClick(num.toString())}
-                  className="aspect-square border-2 border-black text-2xl sm:text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95"
+                  className="aspect-square border-2 border-black text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95"
                 >
                   {num}
                 </button>
               ))}
               <button
                 onClick={handleClear}
-                className="aspect-square border-2 border-red-500 text-red-500 text-lg sm:text-xl font-bold rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                className="aspect-square border-2 border-red-500 text-red-500 text-lg md:text-xl font-bold rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
-                <Delete className="w-5 h-5 sm:w-6 sm:h-6" />
+                <Delete className="w-6 h-6 md:w-7 md:h-7" />
               </button>
               <button
                 onClick={() => handleNumberClick("0")}
-                className="aspect-square border-2 border-black text-2xl sm:text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95"
+                className="aspect-square border-2 border-black text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95"
               >
                 0
               </button>
               <button
                 onClick={handleEnter}
-                className="aspect-square border-2 border-green-600 bg-green-600 text-white text-lg sm:text-xl font-bold rounded-xl hover:bg-green-700 hover:border-green-700 transition-all active:scale-95"
+                className="aspect-square border-2 border-green-600 bg-green-600 text-white text-lg md:text-xl font-bold rounded-xl hover:bg-green-700 hover:border-green-700 transition-all active:scale-95"
               >
                 ✓
               </button>

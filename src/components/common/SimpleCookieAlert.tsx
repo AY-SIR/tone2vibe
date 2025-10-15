@@ -9,11 +9,11 @@ export function SimpleCookieAlert() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user declined cookies and is using the tool
-    const cookieDeclined = localStorage.getItem('cookie-consent') === 'declined';
-    const isOnToolPage = window.location.pathname === '/tool';
+    // Only show if user hasn't made a choice yet
+    const consentStatus = localStorage.getItem('cookie-consent');
     
-    if (cookieDeclined && isOnToolPage) {
+    // Don't show if already accepted or if on auth/tool pages (essential cookies allowed)
+    if (!consentStatus && window.location.pathname === '/') {
       setShowAlert(true);
     }
   }, []);

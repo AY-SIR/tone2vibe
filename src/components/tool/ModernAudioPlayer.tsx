@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 interface ModernAudioPlayerProps {
   srcUrl?: string;                // Audio file URL
   srcData?: string;               // Base64 audio data
-  mimeType: 'audio/webm';         // Only WEBM supported
+  mimeType?: 'audio/webm' | 'audio/mpeg';  // Support both WEBM and MP3
   trackTitle: string;
 }
 
@@ -31,10 +31,10 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
     setIsAudioReady(false);
     setIsSupported(true);
 
-    if (mimeType !== 'audio/webm') {
+    if (mimeType && mimeType !== 'audio/webm' && mimeType !== 'audio/mpeg') {
       toast({
         title: 'Audio Error',
-        description: 'Only WEBM audio format is supported.',
+        description: 'Only WEBM and MP3 audio formats are supported.',
         variant: 'destructive',
       });
       setIsSupported(false);
@@ -52,7 +52,7 @@ export const ModernAudioPlayer: React.FC<ModernAudioPlayerProps> = ({
         for (let i = 0; i < byteCharacters.length; i++) {
           byteArray[i] = byteCharacters.charCodeAt(i);
         }
-        const blob = new Blob([byteArray], { type: mimeType });
+        const blob = new Blob([byteArray], { type: mimeType || 'audio/webm' });
         audioElement.src = URL.createObjectURL(blob);
       } catch (error) {
         console.error('Error decoding base64 audio:', error);

@@ -68,7 +68,7 @@ export class AnalyticsService {
 
       // --- Step 2: Call the database function to get aggregated data ---
       const retentionDays = plan === 'premium' ? 90 : 30;
-      const { data: summary, error: rpcError } = await supabase.rpc('get_user_analytics_summary', {
+      const { data: summaryRaw, error: rpcError } = await supabase.rpc('get_user_analytics_summary' as any, {
         p_user_id: userId,
         p_retention_days: retentionDays,
       });
@@ -77,6 +77,8 @@ export class AnalyticsService {
         console.error('Database function `get_user_analytics_summary` error:', rpcError);
         throw rpcError;
       }
+
+      const summary = summaryRaw as any;
 
       // --- Step 3: Perform remaining lightweight calculations ---
       const { data: rawData, error: rawError } = await supabase

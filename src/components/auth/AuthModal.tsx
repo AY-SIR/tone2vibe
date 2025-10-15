@@ -25,6 +25,7 @@ const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [redirectPath, setRedirectPath] = useState('/tool');
 
   // --- States for Sign In ---
   const [signInEmail, setSignInEmail] = useState('');
@@ -92,6 +93,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   // Initialize form when modal opens
   useEffect(() => {
     if (open) {
+      // Store current path for redirect after login
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/' && currentPath !== '/tool') {
+        setRedirectPath(currentPath);
+      }
+      
       clearSignInFields();
       clearSignUpFields();
       setResetEmail('');
@@ -150,7 +157,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       if (data.user) {
         toast.success('Welcome back!');
         onOpenChange(false);
-        navigate('/tool', { replace: true });
+        navigate(redirectPath, { replace: true });
       }
     } catch (err) {
       toast.error('An unexpected error occurred.');
@@ -201,7 +208,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/tool` }
+        options: { redirectTo: `${window.location.origin}${redirectPath}` }
       });
       if (error) throw new Error(error.message);
       // Navigate in same tab instead of opening new one
