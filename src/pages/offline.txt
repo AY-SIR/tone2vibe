@@ -1,11 +1,4 @@
-Of course! I understand. You want to transform the offline page into a mini-game arcade.
-Instead of launching directly into the Math Runner game, clicking the "Play" button should first
-show a menu with three options: the existing Math Runner, a classic Snake game, and a simple
-Nokia-style Cricket game. All of this should be contained within a single React component file.
-I've integrated the new games and the game selection menu into your existing code structure.
-Both the Snake and Cricket games are fully functional and styled to match the aesthetic of your
-original component.
-Here is the complete, single-file React component with all three games included:
+
 import React, { useState, useEffect, useRef, useCallback } from
 "react";​
 import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft, Delete,
