@@ -14,7 +14,7 @@ import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
 import { CouponInput } from "@/components/payment/couponInput";
 import type { CouponValidation } from "@/services/couponService";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { WordService } from "@/services/wordService";
 
 export function WordPurchase() {
@@ -28,42 +28,47 @@ export function WordPurchase() {
   const [couponValidation, setCouponValidation] = useState<CouponValidation>({
     isValid: false,
     discount: 0,
-    message: '',
-    code: ''
+    message: "",
+    code: "",
   });
 
-  const pricing = WordService.getPricingForUser(profile?.plan || 'free');
+  // --- Safe helpers ---
+  const getUserPlan = () => profile?.plan || "free";
+  const getWordBalance = () => profile?.word_balance || 0;
+
+  const canPurchaseWords = () => {
+    const plan = getUserPlan();
+    return plan === "pro" || plan === "premium";
+  };
+
+  const getMaxPurchaseLimit = () => {
+    if (!profile) return 0;
+    const plan = getUserPlan();
+    let maxAdditional = 0;
+    if (plan === "pro") maxAdditional = 36000;
+    else if (plan === "premium") maxAdditional = 49000;
+    return Math.max(0, maxAdditional - getWordBalance());
+  };
+
+  const pricing = WordService.getPricingForUser(getUserPlan());
 
   const calculatePrice = (words: number) => {
-    const cost = (words / 1000) * pricing.pricePerThousand;
+    const cost = (words / 1000) * (pricing?.pricePerThousand || 0);
     return Math.ceil(cost);
   };
 
   const baseAmount = calculatePrice(wordsAmount);
   const finalAmount = Math.max(0, baseAmount - (couponValidation.isValid ? couponValidation.discount : 0));
 
-  const canPurchaseWords = () => {
-    if (!profile) return false;
-    return profile.plan === 'pro' || profile.plan === 'premium';
-  };
+  const handleCouponApplied = (validation: CouponValidation) => setCouponValidation(validation);
 
-  const getMaxPurchaseLimit = () => {
-    if (!profile) return 0;
-    const maxPurchaseLimit = profile.plan === 'pro' ? 36000 : profile.plan === 'premium' ? 49000 : 0;
-    const currentlyPurchased = profile.word_balance || 0;
-    return Math.max(0, maxPurchaseLimit - currentlyPurchased);
-  };
-
-  const handleCouponApplied = (validation: CouponValidation) => {
-    setCouponValidation(validation);
-  };
-
+  // --- Purchase handler ---
   const handlePurchase = () => {
     if (!user || !profile) {
       toast({
         title: "Authentication Required",
         description: "Please log in to purchase words.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -72,7 +77,7 @@ export function WordPurchase() {
       toast({
         title: "Upgrade Required",
         description: "Word purchases are only available for Pro and Premium users.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -81,7 +86,7 @@ export function WordPurchase() {
       toast({
         title: "Minimum Purchase Required",
         description: "Minimum purchase is 1000 words.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -91,7 +96,7 @@ export function WordPurchase() {
       toast({
         title: "Limit Exceeded",
         description: `You can only purchase up to ${maxAvailable.toLocaleString()} more words.`,
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -99,6 +104,7 @@ export function WordPurchase() {
     setShowPaymentGateway(true);
   };
 
+  // --- Payment Gateway ---
   const handlePaymentGateway = async () => {
     setLoading(true);
     try {
@@ -107,9 +113,8 @@ export function WordPurchase() {
         toast({
           title: "Access Denied",
           description: `This service is only available in India. Your location: ${location.country}`,
-          variant: "destructive"
+          variant: "destructive",
         });
-        setLoading(false);
         setShowPaymentGateway(false);
         return;
       }
@@ -119,50 +124,48 @@ export function WordPurchase() {
           toast({
             title: "Invalid Coupon",
             description: "A valid coupon is required for free word purchases.",
-            variant: "destructive"
+            variant: "destructive",
           });
-          setLoading(false);
           return;
         }
-
         await handleFreeWordPurchase();
         return;
       }
 
       const result = await InstamojoService.createWordPayment(
         wordsAmount,
-        user!.email || '',
-        user!.user_metadata?.full_name || 'User',
-        profile?.plan || 'free'
+        user!.email || "",
+        user!.user_metadata?.full_name || "User",
+        getUserPlan()
       );
 
       if (result.success && result.payment_request?.longurl) {
         const pendingTransaction = {
-          type: 'word_purchase',
+          type: "word_purchase",
           amount: finalAmount,
           words: wordsAmount,
           payment_request_id: result.payment_request.id,
           coupon_code: couponValidation.isValid ? couponValidation.code : null,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
-        sessionStorage.setItem('pending_transaction', JSON.stringify(pendingTransaction));
+        sessionStorage.setItem("pending_transaction", JSON.stringify(pendingTransaction));
         window.location.href = result.payment_request.longurl;
       } else {
-        throw new Error(result.message || 'Failed to create payment');
+        throw new Error(result.message || "Failed to create payment");
       }
     } catch (error) {
       toast({
         title: "Payment Issue",
         description: "Something went wrong. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
 
+  // --- Free word purchase via coupon ---
   const handleFreeWordPurchase = async () => {
-    // Store values before they are changed to ensure correct data is used for navigation
     const wordsPurchased = wordsAmount;
     const couponCode = couponValidation.code;
 
@@ -172,58 +175,57 @@ export function WordPurchase() {
 
       // Verify coupon
       const { data: couponCheck, error: couponError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponCode)
+        .from("coupons")
+        .select("*")
+        .eq("code", couponCode)
         .single();
-      if (couponError || !couponCheck) throw new Error('Coupon is no longer valid');
+      if (couponError || !couponCheck) throw new Error("Coupon is no longer valid");
+
       const coupon = couponCheck as any;
       if (coupon.max_uses && coupon.used_count >= coupon.max_uses)
-        throw new Error('Coupon usage limit exceeded');
+        throw new Error("Coupon usage limit exceeded");
 
       // Get current balance
       const { data: currentProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('word_balance')
-        .eq('user_id', user!.id)
+        .from("profiles")
+        .select("word_balance")
+        .eq("user_id", user!.id)
         .single();
-      if (profileError) throw new Error('Failed to fetch current balance');
+      if (profileError) throw new Error("Failed to fetch current balance");
 
       const newBalance = (currentProfile?.word_balance || 0) + wordsPurchased;
 
       // Update balance
       await supabase
-        .from('profiles')
+        .from("profiles")
         .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('user_id', user!.id);
+        .eq("user_id", user!.id);
 
       // Record purchase
       await supabase
-        .from('word_purchases')
+        .from("word_purchases")
         .insert({
           user_id: user!.id,
           words_purchased: wordsPurchased,
           amount_paid: 0,
-          currency: 'INR',
-          status: 'completed',
+          currency: "INR",
+          status: "completed",
           payment_id: freeTransactionId,
-          payment_method: 'coupon',
+          payment_method: "coupon",
         });
 
       // Update coupon usage
       await supabase
-        .from('coupons')
+        .from("coupons")
         .update({ used_count: (coupon.used_count || 0) + 1, last_used_at: new Date().toISOString() } as any)
-        .eq('id', coupon.id);
+        .eq("id", coupon.id);
 
-      // NOTE: The extra toast notification has been removed from here.
-
-      // Reset the form state
+      // Reset form state
       setWordsAmount(1000);
-      setCouponValidation({ isValid: false, discount: 0, message: '', code: '' });
+      setCouponValidation({ isValid: false, discount: 0, message: "", code: "" });
       setShowPaymentGateway(false);
 
-      // Navigate to the success page with the stored values
+      // Navigate to success page
       navigate(
         `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
         { replace: true }
@@ -231,15 +233,16 @@ export function WordPurchase() {
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Error Processing Free Purchase',
-        description: error instanceof Error ? error.message : 'Something went wrong.',
-        variant: 'destructive',
+        title: "Error Processing Free Purchase",
+        description: error instanceof Error ? error.message : "Something went wrong.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
 
+  // --- Loading / upgrade UI ---
   if (!user || !profile) {
     return (
       <Card className="w-full max-w-md mx-auto">
@@ -265,7 +268,7 @@ export function WordPurchase() {
         </CardHeader>
         <CardContent className="text-center">
           <Button
-            onClick={() => navigate('/payment')}
+            onClick={() => navigate("/payment")}
             className="bg-black hover:bg-gray-800 text-white text-xs sm:text-sm"
           >
             Upgrade to Pro Plan
@@ -279,6 +282,7 @@ export function WordPurchase() {
 
   return (
     <>
+      {/* Main Card */}
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="p-3 sm:p-6">
           <CardTitle className="flex items-center space-x-2 text-base sm:text-lg md:text-xl">
@@ -286,43 +290,47 @@ export function WordPurchase() {
             <span>Buy Additional Words</span>
           </CardTitle>
           <CardDescription className="text-xs sm:text-sm">
-            Purchase more words for your {profile.plan} account
+            Purchase more words for your {getUserPlan()} account
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4 p-3 sm:p-6">
+          {/* Usage Info */}
           <div className="bg-gray-50 rounded-lg p-3">
             <h3 className="font-medium mb-2 text-xs sm:text-sm">Current Usage</h3>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <p className="text-gray-500">Plan Used</p>
-                <p className="font-medium">{(profile.plan_words_used || 0).toLocaleString()}/{(profile.words_limit || 0).toLocaleString()}</p>
+                <p className="font-medium">
+                  {(profile.plan_words_used || 0).toLocaleString()}/{(profile.words_limit || 0).toLocaleString()}
+                </p>
               </div>
               <div>
                 <p className="text-gray-500">Available</p>
                 <p className="font-medium text-green-600">
-                  {Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0) + (profile.word_balance || 0)).toLocaleString()}
+                  {Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0) + getWordBalance()).toLocaleString()}
                 </p>
               </div>
             </div>
 
-            {(profile.word_balance || 0) > 0 && (
+            {getWordBalance() > 0 && (
               <div className="mt-2 pt-2 border-t">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500">Purchased Words:</span>
-                  <span className="font-medium text-blue-600">{(profile.word_balance || 0).toLocaleString()} (never expire)</span>
+                  <span className="font-medium text-blue-600">{getWordBalance().toLocaleString()} (never expire)</span>
                 </div>
               </div>
             )}
 
             <div className="mt-2 text-xs text-gray-500 space-y-1">
-              <p><strong>Plan:</strong> {profile.plan.toUpperCase()} - {profile.plan === 'free' ? '1,000' : profile.plan === 'pro' ? '10,000' : '50,000'} words/month</p>
-              {profile.plan !== 'free' && (
-                <p><strong>Can Purchase:</strong> Up to {profile.plan === 'pro' ? '36,000' : '49,000'} additional words</p>
+              <p><strong>Plan:</strong> {getUserPlan().toUpperCase()} - {getUserPlan() === 'free' ? '1,000' : getUserPlan() === 'pro' ? '10,000' : '50,000'} words/month</p>
+              {getUserPlan() !== 'free' && (
+                <p><strong>Can Purchase:</strong> Up to {getUserPlan() === 'pro' ? '36,000' : '49,000'} additional words</p>
               )}
             </div>
           </div>
 
+          {/* Purchase Section */}
           {maxAvailable > 0 ? (
             <>
               <div className="space-y-2">
@@ -335,13 +343,15 @@ export function WordPurchase() {
                   max={maxAvailable}
                   value={wordsAmount}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value) || 1000;
-                    setWordsAmount(Math.min(value, maxAvailable));
+                    let value = parseInt(e.target.value);
+                    if (isNaN(value) || value < 1000) value = 1000;
+                    value = Math.min(value, maxAvailable);
+                    setWordsAmount(value);
                   }}
                   className="text-center text-sm"
                 />
                 <p className="text-xs text-gray-500 text-center">
-                  Min: 1,000 • Max: {maxAvailable.toLocaleString()} • Price: ₹{pricing.pricePerThousand} per 1,000 words
+                  Min: 1,000 • Max: {maxAvailable.toLocaleString()} • Price: ₹{pricing?.pricePerThousand} per 1,000 words
                 </p>
               </div>
 
@@ -356,9 +366,7 @@ export function WordPurchase() {
                 <div className="text-xs opacity-75">
                   {finalAmount === 0 ? 'Total Price (After Coupon)' : 'Total Price'}
                 </div>
-                <div className="text-lg sm:text-xl font-bold">
-                  ₹{finalAmount}
-                </div>
+                <div className="text-lg sm:text-xl font-bold">₹{finalAmount}</div>
                 <div className="text-xs opacity-75">
                   {wordsAmount.toLocaleString()} words
                   {couponValidation.isValid && finalAmount === 0 && ' - FREE with coupon!'}
@@ -380,9 +388,9 @@ export function WordPurchase() {
               <AlertTriangle className="h-8 w-8 sm:h-12 sm:w-12 text-orange-500 mx-auto mb-2" />
               <p className="text-gray-600 font-medium text-xs sm:text-sm">Word Purchase Limit Reached</p>
               <p className="text-xs text-gray-500 mt-1">
-                You've reached the maximum word limit for your {profile.plan} plan.
+                You've reached the maximum word limit for your {getUserPlan()} plan.
               </p>
-              {profile.plan === 'pro' && (
+              {getUserPlan() === "pro" && (
                 <p className="text-xs text-gray-500 mt-2">
                   Upgrade to Premium for higher purchase limits (49k additional words).
                 </p>
@@ -396,6 +404,7 @@ export function WordPurchase() {
         </CardContent>
       </Card>
 
+      {/* Payment Dialog */}
       <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
         <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6">
           <DialogHeader className="pb-4">
@@ -408,10 +417,7 @@ export function WordPurchase() {
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <p className="font-medium text-sm">Purchase Summary</p>
               <p className="text-xs text-gray-600">{wordsAmount.toLocaleString()} words</p>
-              <p className="text-base sm:text-lg font-bold">
-                ₹{finalAmount}
-                {couponValidation.isValid && finalAmount === 0 && ' '}
-              </p>
+              <p className="text-base sm:text-lg font-bold">₹{finalAmount}</p>
               {couponValidation.isValid && (
                 <p className="text-xs text-green-600 mt-1">
                   Coupon: {couponValidation.code} (-₹{couponValidation.discount})
@@ -425,8 +431,8 @@ export function WordPurchase() {
                 disabled={loading || (finalAmount === 0 && !couponValidation.isValid)}
                 className={`w-full flex items-center justify-center gap-2 sm:gap-3 ${
                   finalAmount === 0
-                    ? 'bg-green-500 hover:bg-green-600'
-                    : 'bg-orange-500 hover:bg-orange-600'
+                    ? "bg-green-500 hover:bg-green-600"
+                    : "bg-orange-500 hover:bg-orange-600"
                 } text-white text-xs sm:text-sm px-3 py-2 sm:py-3 rounded-md disabled:opacity-50 disabled:cursor-not-allowed`}
                 size="lg"
               >
@@ -438,9 +444,8 @@ export function WordPurchase() {
 
               <p className="text-[10px] sm:text-xs text-gray-500 text-center px-1 sm:px-0">
                 {finalAmount === 0
-                  ? 'Free word activation with valid coupon code.'
-                  : 'Secure payment processing for India. No additional fees.'
-                }
+                  ? "Free word activation with valid coupon code."
+                  : "Secure payment processing for India. No additional fees."}
               </p>
             </div>
           </div>
@@ -449,4 +454,3 @@ export function WordPurchase() {
     </>
   );
 }
-

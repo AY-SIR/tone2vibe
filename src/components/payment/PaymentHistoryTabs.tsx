@@ -86,7 +86,7 @@ export function PaymentHistoryTabs() {
     cancelled: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200 transition-colors"
 
     };
-    
+
     return (
       <Badge className={variants[status as keyof typeof variants] || variants.pending}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -132,7 +132,7 @@ export function PaymentHistoryTabs() {
 
 
       </CardHeader>
-      
+
       <CardContent>
         <Tabs defaultValue="plans" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -156,34 +156,41 @@ export function PaymentHistoryTabs() {
             ) : (
               <div className="space-y-4">
                 {payments.map((payment) => (
-                  <Card key={payment.id} className="border border-gray-200">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {getPlanIcon(payment.plan || '')}
-                          <div>
-                            <div className="font-medium">
-                              {payment.plan ? `${payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan` : 'Plan Payment'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {formatDate(payment.created_at)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold">
-                            ₹{payment.amount.toFixed(2)}
-                          </div>
-                          <div className="flex items-center space-x-2 mt-1">
+
+            <Card key={payment.id} className="border border-gray-200">
+  <CardContent className="p-4">
+    {/* Row 1: Plan icon + name (left) and amount (right) */}
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        {getPlanIcon(payment.plan || '')}
+        <div className="font-medium">
+          {payment.plan ? `${payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan` : 'Plan Payment'}
+        </div>
+      </div>
+      <div className="font-bold">
+        ₹{payment.amount.toFixed(2)}
+      </div>
+    </div>
+
+    {/* Row 2: Payment ID on left */}
+    <div className="mt-2 text-xs text-gray-400 break-words">
+      Payment ID: {payment.payment_id}
+    </div>
+
+    {/* Row 3: Status on left, date on right */}
+    <div className="mt-1 flex justify-between items-center text-sm text-gray-500">
+      <div className="flex items-center space-x-2 mt-1">
                             {getStatusBadge(payment.status)}
                           </div>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-400">
-                        Payment ID: {payment.payment_id}
-                      </div>
-                    </CardContent>
-                  </Card>
+      <div>
+        {formatDate(payment.created_at)}
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+
+
                 ))}
               </div>
 
@@ -200,44 +207,48 @@ export function PaymentHistoryTabs() {
             ) : (
               <div className="space-y-4">
                 {wordPurchases.map((purchase) => (
-                  <Card key={purchase.id} className="border border-gray-200">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Package className="h-4 w-4" />
-                          <div>
-                            <div className="font-medium">
-                              {purchase.words_purchased.toLocaleString()} Words
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {formatDate(purchase.created_at)}
-                            </div>
-                            {purchase.payment_method === 'coupon' && (
-                              <div className="text-xs text-green-600 mt-1">
-                                FREE - Applied Coupon
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold">
-                            ₹{purchase.amount_paid.toFixed(2)}
-                            
-                          </div>
-                          <div className="flex items-center space-x-2 mt-1">
-                            {getStatusBadge(purchase.status)}
-                          </div>
-                        </div>
-                      </div>
-                      {/* --- THIS IS THE FIXED BLOCK --- */}
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-400">
+                <Card key={purchase.id} className="border border-gray-200">
+  <CardContent className="p-4">
+    {/* Row 1: Icon + words purchased (left) and amount (right) */}
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        <Package className="h-4 w-4" />
+        <div className="font-medium">
+          {purchase.words_purchased.toLocaleString()} Words
+          {purchase.payment_method === 'coupon' && (
+            <div className="text-xs text-green-600 mt-1">
+              FREE - Applied Coupon
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="text-right font-bold">
+        ₹{purchase.amount_paid.toFixed(2)}
+      </div>
+    </div>
+
+
+
+ <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-400">
                         <span>Payment ID: {purchase.payment_id}</span>
                         {purchase.payment_method && (
                           <span>Method: {purchase.payment_method}</span>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
+
+    {/* Row 4: Status (left) and Date (right) */}
+    <div className="mt-1 flex justify-between items-center text-sm text-gray-500">
+      <div className="flex items-center space-x-2 mt-1">
+                            {getStatusBadge(purchase.status)}
+                          </div>
+      <div>
+        {formatDate(purchase.created_at)}
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+
                 ))}
               </div>
             )}
