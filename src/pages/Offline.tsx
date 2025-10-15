@@ -104,7 +104,7 @@ const MathRunner = ({ onBack }) => {
   const handleSubmit = (answer) => {
     if (!isPlaying) return;
 
-    const numAnswer = parseInt(answer);
+    const numAnswer = parseInt(answer, 10);
     if (isNaN(numAnswer)) return;
 
     if (numAnswer === equation.answer) {
@@ -123,6 +123,24 @@ const MathRunner = ({ onBack }) => {
       }, 500);
     }
   };
+  
+  // --- NEW --- Auto-submit logic
+  useEffect(() => {
+    if (!isPlaying || !userAnswer || userAnswer === "-") {
+      return;
+    }
+
+    const correctAnswerString = equation.answer.toString();
+    if (userAnswer.length === correctAnswerString.length) {
+      // Use a short timeout to let the user see the last digit they typed
+      const submissionTimer = setTimeout(() => {
+        handleSubmit(userAnswer);
+      }, 100);
+      
+      return () => clearTimeout(submissionTimer);
+    }
+  }, [userAnswer, equation.answer, isPlaying]);
+
 
   const handleNumberClick = (num) => {
     if (!isPlaying) return;
@@ -142,12 +160,6 @@ const MathRunner = ({ onBack }) => {
   const handleClear = () => {
     setUserAnswer("");
     setFeedback("");
-  };
-
-  const handleEnter = () => {
-    if (userAnswer && userAnswer !== "-") {
-      handleSubmit(userAnswer);
-    }
   };
 
   const handleBack = () => {
@@ -238,8 +250,8 @@ const MathRunner = ({ onBack }) => {
               )}
             </div>
 
+            {/* --- MODIFIED: Keypad layout updated --- */}
             <div className="grid grid-cols-3 gap-2 md:gap-4 lg:gap-5 w-full mt-4 max-w-md md:max-w-lg mx-auto">
-
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
                   key={num}
@@ -249,32 +261,28 @@ const MathRunner = ({ onBack }) => {
                   {num}
                 </button>
               ))}
+               <button
+                onClick={() => handleNumberClick("0")}
+                className="col-span-2 aspect-auto border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+              >
+                0
+              </button>
               <button
                 onClick={handleClear}
                 className="aspect-square border-2 border-red-500 bg-red-500 text-white text-lg md:text-xl font-bold rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
                 <Delete className="w-6 h-6 md:w-8 md:h-8 lg:w-9 lg:h-9" />
               </button>
-              <button
-                onClick={() => handleNumberClick("0")}
-                className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
-              >
-                0
-              </button>
-              <button
-  onClick={handleEnter}
-  className="aspect-square border-2 border-green-600 bg-green-600 text-white text-xl md:text-2xl font-bold rounded-xl hover:bg-green-700 hover:border-green-700 transition-all active:scale-95 flex items-center justify-center"
->
-  <Check className="h-6 w-6 md:h-8 md:w-8" />
-</button>
+             
+              {/* --- REMOVED: Enter (check) button is no longer needed --- */}
             </div>
- <button
+            
+            <button
               onClick={handleNegativeToggle}
               className="w-full max-w-md md:max-w-lg mx-auto py-3 md:py-4 border-2 border-black text-lg sm:text-xl md:text-2xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 mt-2"
             >
               +/−
             </button>
-
           </>
         )}
 
@@ -292,6 +300,7 @@ const MathRunner = ({ onBack }) => {
     </div>
   );
 };
+
 
 // Main Offline Component
 export default function Offline() {
@@ -383,4 +392,4 @@ export default function Offline() {
       </style>
     </div>
   );
-}
+  }
