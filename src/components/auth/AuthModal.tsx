@@ -248,8 +248,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   className="
     max-h-[90vh] overflow-auto no-scrollbar border-0
     rounded-xl
-    sm:max-w-[425px] sm:mx-auto sm:px-0
     w-[calc(100%-2rem)] mx-auto px-4
+    sm:max-w-[425px] sm:w-auto sm:mx-auto sm:px-0
   "
 ><DialogHeader>
           <DialogTitle className="flex items-center gap-2">
