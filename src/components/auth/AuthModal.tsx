@@ -245,9 +245,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   return (
 <Dialog open={open} onOpenChange={onOpenChange} >
       <DialogContent
-  className="max-h-[90vh] overflow-auto no-scrollbar border-0
-             sm:max-w-[425px] sm:mx-auto
-             rounded-xl px-4 mx-2 sm:px-0 sm:mx-0"
+  className="
+    max-h-[90vh] overflow-auto no-scrollbar border-0
+    rounded-xl
+    sm:max-w-[425px] sm:mx-auto sm:px-0
+    w-[calc(100%-2rem)] mx-auto px-4
+  "
 ><DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentView === 'forgot-password' && (
