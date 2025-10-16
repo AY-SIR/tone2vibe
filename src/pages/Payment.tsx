@@ -40,6 +40,13 @@ const Payment = () => {
     verifyLocation();
   }, [user, navigate]);
 
+  // Allow direct navigation back to words tab when retrying failed word purchase
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const tab = url.searchParams.get('tab');
+    if (tab === 'words') setActiveTab('words');
+  }, []);
+
   const loadPricing = async () => {
     try {
       await LocationService.detectUserLocation();

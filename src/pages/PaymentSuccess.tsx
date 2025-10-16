@@ -104,18 +104,58 @@ const PaymentSuccess = () => {
         }
 
         // --- PAID TRANSACTION ---
-        if (!paymentId || !paymentRequestId) throw new Error("Missing payment information in URL.")
+        if (!paymentId || !paymentRequestId) {
+          // Missing IDs likely means user cancelled or was redirected without completing payment
+          navigate(`/payment-failed?reason=${encodeURIComponent('Missing payment information in URL')}&type=${type || 'subscription'}`, { replace: true })
+          return
+        }
 
         const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
           body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
         })
 
-        if (error) throw error
-        if (!data.success) throw new Error(data.error || "Verification failed")
+        if (error || !data?.success) {
+          const message = (error && (error as any).message) || data?.error || 'Verification failed'
+          // Record failed status client-side for visibility
+          try {
+            const userId = profile?.user_id || null
+            // Try to restore pending info for words
+            let pending: any = null
+            try { pending = JSON.parse(sessionStorage.getItem('pending_transaction') || 'null') } catch {}
+            if (userId) {
+              if (type === 'words') {
+                await supabase.from('word_purchases').insert({
+                  user_id: userId,
+                  words_purchased: Number(count) || pending?.words || 0,
+                  amount_paid: Number(amount) || pending?.amount || 0,
+                  currency: 'INR',
+                  status: 'failed',
+                  payment_id: paymentId,
+                  payment_method: 'instamojo',
+                })
+              } else {
+                await supabase.from('payments').insert({
+                  user_id: userId,
+                  plan: plan || null,
+                  amount: Number(amount) || 0,
+                  currency: 'INR',
+                  status: 'failed',
+                  payment_id: paymentId,
+                  payment_method: 'instamojo',
+                  coupon_code: coupon || null,
+                })
+              }
+            }
+          } catch (_) {}
+          navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
+          return
+        }
 
         if (type === "words") {
           const added = count ? Number(count).toLocaleString() : "Your purchased"
           await onVerificationSuccess("Words Purchased!", `${added} words have been added to your account.`)
+          // Clear pending transaction after success
+          try { sessionStorage.removeItem('pending_transaction') } catch {}
         } else if (type === "subscription") {
           await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated successfully.`)
         } else {
@@ -125,10 +165,43 @@ const PaymentSuccess = () => {
       } catch (error) {
         if (!isMounted.current) return
         console.error("Payment verification error:", error)
-        setStatus("error")
-        setTitle("Verification Failed")
-        setDescription("There was an issue while verifying your payment. Please contact support if the problem persists.")
-        toast.error("Verification Failed", { description: error instanceof Error ? error.message : String(error) })
+        try {
+          const paymentId = searchParams.get("payment_id") || ''
+          const type = searchParams.get("type") || 'subscription'
+          const plan = searchParams.get("plan")
+          const count = searchParams.get("count")
+          const amount = searchParams.get("amount")
+          const coupon = searchParams.get("coupon")
+          const userId = profile?.user_id || null
+          let pending: any = null
+          try { pending = JSON.parse(sessionStorage.getItem('pending_transaction') || 'null') } catch {}
+          if (userId) {
+            if (type === 'words') {
+              await supabase.from('word_purchases').insert({
+                user_id: userId,
+                words_purchased: Number(count) || pending?.words || 0,
+                amount_paid: Number(amount) || pending?.amount || 0,
+                currency: 'INR',
+                status: 'failed',
+                payment_id: paymentId || pending?.payment_id || null,
+                payment_method: 'instamojo',
+              })
+            } else {
+              await supabase.from('payments').insert({
+                user_id: userId,
+                plan: plan || null,
+                amount: Number(amount) || 0,
+                currency: 'INR',
+                status: 'failed',
+                payment_id: paymentId,
+                payment_method: 'instamojo',
+                coupon_code: coupon || null,
+              })
+            }
+          }
+        } catch (_) {}
+        const message = error instanceof Error ? error.message : String(error)
+        navigate(`/payment-failed?reason=${encodeURIComponent(message)}`, { replace: true })
       }
     }
 
