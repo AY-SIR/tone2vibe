@@ -620,6 +620,7 @@ const Index = () => {
         </div>
       </footer>
 
+
       {/* Floating Navigation */}
       <FloatingNavigation
         currentSection={currentSection}

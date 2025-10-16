@@ -37,7 +37,7 @@ function AppContent() {
   const { isOffline, isCheckingConnection } = useOfflineDetection();
   const [wasOffline, setWasOffline] = useState(false);
 
-  // ✅ Disable right click globally
+
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     document.addEventListener("contextmenu", handleContextMenu);
@@ -46,18 +46,18 @@ function AppContent() {
     };
   }, []);
 
-  // Track offline state and redirect when coming back online
-  useEffect(() => {
-    if (isOffline) {
-      setWasOffline(true);
-    } else if (wasOffline && !isOffline) {
-      // User just came back online, redirect to home
-      setWasOffline(false);
-      window.location.href = '/';
-    }
-  }, [isOffline, wasOffline]);
+ useEffect(() => {
+  if (isOffline) {
+    setWasOffline(true);
+  } else if (wasOffline && !isOffline) {
 
-  // If offline, show Offline Page instead of normal routes
+    setWasOffline(false);
+
+  }
+}, [isOffline, wasOffline]);
+
+
+
   if (isOffline) {
     return <Offline />;
   }
