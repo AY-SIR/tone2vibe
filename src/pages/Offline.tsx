@@ -420,27 +420,30 @@ const TrainRunner = ({ onBack, difficulty }: { onBack: (score: number) => void; 
               height={300}
               className="border-2 border-black rounded-lg w-full max-w-[300px] aspect-square"
             />
-<div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2 sm:hidden z-20">
-  {/* Up */}
-  <button onClick={() => direction !== "DOWN" && setNextDirection("UP")} className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
-    <ArrowUp className="w-6 h-6" />
+
+
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 sm:hidden z-20">
+  {/* Left Button */}
+  <button onClick={() => direction !== "RIGHT" && setNextDirection("LEFT")} className="w-14 h-14 bg-black/40 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
+    <ChevronLeft className="w-6 h-6" />
   </button>
 
-  {/* Left & Right */}
-  <div className="flex gap-2">
-    <button onClick={() => direction !== "RIGHT" && setNextDirection("LEFT")} className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
-      <ChevronLeft className="w-6 h-6" />
+  {/* Up & Down Buttons Column */}
+  <div className="flex flex-col gap-2">
+    <button onClick={() => direction !== "DOWN" && setNextDirection("UP")} className="w-14 h-14 bg-black/40 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
+      <ArrowUp className="w-6 h-6" />
     </button>
-    <button onClick={() => direction !== "LEFT" && setNextDirection("RIGHT")} className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
-      <ChevronRight className="w-6 h-6" />
+    <button onClick={() => direction !== "UP" && setNextDirection("DOWN")} className="w-14 h-14 bg-black/40 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
+      <ArrowDown className="w-6 h-6" />
     </button>
   </div>
 
-  {/* Down */}
-  <button onClick={() => direction !== "UP" && setNextDirection("DOWN")} className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
-    <ArrowDown className="w-6 h-6" />
+  {/* Right Button */}
+  <button onClick={() => direction !== "LEFT" && setNextDirection("RIGHT")} className="w-14 h-14 bg-black/40 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg">
+    <ChevronRight className="w-6 h-6" />
   </button>
 </div>
+            
             
             <p className="text-xs sm:text-sm text-gray-500 mt-2 text-center">
               {window.innerWidth < 640 ? "Swipe or use buttons" : "Use arrow keys or WASD"}
