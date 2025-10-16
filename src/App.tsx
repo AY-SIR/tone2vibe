@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
-import Offline from "./pages/Offline";
+import  Offline  from "./pages/Offline";
 import useOnline from "./hooks/useOnline";
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
