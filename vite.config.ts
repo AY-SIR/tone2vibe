@@ -15,8 +15,8 @@ export default defineConfig({
         short_name: "Tone2Vibe",
         start_url: "/",
         display: "standalone",
-        background_color: "#CBCBCB",
-        theme_color: "#CBCBCB",
+        background_color: "#f5f5f5",
+        theme_color: "#f5f5f5",
         icons: [
           {
             src: "/favicon.png",
