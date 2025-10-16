@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import  Offline  from "./pages/Offline";
 import useOnline from "./hooks/useOnline";
+import { useOfflineDetection } from "./hooks/useOfflineDetection";
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -27,6 +28,7 @@ import EmailConfirmation from "./pages/EmailConfirmation";
 import ResetPassword from "./pages/ResetPassword";
 
 import { WordLimitPopup } from './components/common/WordLimitPopup';
+import { ConnectionStatus } from './components/common/ConnectionStatus';
 import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -34,8 +36,7 @@ const queryClient = new QueryClient();
 function AppContent() {
   const { planExpiryActive } = useAuth();
   const online = useOnline();
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [showOffline, setShowOffline] = useState(false);
+  const { isOffline, isCheckingConnection } = useOfflineDetection();
 
   // ✅ Disable right click globally
   useEffect(() => {
@@ -46,18 +47,8 @@ function AppContent() {
     };
   }, []);
 
-  // Track offline status with a slight delay to avoid flash
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsOffline(!online);
-      setShowOffline(!online);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [online]);
-
   // If offline, show Offline Page instead of normal routes
-  if (!online || showOffline) {
+  if (isOffline) {
     return <Offline />;
   }
 
@@ -88,6 +79,7 @@ function AppContent() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+      <ConnectionStatus />
       <WordLimitPopup planExpiryActive={planExpiryActive} />
       <Toaster />
       <Sonner />

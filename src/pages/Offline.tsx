@@ -172,84 +172,84 @@ const MathRunner = ({ onBack }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-white p-4 relative">
+    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-white p-2 sm:p-4 relative">
       <button
         onClick={handleBack}
-        className="fixed top-4 left-4 flex items-center gap-2 text-gray-600 hover:text-black z-30"
+        className="fixed top-2 left-2 sm:top-4 sm:left-4 flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-black z-30 bg-white/80 backdrop-blur-sm rounded-lg px-2 py-1 sm:px-3 sm:py-2"
       >
-        <ArrowLeft className="w-6 h-6" />
-        <span className="text-sm font-medium">Back</span>
+        <ArrowLeft className="w-4 h-4 sm:w-6 sm:h-6" />
+        <span className="text-xs sm:text-sm font-medium">Back</span>
       </button>
 
-      <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg flex flex-col items-center space-y-4">
-        <div className="text-center mt-6">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-1 flex justify-center items-center flex-wrap">
+      <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg flex flex-col items-center space-y-3 sm:space-y-4">
+        <div className="text-center mt-4 sm:mt-6">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-1 flex justify-center items-center flex-wrap">
             RE
-            <Mic className="w-6 h-6 sm:w-8 sm:h-8 mx-1" />
+            <Mic className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 mx-1" />
             LEX
           </h1>
-          <p className="text-gray-500 text-sm sm:text-base">Solve equations as fast as you can</p>
+          <p className="text-gray-500 text-xs sm:text-sm md:text-base">Solve equations as fast as you can</p>
         </div>
 
-        <div className="flex justify-around text-center border border-black/10 rounded-xl p-3 w-full text-sm sm:text-base">
+        <div className="flex justify-around text-center border border-black/10 rounded-xl p-2 sm:p-3 w-full text-xs sm:text-sm md:text-base">
           <div className="flex-1">
-            <p className="text-gray-500">SCORE</p>
-            <p className="text-xl sm:text-2xl md:text-3xl font-bold">{score}</p>
+            <p className="text-gray-500 text-xs sm:text-sm">SCORE</p>
+            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">{score}</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
-            <p className="text-gray-500">TIME</p>
-            <p className="text-xl sm:text-2xl md:text-3xl font-bold">{timeLeft}s</p>
+            <p className="text-gray-500 text-xs sm:text-sm">TIME</p>
+            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">{timeLeft}s</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
-            <p className="text-gray-500">BEST</p>
-            <p className="text-xl sm:text-2xl md:text-3xl font-bold">{highScore}</p>
+            <p className="text-gray-500 text-xs sm:text-sm">BEST</p>
+            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">{highScore}</p>
           </div>
         </div>
 
         {!isPlaying && !gameOver ? (
-          <div className="text-center py-6">
-            <div className="text-6xl mb-4">⚡</div>
-            <p className="text-gray-600 mb-4 text-sm sm:text-base">
+          <div className="text-center py-4 sm:py-6">
+            <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">⚡</div>
+            <p className="text-gray-600 mb-3 sm:mb-4 text-xs sm:text-sm md:text-base px-2">
               Test your math skills.<br />Solve equations before time runs out.
             </p>
             <button
               onClick={startGame}
-              className="px-6 py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors"
+              className="w-full max-w-xs sm:max-w-sm px-4 sm:px-6 py-2.5 sm:py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors text-sm sm:text-base"
             >
               START
             </button>
           </div>
         ) : gameOver ? (
-          <div className="text-center py-6">
-            <div className="text-6xl mb-4">🎯</div>
-            <p className="text-2xl font-bold">Score: {score}</p>
-            <p className="text-gray-600 text-sm sm:text-base">
+          <div className="text-center py-4 sm:py-6">
+            <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">🎯</div>
+            <p className="text-xl sm:text-2xl font-bold">Score: {score}</p>
+            <p className="text-gray-600 text-xs sm:text-sm md:text-base px-2">
               {score > highScore && score > 0 ? "New high score!" : "Keep practicing!"}
             </p>
             <button
               onClick={startGame}
-              className="flex items-center gap-2 mx-auto px-6 py-2 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors mt-4"
+              className="flex items-center gap-2 mx-auto px-4 sm:px-6 py-2 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors mt-3 sm:mt-4 text-sm sm:text-base"
             >
-              <RotateCcw className="w-5 h-5" /> RETRY
+              <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> RETRY
             </button>
           </div>
         ) : (
           <>
-            <div className="text-center py-4 border border-black/10 rounded-xl relative w-full">
-              <p className="text-gray-500 mb-2 text-sm sm:text-base">EQUATION</p>
-              <p className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 break-words">
+            <div className="text-center py-3 sm:py-4 border border-black/10 rounded-xl relative w-full">
+              <p className="text-gray-500 mb-2 text-xs sm:text-sm md:text-base">EQUATION</p>
+              <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 break-words px-2">
                 {equation.num1} {equation.operation} {equation.num2} = ?
               </p>
-              <div className="h-12 sm:h-16 flex items-center justify-center">
-                <p className="text-3xl sm:text-4xl md:text-5xl font-bold min-w-[100px] border-b-4 border-black pb-1 sm:pb-2 text-center">
+              <div className="h-10 sm:h-12 md:h-16 flex items-center justify-center">
+                <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold min-w-[80px] sm:min-w-[100px] border-b-4 border-black pb-1 sm:pb-2 text-center">
                   {userAnswer || " "}
                 </p>
               </div>
               {feedback && (
                 <div
-                  className={`absolute inset-0 flex items-center justify-center text-6xl sm:text-8xl ${
+                  className={`absolute inset-0 flex items-center justify-center text-4xl sm:text-6xl md:text-8xl ${
                     feedback === "✓" ? "text-green-500" : "text-red-500"
                   }`}
                 >
@@ -258,25 +258,25 @@ const MathRunner = ({ onBack }) => {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-2 w-full max-w-xs sm:max-w-sm mx-auto mt-3">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full max-w-xs sm:max-w-sm mx-auto mt-2 sm:mt-3">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
                 <button
                   key={num}
                   onClick={() => handleNumberClick(num.toString())}
-                  className="aspect-square border-2 border-black text-2xl sm:text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                  className="aspect-square border-2 border-black text-lg sm:text-2xl md:text-3xl font-bold rounded-lg sm:rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
                 >
                   {num}
                 </button>
               ))}
               <button
                 onClick={handleClear}
-                className="aspect-square border-2 border-black text-xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                className="aspect-square border-2 border-black text-sm sm:text-xl font-bold rounded-lg sm:rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
-                <Delete className="w-6 h-6 sm:w-8 sm:h-8" />
+                <Delete className="w-4 h-4 sm:w-6 sm:h-6 md:w-8 md:h-8" />
               </button>
               <button
                 onClick={handleNegativeToggle}
-                className="aspect-square border-2 border-black text-2xl sm:text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                className="aspect-square border-2 border-black text-lg sm:text-2xl md:text-3xl font-bold rounded-lg sm:rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
                 -
               </button>
@@ -312,48 +312,48 @@ export default function Offline() {
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen w-full bg-white overflow-hidden p-4">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)]" />
+    <div className="relative flex flex-col items-center justify-center min-h-screen w-full bg-white overflow-hidden p-2 sm:p-4">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:2rem_2rem] sm:bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)]" />
 
       {!showGame ? (
-        <div className="relative z-10 flex flex-col items-center max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mx-auto px-4">
-          <div className="mb-6 flex items-center justify-center gap-3 flex-wrap text-center">
-            <WifiOff className="w-12 h-12 text-black" strokeWidth={1.5} />
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]">
+        <div className="relative z-10 flex flex-col items-center w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mx-auto px-2 sm:px-4">
+          <div className="mb-4 sm:mb-6 flex items-center justify-center gap-2 sm:gap-3 flex-wrap text-center">
+            <WifiOff className="w-8 h-8 sm:w-12 sm:h-12 text-black" strokeWidth={1.5} />
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]">
               You're Offline
             </h1>
           </div>
 
-          <p className="text-sm sm:text-base text-gray-600 mb-6 text-center">
+          <p className="text-xs sm:text-sm md:text-base text-gray-600 mb-4 sm:mb-6 text-center px-2">
             Challenge your mind with a tone2vibe game
           </p>
 
           {currentScore > 0 && (
-            <div className="mb-4 text-center">
+            <div className="mb-3 sm:mb-4 text-center">
               <p className="text-xs sm:text-sm text-gray-500 mb-1">Last Score</p>
-              <p className="text-2xl sm:text-3xl font-bold">{currentScore}</p>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold">{currentScore}</p>
               <p className="text-xs text-gray-400 mt-1">Best: {currentHighScore}</p>
             </div>
           )}
 
           <button
             onClick={() => setShowGame(true)}
-            className="px-6 py-3 bg-black text-white font-semibold rounded-full hover:scale-105 transition-all flex items-center justify-center gap-2"
+            className="w-full max-w-xs sm:max-w-sm px-4 sm:px-6 py-2.5 sm:py-3 bg-black text-white font-semibold rounded-full hover:scale-105 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
           >
-            <Play className="w-5 h-5 inline-block" fill="currentColor" />
+            <Play className="w-4 h-4 sm:w-5 sm:h-5 inline-block" fill="currentColor" />
             {currentScore > 0 ? "Play Again" : "Start Playing"}
           </button>
 
-          <div className="mt-8 text-xs sm:text-sm text-gray-400 text-center">
+          <div className="mt-6 sm:mt-8 text-xs sm:text-sm text-gray-400 text-center px-2">
             <div className="flex items-center justify-center gap-1 mb-1">
-              <Wifi className="w-4 h-4" />
-              <span>Reconnect anytime to sync your progress</span>
+              <Wifi className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">Reconnect anytime to sync your progress</span>
             </div>
             <a
               href="https://tone2vibe.in"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gray-500 hover:text-black transition-colors"
+              className="text-gray-500 hover:text-black transition-colors text-xs sm:text-sm"
             >
               tone2vibe.in
             </a>
@@ -368,6 +368,14 @@ export default function Offline() {
           @keyframes shimmer {
             0%, 100% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
+          }
+          
+          /* Ensure proper mobile viewport handling */
+          @media (max-width: 640px) {
+            .min-h-screen {
+              min-height: 100vh;
+              min-height: 100dvh; /* Dynamic viewport height for mobile */
+            }
           }
         `}
       </style>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import useOnline from "./useOnline";
 
 interface WebSocketMessage {
   type: string;
@@ -23,6 +24,7 @@ export const useWebSocket = (
   autoConnect = false
 ): UseWebSocketReturn => {
   const { user } = useAuth();
+  const isOnline = useOnline();
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [connectionState, setConnectionState] = useState<
@@ -36,6 +38,12 @@ export const useWebSocket = (
   const connect = async () => {
     if (!user) {
       console.warn("Cannot connect WebSocket: User not authenticated");
+      return;
+    }
+
+    if (!isOnline) {
+      console.warn("Cannot connect WebSocket: Device is offline");
+      setConnectionState("disconnected");
       return;
     }
 
@@ -135,13 +143,24 @@ export const useWebSocket = (
     return false;
   };
 
+  // Handle online/offline state changes
   useEffect(() => {
-    if (autoConnect && user) {
+    if (!isOnline) {
+      // Disconnect when going offline
+      disconnect();
+    } else if (autoConnect && user && !isConnected) {
+      // Reconnect when coming back online
+      connect();
+    }
+  }, [isOnline, autoConnect, user, isConnected]);
+
+  useEffect(() => {
+    if (autoConnect && user && isOnline) {
       connect();
     }
     return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelName, autoConnect, user]);
+  }, [channelName, autoConnect, user, isOnline]);
 
   return {
     isConnected,
