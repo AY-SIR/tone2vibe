@@ -244,14 +244,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   return (
 <Dialog open={open} onOpenChange={onOpenChange} >
-      <DialogContent
-  className="
-    max-h-[90vh] overflow-auto no-scrollbar border-0
-    rounded-xl
-    w-[calc(100%-2rem)] mx-auto px-4
-    sm:max-w-[425px] sm:w-auto sm:mx-auto sm:px-0
-  "
-><DialogHeader>
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-auto no-scrollbar border-0">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {currentView === 'forgot-password' && (
               <Button variant="ghost" size="sm" onClick={() => setCurrentView('auth')} className="p-1 h-8 w-8" disabled={isResetLoading}>
