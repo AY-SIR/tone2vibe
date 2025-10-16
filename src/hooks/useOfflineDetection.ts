@@ -94,19 +94,20 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Set up periodic connection checks
+    // Set up periodic connection checks (more aggressive when offline)
+    const checkInterval = isOffline ? 5000 : 15000; // Check every 5s if offline, 15s if online
     const interval = setInterval(() => {
       if (!isCheckingConnection) {
         checkConnection(true);
       }
-    }, 10000); // Check every 10 seconds
+    }, checkInterval);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       clearInterval(interval);
     };
-  }, [checkConnection, handleOnline, handleOffline, isCheckingConnection]);
+  }, [checkConnection, handleOnline, handleOffline, isCheckingConnection, isOffline]);
 
   return {
     isOffline,

@@ -60,8 +60,9 @@ export default function useOnline(): boolean {
     // Initial connection check
     checkConnection();
 
-    // Set up periodic connection checks
-    const interval = setInterval(checkConnection, 10000);
+    // Set up periodic connection checks (more aggressive when offline)
+    const checkInterval = online ? 15000 : 5000; // Check every 5s if offline, 15s if online
+    const interval = setInterval(checkConnection, checkInterval);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -71,7 +72,7 @@ export default function useOnline(): boolean {
       window.removeEventListener("offline", handleOffline);
       clearInterval(interval);
     };
-  }, [checkConnection]);
+  }, [checkConnection, online]);
 
   return online;
 }
