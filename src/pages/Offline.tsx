@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft, Delete } from "lucide-react";
 
-// In-memory storage for high score (persists during session only)
+// In-memory storage for high score (session only)
 let storedHighScore = 0;
 
 // --- HELPER FUNCTION: Generates equations with scaling difficulty ---
@@ -10,7 +10,7 @@ function generateEquation(currentScore = 0) {
   let maxNum = 20;
   let multMax = 12;
 
-  // Difficulty scaling based on the score
+  // Difficulty scaling
   if (currentScore >= 30) {
     operations.push("÷");
     maxNum = 50;
@@ -45,22 +45,19 @@ function generateEquation(currentScore = 0) {
     if (operation === "+") {
       answer = num1 + num2;
     } else if (operation === "-") {
-      // Introduce negative answers after a few points
       if (currentScore > 5 && Math.random() > 0.5) {
         [num1, num2] = [Math.min(num1, num2), Math.max(num1, num2)];
       }
       answer = num1 - num2;
-    } else { // Multiplication
+    } else {
       answer = num1 * num2;
     }
   }
 
-  const displayOperation = operation === "×" ? "×" : operation === "÷" ? "÷" : operation;
-  return { num1, num2, operation: displayOperation, answer };
+  return { num1, num2, operation, answer };
 }
 
-
-// Math Runner Game Component
+// --- Math Runner Game Component ---
 const MathRunner = ({ onBack }) => {
   const [score, setScore] = useState(0);
   const [equation, setEquation] = useState(() => generateEquation(0));
@@ -69,14 +66,14 @@ const MathRunner = ({ onBack }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [highScore, setHighScore] = useState(storedHighScore);
-  const [feedback, setFeedback] = useState(""); // '✓' or '✗'
+  const [feedback, setFeedback] = useState("");
 
-  // Update stored high score when it changes
+  // Update stored high score
   useEffect(() => {
     storedHighScore = highScore;
   }, [highScore]);
 
-  // Game timer effect
+  // Timer effect
   useEffect(() => {
     if (isPlaying && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -86,18 +83,35 @@ const MathRunner = ({ onBack }) => {
     }
   }, [timeLeft, isPlaying]);
 
-  // --- NEW: Auto-submit answer effect ---
+  // Auto-submit when enough digits entered
   useEffect(() => {
     if (!isPlaying || !userAnswer || userAnswer === "-") return;
-
     const correctAnswerStr = equation.answer.toString();
-
-    // Submit when the user input length matches the correct answer's length
     if (userAnswer.length >= correctAnswerStr.length) {
-      // Using >= handles cases where a user might accidentally type an extra digit
       handleSubmit(userAnswer);
     }
   }, [userAnswer, isPlaying, equation.answer]);
+
+  // ✅ Keyboard Input Handler
+  useEffect(() => {
+    if (!isPlaying) return;
+    const handleKeyDown = (e) => {
+      if (feedback) return;
+
+      if (e.key >= "0" && e.key <= "9") {
+        setUserAnswer((prev) => prev + e.key);
+      } else if (e.key === "Backspace") {
+        setUserAnswer((prev) => prev.slice(0, -1));
+      } else if (e.key === "Enter") {
+        handleSubmit(userAnswer);
+      } else if (e.key === "-") {
+        handleNegativeToggle();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPlaying, userAnswer, feedback]);
 
   const startGame = () => {
     setScore(0);
@@ -112,14 +126,14 @@ const MathRunner = ({ onBack }) => {
   const endGame = () => {
     setIsPlaying(false);
     setGameOver(true);
-    if (score > highScore) {
+    // ✅ FIX: Update high score even if previous best was 0
+    if (score >= highScore) {
       setHighScore(score);
     }
   };
 
   const handleSubmit = (answer) => {
     if (!isPlaying) return;
-
     const numAnswer = parseInt(answer);
     if (isNaN(numAnswer)) return;
 
@@ -131,17 +145,17 @@ const MathRunner = ({ onBack }) => {
         setEquation(generateEquation(newScore));
         setUserAnswer("");
         setFeedback("");
-      }, 300); // Short delay to show feedback
+      }, 300);
     } else {
       setFeedback("✗");
       setTimeout(() => {
         endGame();
-      }, 500); // Longer delay to show feedback before ending
+      }, 500);
     }
   };
 
   const handleNumberClick = (num) => {
-    if (!isPlaying || feedback) return; // Prevent input while feedback is shown
+    if (!isPlaying || feedback) return;
     setUserAnswer(userAnswer + num);
   };
 
@@ -163,7 +177,6 @@ const MathRunner = ({ onBack }) => {
     onBack(score, highScore);
   };
 
-
   return (
     <div className="flex flex-col items-center justify-center w-full min-h-screen bg-white p-4 relative">
       <button
@@ -174,110 +187,106 @@ const MathRunner = ({ onBack }) => {
         <span className="text-sm font-medium">Back</span>
       </button>
 
-      <div className="w-full max-w-lg md:max-w-xl lg:max-w-2xl flex flex-col items-center space-y-4 md:space-y-6">
-        <div className="text-center mt-6 md:mt-8">
-          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-1 flex justify-center items-center">
+      <div className="w-full max-w-lg md:max-w-xl lg:max-w-2xl flex flex-col items-center space-y-6">
+        <div className="text-center mt-6">
+          <h1 className="text-4xl font-bold mb-1 flex justify-center items-center">
             RE
-            <Mic className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 inline-block mx-1" />
+            <Mic className="w-8 h-8 inline-block mx-1" />
             LEX
           </h1>
-          <p className="text-sm sm:text-base md:text-lg text-gray-500">Solve equations as fast as you can</p>
+          <p className="text-gray-500 text-base">Solve equations as fast as you can</p>
         </div>
 
-        <div className="flex justify-around text-center border border-black/10 rounded-xl p-3 md:p-4 lg:p-5 w-full">
+        <div className="flex justify-around text-center border border-black/10 rounded-xl p-4 w-full">
           <div className="flex-1">
-            <p className="text-xs md:text-sm text-gray-500">SCORE</p>
-            <p className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold">{score}</p>
+            <p className="text-sm text-gray-500">SCORE</p>
+            <p className="text-3xl font-bold">{score}</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
-            <p className="text-xs md:text-sm text-gray-500">TIME</p>
-            <p className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold">{timeLeft}s</p>
+            <p className="text-sm text-gray-500">TIME</p>
+            <p className="text-3xl font-bold">{timeLeft}s</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
-            <p className="text-xs md:text-sm text-gray-500">BEST</p>
-            <p className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold">{highScore}</p>
+            <p className="text-sm text-gray-500">BEST</p>
+            <p className="text-3xl font-bold">{highScore}</p>
           </div>
         </div>
 
         {!isPlaying && !gameOver ? (
-          <div className="text-center space-y-4 py-8 w-full">
-            <div className="text-5xl sm:text-6xl mb-4">⚡</div>
-            <p className="text-sm sm:text-base text-gray-600 mb-4">
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">⚡</div>
+            <p className="text-gray-600 mb-4">
               Test your math skills.<br />Solve equations before time runs out.
             </p>
             <button
               onClick={startGame}
-              className="px-6 sm:px-8 py-2 sm:py-3 bg-black text-white text-sm sm:text-base font-medium rounded-full hover:bg-gray-800 transition-colors"
+              className="px-8 py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors"
             >
               START
             </button>
           </div>
         ) : gameOver ? (
-          <div className="text-center space-y-4 py-8 w-full">
-            <div className="text-5xl sm:text-6xl mb-4">🎯</div>
-            <p className="text-xl sm:text-2xl font-bold">Score: {score}</p>
-            <p className="text-sm sm:text-base text-gray-600">
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">🎯</div>
+            <p className="text-2xl font-bold">Score: {score}</p>
+            <p className="text-gray-600">
               {score > highScore && score > 0 ? "New high score!" : "Keep practicing!"}
             </p>
             <button
               onClick={startGame}
-              className="flex items-center gap-2 mx-auto px-5 sm:px-6 py-2 sm:py-3 bg-black text-white text-sm sm:text-base font-medium rounded-full hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-2 mx-auto px-6 py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors mt-4"
             >
-              <RotateCcw className="w-4 h-4" />
-              RETRY
+              <RotateCcw className="w-5 h-5" /> RETRY
             </button>
           </div>
         ) : (
           <>
-            <div className="text-center py-8 md:py-10 lg:py-12 border border-black/10 rounded-xl relative w-full overflow-hidden">
-              <p className="text-xs sm:text-sm md:text-base text-gray-500 mb-3 md:mb-4">EQUATION</p>
-              <p className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 md:mb-8">
+            <div className="text-center py-8 border border-black/10 rounded-xl relative w-full">
+              <p className="text-gray-500 mb-4">EQUATION</p>
+              <p className="text-5xl font-bold mb-6">
                 {equation.num1} {equation.operation} {equation.num2} = ?
               </p>
-              <div className="h-14 sm:h-16 md:h-20 flex items-center justify-center">
-                <p className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold min-w-[100px] md:min-w-[140px] lg:min-w-[180px] border-b-4 border-black pb-2 text-center">
+              <div className="h-16 flex items-center justify-center">
+                <p className="text-5xl font-bold min-w-[120px] border-b-4 border-black pb-2 text-center">
                   {userAnswer || " "}
                 </p>
               </div>
               {feedback && (
-                <div className={`absolute inset-0 flex items-center justify-center text-6xl sm:text-8xl md:text-9xl ${feedback === "✓" ? "text-green-500" : "text-red-500"}`}>
+                <div
+                  className={`absolute inset-0 flex items-center justify-center text-8xl ${
+                    feedback === "✓" ? "text-green-500" : "text-red-500"
+                  }`}
+                >
                   {feedback}
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-2 md:gap-4 lg:gap-5 w-full mt-4 max-w-md md:max-w-lg mx-auto">
-              {[0,1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+            <div className="grid grid-cols-3 gap-4 w-full max-w-md mt-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 0].map((num) => (
                 <button
                   key={num}
                   onClick={() => handleNumberClick(num.toString())}
-                  className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                  className="aspect-square border-2 border-black text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
                 >
                   {num}
                 </button>
               ))}
               <button
                 onClick={handleClear}
-                className="aspect-square border-2 border-black text-lg md:text-xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                className="aspect-square border-2 border-black text-xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
-                <Delete className="w-6 h-6 md:w-8 md:h-8 lg:w-9 lg:h-9" />
+                <Delete className="w-8 h-8" />
               </button>
               <button
-                onClick={() => handleNumberClick("9")}
-                  className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                onClick={handleNegativeToggle}
+                className="aspect-square border-2 border-black text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
-                9
+                -
               </button>
-               <button
-              onClick={handleNegativeToggle}
-                  className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
-            >
-              -
-            </button>
             </div>
-
           </>
         )}
 
@@ -290,16 +299,13 @@ const MathRunner = ({ onBack }) => {
           >
             tone2vibe.in
           </a>
-
-
-</div>
         </div>
       </div>
-
+    </div>
   );
 };
 
-// Main Offline Component
+// --- Main Offline Component ---
 export default function Offline() {
   const [showGame, setShowGame] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
@@ -313,27 +319,19 @@ export default function Offline() {
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen w-full bg-white overflow-hidden p-4">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:4rem_4rem] md:bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)]" />
-
-      <div className="absolute top-10 left-10 md:top-20 md:left-20 w-40 h-40 md:w-72 md:h-72 bg-black/5 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-10 right-10 md:bottom-20 md:right-20 w-48 h-48 md:w-96 md:h-96 bg-black/3 rounded-full blur-3xl animate-pulse delay-1000" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)]" />
 
       {!showGame ? (
-        <div className="relative z-10 flex flex-col items-center max-w-2xl mx-auto px-4 sm:px-6">
-          <div className="relative mb-6 md:mb-8 flex items-center justify-center gap-3 sm:gap-4 md:gap-5">
-            <div className="relative">
-              <div className="absolute inset-0 animate-ping">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 border-2 border-black/20 rounded-full" />
-              </div>
-              <WifiOff className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-black relative z-10" strokeWidth={1.5} />
-            </div>
-            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%] whitespace-nowrap">
+        <div className="relative z-10 flex flex-col items-center max-w-2xl mx-auto px-4">
+          <div className="mb-8 flex items-center justify-center gap-4">
+            <WifiOff className="w-12 h-12 text-black" strokeWidth={1.5} />
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%] whitespace-nowrap">
               You're Offline
             </h1>
           </div>
 
-          <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 md:mb-12 max-w-md flex items-center gap-2 justify-center text-center px-4 mt-4">
-            <span>Challenge your mind with a tone2vibe game</span>
+          <p className="text-lg text-gray-600 mb-10 text-center">
+            Challenge your mind with a tone2vibe game
           </p>
 
           {currentScore > 0 && (
@@ -346,37 +344,29 @@ export default function Offline() {
 
           <button
             onClick={() => setShowGame(true)}
-            className="group relative px-6 py-3 sm:px-8 sm:py-4 bg-black text-white font-semibold rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(0,0,0,0.3)] text-sm sm:text-base"
+            className="px-8 py-4 bg-black text-white font-semibold rounded-full hover:scale-105 transition-all"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-black to-gray-900 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <span className="relative flex items-center gap-2">
-              <Play className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
-              {currentScore > 0 ? "Play Again" : "Start Playing"}
-            </span>
+            <Play className="w-5 h-5 inline-block mr-2" fill="currentColor" />
+            {currentScore > 0 ? "Play Again" : "Start Playing"}
           </button>
 
-          <div className="mt-12 md:mt-16 flex flex-col items-center gap-3 text-xs sm:text-sm text-gray-400 px-4 text-center">
-            <div className="flex items-center gap-2">
-              <Wifi className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+          <div className="mt-12 text-xs text-gray-400 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Wifi className="w-4 h-4" />
               <span>Reconnect anytime to sync your progress</span>
             </div>
             <a
               href="https://tone2vibe.in"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gray-500 hover:text-black transition-colors duration-200"
+              className="text-gray-500 hover:text-black transition-colors"
             >
               tone2vibe.in
             </a>
-
-
-
           </div>
         </div>
       ) : (
-        <div className="relative z-10 w-full h-full">
-          <MathRunner onBack={handleBackFromGame} />
-        </div>
+        <MathRunner onBack={handleBackFromGame} />
       )}
 
       <style>
@@ -384,9 +374,6 @@ export default function Offline() {
           @keyframes shimmer {
             0%, 100% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
-          }
-          .delay-1000 {
-            animation-delay: 1s;
           }
         `}
       </style>
