@@ -34,18 +34,16 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const start = Date.now();
-      // Use a more reliable endpoint for connection check
-      const response = await fetch('/api/health', { 
-        method: 'GET',
-        cache: 'no-cache',
+      // Perform a cache-busted, network-only style check to avoid SW caches
+      const healthUrl = `/api/health?ts=${Date.now()}`;
+      const response = await fetch(healthUrl, {
+        method: 'HEAD',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: {
+          'cache-control': 'no-store'
+        },
         signal: controller.signal
-      }).catch(() => {
-        // Fallback to favicon if health endpoint doesn't exist
-        return fetch('/favicon.ico', { 
-          method: 'HEAD',
-          cache: 'no-cache',
-          signal: controller.signal
-        });
       });
       clearTimeout(timeoutId);
       
