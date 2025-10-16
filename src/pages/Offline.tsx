@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft } from "lucide-react";
+import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 // --- LOCAL STORAGE HELPERS ---
 const getStoredHighScore = (level: string) => parseInt(localStorage.getItem(`snakeHighScore_${level}`)) || 0;
@@ -335,15 +335,46 @@ const SnakeGame = ({ onBack, difficulty }: { onBack: (score: number) => void; di
             </button>
           </div>
         ) : (
-          <div className="w-full flex flex-col items-center">
+          <div className="w-full flex flex-col items-center relative">
             <canvas
               ref={canvasRef}
               width={300}
               height={300}
               className="border-2 border-black rounded-lg w-full max-w-[300px] aspect-square"
             />
+
+            {/* Mobile Direction Controls */}
+            <div className="fixed bottom-20 right-4 flex flex-col items-center gap-1 sm:hidden z-20">
+              <button
+                onClick={() => direction !== "DOWN" && setNextDirection("UP")}
+                className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg"
+              >
+                <ArrowUp className="w-6 h-6" />
+              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => direction !== "RIGHT" && setNextDirection("LEFT")}
+                  className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => direction !== "LEFT" && setNextDirection("RIGHT")}
+                  className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </div>
+              <button
+                onClick={() => direction !== "UP" && setNextDirection("DOWN")}
+                className="w-14 h-14 bg-black/80 text-white rounded-full flex items-center justify-center active:scale-95 transition-all shadow-lg"
+              >
+                <ArrowDown className="w-6 h-6" />
+              </button>
+            </div>
+
             <p className="text-xs sm:text-sm text-gray-500 mt-2 text-center">
-              {window.innerWidth < 640 ? "Swipe to control" : "Use arrow keys or WASD"}
+              {window.innerWidth < 640 ? "Swipe or use buttons" : "Use arrow keys or WASD"}
             </p>
           </div>
         )}

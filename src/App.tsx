@@ -37,6 +37,7 @@ function AppContent() {
   const { planExpiryActive } = useAuth();
   const online = useOnline();
   const { isOffline, isCheckingConnection } = useOfflineDetection();
+  const [wasOffline, setWasOffline] = useState(false);
 
   // ✅ Disable right click globally
   useEffect(() => {
@@ -46,6 +47,17 @@ function AppContent() {
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, []);
+
+  // Track offline state and redirect when coming back online
+  useEffect(() => {
+    if (isOffline) {
+      setWasOffline(true);
+    } else if (wasOffline && !isOffline) {
+      // User just came back online, redirect to home
+      setWasOffline(false);
+      window.location.href = '/';
+    }
+  }, [isOffline, wasOffline]);
 
   // If offline, show Offline Page instead of normal routes
   if (isOffline) {
