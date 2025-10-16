@@ -1,12 +1,10 @@
 
 
-const CACHE_NAME = "offline-cache-v2";
+const CACHE_NAME = "offline-cache-v3";
 const OFFLINE_PAGE = "/offline";
 const urlsToCache = [
   "/", 
-  "/index.html", 
-  "/main.js", 
-  "/index.css",
+  "/index.html",
   "/offline"
 ]; // precache app shell and offline page
 
@@ -70,8 +68,8 @@ self.addEventListener("fetch", (event) => {
             return cachedResponse;
           }
           
-          // Fallback to index.html for SPA routing
-          const fallbackResponse = await caches.match("/index.html");
+          // Fallback to index.html for SPA routing (avoid serving when explicitly requesting /offline)
+          const fallbackResponse = isOfflineRequest ? null : await caches.match("/index.html");
           if (fallbackResponse) {
             return fallbackResponse;
           }
@@ -94,7 +92,14 @@ self.addEventListener("fetch", (event) => {
         });
         return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => {
+        // Never intercept explicit network checks from app
+        const url = new URL(event.request.url);
+        if (url.pathname.startsWith('/api/health')) {
+          return new Response(null, { status: 503 });
+        }
+        return caches.match(event.request);
+      })
   );
 });
 
