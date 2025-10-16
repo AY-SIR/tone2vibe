@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import useOnline from "./useOnline";
+import { useOfflineDetection } from "./useOfflineDetection";
 
 interface WebSocketMessage {
   type: string;
@@ -24,7 +24,8 @@ export const useWebSocket = (
   autoConnect = false
 ): UseWebSocketReturn => {
   const { user } = useAuth();
-  const isOnline = useOnline();
+  const { isOffline } = useOfflineDetection();
+  const isOnline = !isOffline;
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [connectionState, setConnectionState] = useState<

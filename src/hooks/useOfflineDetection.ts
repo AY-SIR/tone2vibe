@@ -10,9 +10,8 @@ interface OfflineDetectionResult {
 
 export const useOfflineDetection = (): OfflineDetectionResult => {
   const [isOffline, setIsOffline] = useState(() => {
-    // Check localStorage for persistent offline state
-    const storedOfflineState = localStorage.getItem('offline-state');
-    return storedOfflineState === 'true' || !navigator.onLine;
+    // Always start with navigator.onLine, don't rely on localStorage for initial state
+    return !navigator.onLine;
   });
   
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
@@ -24,7 +23,6 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
     if (!navigator.onLine) {
       setIsOffline(true);
       setConnectionQuality('offline');
-      localStorage.setItem('offline-state', 'true');
       return;
     }
 
@@ -33,13 +31,21 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const start = Date.now();
-      const response = await fetch('/favicon.ico', { 
-        method: 'HEAD',
+      // Use a more reliable endpoint for connection check
+      const response = await fetch('/api/health', { 
+        method: 'GET',
         cache: 'no-cache',
         signal: controller.signal
+      }).catch(() => {
+        // Fallback to favicon if health endpoint doesn't exist
+        return fetch('/favicon.ico', { 
+          method: 'HEAD',
+          cache: 'no-cache',
+          signal: controller.signal
+        });
       });
       clearTimeout(timeoutId);
       
@@ -47,7 +53,6 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
       
       if (response.ok) {
         setIsOffline(false);
-        localStorage.removeItem('offline-state');
         setRetryCount(0);
         
         if (duration < 1000) {
@@ -69,7 +74,6 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
       
       setIsOffline(true);
       setConnectionQuality('offline');
-      localStorage.setItem('offline-state', 'true');
     } finally {
       setIsCheckingConnection(false);
     }
@@ -83,7 +87,6 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
   const handleOffline = useCallback(() => {
     setIsOffline(true);
     setConnectionQuality('offline');
-    localStorage.setItem('offline-state', 'true');
   }, []);
 
   useEffect(() => {
@@ -95,7 +98,7 @@ export const useOfflineDetection = (): OfflineDetectionResult => {
     window.addEventListener('offline', handleOffline);
 
     // Set up periodic connection checks (more aggressive when offline)
-    const checkInterval = isOffline ? 5000 : 15000; // Check every 5s if offline, 15s if online
+    const checkInterval = isOffline ? 10000 : 30000; // Check every 10s if offline, 30s if online
     const interval = setInterval(() => {
       if (!isCheckingConnection) {
         checkConnection(true);

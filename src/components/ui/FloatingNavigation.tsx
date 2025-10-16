@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Home, FileText, CreditCard } from "lucide-react";
+import { Home, FileText, CreditCard, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useOfflineDetection } from "@/hooks/useOfflineDetection";
 
 interface FloatingNavigationProps {
   currentSection: "home" | "features" | "pricing";
@@ -14,6 +15,7 @@ export const FloatingNavigation = ({
 }: FloatingNavigationProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const { isOffline } = useOfflineDetection();
 
   const lastScrollY = useRef(0);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
@@ -81,15 +83,26 @@ export const FloatingNavigation = ({
   return (
     <div
       className={cn(
-        "fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50",
+        "fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50",
         "transition-all duration-500 ease-out",
         isVisible && !isUserScrolling
           ? "translate-y-0 opacity-100 pointer-events-auto"
           : "translate-y-12 opacity-0 pointer-events-none"
       )}
     >
-      <div className="bg-white/95 backdrop-blur-lg border border-gray-200/50 rounded-full shadow-2xl px-3 py-2">
+      <div className={cn(
+        "bg-white/95 backdrop-blur-lg border rounded-full shadow-2xl px-3 py-2",
+        isOffline 
+          ? "border-red-200 bg-red-50/95" 
+          : "border-gray-200/50"
+      )}>
         <div className="flex items-center space-x-2">
+          {isOffline && (
+            <div className="flex items-center gap-1 text-red-600 text-xs px-2 py-1 bg-red-100 rounded-full">
+              <WifiOff className="w-3 h-3" />
+              <span>Offline</span>
+            </div>
+          )}
           {sections.map((section, index) => (
             <div
               key={section.id}
