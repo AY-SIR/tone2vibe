@@ -11,67 +11,61 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { payment_id, payment_request_id, type, plan } = await req.json();
-    
-    if (!payment_id || !payment_request_id) {
-      throw new Error("Payment ID and Payment Request ID are required");
-    }
+  // Helper for structured failure responses
+  const fail = (message: string, status = 400) =>
+    new Response(JSON.stringify({ success: false, message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status,
+    });
 
+  try {
+    const { payment_id, payment_request_id } = await req.json();
+    if (!payment_id || !payment_request_id) return fail("Payment ID and Request ID required");
+
+    // Get Instamojo credentials
+    const apiKey = Deno.env.get("INSTAMOJO_API_KEY");
+    const authToken = Deno.env.get("INSTAMOJO_AUTH_TOKEN");
+    const testMode = Deno.env.get("INSTAMOJO_TEST_MODE") === "true";
+    if (!apiKey || !authToken) return fail("Payment gateway not configured");
+
+    // Auth check
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
     );
 
-    // Get authenticated user
-    const authHeader = req.headers.get("Authorization")!;
+    const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
-    const user = data.user;
-    if (!user) throw new Error("User not authenticated");
+    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    if (userError || !userData.user) return fail("User not authenticated");
 
-    // Get Instamojo API credentials
-    const apiKey = Deno.env.get("INSTAMOJO_API_KEY");
-    const authToken = Deno.env.get("INSTAMOJO_AUTH_TOKEN");
-    const testMode = Deno.env.get("INSTAMOJO_TEST_MODE") === "true";
-
-    if (!apiKey || !authToken) {
-      throw new Error("Payment gateway not configured");
-    }
-
-    const baseUrl = testMode 
-      ? "https://test.instamojo.com/api/1.1/" 
-      : "https://www.instamojo.com/api/1.1/";
+    const user = userData.user;
 
     // Verify payment with Instamojo
-    const response = await fetch(`${baseUrl}payments/${payment_id}/`, {
-      method: "GET",
-      headers: {
-        "X-Api-Key": apiKey,
-        "X-Auth-Token": authToken,
-      }
+    const baseUrl = testMode
+      ? "https://test.instamojo.com/api/1.1/"
+      : "https://www.instamojo.com/api/1.1/";
+
+    const verifyRes = await fetch(`${baseUrl}payments/${payment_id}/`, {
+      headers: { "X-Api-Key": apiKey, "X-Auth-Token": authToken },
     });
+    const verifyData = await verifyRes.json();
 
-    const paymentData = await response.json();
+    if (!verifyRes.ok || !verifyData.success)
+      return fail("Failed to verify payment with Instamojo");
 
-    if (!response.ok || !paymentData.success) {
-      throw new Error("Failed to verify payment with Instamojo");
-    }
+    const payment = verifyData.payment;
+    if (!payment || payment.status !== "Credit") return fail("Payment not completed or failed");
 
-    const payment = paymentData.payment;
-    if (payment.status !== "Credit") {
-      throw new Error("Payment not completed");
-    }
-
-    // Use service role to update order and profile
+    // Service role client
     const supabaseService = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } }
     );
 
-    // Get order details
-    const { data: order } = await supabaseService
+    // Fetch latest pending order
+    const { data: order, error: orderErr } = await supabaseService
       .from("orders")
       .select("*")
       .eq("user_id", user.id)
@@ -80,126 +74,113 @@ serve(async (req) => {
       .limit(1)
       .single();
 
-    if (!order) {
-      throw new Error("Order not found");
-    }
+    if (orderErr || !order) return fail("No pending order found");
 
-    // Check if already processed
+    // If already processed
     if (order.status === "completed") {
-      return new Response(JSON.stringify({
-        success: true,
-        message: "Payment already processed",
-        already_processed: true
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Payment already processed",
+          already_processed: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
     }
 
-    // Update order status
-    const { error: orderUpdateError } = await supabaseService
+    // Mark order as completed
+    const { error: updateErr } = await supabaseService
       .from("orders")
-      .update({
-        status: "completed",
-        updated_at: new Date().toISOString()
-      })
+      .update({ status: "completed", updated_at: new Date().toISOString() })
       .eq("id", order.id);
-    
-    if (orderUpdateError) {
-      throw new Error("Failed to update order status");
-    }
+    if (updateErr) return fail("Failed to update order status");
 
-    // Process based on order type
+    // 🧩 Process payment type
     if (order.plan) {
-      // Subscription payment
-      const expiryDate = new Date();
-      expiryDate.setMonth(expiryDate.getMonth() + 1);
+      // Subscription
+      const expiry = new Date();
+      expiry.setMonth(expiry.getMonth() + 1);
 
-      const wordsLimit = order.plan === 'pro' ? 10000 : 50000;
-      const uploadLimit = order.plan === 'pro' ? 25 : 100;
+      const limits =
+        order.plan === "pro"
+          ? { words: 10000, upload: 25 }
+          : { words: 50000, upload: 100 };
 
-      const { error: profileUpdateError } = await supabaseService
+      const { error: profileErr } = await supabaseService
         .from("profiles")
         .update({
           plan: order.plan,
-          plan_expires_at: expiryDate.toISOString(),
           plan_start_date: new Date().toISOString(),
-          plan_end_date: expiryDate.toISOString(),
-          words_limit: wordsLimit,
-          upload_limit_mb: uploadLimit,
+          plan_end_date: expiry.toISOString(),
+          plan_expires_at: expiry.toISOString(),
+          words_limit: limits.words,
+          upload_limit_mb: limits.upload,
           plan_words_used: 0,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq("user_id", user.id);
 
-      if (profileUpdateError) {
-        throw new Error("Failed to update subscription");
-      }
+      if (profileErr) return fail("Failed to update user subscription");
 
-      // Record payment
-      const { error: paymentRecordError } = await supabaseService
-        .from("payments")
-        .insert({
+      const { error: payRecordErr } = await supabaseService.from("payments").insert([
+        {
           user_id: user.id,
-          payment_id: payment_id,
+          payment_id,
           amount: parseFloat(payment.amount),
           currency: payment.currency || "INR",
           status: "completed",
           plan: order.plan,
-          created_at: new Date().toISOString()
-        });
+          created_at: new Date().toISOString(),
+        },
+      ]);
 
-      if (paymentRecordError) {
-        console.warn("Payment recorded but history update failed");
-      }
+      if (payRecordErr)
+        console.warn("Subscription activated, but payment record insert failed:", payRecordErr);
+    }
 
-    } else if (order.words_purchased) {
-      // Word purchase payment
-      const { error } = await supabaseService.rpc('add_purchased_words', {
+    if (order.words_purchased) {
+      // Word purchase
+      const { error: addErr } = await supabaseService.rpc("add_purchased_words", {
         user_id_param: user.id,
         words_to_add: order.words_purchased,
-        payment_id_param: payment_id
+        payment_id_param: payment_id,
       });
 
-      if (error) {
-        throw new Error("Failed to add purchased words");
-      }
+      if (addErr) return fail("Failed to add purchased words");
 
-      // Record word purchase
-      const { error: wordPurchaseError } = await supabaseService
-        .from("word_purchases")
-        .insert({
+      const { error: recordErr } = await supabaseService.from("word_purchases").insert([
+        {
           user_id: user.id,
           words_purchased: order.words_purchased,
           amount_paid: parseFloat(payment.amount),
           currency: payment.currency || "INR",
-          payment_id: payment_id,
+          payment_id,
           status: "completed",
           payment_method: "instamojo",
-          created_at: new Date().toISOString()
-        });
-      
-      if (wordPurchaseError) {
-        console.warn("Words added but history update failed");
-      }
+          created_at: new Date().toISOString(),
+        },
+      ]);
+
+      if (recordErr)
+        console.warn("Words added, but word purchase record insert failed:", recordErr);
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      payment_id: payment_id,
-      message: "Payment verified and processed successfully"
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
-
-  } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        payment_id,
+        message: "Payment verified and processed successfully",
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+    );
+  } catch (err) {
+    console.error("Fatal error verifying payment:", err);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: err?.message || "Unknown server error",
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    );
   }
 });
