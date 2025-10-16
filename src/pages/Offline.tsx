@@ -399,16 +399,23 @@ export default function Offline() {
   const [showGame, setShowGame] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
   const [lastScore, setLastScore] = useState(getStoredLastScore());
+  const [showDifficultySelection, setShowDifficultySelection] = useState(false);
 
   const handleBackFromGame = (score: number) => {
     setLastScore(score);
     setShowGame(false);
     setSelectedDifficulty(null);
+    setShowDifficultySelection(false);
   };
 
   const handleDifficultySelect = (difficulty: Difficulty) => {
     setSelectedDifficulty(difficulty);
     setShowGame(true);
+    setShowDifficultySelection(false);
+  };
+
+  const handlePlayClick = () => {
+    setShowDifficultySelection(true);
   };
 
   return (
@@ -435,30 +442,66 @@ export default function Offline() {
             </div>
           )}
 
-          <div className="w-full max-w-xs sm:max-w-sm space-y-2 mb-4">
-            <p className="text-center text-sm font-semibold text-gray-700 mb-3">
-              Select Difficulty
-            </p>
-            {(Object.keys(DIFFICULTY_CONFIGS) as Difficulty[]).map((difficulty) => {
-              const config = DIFFICULTY_CONFIGS[difficulty];
-              const highScore = getStoredHighScore(difficulty);
-              return (
-                <button
-                  key={difficulty}
-                  onClick={() => handleDifficultySelect(difficulty)}
-                  className="w-full px-4 py-3 bg-black text-white font-semibold rounded-lg hover:scale-105 transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${config.color}`} />
-                    <span>{config.label}</span>
-                  </div>
-                  {highScore > 0 && (
-                    <span className="text-xs text-gray-300">Best: {highScore}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {!showDifficultySelection ? (
+            <div className="w-full max-w-xs sm:max-w-sm space-y-4 mb-4">
+              <button
+                onClick={handlePlayClick}
+                className="w-full px-6 py-4 bg-black text-white font-bold text-lg rounded-lg hover:scale-105 transition-all flex items-center justify-center gap-3 group"
+              >
+                <Play className="w-6 h-6" />
+                Play Snake Game
+              </button>
+              
+              <div className="text-center">
+                <p className="text-sm text-gray-500 mb-2">Quick Start</p>
+                <div className="flex gap-2 justify-center">
+                  {(Object.keys(DIFFICULTY_CONFIGS) as Difficulty[]).map((difficulty) => {
+                    const config = DIFFICULTY_CONFIGS[difficulty];
+                    return (
+                      <button
+                        key={difficulty}
+                        onClick={() => handleDifficultySelect(difficulty)}
+                        className={`px-3 py-2 text-xs font-semibold rounded-lg hover:scale-105 transition-all ${config.color} text-white`}
+                      >
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full max-w-xs sm:max-w-sm space-y-2 mb-4">
+              <p className="text-center text-sm font-semibold text-gray-700 mb-3">
+                Select Difficulty
+              </p>
+              {(Object.keys(DIFFICULTY_CONFIGS) as Difficulty[]).map((difficulty) => {
+                const config = DIFFICULTY_CONFIGS[difficulty];
+                const highScore = getStoredHighScore(difficulty);
+                return (
+                  <button
+                    key={difficulty}
+                    onClick={() => handleDifficultySelect(difficulty)}
+                    className="w-full px-4 py-3 bg-black text-white font-semibold rounded-lg hover:scale-105 transition-all flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${config.color}`} />
+                      <span>{config.label}</span>
+                    </div>
+                    {highScore > 0 && (
+                      <span className="text-xs text-gray-300">Best: {highScore}</span>
+                    )}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setShowDifficultySelection(false)}
+                className="w-full px-4 py-2 text-gray-600 hover:text-black transition-colors text-sm"
+              >
+                ← Back
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 sm:mt-8 text-xs sm:text-sm text-gray-400 text-center px-2">
             <div className="flex items-center justify-center gap-1 mb-1">
