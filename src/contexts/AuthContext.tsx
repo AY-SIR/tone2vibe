@@ -22,8 +22,7 @@ export interface Profile {
   plan_expires_at: string | null;
   last_login_at: string | null;
   ip_address: string | null;
-  country: string | null;
-  updated_at: string;
+  country: string;
   email: string;
   company: string;
   preferred_language: string;
@@ -79,10 +78,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   const createDefaultProfile = useCallback(async (user: User) => {
     try {
+      // Optionally, you can detect real country via IP/API
+      const defaultCountry = "India";
+
       const defaultProfile = {
         user_id: user.id,
-        full_name: user.user_metadata.full_name || user.email?.split("@")[0] || "User",
-        avatar_url: user.user_metadata.avatar_url || "",
+        full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+        avatar_url: user.user_metadata?.avatar_url || "",
         plan: "free",
         words_limit: 1000,
         words_used: 0,
@@ -93,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         plan_expires_at: null,
         last_login_at: new Date().toISOString(),
         ip_address: null,
-        country: "India",
+        country: defaultCountry,
         email: user.email!,
         company: "",
         preferred_language: "en",
@@ -115,7 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
-      return data;
+      // Ensure country is always set
+      return { ...data, country: data.country || defaultCountry };
     } catch (err) {
       console.error("Exception creating default profile:", err);
       return null;
@@ -145,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (updateError) console.error("Failed to increment login_count:", updateError);
 
           const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
-          setProfile({ ...data, word_balance: data.word_balance ?? calculatedWordBalance } as Profile);
+          setProfile({ ...data, word_balance: data.word_balance ?? calculatedWordBalance, country: data.country || "India" } as Profile);
 
           if (data.country) {
             setLocationData({ country: data.country, currency: "INR" });
@@ -153,9 +156,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
+        // If profile not found, create default
         if (error?.code === "PGRST116" && user.email) {
           const newProfile = await createDefaultProfile(user);
-          if (newProfile) setProfile({ ...newProfile } as Profile);
+          if (newProfile) {
+            setProfile({ ...newProfile } as Profile);
+            setLocationData({ country: newProfile.country, currency: "INR" });
+          }
         }
       } catch (err) {
         console.error("Error loading profile:", err);
@@ -165,12 +172,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   // -----------------------
-  // Handle session initialization and changes (including expiration)
+  // Handle session initialization and changes
   // -----------------------
   useEffect(() => {
     let mounted = true;
 
-    // This function handles all session updates.
     const handleSession = async (currentSession: Session | null) => {
       if (!mounted) return;
 
@@ -179,17 +185,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentUser);
 
       if (currentUser) {
-        // If there is a user, load their profile.
         await loadUserProfile(currentUser);
       } else {
-        // **THIS IS THE KEY PART FOR EXPIRATION**
-        // If the session is null (due to sign out or expiration), clear all user-specific state.
         setProfile(null);
         setLocationData(null);
       }
     };
 
-    // Check for an active session when the component mounts.
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session).finally(() => {
         if (mounted) {
@@ -199,12 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     });
 
-    // Listen for any auth state changes. This is the magic part.
-    // It fires on SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.
-    // When the session auto-expires, Supabase detects it and fires a SIGNED_OUT event,
-    // which results in the 'session' object passed here being null.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // console.log(`Auth event: ${_event}`, session); // Uncomment for debugging
       handleSession(session);
     });
 
@@ -215,33 +212,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadUserProfile]);
 
   // -----------------------
-  // Listen to profile updates using Realtime
+  // Realtime profile updates
   // -----------------------
   useEffect(() => {
-    if (profileChannelRef.current) {
-        profileChannelRef.current.unsubscribe();
-    }
+    if (profileChannelRef.current) profileChannelRef.current.unsubscribe();
 
     if (user?.id) {
-        const channel = supabase
-            .channel(`profile-updates-${user.id}`)
-            .on(
-                "postgres_changes",
-                { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
-                (payload) => {
-                    const newProfile = payload.new as Profile;
-                    const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
-                    setProfile(prevProfile => ({ ...prevProfile, ...newProfile, word_balance: newProfile.word_balance ?? calculatedWordBalance }));
-                }
-            )
-            .subscribe();
+      const channel = supabase
+        .channel(`profile-updates-${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            const newProfile = payload.new as Profile;
+            const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
+            setProfile(prevProfile => ({
+              ...prevProfile,
+              ...newProfile,
+              word_balance: newProfile.word_balance ?? calculatedWordBalance,
+              country: newProfile.country || "India",
+            }));
+          }
+        )
+        .subscribe();
 
-        profileChannelRef.current = channel;
+      profileChannelRef.current = channel;
     }
 
-    return () => {
-        profileChannelRef.current?.unsubscribe();
-    };
+    return () => profileChannelRef.current?.unsubscribe();
   }, [user?.id]);
 
   // -----------------------
@@ -282,7 +280,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      // While onAuthStateChange will also clear state, setting it here provides a faster UI update.
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -295,9 +292,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = useCallback(async () => {
-    if (user) {
-      await loadUserProfile(user);
-    }
+    if (user) await loadUserProfile(user);
   }, [user, loadUserProfile]);
 
   const updateProfile = async (data: Partial<Profile>) => {
@@ -307,11 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (error) {
-        console.error("Error updating profile:", error);
-      }
-      // The realtime subscription should handle the update, but a manual refresh can be a fallback.
-      // await refreshProfile();
+      if (error) console.error("Error updating profile:", error);
     } catch (err) {
       console.error("Exception during profile update:", err);
     }

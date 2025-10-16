@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft, Delete, Check } from "lucide-react";
+import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft, Delete } from "lucide-react";
 
 // In-memory storage for high score (persists during session only)
 let storedHighScore = 0;
@@ -45,11 +45,12 @@ function generateEquation(currentScore = 0) {
     if (operation === "+") {
       answer = num1 + num2;
     } else if (operation === "-") {
+      // Introduce negative answers after a few points
       if (currentScore > 5 && Math.random() > 0.5) {
-        [num1, num2] = [num2, num1];
+        [num1, num2] = [Math.min(num1, num2), Math.max(num1, num2)];
       }
       answer = num1 - num2;
-    } else {
+    } else { // Multiplication
       answer = num1 * num2;
     }
   }
@@ -57,6 +58,7 @@ function generateEquation(currentScore = 0) {
   const displayOperation = operation === "×" ? "×" : operation === "÷" ? "÷" : operation;
   return { num1, num2, operation: displayOperation, answer };
 }
+
 
 // Math Runner Game Component
 const MathRunner = ({ onBack }) => {
@@ -67,13 +69,14 @@ const MathRunner = ({ onBack }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [highScore, setHighScore] = useState(storedHighScore);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState(""); // '✓' or '✗'
 
   // Update stored high score when it changes
   useEffect(() => {
     storedHighScore = highScore;
   }, [highScore]);
 
+  // Game timer effect
   useEffect(() => {
     if (isPlaying && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -82,6 +85,19 @@ const MathRunner = ({ onBack }) => {
       endGame();
     }
   }, [timeLeft, isPlaying]);
+
+  // --- NEW: Auto-submit answer effect ---
+  useEffect(() => {
+    if (!isPlaying || !userAnswer || userAnswer === "-") return;
+
+    const correctAnswerStr = equation.answer.toString();
+
+    // Submit when the user input length matches the correct answer's length
+    if (userAnswer.length >= correctAnswerStr.length) {
+      // Using >= handles cases where a user might accidentally type an extra digit
+      handleSubmit(userAnswer);
+    }
+  }, [userAnswer, isPlaying, equation.answer]);
 
   const startGame = () => {
     setScore(0);
@@ -108,30 +124,29 @@ const MathRunner = ({ onBack }) => {
     if (isNaN(numAnswer)) return;
 
     if (numAnswer === equation.answer) {
-      const newScore = score + 1;
-      setScore(newScore);
       setFeedback("✓");
       setTimeout(() => {
+        const newScore = score + 1;
+        setScore(newScore);
         setEquation(generateEquation(newScore));
         setUserAnswer("");
         setFeedback("");
-      }, 300);
+      }, 300); // Short delay to show feedback
     } else {
       setFeedback("✗");
       setTimeout(() => {
         endGame();
-      }, 500);
+      }, 500); // Longer delay to show feedback before ending
     }
   };
 
   const handleNumberClick = (num) => {
-    if (!isPlaying) return;
-    const newAnswer = userAnswer + num;
-    setUserAnswer(newAnswer);
+    if (!isPlaying || feedback) return; // Prevent input while feedback is shown
+    setUserAnswer(userAnswer + num);
   };
 
   const handleNegativeToggle = () => {
-    if (!isPlaying) return;
+    if (!isPlaying || feedback) return;
     if (userAnswer.startsWith("-")) {
       setUserAnswer(userAnswer.substring(1));
     } else {
@@ -140,19 +155,14 @@ const MathRunner = ({ onBack }) => {
   };
 
   const handleClear = () => {
+    if (!isPlaying) return;
     setUserAnswer("");
-    setFeedback("");
-  };
-
-  const handleEnter = () => {
-    if (userAnswer && userAnswer !== "-") {
-      handleSubmit(userAnswer);
-    }
   };
 
   const handleBack = () => {
     onBack(score, highScore);
   };
+
 
   return (
     <div className="flex flex-col items-center justify-center w-full min-h-screen bg-white p-4 relative">
@@ -166,7 +176,7 @@ const MathRunner = ({ onBack }) => {
 
       <div className="w-full max-w-lg md:max-w-xl lg:max-w-2xl flex flex-col items-center space-y-4 md:space-y-6">
         <div className="text-center mt-6 md:mt-8">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-1 flex justify-center items-center">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-1 flex justify-center items-center">
             RE
             <Mic className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 inline-block mx-1" />
             LEX
@@ -177,17 +187,17 @@ const MathRunner = ({ onBack }) => {
         <div className="flex justify-around text-center border border-black/10 rounded-xl p-3 md:p-4 lg:p-5 w-full">
           <div className="flex-1">
             <p className="text-xs md:text-sm text-gray-500">SCORE</p>
-            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{score}</p>
+            <p className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold">{score}</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
             <p className="text-xs md:text-sm text-gray-500">TIME</p>
-            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{timeLeft}s</p>
+            <p className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold">{timeLeft}s</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
             <p className="text-xs md:text-sm text-gray-500">BEST</p>
-            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold">{highScore}</p>
+            <p className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold">{highScore}</p>
           </div>
         </div>
 
@@ -209,7 +219,7 @@ const MathRunner = ({ onBack }) => {
             <div className="text-5xl sm:text-6xl mb-4">🎯</div>
             <p className="text-xl sm:text-2xl font-bold">Score: {score}</p>
             <p className="text-sm sm:text-base text-gray-600">
-              {score >= highScore && score > 0 ? "New high score!" : "Keep practicing!"}
+              {score > highScore && score > 0 ? "New high score!" : "Keep practicing!"}
             </p>
             <button
               onClick={startGame}
@@ -232,15 +242,14 @@ const MathRunner = ({ onBack }) => {
                 </p>
               </div>
               {feedback && (
-                <div className={`absolute inset-0 flex items-center justify-center text-7xl sm:text-8xl md:text-9xl ${feedback === "✓" ? "text-green-500" : "text-red-500"}`}>
+                <div className={`absolute inset-0 flex items-center justify-center text-6xl sm:text-8xl md:text-9xl ${feedback === "✓" ? "text-green-500" : "text-red-500"}`}>
                   {feedback}
                 </div>
               )}
             </div>
 
             <div className="grid grid-cols-3 gap-2 md:gap-4 lg:gap-5 w-full mt-4 max-w-md md:max-w-lg mx-auto">
-
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+              {[0,1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
                 <button
                   key={num}
                   onClick={() => handleNumberClick(num.toString())}
@@ -251,29 +260,23 @@ const MathRunner = ({ onBack }) => {
               ))}
               <button
                 onClick={handleClear}
-                className="aspect-square border-2 border-red-500 bg-red-500 text-white text-lg md:text-xl font-bold rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                className="aspect-square border-2 border-black text-lg md:text-xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
                 <Delete className="w-6 h-6 md:w-8 md:h-8 lg:w-9 lg:h-9" />
               </button>
               <button
-                onClick={() => handleNumberClick("0")}
-                className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                onClick={() => handleNumberClick("9")}
+                  className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
-                0
+                9
               </button>
-              <button
-  onClick={handleEnter}
-  className="aspect-square border-2 border-green-600 bg-green-600 text-white text-xl md:text-2xl font-bold rounded-xl hover:bg-green-700 hover:border-green-700 transition-all active:scale-95 flex items-center justify-center"
->
-  <Check className="h-6 w-6 md:h-8 md:w-8" />
-</button>
-            </div>
- <button
+               <button
               onClick={handleNegativeToggle}
-              className="w-full max-w-md md:max-w-lg mx-auto py-3 md:py-4 border-2 border-black text-lg sm:text-xl md:text-2xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 mt-2"
+                  className="aspect-square border-2 border-black text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
             >
-              +/−
+              -
             </button>
+            </div>
 
           </>
         )}
@@ -287,9 +290,12 @@ const MathRunner = ({ onBack }) => {
           >
             tone2vibe.in
           </a>
+
+
+</div>
         </div>
       </div>
-    </div>
+
   );
 };
 
@@ -321,7 +327,7 @@ export default function Offline() {
               </div>
               <WifiOff className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-black relative z-10" strokeWidth={1.5} />
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%] whitespace-nowrap">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%] whitespace-nowrap">
               You're Offline
             </h1>
           </div>
@@ -362,6 +368,9 @@ export default function Offline() {
             >
               tone2vibe.in
             </a>
+
+
+
           </div>
         </div>
       ) : (
