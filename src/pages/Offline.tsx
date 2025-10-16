@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Wifi, WifiOff, Play, RotateCcw, Mic, ArrowLeft, Delete } from "lucide-react";
 
-// In-memory storage for high score (session only)
-let storedHighScore = 0;
+// --- LOCAL STORAGE HELPERS ---
+const getStoredHighScore = () => parseInt(localStorage.getItem("highScore")) || 0;
+const setStoredHighScore = (score) => localStorage.setItem("highScore", score);
 
 // --- HELPER FUNCTION: Generates equations with scaling difficulty ---
 function generateEquation(currentScore = 0) {
@@ -65,12 +66,12 @@ const MathRunner = ({ onBack }) => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameOver, setGameOver] = useState(false);
-  const [highScore, setHighScore] = useState(storedHighScore);
+  const [highScore, setHighScore] = useState(getStoredHighScore());
   const [feedback, setFeedback] = useState("");
 
-  // Update stored high score
+  // Update localStorage when high score changes
   useEffect(() => {
-    storedHighScore = highScore;
+    setStoredHighScore(highScore);
   }, [highScore]);
 
   // Timer effect
@@ -86,13 +87,12 @@ const MathRunner = ({ onBack }) => {
   // Auto-submit when enough digits entered
   useEffect(() => {
     if (!isPlaying || !userAnswer || userAnswer === "-") return;
-    const correctAnswerStr = equation.answer.toString();
-    if (userAnswer.length >= correctAnswerStr.length) {
+    if (userAnswer.length >= equation.answer.toString().length) {
       handleSubmit(userAnswer);
     }
   }, [userAnswer, isPlaying, equation.answer]);
 
-  // ✅ Keyboard Input Handler
+  // Keyboard input handler
   useEffect(() => {
     if (!isPlaying) return;
     const handleKeyDown = (e) => {
@@ -126,10 +126,7 @@ const MathRunner = ({ onBack }) => {
   const endGame = () => {
     setIsPlaying(false);
     setGameOver(true);
-    // ✅ FIX: Update high score even if previous best was 0
-    if (score >= highScore) {
-      setHighScore(score);
-    }
+    if (score > highScore) setHighScore(score);
   };
 
   const handleSubmit = (answer) => {
@@ -161,11 +158,8 @@ const MathRunner = ({ onBack }) => {
 
   const handleNegativeToggle = () => {
     if (!isPlaying || feedback) return;
-    if (userAnswer.startsWith("-")) {
-      setUserAnswer(userAnswer.substring(1));
-    } else {
-      setUserAnswer("-" + userAnswer);
-    }
+    if (userAnswer.startsWith("-")) setUserAnswer(userAnswer.substring(1));
+    else setUserAnswer("-" + userAnswer);
   };
 
   const handleClear = () => {
@@ -187,75 +181,75 @@ const MathRunner = ({ onBack }) => {
         <span className="text-sm font-medium">Back</span>
       </button>
 
-      <div className="w-full max-w-lg md:max-w-xl lg:max-w-2xl flex flex-col items-center space-y-6">
+      <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg flex flex-col items-center space-y-4">
         <div className="text-center mt-6">
-          <h1 className="text-4xl font-bold mb-1 flex justify-center items-center">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-1 flex justify-center items-center flex-wrap">
             RE
-            <Mic className="w-8 h-8 inline-block mx-1" />
+            <Mic className="w-6 h-6 sm:w-8 sm:h-8 mx-1" />
             LEX
           </h1>
-          <p className="text-gray-500 text-base">Solve equations as fast as you can</p>
+          <p className="text-gray-500 text-sm sm:text-base">Solve equations as fast as you can</p>
         </div>
 
-        <div className="flex justify-around text-center border border-black/10 rounded-xl p-4 w-full">
+        <div className="flex justify-around text-center border border-black/10 rounded-xl p-3 w-full text-sm sm:text-base">
           <div className="flex-1">
-            <p className="text-sm text-gray-500">SCORE</p>
-            <p className="text-3xl font-bold">{score}</p>
+            <p className="text-gray-500">SCORE</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold">{score}</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
-            <p className="text-sm text-gray-500">TIME</p>
-            <p className="text-3xl font-bold">{timeLeft}s</p>
+            <p className="text-gray-500">TIME</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold">{timeLeft}s</p>
           </div>
           <div className="border-l border-black/10" />
           <div className="flex-1">
-            <p className="text-sm text-gray-500">BEST</p>
-            <p className="text-3xl font-bold">{highScore}</p>
+            <p className="text-gray-500">BEST</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold">{highScore}</p>
           </div>
         </div>
 
         {!isPlaying && !gameOver ? (
-          <div className="text-center py-8">
+          <div className="text-center py-6">
             <div className="text-6xl mb-4">⚡</div>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 mb-4 text-sm sm:text-base">
               Test your math skills.<br />Solve equations before time runs out.
             </p>
             <button
               onClick={startGame}
-              className="px-8 py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors"
+              className="px-6 py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors"
             >
               START
             </button>
           </div>
         ) : gameOver ? (
-          <div className="text-center py-8">
+          <div className="text-center py-6">
             <div className="text-6xl mb-4">🎯</div>
             <p className="text-2xl font-bold">Score: {score}</p>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm sm:text-base">
               {score > highScore && score > 0 ? "New high score!" : "Keep practicing!"}
             </p>
             <button
               onClick={startGame}
-              className="flex items-center gap-2 mx-auto px-6 py-3 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors mt-4"
+              className="flex items-center gap-2 mx-auto px-6 py-2 bg-black text-white font-medium rounded-full hover:bg-gray-800 transition-colors mt-4"
             >
               <RotateCcw className="w-5 h-5" /> RETRY
             </button>
           </div>
         ) : (
           <>
-            <div className="text-center py-8 border border-black/10 rounded-xl relative w-full">
-              <p className="text-gray-500 mb-4">EQUATION</p>
-              <p className="text-5xl font-bold mb-6">
+            <div className="text-center py-4 border border-black/10 rounded-xl relative w-full">
+              <p className="text-gray-500 mb-2 text-sm sm:text-base">EQUATION</p>
+              <p className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 break-words">
                 {equation.num1} {equation.operation} {equation.num2} = ?
               </p>
-              <div className="h-16 flex items-center justify-center">
-                <p className="text-5xl font-bold min-w-[120px] border-b-4 border-black pb-2 text-center">
+              <div className="h-12 sm:h-16 flex items-center justify-center">
+                <p className="text-3xl sm:text-4xl md:text-5xl font-bold min-w-[100px] border-b-4 border-black pb-1 sm:pb-2 text-center">
                   {userAnswer || " "}
                 </p>
               </div>
               {feedback && (
                 <div
-                  className={`absolute inset-0 flex items-center justify-center text-8xl ${
+                  className={`absolute inset-0 flex items-center justify-center text-6xl sm:text-8xl ${
                     feedback === "✓" ? "text-green-500" : "text-red-500"
                   }`}
                 >
@@ -264,12 +258,12 @@ const MathRunner = ({ onBack }) => {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-4 w-full max-w-md mt-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 0].map((num) => (
+            <div className="grid grid-cols-3 gap-2 w-full max-w-xs sm:max-w-sm mx-auto mt-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
                 <button
                   key={num}
                   onClick={() => handleNumberClick(num.toString())}
-                  className="aspect-square border-2 border-black text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                  className="aspect-square border-2 border-black text-2xl sm:text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
                 >
                   {num}
                 </button>
@@ -278,11 +272,11 @@ const MathRunner = ({ onBack }) => {
                 onClick={handleClear}
                 className="aspect-square border-2 border-black text-xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
-                <Delete className="w-8 h-8" />
+                <Delete className="w-6 h-6 sm:w-8 sm:h-8" />
               </button>
               <button
                 onClick={handleNegativeToggle}
-                className="aspect-square border-2 border-black text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                className="aspect-square border-2 border-black text-2xl sm:text-3xl font-bold rounded-xl hover:bg-black hover:text-white transition-all active:scale-95 flex items-center justify-center"
               >
                 -
               </button>
@@ -290,12 +284,12 @@ const MathRunner = ({ onBack }) => {
           </>
         )}
 
-        <div className="text-center pt-4">
+        <div className="text-center pt-4 text-xs sm:text-sm text-gray-400">
           <a
             href="https://tone2vibe.in"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-gray-400 hover:text-black transition-colors"
+            className="hover:text-black transition-colors"
           >
             tone2vibe.in
           </a>
@@ -309,7 +303,7 @@ const MathRunner = ({ onBack }) => {
 export default function Offline() {
   const [showGame, setShowGame] = useState(false);
   const [currentScore, setCurrentScore] = useState(0);
-  const [currentHighScore, setCurrentHighScore] = useState(storedHighScore);
+  const [currentHighScore, setCurrentHighScore] = useState(getStoredHighScore());
 
   const handleBackFromGame = (score, highScore) => {
     setCurrentScore(score);
@@ -322,36 +316,36 @@ export default function Offline() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)]" />
 
       {!showGame ? (
-        <div className="relative z-10 flex flex-col items-center max-w-2xl mx-auto px-4">
-          <div className="mb-8 flex items-center justify-center gap-4">
+        <div className="relative z-10 flex flex-col items-center max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mx-auto px-4">
+          <div className="mb-6 flex items-center justify-center gap-3 flex-wrap text-center">
             <WifiOff className="w-12 h-12 text-black" strokeWidth={1.5} />
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%] whitespace-nowrap">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]">
               You're Offline
             </h1>
           </div>
 
-          <p className="text-lg text-gray-600 mb-10 text-center">
+          <p className="text-sm sm:text-base text-gray-600 mb-6 text-center">
             Challenge your mind with a tone2vibe game
           </p>
 
           {currentScore > 0 && (
-            <div className="mb-6 text-center">
-              <p className="text-sm text-gray-500 mb-1">Last Score</p>
-              <p className="text-3xl font-bold">{currentScore}</p>
+            <div className="mb-4 text-center">
+              <p className="text-xs sm:text-sm text-gray-500 mb-1">Last Score</p>
+              <p className="text-2xl sm:text-3xl font-bold">{currentScore}</p>
               <p className="text-xs text-gray-400 mt-1">Best: {currentHighScore}</p>
             </div>
           )}
 
           <button
             onClick={() => setShowGame(true)}
-            className="px-8 py-4 bg-black text-white font-semibold rounded-full hover:scale-105 transition-all"
+            className="px-6 py-3 bg-black text-white font-semibold rounded-full hover:scale-105 transition-all flex items-center justify-center gap-2"
           >
-            <Play className="w-5 h-5 inline-block mr-2" fill="currentColor" />
+            <Play className="w-5 h-5 inline-block" fill="currentColor" />
             {currentScore > 0 ? "Play Again" : "Start Playing"}
           </button>
 
-          <div className="mt-12 text-xs text-gray-400 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="mt-8 text-xs sm:text-sm text-gray-400 text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
               <Wifi className="w-4 h-4" />
               <span>Reconnect anytime to sync your progress</span>
             </div>
