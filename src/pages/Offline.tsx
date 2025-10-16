@@ -767,7 +767,7 @@ export default function Offline() {
             <>
               <div className="mb-4 sm:mb-6 flex items-center justify-center gap-2 sm:gap-3 flex-wrap text-center">
                 <WifiOff className="w-8 h-8 sm:w-12 sm:h-12 text-black" strokeWidth={1.5} />
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]">
+                <h1 className="text-4xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-black via-gray-600 to-black bg-clip-text text-transparent animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]">
                   You're Offline
                 </h1>
               </div>
