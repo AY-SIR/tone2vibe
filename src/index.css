@@ -286,7 +286,6 @@ body::-webkit-scrollbar {
 
 
 
-
 /* Floating Wi-Fi indicator */
 .wifi-floating {
   position: fixed;
@@ -302,7 +301,7 @@ body::-webkit-scrollbar {
   z-index: 9999;
 }
 
-/* Each Wi-Fi bar */
+/* Bars */
 .wifi-bar {
   width: 5px;
   background: #ccc;
@@ -316,7 +315,7 @@ body::-webkit-scrollbar {
 .wifi-bar:nth-child(3) { height: 15px; }
 .wifi-bar:nth-child(4) { height: 20px; }
 
-/* Active bars colors */
+/* Active colors */
 .wifi-bar.active.good { background: green; }
 .wifi-bar.active.poor { background: orange; }
 .wifi-bar.active.offline { background: red; }
