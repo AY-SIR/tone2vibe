@@ -26,7 +26,7 @@ export const useOfflineDetection = () => {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 1.5s timeout
       const start = Date.now();
 
       const response = await fetch(`/api/health?ts=${Date.now()}`, {
