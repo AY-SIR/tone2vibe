@@ -328,7 +328,6 @@ const ModernStepFour = ({
           <CardContent>
             <Tabs defaultValue="basic" className="w-full">
               {/* === FIX: DYNAMIC TABS BASED ON USER PLAN === */}
-              {/* === FIX: DYNAMIC TABS BASED ON USER PLAN === */}
               <TabsList className={isPremiumUser ? "grid w-full grid-cols-3 sm:grid-cols-5" : "grid w-full grid-cols-2"}>
   <TabsTrigger value="basic">Basic</TabsTrigger>
   <TabsTrigger value="style">Style</TabsTrigger>
