@@ -5,18 +5,20 @@ export const useOfflineDetection = () => {
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>('good');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+
   const retryRef = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const mountedRef = useRef(true); // Track if component is mounted
+  const mountedRef = useRef(true);
 
   const checkConnection = useCallback(async () => {
-    if (!mountedRef.current) return; // Stop if unmounted
+    if (!mountedRef.current) return;
 
-    const offline = !navigator.onLine;
-    if (offline) {
-      setIsOffline(true);
-      setConnectionQuality('offline');
+    if (!navigator.onLine) {
       retryRef.current += 1;
+      if (retryRef.current > 2) {
+        setIsOffline(true);
+        setConnectionQuality('offline');
+      }
       scheduleNextCheck();
       return;
     }
@@ -26,7 +28,7 @@ export const useOfflineDetection = () => {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 1.5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
       const start = Date.now();
 
       const response = await fetch(`/api/health?ts=${Date.now()}`, {
@@ -34,41 +36,49 @@ export const useOfflineDetection = () => {
         cache: 'no-store',
         signal: controller.signal,
       });
+
       clearTimeout(timeoutId);
 
       const duration = Date.now() - start;
 
       if (response.ok) {
-        setIsOffline(false);
         retryRef.current = 0;
+        setIsOffline(false);
         setConnectionQuality(duration < 1000 ? 'good' : 'poor');
       } else {
         throw new Error('Response not ok');
       }
     } catch {
       retryRef.current += 1;
-      setIsOffline(true);
-      setConnectionQuality('offline');
+      if (retryRef.current > 2) { // 3 consecutive failures = offline
+        setIsOffline(true);
+        setConnectionQuality('offline');
+      } else {
+        setConnectionQuality('poor'); // slow or hiccup
+      }
     } finally {
       setIsCheckingConnection(false);
       scheduleNextCheck();
     }
   }, []);
 
-  const scheduleNextCheck = () => {
+  const scheduleNextCheck = useCallback(() => {
     if (!mountedRef.current) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-    const nextCheck = isOffline ? 1500 : 5000; // 1.5s if offline, 5s if online
+    const nextCheck = isOffline ? 2000 : 5000; // faster if offline
     timeoutRef.current = setTimeout(checkConnection, nextCheck);
-  };
+  }, [checkConnection, isOffline]);
 
   const handleOnline = useCallback(() => checkConnection(), [checkConnection]);
   const handleOffline = useCallback(() => {
-    setIsOffline(true);
-    setConnectionQuality('offline');
+    retryRef.current += 1;
+    if (retryRef.current > 2) {
+      setIsOffline(true);
+      setConnectionQuality('offline');
+    }
     scheduleNextCheck();
-  }, []);
+  }, [scheduleNextCheck]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -84,5 +94,5 @@ export const useOfflineDetection = () => {
     };
   }, [checkConnection, handleOnline, handleOffline]);
 
-  return { isOffline, isCheckingConnection, connectionQuality, lastChecked, retryCount: retryRef.current };
+  return { isOffline, isCheckingConnection, connectionQuality, lastChecked };
 };
