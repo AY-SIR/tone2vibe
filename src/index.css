@@ -288,28 +288,57 @@ body::-webkit-scrollbar {
 
 
 
-/* Wi-Fi signal container */
+/* Wi-Fi floating indicator */
 .wifi-signal {
+  position: fixed;
+  bottom: 20px;  /* float from bottom */
+  right: 20px;   /* float from right */
   display: flex;
   align-items: flex-end;
-  gap: 2px;
-  height: 20px;
+  gap: 3px;
+  height: 24px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.9); /* bubble background */
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  z-index: 9999;
+  cursor: default;
 }
 
-/* Each bar */
+/* Bars */
 .bar {
-  width: 4px;
-  background: #ccc; /* inactive color */
+  width: 6px;
+  background: #ccc;
+  border-radius: 2px;
   transition: background 0.3s, height 0.3s;
 }
 
-/* Height for each bar */
-.bar:nth-child(1) { height: 5px; }
-.bar:nth-child(2) { height: 10px; }
-.bar:nth-child(3) { height: 15px; }
-.bar:nth-child(4) { height: 20px; }
+/* Bar heights */
+.bar:nth-child(1) { height: 6px; }
+.bar:nth-child(2) { height: 12px; }
+.bar:nth-child(3) { height: 18px; }
+.bar:nth-child(4) { height: 24px; }
 
-/* Active bars colors */
+/* Active colors */
 .bar.active.good { background: green; }
 .bar.active.poor { background: orange; }
 .bar.active.offline { background: red; }
+
+/* Optional: make it smaller on mobile screens */
+@media (max-width: 768px) {
+  .wifi-signal {
+    bottom: 15px;
+    right: 15px;
+    padding: 4px 6px;
+    height: 20px;
+  }
+
+  .bar {
+    width: 4px;
+  }
+
+  .bar:nth-child(1) { height: 4px; }
+  .bar:nth-child(2) { height: 8px; }
+  .bar:nth-child(3) { height: 12px; }
+  .bar:nth-child(4) { height: 16px; }
+}
