@@ -4,10 +4,11 @@ import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 export const ConnectionStatus: React.FC = () => {
   const { isOffline, connectionQuality } = useOfflineDetection();
 
+  // Determine number of bars
   const getBars = () => {
-    if (isOffline) return 0;
-    if (connectionQuality === 'poor') return 2; // 2 bars
-    return 4; // full bars for good
+    if (isOffline || connectionQuality === 'offline') return 0;
+    if (connectionQuality === 'poor') return 2;
+    return 4; // good
   };
 
   const bars = getBars();
@@ -18,7 +19,11 @@ export const ConnectionStatus: React.FC = () => {
         <span
           key={i}
           className={`bar ${i <= bars ? 'active' : ''} ${
-            isOffline ? 'offline' : connectionQuality === 'poor' ? 'poor' : 'good'
+            connectionQuality === 'offline'
+              ? 'offline'
+              : connectionQuality === 'poor'
+              ? 'poor'
+              : 'good'
           }`}
         />
       ))}
