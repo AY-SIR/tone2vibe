@@ -292,7 +292,7 @@ body::-webkit-scrollbar {
   bottom: 20px;
   right: 20px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse; /* changed */
   align-items: center;
   gap: 2px;
   z-index: 9999;
