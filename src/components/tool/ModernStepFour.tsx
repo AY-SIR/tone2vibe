@@ -328,20 +328,18 @@ const ModernStepFour = ({
           <CardContent>
             <Tabs defaultValue="basic" className="w-full">
               {/* === FIX: DYNAMIC TABS BASED ON USER PLAN === */}
-              <TabsList className="grid w-full" style={{ gridTemplateColumns: isPremiumUser ? 'repeat(5, 1fr)' : 'repeat(2, 1fr)' }}>
+              {/* === FIX: DYNAMIC TABS BASED ON USER PLAN === */}
+              <TabsList className={isPremiumUser ? "grid w-full grid-cols-3 sm:grid-cols-5" : "grid w-full grid-cols-2"}>
   <TabsTrigger value="basic">Basic</TabsTrigger>
   <TabsTrigger value="style">Style</TabsTrigger>
   {isPremiumUser && (
     <>
       <TabsTrigger value="pacing">Pacing</TabsTrigger>
-      <TabsTrigger value="tuning">Fine-Tuning</TabsTrigger>
-      <TabsTrigger value="sfx" className="flex items-center gap-1">
-        <Waves className="h-4 w-4" />SFX
-      </TabsTrigger>
+      <TabsTrigger value="tuning">Tuning</TabsTrigger>
+      <TabsTrigger value="sfx">SFX</TabsTrigger>
     </>
   )}
 </TabsList>
-
               {/* Basic Tab (Accessible by Pro & Premium) */}
               <TabsContent value="basic" className="space-y-4 mt-4">
                 <div className="grid gap-4 sm:grid-cols-2">
