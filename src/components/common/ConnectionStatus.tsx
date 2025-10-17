@@ -1,28 +1,27 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React from 'react';
 import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 
 export const ConnectionStatus: React.FC = () => {
   const { isOffline, connectionQuality } = useOfflineDetection();
-  const [statusClass, setStatusClass] = useState('');
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    // Determine class based on status
-    const newClass = isOffline ? 'offline' : connectionQuality === 'poor' ? 'poor' : 'online';
-    setStatusClass(newClass);
+  const getBars = () => {
+    if (isOffline) return 0;
+    if (connectionQuality === 'poor') return 2; // 2 bars
+    return 4; // full bars for good
+  };
 
-    // Clear previous timeout if it exists
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  const bars = getBars();
 
-    // Auto-hide after 3s
-    timeoutRef.current = setTimeout(() => {
-      setStatusClass('');
-    }, 3000);
-
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [isOffline, connectionQuality]);
-
-  return <div className={`connection-anim ${statusClass}`} />;
+  return (
+    <div className="wifi-signal">
+      {[1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className={`bar ${i <= bars ? 'active' : ''} ${
+            isOffline ? 'offline' : connectionQuality === 'poor' ? 'poor' : 'good'
+          }`}
+        />
+      ))}
+    </div>
+  );
 };
