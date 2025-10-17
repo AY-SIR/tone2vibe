@@ -292,26 +292,27 @@ body::-webkit-scrollbar {
   bottom: 20px;
   right: 20px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse; /* Dot neeche rahega */
   align-items: center;
   gap: 2px;
   z-index: 9999;
 }
 
-/* Each arc - INVERTED for proper WiFi look */
+/* Each arc - UPWARD opening */
 .wifi-arc {
   display: block;
-  border-top: 2px solid #ccc; /* Changed from border-bottom */
-  border-radius: 50%;
-  transform: rotate(180deg); /* Inverted */
+  border-bottom: 2px solid #ccc; /* Bottom border */
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-radius: 0 0 100% 100%; /* Bottom rounded */
   box-sizing: border-box;
 }
 
-/* Arc sizes */
-.wifi-arc:nth-child(1) { width: 20px; height: 10px; }
-.wifi-arc:nth-child(2) { width: 16px; height: 8px; }
-.wifi-arc:nth-child(3) { width: 12px; height: 6px; }
-.wifi-arc:nth-child(4) { width: 8px; height: 4px; }
+/* Arc sizes - smallest to largest (bottom to top) */
+.wifi-arc:nth-child(1) { width: 8px; height: 4px; }
+.wifi-arc:nth-child(2) { width: 12px; height: 6px; }
+.wifi-arc:nth-child(3) { width: 16px; height: 8px; }
+.wifi-arc:nth-child(4) { width: 20px; height: 10px; }
 
 /* Dot at bottom */
 .wifi-dot {
@@ -320,13 +321,12 @@ body::-webkit-scrollbar {
   border-radius: 50%;
   background: #ccc;
   margin-top: 2px;
-  order: 5; /* Keep dot at bottom */
 }
 
 /* Colors */
-.wifi-arc.good { border-color: green; }
-.wifi-arc.poor { border-color: orange; }
-.wifi-arc.offline { border-color: #ccc; }
+.wifi-arc.good { border-bottom-color: green; }
+.wifi-arc.poor { border-bottom-color: orange; }
+.wifi-arc.offline { border-bottom-color: #ccc; }
 
 .wifi-dot.good { background: green; }
 .wifi-dot.poor { background: orange; }
@@ -334,22 +334,19 @@ body::-webkit-scrollbar {
 
 /* Pulse animation */
 @keyframes pulseAnim {
-  0% { transform: scale(1) rotate(180deg); opacity: 0.5; }
-  50% { transform: scale(1.3) rotate(180deg); opacity: 1; }
-  100% { transform: scale(1) rotate(180deg); opacity: 0.5; }
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.3); opacity: 1; }
 }
-.wifi-arc.pulse { animation: pulseAnim 0.6s infinite; }
-.wifi-dot.pulse { 
-  animation: pulseAnim 0.6s infinite;
-  transform-origin: center;
+.wifi-arc.pulse, .wifi-dot.pulse { 
+  animation: pulseAnim 0.6s infinite; 
 }
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .wifi-floating { bottom: 15px; right: 15px; gap: 1px; }
-  .wifi-arc:nth-child(1) { width: 18px; height: 9px; }
-  .wifi-arc:nth-child(2) { width: 14px; height: 7px; }
-  .wifi-arc:nth-child(3) { width: 10px; height: 5px; }
-  .wifi-arc:nth-child(4) { width: 6px; height: 3px; }
+  .wifi-arc:nth-child(1) { width: 6px; height: 3px; }
+  .wifi-arc:nth-child(2) { width: 10px; height: 5px; }
+  .wifi-arc:nth-child(3) { width: 14px; height: 7px; }
+  .wifi-arc:nth-child(4) { width: 18px; height: 9px; }
   .wifi-dot { width: 5px; height: 5px; }
 }
