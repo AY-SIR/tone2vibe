@@ -295,7 +295,7 @@ body::-webkit-scrollbar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px; /* You can adjust this */
+  gap: 2px;
   z-index: 9999;
   background: transparent;
   padding: 0;
@@ -303,17 +303,16 @@ body::-webkit-scrollbar {
 
 /* Each arc */
 .wifi-arc {
-  /* This is the key: only a bottom border, rounded */
-  border-bottom: 2px solid #ccc; /* This is the thin line style you want */
+  /* Yeh 'patli line' wala style hai */
+  border-bottom: 2px solid #ccc;
   border-radius: 50%;
   transition: border-color 0.3s, transform 0.3s;
   
-  /* DO NOT put a fixed height here */
+  /* Yahan se fixed height hata di hai */
 }
 
-/* THE FIX: Give each arc its own width AND height.
-  The height should be much smaller than the width to make a shallow arc.
-  This keeps them all proportional.
+/* YEH FIX HAI: Har arc ko uska apna width aur height dena
+   taaki shape kharaab na ho.
 */
 .wifi-arc:nth-child(1) { width: 8px; height: 2px; }
 .wifi-arc:nth-child(2) { width: 12px; height: 3px; }
@@ -326,7 +325,7 @@ body::-webkit-scrollbar {
   height: 6px;
   border-radius: 50%;
   background: #ccc;
-  margin-top: 2px; /* Added small space */
+  margin-top: 2px;
 }
 
 /* Colors (Your code was already correct) */
@@ -356,13 +355,13 @@ body::-webkit-scrollbar {
     right: 15px;
     gap: 1px;
   }
-  /* Adjusted proportional sizes for mobile */
   .wifi-arc:nth-child(1) { width: 6px; height: 2px; }
   .wifi-arc:nth-child(2) { width: 10px; height: 3px; }
   .wifi-arc:nth-child(3) { width: 14px; height: 4px; }
   .wifi-arc:nth-child(4) { width: 18px; height: 5px; }
   .wifi-dot { width: 5px; height: 5px; }
 }
+
 
 
 
