@@ -2,24 +2,26 @@ import React from 'react';
 import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 
 export const ConnectionStatus: React.FC = () => {
-  const { isOffline, connectionQuality } = useOfflineDetection();
+  const { isOffline, connectionQuality, statusChecked } = useOfflineDetection();
 
-  // Determine number of bars
+  // Show nothing until first check completes
+  if (!statusChecked) return null;
+
   const getBars = () => {
     if (isOffline || connectionQuality === 'offline') return 0;
     if (connectionQuality === 'poor') return 2;
-    return 4; // good
+    return 4;
   };
 
   const bars = getBars();
 
   return (
-    <div className="wifi-signal">
+    <div className="wifi-floating">
       {[1, 2, 3, 4].map((i) => (
-        <span
+        <div
           key={i}
-          className={`bar ${i <= bars ? 'active' : ''} ${
-            connectionQuality === 'offline'
+          className={`wifi-bar ${i <= bars ? 'active' : ''} ${
+            isOffline
               ? 'offline'
               : connectionQuality === 'poor'
               ? 'poor'
