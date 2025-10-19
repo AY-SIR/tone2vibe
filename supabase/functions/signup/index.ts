@@ -218,40 +218,191 @@ Deno.serve(async (req) => {
 
     const emailHtml = `
       <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background-color: #000; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .button { display: inline-block; background-color: #000; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #999; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Welcome to Tone2Vibe!</h1>
-            </div>
-            <div class="content">
-              <h2>Hi ${displayName},</h2>
-              <p>Thank you for signing up! Please confirm your email address by clicking the button below:</p>
-              <div style="text-align: center;">
-                <a href="${confirmationUrl}" class="button">Confirm Email Address</a>
-              </div>
-              <p>Or copy and paste this link into your browser:</p>
-              <p style="word-break: break-all; background: #fff; padding: 10px; border-radius: 4px;">${confirmationUrl}</p>
-              <p><strong>This link will expire in 24 hours.</strong></p>
-              <p>If you didn't create an account, please ignore this email.</p>
-            </div>
-            <div class="footer">
-              <p>Tone2Vibe - Voice to Text Conversion</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Verify Your Email - Tone2Vibe</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table {border-collapse: collapse;}
+  </style>
+  <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', 'Arial', sans-serif; background-color: #000000; -webkit-font-smoothing: antialiased; width: 100% !important;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color: #000000; min-height: 100vh;">
+    <tr>
+      <td align="center" style="padding: 60px 15px;">
+
+        <!-- Outer Border Frame -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 650px; width: 100%; background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%); padding: 2px; box-shadow: 0 20px 60px rgba(255, 255, 255, 0.05);">
+          <tr>
+            <td>
+              <!-- Inner Content -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color: #ffffff;">
+
+                <!-- Decorative Top Border -->
+                <tr>
+                  <td style="height: 4px; background: linear-gradient(90deg, #000000 0%, #666666 50%, #000000 100%);"></td>
+                </tr>
+
+                <!-- Header -->
+                <tr>
+                  <td style="padding: 60px 60px; text-align: center; background: linear-gradient(180deg, #000000 0%, #1a1a1a 100%);">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                      <tr>
+                        <td align="center">
+                          <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="display: inline-block;">
+                            <tr>
+                              <td style="vertical-align: middle; padding-right: 25px;">
+                                <div style="width: 70px; height: 70px; background: linear-gradient(135deg, #ffffff 0%, #e5e5e5 100%); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2); border: 3px solid rgba(255, 255, 255, 0.1);">
+                                  <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png" alt="Tone2Vibe" width="38" height="38" style="display: block;" />
+                                </div>
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 38px; font-weight: 200; letter-spacing: 4px; text-transform: uppercase; white-space: nowrap;">Confirm Email</h1>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                    <div style="width: 60px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff, transparent); margin: 25px auto 0; opacity: 0.3;"></div>
+                  </td>
+                </tr>
+
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 60px 60px;">
+                    <p style="color: #000000; font-size: 19px; line-height: 1.7; margin: 0 0 20px; font-weight: 300; letter-spacing: 0.3px;">Hello <strong style="font-weight: 500;">${displayName}</strong>,</p>
+
+                    <p style="color: #333333; font-size: 16px; line-height: 1.9; margin: 0 0 15px; font-weight: 300; letter-spacing: 0.2px;">
+                      Thank you for signing up for Tone2Vibe.
+                    </p>
+
+                    <p style="color: #333333; font-size: 16px; line-height: 1.9; margin: 0 0 40px; font-weight: 300; letter-spacing: 0.2px;">
+                      Please confirm your email address to activate your account and start using our voice to text conversion service.
+                    </p>
+
+                    <!-- CTA Button -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                      <tr>
+                        <td align="center" style="padding: 0 0 45px;">
+                          <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+                            <tr>
+                              <td style="background: linear-gradient(135deg, #000000 0%, #2a2a2a 100%); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);">
+                                <a href="${confirmationUrl}" style="display: block; color: #ffffff; text-decoration: none; padding: 20px 65px; font-size: 13px; font-weight: 500; letter-spacing: 2.5px; text-transform: uppercase; border: 1px solid rgba(255, 255, 255, 0.1);">Confirm Email</a>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Decorative Divider -->
+                    <div style="text-align: center; margin: 40px 0;">
+                      <div style="display: inline-block; width: 100%; max-width: 200px; height: 1px; background: linear-gradient(90deg, transparent, #cccccc, transparent);"></div>
+                    </div>
+
+                    <!-- Security Info Box -->
+                    <div style="background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%); padding: 32px; border-left: 3px solid #000000; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                        <tr>
+                          <td style="vertical-align: top; width: 30px; padding-right: 15px;">
+                            <div style="width: 24px; height: 24px; background-color: #000000; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                              <span style="color: #ffffff; font-size: 14px; font-weight: 600;">i</span>
+                            </div>
+                          </td>
+                          <td style="vertical-align: top;">
+                            <p style="color: #000000; font-size: 15px; line-height: 1.8; margin: 0 0 12px; font-weight: 500; letter-spacing: 0.5px;">
+                              Important Information
+                            </p>
+                            <p style="color: #555555; font-size: 14px; line-height: 1.9; margin: 0 0 10px; font-weight: 300;">
+                              This verification link will expire in <strong style="color: #000000; font-weight: 500;">24 hours</strong>.
+                            </p>
+                            <p style="color: #555555; font-size: 14px; line-height: 1.9; margin: 0; font-weight: 300;">
+                              If you didn't create an account with Tone2Vibe, you can safely ignore this email.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Decorative Bottom Border -->
+                <tr>
+                  <td style="height: 1px; background: linear-gradient(90deg, transparent, #cccccc, transparent);"></td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background: linear-gradient(180deg, #1a1a1a 0%, #000000 100%); padding: 45px 60px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                      <tr>
+                        <td align="center">
+                          <p style="color: #ffffff; font-size: 18px; line-height: 1.6; margin: 0 0 8px; font-weight: 300; letter-spacing: 3px; ;">Tone2Vibe</p>
+                          <div style="width: 40px; height: 1px; background: rgba(255, 255, 255, 0.3); margin: 12px auto;"></div>
+
+                          <p style="color: #666666; font-size: 11px; line-height: 1.6; margin: 0; font-weight: 300; letter-spacing: 0.5px;">
+                            &copy; ${new Date().getFullYear()} Tone2Vibe. All rights reserved.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Legal Text -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 650px; width: 100%; margin-top: 30px;">
+          <tr>
+            <td align="center" style="padding: 0 15px;">
+              <p style="color: #666666; font-size: 11px; line-height: 1.8; margin: 0; font-weight: 300; letter-spacing: 0.5px;">
+                This is an automated message from Tone2Vibe.in Please do not reply to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+  <!-- Mobile Responsive Styles -->
+  <style type="text/css">
+    @media only screen and (max-width: 600px) {
+      .header-icon {
+        display: block !important;
+        margin: 0 auto 15px !important;
+        padding-right: 0 !important;
+      }
+      .header-text {
+        display: block !important;
+      }
+      h1 {
+        font-size: 28px !important;
+        letter-spacing: 2px !important;
+        white-space: normal !important;
+      }
+      .content-padding {
+        padding: 45px 30px !important;
+      }
+      .header-padding {
+        padding: 45px 30px !important;
+      }
+      .footer-padding {
+        padding: 35px 30px !important;
+      }
+    }
+  </style>
+</body>
+</html>
     `;
 
     try {
