@@ -13,34 +13,46 @@ interface EmailConfirmationRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
+    // Initialize Supabase client with service role
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Parse request body
     const { email, userId, fullName } = await req.json() as EmailConfirmationRequest;
 
     if (!email || !userId) {
-      return new Response(JSON.stringify({ error: 'Email and userId are required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Email and userId are required' }), 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
-    // --- Generate token ---
+    console.log('Generating verification token for:', email);
+
+    // Generate verification token using database function
     const { data: tokenData, error: tokenError } = await supabaseClient
       .rpc('generate_verification_token');
 
-    if (tokenError) throw new Error('Failed to generate verification token');
+    if (tokenError) {
+      console.error('Token generation error:', tokenError);
+      throw new Error('Failed to generate verification token');
+    }
 
     const verificationToken = tokenData as string;
+    console.log('Token generated successfully');
 
-    // --- Store token in DB ---
+    // Store token in database
     const { error: insertError } = await supabaseClient
       .from('email_verification_tokens')
       .insert({
@@ -48,17 +60,29 @@ Deno.serve(async (req: Request) => {
         email,
         token: verificationToken,
         token_type: 'email_confirmation',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
       });
 
-    if (insertError) throw new Error('Failed to store verification token');
+    if (insertError) {
+      console.error('Token insert error:', insertError);
+      throw new Error('Failed to store verification token');
+    }
 
-    // --- Prepare confirmation URL ---
+    console.log('Token stored in database');
+
+    // Prepare confirmation URL
     const confirmationUrl = `${Deno.env.get('SITE_URL') || 'https://tone2vibe.in'}/email-confirmation?token=${verificationToken}`;
 
-    // --- Send email via Brevo ---
+    // Get Brevo API key
     const brevoApiKey = Deno.env.get('BREVO_API_KEY');
-    if (!brevoApiKey) throw new Error('Email service not configured');
+    if (!brevoApiKey) {
+      console.error('BREVO_API_KEY not configured');
+      throw new Error('Email service not configured');
+    }
 
+    const displayName = fullName || email.split('@')[0];
+
+    // Send email via Brevo
     const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -67,31 +91,103 @@ Deno.serve(async (req: Request) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Tone2Vibe', email: 'noreply@tone2vibe.in' },
-        to: [{ email, name: fullName || email.split('@')[0] }],
+        sender: { 
+          name: 'Tone2Vibe', 
+          email: 'noreply@tone2vibe.in' 
+        },
+        to: [{ 
+          email, 
+          name: displayName 
+        }],
         subject: 'Confirm Your Email - Tone2Vibe',
-        htmlContent: `<p>Hi ${fullName || 'there'},</p>
-                      <p>Click the link below to confirm your email:</p>
-                      <a href="${confirmationUrl}">Confirm Email</a>
-                      <p>This link expires in 24 hours.</p>`,
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+              <tr>
+                <td align="center">
+                  <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
+                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">Welcome to Tone2Vibe!</h1>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 40px 30px;">
+                        <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">Hi ${displayName},</p>
+                        <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
+                          Thank you for signing up! To complete your registration and start using Tone2Vibe, 
+                          please verify your email address by clicking the button below:
+                        </p>
+                        <div style="text-align: center; margin: 30px 0;">
+                          <a href="${confirmationUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 6px; font-size: 16px; font-weight: bold;">Verify Email Address</a>
+                        </div>
+                        <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 20px 0 0;">
+                          If the button doesn't work, copy and paste this link into your browser:
+                        </p>
+                        <p style="color: #667eea; font-size: 14px; word-break: break-all; margin: 10px 0;">
+                          ${confirmationUrl}
+                        </p>
+                        <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 20px 0 0;">
+                          This link will expire in 24 hours for security reasons.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color: #f8f9fa; padding: 20px 30px; border-top: 1px solid #e9ecef;">
+                        <p style="color: #999999; font-size: 12px; line-height: 1.6; margin: 0;">
+                          If you didn't create an account with Tone2Vibe, please ignore this email.
+                        </p>
+                        <p style="color: #999999; font-size: 12px; margin: 10px 0 0;">
+                          &copy; ${new Date().getFullYear()} Tone2Vibe. All rights reserved.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
+        `,
       }),
     });
 
     if (!emailResponse.ok) {
       const errorText = await emailResponse.text();
-      throw new Error('Failed to send confirmation email: ' + errorText);
+      console.error('Brevo API error:', errorText);
+      throw new Error('Failed to send confirmation email');
     }
 
-    return new Response(JSON.stringify({ success: true, token: verificationToken }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.log('Confirmation email sent successfully');
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Confirmation email sent',
+        token: verificationToken 
+      }), 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
 
   } catch (error) {
-    console.error('send-email-confirmation error:', error);
-    return new Response(JSON.stringify({ error: error.message || 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Error in send-email-confirmation:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Internal server error' 
+      }), 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
