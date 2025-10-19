@@ -100,7 +100,7 @@ export const FloatingNavigation = ({
           {isOffline && (
             <div className="flex items-center gap-1 text-red-600 text-xs px-2 py-1 bg-red-100 rounded-full">
               <WifiOff className="w-3 h-3" />
-              <span>Offline</span>
+              
             </div>
           )}
           {sections.map((section, index) => (

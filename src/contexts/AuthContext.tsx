@@ -140,13 +140,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data) {
           const { error: updateError } = await supabase
             .from("profiles")
-            .update({ login_count: (data.login_count || 0) + 1, last_login_at: new Date().toISOString() })
+            .update({ 
+              login_count: (data.login_count || 0) + 1, 
+              last_login_at: new Date().toISOString() 
+            })
             .eq("user_id", user.id);
 
           if (updateError) console.error("Failed to increment login_count:", updateError);
 
           const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
-          setProfile({ ...data, word_balance: data.word_balance ?? calculatedWordBalance, country: data.country || "India" } as Profile);
+          setProfile({ 
+            ...data, 
+            word_balance: data.word_balance ?? calculatedWordBalance, 
+            country: data.country || "India" 
+          } as Profile);
 
           if (data.country) {
             setLocationData({ country: data.country, currency: "INR" });
@@ -154,7 +161,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // If profile not found, create default
         if (error?.code === "PGRST116" && user.email) {
           const newProfile = await createDefaultProfile(user);
           if (newProfile) {
@@ -220,7 +226,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .channel(`profile-updates-${user.id}`)
         .on(
           "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
+          { 
+            event: "UPDATE", 
+            schema: "public", 
+            table: "profiles", 
+            filter: `user_id=eq.${user.id}` 
+          },
           (payload) => {
             const newProfile = payload.new as Profile;
             const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
@@ -243,14 +254,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   // Auth actions
   // -----------------------
-  const signUp = async (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    options?: { emailRedirectTo?: string; fullName?: string }
+  ) => {
     try {
+      // Sign up WITHOUT auto-confirm - user will be created but not confirmed
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: options?.emailRedirectTo, // ✅ FIXED: Now passing emailRedirectTo
-          data: { full_name: options?.fullName || "" }
+          data: { full_name: options?.fullName || "" },
+          emailRedirectTo: options?.emailRedirectTo
         },
       });
 
@@ -259,17 +275,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data?.user) {
-        // Send confirmation email asynchronously without blocking signup
-        supabase.functions.invoke('send-email-confirmation', {
-          body: {
-            email: data.user.email,
-            userId: data.user.id,
-            fullName: options?.fullName || data.user.email?.split('@')[0] || 'User',
-          },
-        }).catch(err => {
-          console.error('Failed to send confirmation email:', err);
-          // Email failure shouldn't break signup flow
-        });
+        // Send custom confirmation email via Edge Function
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-email-confirmation', {
+            body: {
+              email: data.user.email,
+              userId: data.user.id,
+              fullName: options?.fullName || data.user.email?.split('@')[0] || 'User',
+            },
+          });
+
+          if (emailError) {
+            console.error('Failed to send confirmation email:', emailError);
+            // Don't return error - user is created, just email failed
+          }
+        } catch (emailErr) {
+          console.error('Exception sending confirmation email:', emailErr);
+        }
       }
 
       return { data, error };
@@ -281,7 +303,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
+      if (error) {
+        // Check if email is not confirmed
+        if (error.message.includes('Email not confirmed')) {
+          return { 
+            data, 
+            error: new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.') 
+          };
+        }
+      }
+      
       return { data, error };
     } catch (err) {
       console.error("Exception during signIn:", err);
@@ -291,7 +327,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/tool' } });
+      await supabase.auth.signInWithOAuth({ 
+        provider: 'google', 
+        options: { 
+          redirectTo: window.location.origin + '/tool',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
+        } 
+      });
     } catch (err) {
       console.error('Google sign in failed:', err);
     }
@@ -321,7 +366,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
-      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
+      const { error } = await supabase
+        .from("profiles")
+        .update(data)
+        .eq("user_id", user.id);
+        
       if (error) console.error("Error updating profile:", error);
     } catch (err) {
       console.error("Exception during profile update:", err);

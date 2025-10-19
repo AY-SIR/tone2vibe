@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
 
     // --- Parse Request Body ---
     const body = await req.json();
-    const { text, title, voice_settings } = body;
-    if (!text || !title || !voice_settings) {
-      throw new Error("Request body must include text, title, and voice_settings.");
+    const { text, title, voice_settings, language } = body;
+    if (!text || !title || !voice_settings || !language) {
+      throw new Error("Request body must include text, title, voice_settings, and language.");
     }
 
     const actualWordCount = text.split(/\s+/).filter(Boolean).length;
@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
         voice_settings: voice_settings,
         words_used: actualWordCount,
         generation_started_at: new Date().toISOString(),
+        language: language // <-- use correct column
       })
       .select("id, generation_started_at")
       .single();
@@ -96,13 +97,13 @@ Deno.serve(async (req) => {
 
     // --- Update History Record with Final Details ---
     const generationCompletedAt = new Date();
-    // === FIX 1: Remove `duration_seconds` and ensure all other fields are present ===
     const { error: updateError } = await supabaseService
       .from("history")
       .update({
         audio_url: publicUrl,
         generation_completed_at: generationCompletedAt.toISOString(),
         processing_time_ms: generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime(),
+        language: language // <-- update correct column
       })
       .eq("id", historyRecord.id);
 
@@ -111,7 +112,6 @@ Deno.serve(async (req) => {
     }
 
     // --- Deduct Words via RPC ---
-    // === FIX 2: Use the CORRECT parameter names for your SQL function ===
     const { error: deductError } = await supabaseService.rpc("deduct_words_smartly", {
       user_id_param: user.id,
       words_to_deduct: actualWordCount,
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("Main generation function error:", error.message);
+    console.error("Generation function error:", error.message);
     return new Response(JSON.stringify({
       success: false,
       error: error.message,
