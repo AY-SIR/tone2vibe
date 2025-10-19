@@ -10,6 +10,21 @@ interface PasswordResetRequest {
   email: string;
 }
 
+// FIX: Helper function for consistent success response
+// This prevents attackers from knowing if an email exists in your system.
+const sendSuccessResponse = () => {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: 'If an account exists with this email, a password reset link has been sent.',
+    }),
+    {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    }
+  );
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -23,6 +38,22 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+    
+    // FIX: Get critical env variables ONCE.
+    const siteUrl = Deno.env.get('SITE_URL');
+    const brevoApiKey = Deno.env.get('BREVO_API_KEY');
+
+    // FIX: If these are not set, the function cannot work.
+    // This is better than failing later.
+    if (!siteUrl) {
+      console.error('SITE_URL environment variable is not set.');
+      throw new Error('Server configuration error: SITE_URL not set.');
+    }
+    if (!brevoApiKey) {
+      console.error('BREVO_API_KEY environment variable is not set.');
+      throw new Error('Server configuration error: BREVO_API_KEY not set.');
+    }
+
 
     const { email } = await req.json() as PasswordResetRequest;
 
@@ -36,22 +67,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: userData, error: userError } = await supabaseClient.auth.admin.listUsers();
-    
-    const user = userData?.users?.find((u) => u.email === email);
-    
-    if (!user) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'If an account exists with this email, a password reset link has been sent.' 
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    // FIX: Changed from listUsers() to getUserByEmail()
+    // This is much faster and more efficient.
+    const { data: userData, error: userError } = await supabaseClient
+      .auth
+      .admin
+      .getUserByEmail(email);
+
+    // FIX: If userError (e.g., "User not found"), we DON'T return an error.
+    // We send the success response to prevent email enumeration.
+    if (userError) {
+      console.warn(`Password reset attempt for non-existent email: ${email}`);
+      return sendSuccessResponse();
     }
+    
+    const user = userData.user;
 
     const { data: tokenData, error: tokenError } = await supabaseClient
       .rpc('generate_verification_token');
@@ -88,19 +118,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const resetUrl = `${Deno.env.get('SITE_URL') || 'https://tone2vibe.in'}/reset-password?token=${resetToken}`;
-
-    const brevoApiKey = Deno.env.get('BREVO_API_KEY');
-    if (!brevoApiKey) {
-      console.error('BREVO_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ error: 'Email service not configured' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
+    // FIX: Use the siteUrl variable checked at the start.
+    // No more hardcoded fallback.
+    const resetUrl = `${siteUrl}/reset-password?token=${resetToken}`;
 
     const { data: profileData } = await supabaseClient
       .from('profiles')
@@ -127,6 +147,7 @@ Deno.serve(async (req: Request) => {
           name: fullName,
         }],
         subject: 'Reset Your Password - Tone2Vibe',
+        // FIX: See HTML content below for template fixes
         htmlContent: `
           <!DOCTYPE html>
 <html lang="en">
@@ -135,34 +156,28 @@ Deno.serve(async (req: Request) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>Reset Your Password - Tone2Vibe</title>
-  <!--[if mso]>
-  <style type="text/css">
-    table {border-collapse: collapse;}
-  </style>
-  <![endif]-->
-</head>
+  </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; -webkit-font-smoothing: antialiased; width: 100% !important;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color: #0a0a0a; min-height: 100vh;">
     <tr>
       <td align="center" style="padding: 40px 15px;">
         <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 600px; width: 100%; background-color: #ffffff;">
 
-          <!-- Header -->
-          <tr>
+          <tr class="header-padding">
             <td style="padding: 50px 40px; text-align: center; background-color: #000000; border-bottom: 1px solid #e5e5e5;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
                 <tr>
                   <td align="center" style="vertical-align: middle;">
-                    <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="display: inline-block;">
+                    <table cellpadding="0" cellspacing="0" border="0" role="presentation" class="header-content" style="display: inline-block;">
                       <tr>
-                        <td style="vertical-align: middle; padding-right: 20px;">
+                        <td class="header-icon" style="vertical-align: middle; padding-right: 20px;">
                           <div style="width: 60px; height: 60px; border: 2px solid #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M12 2C9.243 2 7 4.243 7 7v3H6c-1.103 0-2 .897-2 2v8c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-8c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zM9 7c0-1.654 1.346-3 3-3s3 1.346 3 3v3H9V7z" fill="#ffffff"/>
                             </svg>
                           </div>
                         </td>
-                        <td style="vertical-align: middle;">
+                        <td class="header-text" style="vertical-align: middle;">
                           <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap;">Password Reset</h1>
                         </td>
                       </tr>
@@ -173,8 +188,7 @@ Deno.serve(async (req: Request) => {
             </td>
           </tr>
 
-          <!-- Content -->
-          <tr>
+          <tr class="content-padding">
             <td style="padding: 50px 40px;">
               <p style="color: #000000; font-size: 18px; line-height: 1.8; margin: 0 0 20px; font-weight: 400;">Hello <strong style="font-weight: 600;">${fullName}</strong>,</p>
 
@@ -182,7 +196,6 @@ Deno.serve(async (req: Request) => {
                 We received a request to reset your password. Click the button below to set a new password for your Tone2Vibe account.
               </p>
 
-              <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
                 <tr>
                   <td align="center" style="padding: 0 0 40px;">
@@ -191,11 +204,9 @@ Deno.serve(async (req: Request) => {
                 </tr>
               </table>
 
-              <!-- Divider -->
               <div style="height: 1px; background-color: #e5e5e5; margin: 35px 0;"></div>
 
-              <!-- Security Info -->
-              <div style="background-color: #fafafa; padding: 25px; border: 1px solid #e5e5e5;">
+              <div style="background-color: #fafafa; padding: 25px; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden;">
                 <p style="color: #000000; font-size: 14px; line-height: 1.8; margin: 0 0 12px; font-weight: 600;">
                   Security Information
                 </p>
@@ -209,8 +220,7 @@ Deno.serve(async (req: Request) => {
             </td>
           </tr>
 
-          <!-- Footer -->
-          <tr>
+          <tr class="footer-padding">
             <td style="background-color: #000000; padding: 35px 40px; border-top: 1px solid #e5e5e5;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
                 <tr>
@@ -227,7 +237,6 @@ Deno.serve(async (req: Request) => {
 
         </table>
 
-        <!-- Legal Text -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 600px; width: 100%; margin-top: 25px;">
           <tr>
             <td align="center" style="padding: 0 15px;">
@@ -242,16 +251,17 @@ Deno.serve(async (req: Request) => {
     </tr>
   </table>
 
-  <!-- Mobile Responsive Styles -->
   <style type="text/css">
     @media only screen and (max-width: 600px) {
       .header-content {
         display: block !important;
+        width: 100% !important;
       }
       .header-icon {
         display: block !important;
         margin: 0 auto 15px !important;
         padding-right: 0 !important;
+        text-align: center !important;
       }
       .header-text {
         display: block !important;
@@ -262,12 +272,15 @@ Deno.serve(async (req: Request) => {
         white-space: normal !important;
       }
       .content-padding {
+        /* Use the class selector for padding */
+      }
+      td[class="content-padding"] {
         padding: 30px 25px !important;
       }
-      .header-padding {
+      td[class="header-padding"] {
         padding: 35px 25px !important;
       }
-      .footer-padding {
+      td[class="footer-padding"] {
         padding: 25px 25px !important;
       }
     }
@@ -290,21 +303,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'If an account exists with this email, a password reset link has been sent.' 
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    // FIX: Use the consistent success response
+    return sendSuccessResponse();
 
   } catch (error) {
     console.error('Error in send-password-reset:', error);
+    // FIX: Don't leak internal error messages like "SITE_URL not set" to the user
+    // Only log them to the console.
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ error: 'An internal server error occurred' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
