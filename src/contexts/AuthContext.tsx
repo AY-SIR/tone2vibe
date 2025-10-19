@@ -78,7 +78,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   const createDefaultProfile = useCallback(async (user: User) => {
     try {
-      // Optionally, you can detect real country via IP/API
       const defaultCountry = "India";
 
       const defaultProfile = {
@@ -117,7 +116,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
-      // Ensure country is always set
       return { ...data, country: data.country || defaultCountry };
     } catch (err) {
       console.error("Exception creating default profile:", err);
@@ -251,6 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         password,
         options: {
+          emailRedirectTo: options?.emailRedirectTo, // ✅ FIXED: Now passing emailRedirectTo
           data: { full_name: options?.fullName || "" }
         },
       });
@@ -260,21 +259,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data?.user) {
-        try {
-          const { error: emailError } = await supabase.functions.invoke('send-email-confirmation', {
-            body: {
-              email: data.user.email,
-              userId: data.user.id,
-              fullName: options?.fullName || data.user.email?.split('@')[0] || 'User',
-            },
-          });
-
-          if (emailError) {
-            console.error('Failed to send confirmation email:', emailError);
-          }
-        } catch (emailErr) {
-          console.error('Exception sending confirmation email:', emailErr);
-        }
+        // Send confirmation email asynchronously without blocking signup
+        supabase.functions.invoke('send-email-confirmation', {
+          body: {
+            email: data.user.email,
+            userId: data.user.id,
+            fullName: options?.fullName || data.user.email?.split('@')[0] || 'User',
+          },
+        }).catch(err => {
+          console.error('Failed to send confirmation email:', err);
+          // Email failure shouldn't break signup flow
+        });
       }
 
       return { data, error };
