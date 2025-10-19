@@ -40,7 +40,9 @@ Deno.serve(async (req: Request) => {
     );
     
     // FIX: Get critical env variables ONCE.
-    const siteUrl = Deno.env.get('SITE_URL');
+    // Use SITE_URL if set, otherwise fallback to current request host
+const requestUrl = new URL(req.url);
+const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUrl.host}`;
     const brevoApiKey = Deno.env.get('BREVO_API_KEY');
 
     // FIX: If these are not set, the function cannot work.
