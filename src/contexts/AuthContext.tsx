@@ -73,9 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const shouldShowPopup = expiryData.show_popup;
 
-  // -----------------------
   // Load or create user profile
-  // -----------------------
   const loadUserProfile = useCallback(async (user: User) => {
     try {
       const { data, error } = await supabase
@@ -91,7 +89,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setLocationData({ country: data.country || "India", currency: "INR" });
       } else if (error?.code === "PGRST116") {
-        // profile not found, Edge Function handles default creation
         setProfile(null);
         setLocationData({ country: "India", currency: "INR" });
       }
@@ -100,9 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // -----------------------
   // Session handling
-  // -----------------------
   useEffect(() => {
     let mounted = true;
 
@@ -131,9 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [loadUserProfile]);
 
-  // -----------------------
   // Realtime profile updates
-  // -----------------------
   useEffect(() => {
     if (profileChannelRef.current) profileChannelRef.current.unsubscribe();
     if (user?.id) {
@@ -153,15 +146,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => profileChannelRef.current?.unsubscribe();
   }, [user?.id]);
 
-  // -----------------------
   // Auth actions
-  // -----------------------
   const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
-      const { data, error } = await supabase.functions.invoke("send-email-confirmation", { body: { email, password, fullName: options?.fullName } });
-      if (error) throw error;
+      // FIXED: Changed from "send-email-confirmation" to "signup"
+      const { data, error } = await supabase.functions.invoke("signup", {
+        body: {
+          email,
+          password,
+          fullName: options?.fullName
+        }
+      });
+
+      if (error) {
+        console.error("Signup invoke error:", error);
+        throw error;
+      }
+
       const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-      if (parsedData?.error) return { data: null, error: new Error(parsedData.error) };
+
+      if (parsedData?.error) {
+        return { data: null, error: new Error(parsedData.error) };
+      }
+
       return { data: parsedData, error: null };
     } catch (err) {
       console.error("Signup failed:", err);
@@ -186,7 +193,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin + "/tool", queryParams: { access_type: "offline", prompt: "consent" } },
+        options: {
+          redirectTo: window.location.origin + "/tool",
+          queryParams: { access_type: "offline", prompt: "consent" }
+        },
       });
     } catch (err) {
       console.error("Google sign in failed:", err);
@@ -196,7 +206,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      setUser(null); setSession(null); setProfile(null); setLocationData(null);
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setLocationData(null);
       return { error };
     } catch (err) {
       console.error("SignOut error:", err);
@@ -204,26 +217,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const refreshProfile = useCallback(async () => { if (user) await loadUserProfile(user); }, [user, loadUserProfile]);
+  const refreshProfile = useCallback(async () => {
+    if (user) await loadUserProfile(user);
+  }, [user, loadUserProfile]);
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
     try {
-      if (data.words_used !== undefined && profile) data.word_balance = Math.max(0, profile.words_limit - data.words_used);
+      if (data.words_used !== undefined && profile) {
+        data.word_balance = Math.max(0, profile.words_limit - data.words_used);
+      }
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
       if (error) console.error("Profile update error:", error);
-    } catch (err) { console.error("Profile update exception:", err); }
+    } catch (err) {
+      console.error("Profile update exception:", err);
+    }
   };
 
-  const value: AuthContextType = { user, session, profile, loading: loading || !authInitialized, locationData, planExpiryActive: shouldShowPopup, signUp, signIn, signInWithGoogle, signOut, refreshProfile, updateProfile };
+  const value: AuthContextType = {
+    user,
+    session,
+    profile,
+    loading: loading || !authInitialized,
+    locationData,
+    planExpiryActive: shouldShowPopup,
+    signUp,
+    signIn,
+    signInWithGoogle,
+    signOut,
+    refreshProfile,
+    updateProfile
+  };
+
   const isReady = authInitialized && !loading && (!user || (user && profile !== null));
 
   return (
     <AuthContext.Provider value={value}>
-      {!isReady ? <LoadingScreen /> : <>
-        {children}
-        <PlanExpiryPopup isOpen={shouldShowPopup} onClose={dismissPopup} daysUntilExpiry={expiryData.days_until_expiry || 0} plan={expiryData.plan || ""} expiresAt={expiryData.expires_at || ""} isExpired={expiryData.is_expired || false} />
-      </>}
+      {!isReady ? (
+        <LoadingScreen />
+      ) : (
+        <>
+          {children}
+          <PlanExpiryPopup
+            isOpen={shouldShowPopup}
+            onClose={dismissPopup}
+            daysUntilExpiry={expiryData.days_until_expiry || 0}
+            plan={expiryData.plan || ""}
+            expiresAt={expiryData.expires_at || ""}
+            isExpired={expiryData.is_expired || false}
+          />
+        </>
+      )}
     </AuthContext.Provider>
   );
 };

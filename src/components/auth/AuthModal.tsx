@@ -343,7 +343,26 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             {/* CHOICE VIEW */}
             {currentView === 'choice' && (
               <div className="space-y-4 pt-4">
-                <Button
+               <Button
+                  variant="outline"
+                  className="w-full h-12 flex items-center justify-center gap-3 text-base font-medium hover:bg-accent"
+                  onClick={() => setCurrentView('signin')}
+                >
+                  <Mail className="h-5 w-5" />
+                  Continue with Email
+                </Button>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">OR</span>
+                  </div>
+                </div>
+
+
+ <Button
                   variant="outline"
                   className="w-full h-12 flex items-center justify-center gap-3 text-base font-medium hover:bg-accent"
                   onClick={handleGoogleSignIn}
@@ -356,25 +375,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   )}
                   {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
                 </Button>
-
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">OR</span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  className="w-full h-12 flex items-center justify-center gap-3 text-base font-medium hover:bg-accent"
-                  onClick={() => setCurrentView('signin')}
-                >
-                  <Mail className="h-5 w-5" />
-                  Continue with Email
-                </Button>
-
                 <div className="text-center pt-4">
                   <p className="text-sm text-muted-foreground">
                     Don't have an account?{' '}

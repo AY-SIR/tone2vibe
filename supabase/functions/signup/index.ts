@@ -1,27 +1,40 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
-import { v4 as uuidv4 } from "https://deno.land/std/uuid/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Max-Age': '86400',
 };
 
 Deno.serve(async (req) => {
+  console.log('=== REQUEST START ===');
+  console.log('Method:', req.method);
+  console.log('Headers:', Object.fromEntries(req.headers.entries()));
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      status: 200,
+    console.log('Handling OPTIONS preflight');
+    return new Response(null, {
+      status: 204,
       headers: corsHeaders
     });
   }
 
   try {
+    // Check environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const brevoApiKey = Deno.env.get('BREVO_API_KEY');
+
+    console.log('Environment check:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      hasBrevo: !!brevoApiKey
+    });
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing env vars');
+      console.error('Missing environment variables');
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
         {
@@ -45,9 +58,19 @@ Deno.serve(async (req) => {
       email = body.email;
       password = body.password;
       fullName = body.fullName;
+
+      console.log('Parsed body:', {
+        email,
+        password: password ? '***' : undefined,
+        fullName
+      });
     } catch (e) {
+      console.error('JSON parse error:', e);
       return new Response(
-        JSON.stringify({ error: 'Invalid request body' }),
+        JSON.stringify({
+          error: 'Invalid request body',
+          details: e.message
+        }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -56,8 +79,15 @@ Deno.serve(async (req) => {
     }
 
     if (!email || !password) {
+      console.error('Missing required fields:', {
+        hasEmail: !!email,
+        hasPassword: !!password
+      });
       return new Response(
-        JSON.stringify({ error: 'Email and password are required' }),
+        JSON.stringify({
+          error: 'Email and password are required',
+          received: { email: !!email, password: !!password, fullName: !!fullName }
+        }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -66,14 +96,19 @@ Deno.serve(async (req) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    console.log('Normalized email:', normalizedEmail);
 
-    // Check if user exists using listUsers
+    // Check if user exists
+    console.log('Checking for existing users...');
     const { data: usersData, error: listError } = await supabaseClient.auth.admin.listUsers();
 
     if (listError) {
       console.error('List users error:', listError);
       return new Response(
-        JSON.stringify({ error: 'Failed to verify user status' }),
+        JSON.stringify({
+          error: 'Failed to verify user status',
+          details: listError.message
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -86,6 +121,7 @@ Deno.serve(async (req) => {
     );
 
     if (existingUser) {
+      console.log('User already exists:', normalizedEmail);
       return new Response(
         JSON.stringify({ error: 'User already exists' }),
         {
@@ -96,6 +132,7 @@ Deno.serve(async (req) => {
     }
 
     // Create user
+    console.log('Creating new user...');
     const { data: userData, error: createError } = await supabaseClient.auth.admin.createUser({
       email: normalizedEmail,
       password,
@@ -109,7 +146,8 @@ Deno.serve(async (req) => {
       console.error('Create user error:', createError);
       return new Response(
         JSON.stringify({
-          error: createError?.message || 'Failed to create user'
+          error: 'Failed to create user',
+          details: createError?.message
         }),
         {
           status: 400,
@@ -119,12 +157,15 @@ Deno.serve(async (req) => {
     }
 
     const userId = userData.user.id;
+    console.log('User created successfully:', userId);
 
     // Generate verification token
-    const verificationToken = uuidv4.generate();
+    const verificationToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    console.log('Generated token:', verificationToken);
 
     // Store token
+    console.log('Storing verification token...');
     const { error: insertError } = await supabaseClient
       .from('email_verification_tokens')
       .insert({
@@ -138,11 +179,15 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error('Token insert error:', insertError);
 
-      // Try to delete the created user to avoid orphaned accounts
+      // Try to delete the created user
       await supabaseClient.auth.admin.deleteUser(userId);
+      console.log('Rolled back user creation');
 
       return new Response(
-        JSON.stringify({ error: 'Failed to create verification token' }),
+        JSON.stringify({
+          error: 'Failed to create verification token',
+          details: insertError.message
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -150,8 +195,9 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log('Token stored successfully');
+
     // Send email via Brevo
-    const brevoApiKey = Deno.env.get('BREVO_API_KEY');
     if (!brevoApiKey) {
       console.error('BREVO_API_KEY not configured');
       return new Response(
@@ -166,6 +212,9 @@ Deno.serve(async (req) => {
     const origin = req.headers.get('origin') || 'https://tone2vibe.in';
     const confirmationUrl = `${origin}/email-confirmation?token=${verificationToken}`;
     const displayName = fullName || email.split('@')[0];
+
+    console.log('Sending confirmation email...');
+    console.log('Confirmation URL:', confirmationUrl);
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -232,12 +281,14 @@ Deno.serve(async (req) => {
         console.error('Brevo API error:', errText);
         throw new Error('Failed to send email');
       }
+
+      console.log('Email sent successfully');
     } catch (emailError) {
       console.error('Email send error:', emailError);
       // Don't fail the signup, just log the error
-      // User can request a new confirmation email later
     }
 
+    console.log('=== SUCCESS ===');
     return new Response(
       JSON.stringify({
         success: true,
@@ -251,10 +302,14 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
+    console.error('=== ERROR ===');
     console.error('Edge Function error:', err);
+    console.error('Stack:', err.stack);
+
     return new Response(
       JSON.stringify({
-        error: err instanceof Error ? err.message : 'Internal server error'
+        error: err instanceof Error ? err.message : 'Internal server error',
+        type: err.constructor.name
       }),
       {
         status: 500,
