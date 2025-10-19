@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function EmailConfirmation() {
   const [searchParams] = useSearchParams();
@@ -17,7 +17,7 @@ export function EmailConfirmation() {
 
       if (!token) {
         setStatus('error');
-        setMessage('Invalid confirmation link');
+        setMessage('Invalid confirmation link. No token provided.');
         return;
       }
 
@@ -26,25 +26,35 @@ export function EmailConfirmation() {
           body: { token }
         });
 
-        if (error || !data?.success) {
+        if (error) {
+          console.error('Confirmation error:', error);
           setStatus('error');
-          setMessage(data?.error || error?.message || 'Failed to confirm email');
+          setMessage(error.message || 'Failed to confirm email. Please try again.');
           return;
         }
 
-        setStatus('success');
-        setMessage('Email confirmed successfully! You can now sign in.');
-        toast.success('Email confirmed! You can now sign in.');
+        const result = typeof data === 'string' ? JSON.parse(data) : data;
 
-        // Redirect to home with auth modal open
-        setTimeout(() => {
-          navigate('/?auth=open', { replace: true });
-        }, 3000);
+        if (result?.error) {
+          setStatus('error');
+          setMessage(result.error);
+          return;
+        }
 
-      } catch (error) {
-        console.error('Email confirmation error:', error);
+        if (result?.success) {
+          setStatus('success');
+          setMessage(result.message || 'Email confirmed successfully!');
+          toast.success('Email confirmed! You can now sign in.');
+
+          // Redirect to sign in after 2 seconds
+          setTimeout(() => {
+            navigate('/?auth=open', { replace: true });
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('Confirmation exception:', err);
         setStatus('error');
-        setMessage('An error occurred. Please try again.');
+        setMessage('An unexpected error occurred. Please try again.');
       }
     };
 
@@ -52,35 +62,49 @@ export function EmailConfirmation() {
   }, [searchParams, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 p-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
         {status === 'loading' && (
           <>
-            <Loader2 className="h-16 w-16 animate-spin mx-auto text-purple-600 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Confirming Your Email</h2>
-            <p className="text-gray-600">Please wait...</p>
+            <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2">Confirming Your Email</h1>
+            <p className="text-muted-foreground">Please wait while we verify your email address...</p>
           </>
         )}
 
         {status === 'success' && (
           <>
-            <CheckCircle className="h-16 w-16 mx-auto text-green-600 mb-4" />
-            <h2 className="text-2xl font-bold mb-2 text-green-600">Email Confirmed!</h2>
-            <p className="text-gray-600 mb-6">{message}</p>
-            <Button onClick={() => navigate('/?auth=open')} className="w-full">
-              Go to Sign In
-            </Button>
+            <div className="h-16 w-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="h-10 w-10 text-green-600 dark:text-green-400" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2 text-green-600 dark:text-green-400">Email Confirmed!</h1>
+            <p className="text-muted-foreground mb-6">{message}</p>
+            <p className="text-sm text-muted-foreground">Redirecting you to sign in...</p>
           </>
         )}
 
         {status === 'error' && (
           <>
-            <XCircle className="h-16 w-16 mx-auto text-red-600 mb-4" />
-            <h2 className="text-2xl font-bold mb-2 text-red-600">Confirmation Failed</h2>
-            <p className="text-gray-600 mb-6">{message}</p>
-            <Button onClick={() => navigate('/')} variant="outline" className="w-full">
-              Back to Home
-            </Button>
+            <div className="h-16 w-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <XCircle className="h-10 w-10 text-red-600 dark:text-red-400" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2 text-red-600 dark:text-red-400">Confirmation Failed</h1>
+            <p className="text-muted-foreground mb-6">{message}</p>
+            <div className="space-y-3">
+              <Button
+                onClick={() => navigate('/?auth=open', { replace: true })}
+                className="w-full"
+              >
+                Go to Sign In
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/', { replace: true })}
+                className="w-full"
+              >
+                Go to Home
+              </Button>
+            </div>
           </>
         )}
       </div>

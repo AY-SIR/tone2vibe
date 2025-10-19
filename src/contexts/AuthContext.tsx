@@ -74,134 +74,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const shouldShowPopup = expiryData.show_popup;
 
   // -----------------------
-  // Create default profile
+  // Load or create user profile
   // -----------------------
-  const createDefaultProfile = useCallback(async (user: User) => {
+  const loadUserProfile = useCallback(async (user: User) => {
     try {
-      const defaultCountry = "India";
-
-      const defaultProfile = {
-        user_id: user.id,
-        full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
-        avatar_url: user.user_metadata?.avatar_url || "",
-        plan: "free",
-        words_limit: 1000,
-        words_used: 0,
-        plan_words_used: 0,
-        word_balance: 0,
-        total_words_used: 0,
-        upload_limit_mb: 10,
-        plan_expires_at: null,
-        last_login_at: new Date().toISOString(),
-        ip_address: null,
-        country: defaultCountry,
-        email: user.email!,
-        company: "",
-        preferred_language: "en",
-        created_at: new Date().toISOString(),
-        last_word_purchase_at: "",
-        login_count: 1,
-        plan_start_date: new Date().toISOString(),
-        plan_end_date: null,
-      };
-
       const { data, error } = await supabase
         .from("profiles")
-        .insert([defaultProfile])
-        .select()
+        .select("*")
+        .eq("user_id", user.id)
         .single();
 
-      if (error) {
-        console.error("Failed to create default profile:", error);
-        return null;
+      if (data) {
+        setProfile({
+          ...data,
+          word_balance: data.word_balance ?? Math.max(0, data.words_limit - data.words_used),
+        });
+        setLocationData({ country: data.country || "India", currency: "INR" });
+      } else if (error?.code === "PGRST116") {
+        // profile not found, Edge Function handles default creation
+        setProfile(null);
+        setLocationData({ country: "India", currency: "INR" });
       }
-
-      return { ...data, country: data.country || defaultCountry };
     } catch (err) {
-      console.error("Exception creating default profile:", err);
-      return null;
+      console.error("Error loading profile:", err);
     }
   }, []);
 
   // -----------------------
-  // Load user profile
-  // -----------------------
-  const loadUserProfile = useCallback(
-    async (user: User) => {
-      if (!user.id) return;
-
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
-
-        if (data) {
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({
-              login_count: (data.login_count || 0) + 1,
-              last_login_at: new Date().toISOString()
-            })
-            .eq("user_id", user.id);
-
-          if (updateError) console.error("Failed to increment login_count:", updateError);
-
-          const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
-          setProfile({
-            ...data,
-            word_balance: data.word_balance ?? calculatedWordBalance,
-            country: data.country || "India"
-          } as Profile);
-
-          if (data.country) {
-            setLocationData({ country: data.country, currency: "INR" });
-          }
-          return;
-        }
-
-        if (error?.code === "PGRST116" && user.email) {
-          const newProfile = await createDefaultProfile(user);
-          if (newProfile) {
-            setProfile({ ...newProfile } as Profile);
-            setLocationData({ country: newProfile.country, currency: "INR" });
-          }
-        }
-      } catch (err) {
-        console.error("Error loading profile:", err);
-      }
-    },
-    [createDefaultProfile]
-  );
-
-  // -----------------------
-  // Handle session initialization and changes
+  // Session handling
   // -----------------------
   useEffect(() => {
     let mounted = true;
 
     const handleSession = async (currentSession: Session | null) => {
       if (!mounted) return;
-
       const currentUser = currentSession?.user ?? null;
       setSession(currentSession);
       setUser(currentUser);
-
-      if (currentUser) {
-        await loadUserProfile(currentUser);
-      } else {
-        setProfile(null);
-        setLocationData(null);
-      }
+      if (currentUser) await loadUserProfile(currentUser);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session).finally(() => {
-        if (mounted) {
-          setLoading(false);
-          setAuthInitialized(true);
-        }
+        if (mounted) setLoading(false);
+        setAuthInitialized(true);
       });
     });
 
@@ -220,34 +136,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   useEffect(() => {
     if (profileChannelRef.current) profileChannelRef.current.unsubscribe();
-
     if (user?.id) {
       const channel = supabase
         .channel(`profile-updates-${user.id}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "profiles",
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            const newProfile = payload.new as Profile;
-            const calculatedWordBalance = Math.max(0, newProfile.words_limit - newProfile.words_used);
-            setProfile(prevProfile => ({
-              ...prevProfile,
-              ...newProfile,
-              word_balance: newProfile.word_balance ?? calculatedWordBalance,
-              country: newProfile.country || "India",
-            }));
-          }
-        )
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` }, (payload) => {
+          const newProfile = payload.new as Profile;
+          setProfile(prev => ({
+            ...prev,
+            ...newProfile,
+            word_balance: newProfile.word_balance ?? Math.max(0, newProfile.words_limit - newProfile.words_used),
+          }));
+        })
         .subscribe();
-
       profileChannelRef.current = channel;
     }
-
     return () => profileChannelRef.current?.unsubscribe();
   }, [user?.id]);
 
@@ -256,28 +158,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
-      const { data, error } = await supabase.functions.invoke('send-email-confirmation', {
-        body: { email, password, fullName: options?.fullName },
-      });
-
-      let parsedData: any = data;
-
-      if (typeof data === "string") {
-        try {
-          parsedData = JSON.parse(data);
-        } catch {
-          console.warn("Signup response is not valid JSON, returning raw string");
-        }
-      }
-
-      if (error) {
-        console.error("Signup error:", error);
-        return { data: null, error: new Error(error.message || "Signup failed") };
-      }
-
+      const { data, error } = await supabase.functions.invoke("send-email-confirmation", { body: { email, password, fullName: options?.fullName } });
+      if (error) throw error;
+      const parsedData = typeof data === "string" ? JSON.parse(data) : data;
+      if (parsedData?.error) return { data: null, error: new Error(parsedData.error) };
       return { data: parsedData, error: null };
     } catch (err) {
-      console.error("Signup error:", err);
+      console.error("Signup failed:", err);
       return { data: null, error: err as Error };
     }
   };
@@ -285,14 +172,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
       if (error && error.message.includes("Email not confirmed")) {
-        return {
-          data,
-          error: new Error("Please confirm your email address before signing in. Check your inbox for the confirmation link."),
-        };
+        return { data, error: new Error("Please confirm your email before signing in.") };
       }
-
       return { data, error };
     } catch (err) {
       console.error("SignIn error:", err);
@@ -304,10 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/tool",
-          queryParams: { access_type: "offline", prompt: "consent" },
-        },
+        options: { redirectTo: window.location.origin + "/tool", queryParams: { access_type: "offline", prompt: "consent" } },
       });
     } catch (err) {
       console.error("Google sign in failed:", err);
@@ -317,10 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setLocationData(null);
+      setUser(null); setSession(null); setProfile(null); setLocationData(null);
       return { error };
     } catch (err) {
       console.error("SignOut error:", err);
@@ -328,57 +204,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const refreshProfile = useCallback(async () => {
-    if (user) await loadUserProfile(user);
-  }, [user, loadUserProfile]);
+  const refreshProfile = useCallback(async () => { if (user) await loadUserProfile(user); }, [user, loadUserProfile]);
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
     try {
-      if (data.words_used !== undefined && profile) {
-        data.word_balance = Math.max(0, profile.words_limit - data.words_used);
-      }
+      if (data.words_used !== undefined && profile) data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
       if (error) console.error("Profile update error:", error);
-    } catch (err) {
-      console.error("Profile update exception:", err);
-    }
+    } catch (err) { console.error("Profile update exception:", err); }
   };
 
-  const value: AuthContextType = {
-    user,
-    session,
-    profile,
-    loading: loading || !authInitialized,
-    locationData,
-    planExpiryActive: shouldShowPopup,
-    signUp,
-    signIn,
-    signInWithGoogle,
-    signOut,
-    refreshProfile,
-    updateProfile,
-  };
-
+  const value: AuthContextType = { user, session, profile, loading: loading || !authInitialized, locationData, planExpiryActive: shouldShowPopup, signUp, signIn, signInWithGoogle, signOut, refreshProfile, updateProfile };
   const isReady = authInitialized && !loading && (!user || (user && profile !== null));
 
   return (
     <AuthContext.Provider value={value}>
-      {!isReady ? (
-        <LoadingScreen />
-      ) : (
-        <>
-          {children}
-          <PlanExpiryPopup
-            isOpen={shouldShowPopup}
-            onClose={dismissPopup}
-            daysUntilExpiry={expiryData.days_until_expiry || 0}
-            plan={expiryData.plan || ""}
-            expiresAt={expiryData.expires_at || ""}
-            isExpired={expiryData.is_expired || false}
-          />
-        </>
-      )}
+      {!isReady ? <LoadingScreen /> : <>
+        {children}
+        <PlanExpiryPopup isOpen={shouldShowPopup} onClose={dismissPopup} daysUntilExpiry={expiryData.days_until_expiry || 0} plan={expiryData.plan || ""} expiresAt={expiryData.expires_at || ""} isExpired={expiryData.is_expired || false} />
+      </>}
     </AuthContext.Provider>
   );
 };

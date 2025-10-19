@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 interface ConfirmEmailRequest {
@@ -11,23 +11,58 @@ interface ConfirmEmailRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response('ok', {
+      status: 200,
+      headers: corsHeaders
+    });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    const { token } = await req.json() as ConfirmEmailRequest;
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // Parse request
+    let token: string;
+    try {
+      const body = await req.json() as ConfirmEmailRequest;
+      token = body.token;
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     if (!token) {
-      return new Response(JSON.stringify({ error: 'Token is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Token is required' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // Verify token
@@ -35,10 +70,22 @@ Deno.serve(async (req: Request) => {
       .from('email_verification_tokens')
       .select('*')
       .eq('token', token)
+      .eq('token_type', 'email_confirmation')
       .is('used_at', null)
-      .single();
+      .maybeSingle();
 
-    if (tokenError || !tokenData) {
+    if (tokenError) {
+      console.error('Token query error:', tokenError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to verify token' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!tokenData) {
       return new Response(
         JSON.stringify({ error: 'Invalid or expired confirmation link' }),
         {
@@ -77,19 +124,33 @@ Deno.serve(async (req: Request) => {
     }
 
     // Mark token as used
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('email_verification_tokens')
       .update({ used_at: new Date().toISOString() })
       .eq('token', token);
 
+    if (updateError) {
+      console.error('Token update error:', updateError);
+      // Don't fail the confirmation, just log the error
+    }
+
     return new Response(
-      JSON.stringify({ success: true, message: 'Email confirmed successfully!' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: true,
+        message: 'Email confirmed successfully! You can now sign in.'
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
     );
+
   } catch (err) {
     console.error('Edge Function error:', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Internal server error' }),
+      JSON.stringify({
+        error: err instanceof Error ? err.message : 'Internal server error'
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
