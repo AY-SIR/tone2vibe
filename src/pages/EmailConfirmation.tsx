@@ -22,45 +22,15 @@ export function EmailConfirmation() {
       }
 
       try {
-        // Verify token
-        const { data: tokenData, error: tokenError } = await supabase
-          .from('email_verification_tokens')
-          .select('*')
-          .eq('token', token)
-          .is('used_at', null)
-          .single();
+        const { data, error } = await supabase.functions.invoke('confirm-email', {
+          body: { token }
+        });
 
-        if (tokenError || !tokenData) {
+        if (error || !data?.success) {
           setStatus('error');
-          setMessage('Invalid or expired confirmation link');
+          setMessage(data?.error || error?.message || 'Failed to confirm email');
           return;
         }
-
-        // Check if token is expired
-        if (new Date(tokenData.expires_at) < new Date()) {
-          setStatus('error');
-          setMessage('Confirmation link has expired');
-          return;
-        }
-
-        // Confirm user email using admin API
-        const { error: confirmError } = await supabase.auth.admin.updateUserById(
-          tokenData.user_id,
-          { email_confirm: true }
-        );
-
-        if (confirmError) {
-          console.error('Confirmation error:', confirmError);
-          setStatus('error');
-          setMessage('Failed to confirm email. Please try again.');
-          return;
-        }
-
-        // Mark token as used
-        await supabase
-          .from('email_verification_tokens')
-          .update({ used_at: new Date().toISOString() })
-          .eq('token', token);
 
         setStatus('success');
         setMessage('Email confirmed successfully! You can now sign in.');

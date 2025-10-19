@@ -257,16 +257,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
-      const response = await fetch('/api/send-email-confirmation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName: options?.fullName }),
+      const { data, error } = await supabase.functions.invoke('send-email-confirmation', {
+        body: {
+          email,
+          password,
+          fullName: options?.fullName
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { data: null, error: new Error(data.error || 'Signup failed') };
+      if (error) {
+        console.error('Signup error:', error);
+        return { data: null, error: new Error(error.message || 'Signup failed') };
       }
 
       return { data, error: null };

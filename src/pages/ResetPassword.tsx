@@ -95,21 +95,17 @@ export function ResetPassword() {
     try {
       const token = searchParams.get('token');
 
-      // Update user password
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        userId,
-        { password: newPassword }
-      );
+      const { data, error } = await supabase.functions.invoke('update-password', {
+        body: {
+          token,
+          newPassword
+        }
+      });
 
-      if (updateError) {
-        throw updateError;
+      if (error || !data?.success) {
+        toast.error(data?.error || error?.message || 'Failed to reset password. Please try again.');
+        return;
       }
-
-      // Mark token as used
-      await supabase
-        .from('password_reset_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('token', token);
 
       toast.success('Password reset successfully! You can now sign in.');
       navigate('/?auth=open');

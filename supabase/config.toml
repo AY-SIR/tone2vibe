@@ -27,4 +27,16 @@ verify_jwt = true
 [functions.improve-grammar]
 verify_jwt = true
 
+[functions.send-email-confirmation]
+verify_jwt = false
+
+[functions.send-password-reset]
+verify_jwt = false
+
+[functions.confirm-email]
+verify_jwt = false
+
+[functions.update-password]
+verify_jwt = false
+
 
