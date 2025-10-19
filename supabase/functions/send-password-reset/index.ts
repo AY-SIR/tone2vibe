@@ -10,8 +10,7 @@ interface PasswordResetRequest {
   email: string;
 }
 
-// FIX: Helper function for consistent success response
-// This prevents attackers from knowing if an email exists in your system.
+// Helper function for consistent success response
 const sendSuccessResponse = () => {
   return new Response(
     JSON.stringify({
@@ -38,24 +37,16 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
-    
-    // FIX: Get critical env variables ONCE.
-    // Use SITE_URL if set, otherwise fallback to current request host
-const requestUrl = new URL(req.url);
-const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUrl.host}`;
+
+    // Get critical env variables
+    const requestUrl = new URL(req.url);
+    const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUrl.host}`;
     const brevoApiKey = Deno.env.get('BREVO_API_KEY');
 
-    // FIX: If these are not set, the function cannot work.
-    // This is better than failing later.
-    if (!siteUrl) {
-      console.error('SITE_URL environment variable is not set.');
-      throw new Error('Server configuration error: SITE_URL not set.');
-    }
     if (!brevoApiKey) {
       console.error('BREVO_API_KEY environment variable is not set.');
       throw new Error('Server configuration error: BREVO_API_KEY not set.');
     }
-
 
     const { email } = await req.json() as PasswordResetRequest;
 
@@ -69,21 +60,24 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
       );
     }
 
-    // FIX: Changed from listUsers() to getUserByEmail()
-    // This is much faster and more efficient.
+    // FIX: My previous suggestion was wrong. `getUserByEmail` is not a function.
+    // The *correct* and *most efficient* way is to query the auth.users table directly.
+    // This is secure because you are using your SERVICE_ROLE_KEY.
     const { data: userData, error: userError } = await supabaseClient
-      .auth
-      .admin
-      .getUserByEmail(email);
+      .from('auth.users') // Query the auth schema's user table
+      .select('id')       // We just need the user's ID
+      .eq('email', email) // Find the user by their email
+      .single();          // Expect only one or zero results
 
-    // FIX: If userError (e.g., "User not found"), we DON'T return an error.
+    // FIX: If userError (like "PGRST116: No rows found"), we DON'T return an error.
     // We send the success response to prevent email enumeration.
     if (userError) {
       console.warn(`Password reset attempt for non-existent email: ${email}`);
       return sendSuccessResponse();
     }
     
-    const user = userData.user;
+    // We have a user. Reconstruct the simple 'user' object for the next steps.
+    const user = { id: userData.id, email: email };
 
     const { data: tokenData, error: tokenError } = await supabaseClient
       .rpc('generate_verification_token');
@@ -120,8 +114,6 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
       );
     }
 
-    // FIX: Use the siteUrl variable checked at the start.
-    // No more hardcoded fallback.
     const resetUrl = `${siteUrl}/reset-password?token=${resetToken}`;
 
     const { data: profileData } = await supabaseClient
@@ -149,7 +141,6 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
           name: fullName,
         }],
         subject: 'Reset Your Password - Tone2Vibe',
-        // FIX: See HTML content below for template fixes
         htmlContent: `
           <!DOCTYPE html>
 <html lang="en">
@@ -173,9 +164,9 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
                     <table cellpadding="0" cellspacing="0" border="0" role="presentation" class="header-content" style="display: inline-block;">
                       <tr>
                         <td class="header-icon" style="vertical-align: middle; padding-right: 20px;">
-                          <div style="width: 60px; height: 60px; border: 2px solid #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+                          <div style="width: 60px; height: 60px; background-color: #ffffff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M12 2C9.243 2 7 4.243 7 7v3H6c-1.103 0-2 .897-2 2v8c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-8c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zM9 7c0-1.654 1.346-3 3-3s3 1.346 3 3v3H9V7z" fill="#ffffff"/>
+                              <path d="M12 2C9.243 2 7 4.243 7 7v3H6c-1.103 0-2 .897-2 2v8c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-8c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zM9 7c0-1.654 1.346-3 3-3s3 1.346 3 3v3H9V7z" fill="#000000"/>
                             </svg>
                           </div>
                         </td>
@@ -271,7 +262,7 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
       }
       h1 {
         font-size: 24px !important;
-        white-space: normal !important;
+        white-space: normal !importa
       }
       .content-padding {
         /* Use the class selector for padding */
@@ -305,13 +296,12 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
       );
     }
 
-    // FIX: Use the consistent success response
+    // Use the consistent success response
     return sendSuccessResponse();
 
   } catch (error) {
     console.error('Error in send-password-reset:', error);
-    // FIX: Don't leak internal error messages like "SITE_URL not set" to the user
-    // Only log them to the console.
+    // Don't leak internal error messages to the user
     return new Response(
       JSON.stringify({ error: 'An internal server error occurred' }),
       {
@@ -321,3 +311,4 @@ const siteUrl = Deno.env.get('SITE_URL') ?? `${requestUrl.protocol}//${requestUr
     );
   }
 });
+        
