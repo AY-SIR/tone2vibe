@@ -18,6 +18,7 @@ export function EmailConfirmation() {
       if (!token) {
         setStatus('error');
         setMessage('Invalid confirmation link. No token provided.');
+        toast.error('Invalid or missing confirmation link.');
         return;
       }
 
@@ -30,14 +31,25 @@ export function EmailConfirmation() {
           console.error('Confirmation error:', error);
           setStatus('error');
           setMessage(error.message || 'Failed to confirm email. Please try again.');
+          toast.error(error.message || 'Failed to confirm email. Please try again.');
           return;
         }
 
-        const result = typeof data === 'string' ? JSON.parse(data) : data;
+        let result: any;
+        try {
+          result = typeof data === 'string' ? JSON.parse(data) : data;
+        } catch (parseErr) {
+          console.error('Failed to parse confirm-email response:', parseErr);
+          setStatus('error');
+          setMessage('Invalid server response. Please try again later.');
+          toast.error('Something went wrong. Please try again later.');
+          return;
+        }
 
         if (result?.error) {
           setStatus('error');
           setMessage(result.error);
+          toast.error(result.error);
           return;
         }
 
@@ -46,15 +58,23 @@ export function EmailConfirmation() {
           setMessage(result.message || 'Email confirmed successfully!');
           toast.success('Email confirmed! You can now sign in.');
 
-          // Redirect to sign in after 2 seconds
+          // Redirect to sign-in after 2 seconds
           setTimeout(() => {
-            navigate('/?auth=open', { replace: true });
+            navigate('/?auth=open&view=signin', { replace: true });
           }, 2000);
+          return;
         }
+
+        // Unexpected case: no success or error
+        setStatus('error');
+        setMessage('Unexpected response from server.');
+        toast.error('Something went wrong. Please try again.');
+
       } catch (err) {
         console.error('Confirmation exception:', err);
         setStatus('error');
         setMessage('An unexpected error occurred. Please try again.');
+        toast.error('An unexpected error occurred. Please try again.');
       }
     };
 
@@ -92,7 +112,7 @@ export function EmailConfirmation() {
             <p className="text-muted-foreground mb-6">{message}</p>
             <div className="space-y-3">
               <Button
-                onClick={() => navigate('/?auth=open', { replace: true })}
+                onClick={() => navigate('/?auth=open&view=signin', { replace: true })}
                 className="w-full"
               >
                 Go to Sign In
