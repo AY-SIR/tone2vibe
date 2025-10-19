@@ -86,7 +86,7 @@ Deno.serve(async (req: Request) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Tone2Vibe', email: 'noreply@tone2vibe.in' },
+        sender: { name: 'Tone2Vibe', email: 'yadavakhilesh2519@gmail.com' },
         to: [{ email, name: displayName }],
         subject: 'Confirm Your Email - Tone2Vibe',
         htmlContent: `<p>Hi ${displayName}, verify your email: <a href="${confirmationUrl}">Click Here</a></p>`,
