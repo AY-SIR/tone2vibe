@@ -225,16 +225,20 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setIsResetLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim().toLowerCase(), {
-        redirectTo: `${window.location.origin}/reset-password`
+      const { error } = await supabase.functions.invoke('send-password-reset', {
+        body: { email: resetEmail.trim().toLowerCase() }
       });
+
       if (error) {
+        console.error('Reset email error:', error);
         toast.error('Failed to send reset email. Please try again.');
         return;
       }
-      toast.success('Password reset email sent! Please check your Email.', { duration: 8000 });
+
+      toast.success('If an account exists with this email, a password reset link has been sent.', { duration: 8000 });
       setCurrentView('auth');
     } catch (err) {
+      console.error('Forgot password exception:', err);
       toast.error('An unexpected error occurred.');
     } finally {
       setIsResetLoading(false);

@@ -250,8 +250,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: options?.emailRedirectTo, data: { full_name: options?.fullName || "" } },
+        options: {
+          data: { full_name: options?.fullName || "" }
+        },
       });
+
+      if (error) {
+        return { data, error };
+      }
+
+      if (data?.user) {
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-email-confirmation', {
+            body: {
+              email: data.user.email,
+              userId: data.user.id,
+              fullName: options?.fullName || data.user.email?.split('@')[0] || 'User',
+            },
+          });
+
+          if (emailError) {
+            console.error('Failed to send confirmation email:', emailError);
+          }
+        } catch (emailErr) {
+          console.error('Exception sending confirmation email:', emailErr);
+        }
+      }
+
       return { data, error };
     } catch (err) {
       console.error("Exception during signUp:", err);

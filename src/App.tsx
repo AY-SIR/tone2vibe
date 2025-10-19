@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -8,8 +8,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
-import  Offline  from "./pages/Offline";
-import { useOfflineDetection } from "./hooks/useOfflineDetection";
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -27,16 +25,12 @@ import EmailConfirmation from "./pages/EmailConfirmation";
 import ResetPassword from "./pages/ResetPassword";
 
 import { WordLimitPopup } from './components/common/WordLimitPopup';
-import { ConnectionStatus } from './components/common/ConnectionStatus';
 import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
 function AppContent() {
   const { planExpiryActive } = useAuth();
-  const { isOffline, isCheckingConnection } = useOfflineDetection();
-  const [wasOffline, setWasOffline] = useState(false);
-
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -45,22 +39,6 @@ function AppContent() {
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, []);
-
- useEffect(() => {
-  if (isOffline) {
-    setWasOffline(true);
-  } else if (wasOffline && !isOffline) {
-
-    setWasOffline(false);
-
-  }
-}, [isOffline, wasOffline]);
-
-
-
-  if (isOffline) {
-    return <Offline />;
-  }
 
   return (
     <>
@@ -89,7 +67,6 @@ function AppContent() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
-      <ConnectionStatus />
       <WordLimitPopup planExpiryActive={planExpiryActive} />
       <Toaster />
       <Sonner />

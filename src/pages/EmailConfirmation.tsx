@@ -1,7 +1,5 @@
-// src/pages/EmailConfirmation.tsx
-"use client";
-import React, { useEffect, useState, useRef } from 'react'; // Corrected import statement
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,11 +9,11 @@ import confetti from 'canvas-confetti';
 
 export default function EmailConfirmation() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Confirming your email, please wait...');
 
-  // Use a ref to prevent multiple confetti fires
   const confettiFired = useRef(false);
 
   const fireConfetti = () => {
@@ -27,43 +25,74 @@ export default function EmailConfirmation() {
   };
 
   useEffect(() => {
-    // Set a timeout to handle cases where the auth state never changes (e.g., invalid link)
-    const timeoutId = setTimeout(() => {
-      if (status === 'loading') {
-        setStatus('error');
-        setMessage('Invalid or expired confirmation link. Please request a new confirmation.');
-      }
-    }, 10000); // 10-second timeout
+    const verifyEmail = async () => {
+      const token = searchParams.get('token');
 
-    // The correct way: listen for the SIGNED_IN event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // This listener runs when Supabase has processed the auth event from the URL
-      if (event === 'SIGNED_IN' && session) {
-        clearTimeout(timeoutId); // We got a sign-in, so clear the error timeout
+      if (!token) {
+        setStatus('error');
+        setMessage('Invalid confirmation link. No token provided.');
+        toast.error('Invalid confirmation link');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('verify_email_token', {
+          p_token: token
+        });
+
+        if (error || !data) {
+          console.error('Token verification error:', error);
+          setStatus('error');
+          setMessage('Invalid or expired confirmation link.');
+          toast.error('Email confirmation failed');
+          return;
+        }
+
+        const result = typeof data === 'string' ? JSON.parse(data) : data;
+
+        if (!result.success) {
+          setStatus('error');
+          setMessage(result.error || 'Invalid or expired confirmation link.');
+          toast.error('Email confirmation failed');
+          return;
+        }
+
+        const { data: { user }, error: updateError } = await supabase.auth.admin.updateUserById(
+          result.user_id,
+          { email_confirmed_at: new Date().toISOString() }
+        );
+
+        if (updateError) {
+          console.error('User update error:', updateError);
+        }
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: result.email,
+          password: ''
+        });
 
         setStatus('success');
-        setMessage('Account verified! Redirecting you to the app...');
+        setMessage('Email confirmed successfully! Redirecting...');
         toast.success('Email Confirmed!', {
           description: 'Your account has been successfully verified.',
         });
 
-        // Fire confetti after a brief delay
         setTimeout(fireConfetti, 200);
 
-        // Redirect after 3 seconds
         setTimeout(() => {
           navigate('/tool', { replace: true });
         }, 3000);
+
+      } catch (err) {
+        console.error('Verification exception:', err);
+        setStatus('error');
+        setMessage('An error occurred during confirmation.');
+        toast.error('Email confirmation failed');
       }
-    });
-
-    // Cleanup function to unsubscribe from the listener when the component unmounts
-    return () => {
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
     };
-  }, [navigate, status]);
 
+    verifyEmail();
+  }, [searchParams, navigate]);
 
   const getIcon = () => {
     switch (status) {

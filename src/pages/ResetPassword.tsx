@@ -1,6 +1,5 @@
-// src/pages/ResetPassword.tsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +10,7 @@ import { toast } from "sonner";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,113 +20,59 @@ export default function ResetPassword() {
   const [isTokenValid, setIsTokenValid] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [resetComplete, setResetComplete] = useState(false);
-  
-  // Store tokens in state (not in session storage)
-  const [accessToken, setAccessToken] = useState('');
-  const [refreshToken, setRefreshToken] = useState('');
+  const [userId, setUserId] = useState('');
+  const [userEmail, setUserEmail] = useState('');
 
-  // ----------------------
-  // Verify reset token - Extract BEFORE Supabase processes it
-  // ----------------------
   useEffect(() => {
-    const verifyResetToken = async () => {
-      try {
-        // CRITICAL: Extract tokens IMMEDIATELY before Supabase processes them
-        const hash = window.location.hash.substring(1);
-        
-        console.log('Hash:', hash);
-        
-        if (!hash) {
-          console.log('No hash found');
-          
-          // Check if we're being redirected from Supabase's auto-handling
-          // In that case, the user might already have a session
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session) {
-            console.log('Found existing session, signing out');
-            await supabase.auth.signOut();
-            toast.error('Please click the reset link from your email again.');
-            setIsTokenValid(false);
-            setIsVerifying(false);
-            return;
-          }
-          
-          toast.error('Invalid or expired reset link.');
-          setIsTokenValid(false);
-          setIsVerifying(false);
-          return;
-        }
+    const verifyToken = async () => {
+      const token = searchParams.get('token');
 
-        const params = new URLSearchParams(hash);
-        
-        const token = params.get('access_token') || '';
-        const refresh = params.get('refresh_token') || '';
-        const type = (params.get('type') || '').toLowerCase();
-
-        console.log('Token info:', { 
-          hasToken: !!token, 
-          hasRefresh: !!refresh, 
-          type 
-        });
-
-        // Validate token presence and type
-        if (!token || !refresh || type !== 'recovery') {
-          toast.error('Invalid or expired reset link.');
-          setIsTokenValid(false);
-          setIsVerifying(false);
-          return;
-        }
-
-        // Store tokens in React state ONLY
-        setAccessToken(token);
-        setRefreshToken(refresh);
-
-        // CRITICAL: Clear the hash IMMEDIATELY to prevent Supabase auto-processing
-        window.history.replaceState(null, '', window.location.pathname);
-        
-        // Also clear any auto-created session
-        await supabase.auth.signOut();
-
-        console.log('Tokens extracted and stored, session cleared');
-        toast.success('Reset link verified! Set your new password.');
-        setIsTokenValid(true);
-        setIsVerifying(false);
-      } catch (error) {
-        console.error('Verification error:', error);
-        toast.error('Failed to process reset link.');
+      if (!token) {
         setIsTokenValid(false);
         setIsVerifying(false);
+        toast.error('Invalid reset link');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('verify_password_reset_token', {
+          p_token: token
+        });
+
+        if (error || !data) {
+          console.error('Token verification error:', error);
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          toast.error('Invalid or expired reset link');
+          return;
+        }
+
+        const result = typeof data === 'string' ? JSON.parse(data) : data;
+
+        if (!result.success) {
+          setIsTokenValid(false);
+          setIsVerifying(false);
+          toast.error(result.error || 'Invalid or expired reset link');
+          return;
+        }
+
+        setUserId(result.user_id);
+        setUserEmail(result.email);
+        setIsTokenValid(true);
+        setIsVerifying(false);
+        toast.success('Reset link verified! Set your new password.');
+
+      } catch (err) {
+        console.error('Verification exception:', err);
+        setIsTokenValid(false);
+        setIsVerifying(false);
+        toast.error('Failed to verify reset link');
       }
     };
 
-    // Run immediately on mount
-    verifyResetToken();
-  }, []);
+    verifyToken();
+  }, [searchParams]);
 
-  // ----------------------
-  // Additional cleanup - ensure no stray sessions persist
-  // ----------------------
-  useEffect(() => {
-    // Listen for any auth changes and prevent unwanted sessions
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event);
-      
-      // If we're on the reset page and a session is created unexpectedly, clear it
-      if (event === 'SIGNED_IN' && !isLoading && !resetComplete) {
-        console.log('Unexpected sign-in detected, clearing session');
-        await supabase.auth.signOut();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [isLoading, resetComplete]);
-
-  // ----------------------
-  // Password validation
-  // ----------------------
   const validatePassword = (pwd: string) => {
     const errors = [];
     if (pwd.length < 8) errors.push('at least 8 characters');
@@ -135,14 +81,12 @@ export default function ResetPassword() {
     if (!/[0-9]/.test(pwd)) errors.push('one number');
     return errors;
   };
+
   const passwordRequirements = validatePassword(password);
 
-  // ----------------------
-  // Update password
-  // ----------------------
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!password) {
       toast.error('Please enter a new password');
       return;
@@ -159,70 +103,39 @@ export default function ResetPassword() {
       return;
     }
 
-    if (!accessToken || !refreshToken) {
+    if (!userId || !userEmail) {
       toast.error('Session expired. Please request a new reset link.');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      console.log('Creating temporary session for password update...');
-
-      // Create temporary session ONLY for this operation
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (sessionError || !sessionData?.session) {
-        console.error('Session creation failed:', sessionError);
-        toast.error('Reset link has expired. Please request a new one.');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('Temporary session created, updating password...');
-
-      // Update password
-      const { error: updateError } = await supabase.auth.updateUser({
+      const { error } = await supabase.auth.admin.updateUserById(userId, {
         password: password
       });
 
-      if (updateError) {
-        console.error('Password update failed:', updateError);
-        toast.error(updateError.message || 'Failed to update password.');
-        await supabase.auth.signOut();
+      if (error) {
+        console.error('Password update failed:', error);
+        toast.error(error.message || 'Failed to update password.');
         setIsLoading(false);
         return;
       }
 
-      console.log('Password updated successfully');
       toast.success('Password updated successfully!');
-      
       setResetComplete(true);
 
-      // CRITICAL: Sign out to clear session from ALL tabs
-      await supabase.auth.signOut();
-      
-      console.log('Session cleared');
-
-      // Redirect after showing success message
       setTimeout(() => {
         navigate('/', { replace: true });
       }, 2000);
-      
+
     } catch (error) {
       console.error('Unexpected error:', error);
       toast.error('Something went wrong. Please try again.');
-      await supabase.auth.signOut();
       setIsLoading(false);
     }
   };
 
-  // ----------------------
-  // Loading state
-  // ----------------------
   if (isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -237,9 +150,6 @@ export default function ResetPassword() {
     );
   }
 
-  // ----------------------
-  // Invalid token
-  // ----------------------
   if (!isTokenValid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -256,9 +166,9 @@ export default function ResetPassword() {
               <Home className="mr-2 h-4 w-4" />
               Return to Home
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/?auth=open&view=forgot-password', { replace: true })} 
+            <Button
+              variant="outline"
+              onClick={() => navigate('/?auth=open&view=forgot-password', { replace: true })}
               className="w-full"
             >
               Request New Reset Link
@@ -269,9 +179,6 @@ export default function ResetPassword() {
     );
   }
 
-  // ----------------------
-  // Success state
-  // ----------------------
   if (resetComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
@@ -291,9 +198,6 @@ export default function ResetPassword() {
     );
   }
 
-  // ----------------------
-  // Reset form
-  // ----------------------
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
@@ -383,4 +287,4 @@ export default function ResetPassword() {
       </Card>
     </div>
   );
-              }
+}

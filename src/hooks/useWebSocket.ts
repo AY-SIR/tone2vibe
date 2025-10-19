@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useOfflineDetection } from "./useOfflineDetection";
 
 interface WebSocketMessage {
   type: string;
@@ -24,8 +23,6 @@ export const useWebSocket = (
   autoConnect = false
 ): UseWebSocketReturn => {
   const { user } = useAuth();
-  const { isOffline } = useOfflineDetection();
-  const isOnline = !isOffline;
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [connectionState, setConnectionState] = useState<
@@ -39,12 +36,6 @@ export const useWebSocket = (
   const connect = async () => {
     if (!user) {
       console.warn("Cannot connect WebSocket: User not authenticated");
-      return;
-    }
-
-    if (!isOnline) {
-      console.warn("Cannot connect WebSocket: Device is offline");
-      setConnectionState("disconnected");
       return;
     }
 
