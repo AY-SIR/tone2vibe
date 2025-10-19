@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
@@ -258,21 +257,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
       const { data, error } = await supabase.functions.invoke('send-email-confirmation', {
-        body: {
-          email,
-          password,
-          fullName: options?.fullName
-        },
+        body: { email, password, fullName: options?.fullName },
       });
 
-      if (error) {
-        console.error('Signup error:', error);
-        return { data: null, error: new Error(error.message || 'Signup failed') };
+      let parsedData: any = data;
+
+      if (typeof data === "string") {
+        try {
+          parsedData = JSON.parse(data);
+        } catch {
+          console.warn("Signup response is not valid JSON, returning raw string");
+        }
       }
 
-      return { data, error: null };
+      if (error) {
+        console.error("Signup error:", error);
+        return { data: null, error: new Error(error.message || "Signup failed") };
+      }
+
+      return { data: parsedData, error: null };
     } catch (err) {
-      console.error('Signup error:', err);
+      console.error("Signup error:", err);
       return { data: null, error: err as Error };
     }
   };
@@ -281,10 +286,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error && error.message.includes('Email not confirmed')) {
+      if (error && error.message.includes("Email not confirmed")) {
         return {
           data,
-          error: new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.')
+          error: new Error("Please confirm your email address before signing in. Check your inbox for the confirmation link."),
         };
       }
 
@@ -298,14 +303,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider: "google",
         options: {
-          redirectTo: window.location.origin + '/tool',
-          queryParams: { access_type: 'offline', prompt: 'consent' }
-        }
+          redirectTo: window.location.origin + "/tool",
+          queryParams: { access_type: "offline", prompt: "consent" },
+        },
       });
     } catch (err) {
-      console.error('Google sign in failed:', err);
+      console.error("Google sign in failed:", err);
     }
   };
 
