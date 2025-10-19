@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
@@ -45,7 +46,7 @@ interface AuthContextType {
   loading: boolean;
   locationData: LocationData | null;
   planExpiryActive: boolean;
-  signUp: (email: string, password: string, options?: { emailRedirectTo?: string; fullName?: string }) => Promise<{ data: any; error: any | null }>;
+  signUp: (email: string, password: string, options?: { fullName?: string }) => Promise<{ data: any; error: any | null }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any | null }>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<{ error: any | null }>;
@@ -254,73 +255,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // -----------------------
   // Auth actions
   // -----------------------
-  const signUp = async (
-    email: string,
-    password: string,
-    options?: { emailRedirectTo?: string; fullName?: string }
-  ) => {
+  const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
-      // Sign up WITHOUT auto-confirm - user will be created but not confirmed
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: options?.fullName || "" },
-          emailRedirectTo: options?.emailRedirectTo
-        },
+      const response = await fetch('/api/send-email-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName: options?.fullName }),
       });
 
-      if (error) {
-        return { data, error };
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { data: null, error: new Error(data.error || 'Signup failed') };
       }
 
-      if (data?.user) {
-        // Send custom confirmation email via Edge Function
-        try {
-          const { error: emailError } = await supabase.functions.invoke('send-email-confirmation', {
-            body: {
-              email: data.user.email,
-              userId: data.user.id,
-              fullName: options?.fullName || data.user.email?.split('@')[0] || 'User',
-            },
-          });
-
-          if (emailError) {
-            console.error('Failed to send confirmation email:', emailError);
-            // Don't return error - user is created, just email failed
-          }
-        } catch (emailErr) {
-          console.error('Exception sending confirmation email:', emailErr);
-        }
-      }
-
-      return { data, error };
+      return { data, error: null };
     } catch (err) {
-      console.error("Exception during signUp:", err);
+      console.error('Signup error:', err);
       return { data: null, error: err as Error };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) {
-        // Check if email is not confirmed
-        if (error.message.includes('Email not confirmed')) {
-          return {
-            data,
-            error: new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.')
-          };
-        }
+      if (error && error.message.includes('Email not confirmed')) {
+        return {
+          data,
+          error: new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.')
+        };
       }
 
       return { data, error };
     } catch (err) {
-      console.error("Exception during signIn:", err);
+      console.error("SignIn error:", err);
       return { data: null, error: err as Error };
     }
   };
@@ -331,10 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         provider: 'google',
         options: {
           redirectTo: window.location.origin + '/tool',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent'
-          }
+          queryParams: { access_type: 'offline', prompt: 'consent' }
         }
       });
     } catch (err) {
@@ -351,7 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLocationData(null);
       return { error };
     } catch (err) {
-      console.error("Exception during signOut:", err);
+      console.error("SignOut error:", err);
       return { error: err as Error };
     }
   };
@@ -366,14 +332,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
-      const { error } = await supabase
-        .from("profiles")
-        .update(data)
-        .eq("user_id", user.id);
-
-      if (error) console.error("Error updating profile:", error);
+      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
+      if (error) console.error("Profile update error:", error);
     } catch (err) {
-      console.error("Exception during profile update:", err);
+      console.error("Profile update exception:", err);
     }
   };
 
