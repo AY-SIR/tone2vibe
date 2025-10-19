@@ -1,137 +1,119 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from "sonner";
-import confetti from 'canvas-confetti';
+import { toast } from 'sonner';
+import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-export default function EmailConfirmation() {
-  const navigate = useNavigate();
+export function EmailConfirmation() {
   const [searchParams] = useSearchParams();
-
+  const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Confirming your email, please wait...');
-
-  const confettiFired = useRef(false);
-
-  const fireConfetti = () => {
-    if (confettiFired.current) return;
-    confettiFired.current = true;
-    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
-    confetti({ particleCount: 100, angle: 60, spread: 55, origin: { x: 0, y: 0.5 }, colors });
-    confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1, y: 0.5 }, colors });
-  };
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const verifyEmail = async () => {
+    const confirmEmail = async () => {
       const token = searchParams.get('token');
 
       if (!token) {
         setStatus('error');
-        setMessage('Invalid confirmation link. No token provided.');
-        toast.error('Invalid confirmation link');
+        setMessage('Invalid confirmation link');
         return;
       }
 
       try {
-        const { data, error } = await supabase.rpc('verify_email_token', {
-          p_token: token
-        });
+        // Verify token
+        const { data: tokenData, error: tokenError } = await supabase
+          .from('email_verification_tokens')
+          .select('*')
+          .eq('token', token)
+          .is('used_at', null)
+          .single();
 
-        if (error || !data) {
-          console.error('Token verification error:', error);
+        if (tokenError || !tokenData) {
           setStatus('error');
-          setMessage('Invalid or expired confirmation link.');
-          toast.error('Email confirmation failed');
+          setMessage('Invalid or expired confirmation link');
           return;
         }
 
-        const result = typeof data === 'string' ? JSON.parse(data) : data;
-
-        if (!result.success) {
+        // Check if token is expired
+        if (new Date(tokenData.expires_at) < new Date()) {
           setStatus('error');
-          setMessage(result.error || 'Invalid or expired confirmation link.');
-          toast.error('Email confirmation failed');
+          setMessage('Confirmation link has expired');
           return;
         }
 
-        const { data: { user }, error: updateError } = await supabase.auth.admin.updateUserById(
-          result.user_id,
-          { email_confirmed_at: new Date().toISOString() }
+        // Confirm user email using admin API
+        const { error: confirmError } = await supabase.auth.admin.updateUserById(
+          tokenData.user_id,
+          { email_confirm: true }
         );
 
-        if (updateError) {
-          console.error('User update error:', updateError);
+        if (confirmError) {
+          console.error('Confirmation error:', confirmError);
+          setStatus('error');
+          setMessage('Failed to confirm email. Please try again.');
+          return;
         }
 
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: result.email,
-          password: ''
-        });
+        // Mark token as used
+        await supabase
+          .from('email_verification_tokens')
+          .update({ used_at: new Date().toISOString() })
+          .eq('token', token);
 
         setStatus('success');
-        setMessage('Email confirmed successfully! Redirecting...');
-        toast.success('Email Confirmed!', {
-          description: 'Your account has been successfully verified.',
-        });
+        setMessage('Email confirmed successfully! You can now sign in.');
+        toast.success('Email confirmed! You can now sign in.');
 
-        setTimeout(fireConfetti, 200);
-
+        // Redirect to home with auth modal open
         setTimeout(() => {
-          navigate('/tool', { replace: true });
+          navigate('/?auth=open', { replace: true });
         }, 3000);
 
-      } catch (err) {
-        console.error('Verification exception:', err);
+      } catch (error) {
+        console.error('Email confirmation error:', error);
         setStatus('error');
-        setMessage('An error occurred during confirmation.');
-        toast.error('Email confirmation failed');
+        setMessage('An error occurred. Please try again.');
       }
     };
 
-    verifyEmail();
+    confirmEmail();
   }, [searchParams, navigate]);
 
-  const getIcon = () => {
-    switch (status) {
-      case 'loading':
-        return <Loader2 className="h-12 w-12 text-primary animate-spin" />;
-      case 'success':
-        return <CheckCircle className="h-12 w-12 text-green-600" />;
-      case 'error':
-        return <AlertCircle className="h-12 w-12 text-destructive" />;
-    }
-  };
-
-  const getTitle = () => {
-    switch (status) {
-      case 'loading':
-        return 'Confirming Email...';
-      case 'success':
-        return 'Email Confirmed!';
-      case 'error':
-        return 'Confirmation Failed';
-    }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md animate-fade-in">
-        <CardContent className="p-8 text-center space-y-6">
-          <div className="flex justify-center">{getIcon()}</div>
-          <div className="space-y-3">
-            <h1 className="text-2xl font-bold">{getTitle()}</h1>
-            <p className="text-muted-foreground">{message}</p>
-          </div>
-          {status === 'error' && (
-            <Button onClick={() => navigate('/')} className="w-full">
-              Return to Home
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+        {status === 'loading' && (
+          <>
+            <Loader2 className="h-16 w-16 animate-spin mx-auto text-purple-600 mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Confirming Your Email</h2>
+            <p className="text-gray-600">Please wait...</p>
+          </>
+        )}
+
+        {status === 'success' && (
+          <>
+            <CheckCircle className="h-16 w-16 mx-auto text-green-600 mb-4" />
+            <h2 className="text-2xl font-bold mb-2 text-green-600">Email Confirmed!</h2>
+            <p className="text-gray-600 mb-6">{message}</p>
+            <Button onClick={() => navigate('/?auth=open')} className="w-full">
+              Go to Sign In
             </Button>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+
+        {status === 'error' && (
+          <>
+            <XCircle className="h-16 w-16 mx-auto text-red-600 mb-4" />
+            <h2 className="text-2xl font-bold mb-2 text-red-600">Confirmation Failed</h2>
+            <p className="text-gray-600 mb-6">{message}</p>
+            <Button onClick={() => navigate('/')} variant="outline" className="w-full">
+              Back to Home
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

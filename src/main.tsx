@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App';
 import './index.css';
-import EmailConfirmation from "./pages/EmailConfirmation";
+import {EmailConfirmation} from "./pages/EmailConfirmation";
 
 // Mount React App
 createRoot(document.getElementById('root')!).render(

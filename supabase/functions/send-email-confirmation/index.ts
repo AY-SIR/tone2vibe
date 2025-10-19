@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
 
     if (!email || !userId) {
       return new Response(
-        JSON.stringify({ error: 'Email and userId are required' }), 
+        JSON.stringify({ error: 'Email and userId are required' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -70,8 +70,11 @@ Deno.serve(async (req: Request) => {
 
     console.log('Token stored in database');
 
+    // Dynamically get the origin from request headers
+    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || 'https://tone2vibe.in';
+
     // Prepare confirmation URL
-    const confirmationUrl = `${Deno.env.get('SITE_URL') || 'https://tone2vibe.in'}/email-confirmation?token=${verificationToken}`;
+    const confirmationUrl = `${origin}/email-confirmation?token=${verificationToken}`;
 
     // Get Brevo API key
     const brevoApiKey = Deno.env.get('BREVO_API_KEY');
@@ -91,13 +94,13 @@ Deno.serve(async (req: Request) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { 
-          name: 'Tone2Vibe', 
-          email: 'noreply@tone2vibe.in' 
+        sender: {
+          name: 'Tone2Vibe',
+          email: 'noreply@tone2vibe.in'
         },
-        to: [{ 
-          email, 
-          name: displayName 
+        to: [{
+          email,
+          name: displayName
         }],
         subject: 'Confirm Your Email - Tone2Vibe',
         htmlContent: `
@@ -121,7 +124,7 @@ Deno.serve(async (req: Request) => {
                       <td style="padding: 40px 30px;">
                         <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">Hi ${displayName},</p>
                         <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-                          Thank you for signing up! To complete your registration and start using Tone2Vibe, 
+                          Thank you for signing up! To complete your registration and start using Tone2Vibe,
                           please verify your email address by clicking the button below:
                         </p>
                         <div style="text-align: center; margin: 30px 0;">
@@ -167,11 +170,11 @@ Deno.serve(async (req: Request) => {
     console.log('Confirmation email sent successfully');
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Confirmation email sent',
-        token: verificationToken 
-      }), 
+        token: verificationToken
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -181,9 +184,9 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     console.error('Error in send-email-confirmation:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Internal server error' 
-      }), 
+      JSON.stringify({
+        error: error.message || 'Internal server error'
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

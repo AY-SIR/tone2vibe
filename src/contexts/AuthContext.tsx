@@ -140,19 +140,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data) {
           const { error: updateError } = await supabase
             .from("profiles")
-            .update({ 
-              login_count: (data.login_count || 0) + 1, 
-              last_login_at: new Date().toISOString() 
+            .update({
+              login_count: (data.login_count || 0) + 1,
+              last_login_at: new Date().toISOString()
             })
             .eq("user_id", user.id);
 
           if (updateError) console.error("Failed to increment login_count:", updateError);
 
           const calculatedWordBalance = Math.max(0, data.words_limit - data.words_used);
-          setProfile({ 
-            ...data, 
-            word_balance: data.word_balance ?? calculatedWordBalance, 
-            country: data.country || "India" 
+          setProfile({
+            ...data,
+            word_balance: data.word_balance ?? calculatedWordBalance,
+            country: data.country || "India"
           } as Profile);
 
           if (data.country) {
@@ -226,11 +226,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .channel(`profile-updates-${user.id}`)
         .on(
           "postgres_changes",
-          { 
-            event: "UPDATE", 
-            schema: "public", 
-            table: "profiles", 
-            filter: `user_id=eq.${user.id}` 
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `user_id=eq.${user.id}`
           },
           (payload) => {
             const newProfile = payload.new as Profile;
@@ -255,8 +255,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auth actions
   // -----------------------
   const signUp = async (
-    email: string, 
-    password: string, 
+    email: string,
+    password: string,
     options?: { emailRedirectTo?: string; fullName?: string }
   ) => {
     try {
@@ -303,21 +303,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
-      
+
       if (error) {
         // Check if email is not confirmed
         if (error.message.includes('Email not confirmed')) {
-          return { 
-            data, 
-            error: new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.') 
+          return {
+            data,
+            error: new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.')
           };
         }
       }
-      
+
       return { data, error };
     } catch (err) {
       console.error("Exception during signIn:", err);
@@ -327,15 +327,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      await supabase.auth.signInWithOAuth({ 
-        provider: 'google', 
-        options: { 
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
           redirectTo: window.location.origin + '/tool',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent'
           }
-        } 
+        }
       });
     } catch (err) {
       console.error('Google sign in failed:', err);
@@ -370,7 +370,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from("profiles")
         .update(data)
         .eq("user_id", user.id);
-        
+
       if (error) console.error("Error updating profile:", error);
     } catch (err) {
       console.error("Exception during profile update:", err);

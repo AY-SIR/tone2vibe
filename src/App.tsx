@@ -21,8 +21,8 @@ import Contact from "./pages/Contact";
 import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
-import EmailConfirmation from "./pages/EmailConfirmation";
-import ResetPassword from "./pages/ResetPassword";
+import { EmailConfirmation } from "./pages/EmailConfirmation";
+import { ResetPassword } from "./pages/ResetPassword";
 
 import { WordLimitPopup } from './components/common/WordLimitPopup';
 import { useAuth } from "@/contexts/AuthContext";
