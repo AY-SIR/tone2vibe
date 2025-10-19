@@ -8,9 +8,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-// --- Test MP3 URL for frontend testing ---
+// --- A constant for the placeholder MP3 URL ---
 const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
+// --- Main function logic ---
 Deno.serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === "OPTIONS") {
@@ -18,29 +19,28 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // --- Environment variables ---
+    // --- Environment Variable Validation ---
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Missing Supabase environment variables.");
     }
 
-    // --- User authentication ---
+    // --- User Authentication ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header.");
-
     const supabaseClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error("User not authenticated.");
 
-    // --- Supabase service client ---
+    // --- Admin Client for server-side operations ---
     const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
     });
 
-    // --- Parse request body ---
+    // --- Parse Request Body ---
     const body = await req.json();
     const { text, title, voice_settings, language } = body;
     if (!text || !title || !voice_settings || !language) {
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     const actualWordCount = text.split(/\s+/).filter(Boolean).length;
 
-    // --- Fetch user profile & word balance ---
+    // --- Fetch User Profile & Check Word Balance ---
     const { data: profile, error: profileError } = await supabaseService
       .from("profiles")
       .select("plan, words_limit, plan_words_used, word_balance")
@@ -62,64 +62,70 @@ Deno.serve(async (req) => {
       throw new Error(`Insufficient word balance. Need ${actualWordCount}, but have ${totalWordsAvailable}.`);
     }
 
-    // --- Create history record ---
+    // --- Create Initial History Record ---
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
         user_id: user.id,
         title,
         original_text: text,
-        voice_settings,
+        voice_settings: voice_settings,
         words_used: actualWordCount,
         generation_started_at: new Date().toISOString(),
-        language_sent: language
+        language: language // <-- use correct column
       })
       .select("id, generation_started_at")
       .single();
     if (historyError) throw new Error(`Failed to create history record: ${historyError.message}`);
 
-    // --- Fetch test MP3 ---
+    // --- (PLACEHOLDER) Fetch Sample MP3 ---
     const response = await fetch(SAMPLE_MP3_URL);
-    if (!response.ok) throw new Error("Failed to fetch test MP3.");
+    if (!response.ok) throw new Error("Failed to fetch sample MP3.");
     const mp3Data = new Uint8Array(await response.arrayBuffer());
 
-    // --- Upload MP3 to Supabase Storage ---
-    const filePath = `${user.id}/${historyRecord.id}_${Date.now()}.mp3`;
+    // --- Upload to Supabase Storage ---
+    const filePath = `${user.id}/${historyRecord.id}.mp3`;
     const { error: uploadError } = await supabaseService.storage
       .from("user-generates")
       .upload(filePath, mp3Data, { contentType: "audio/mpeg", upsert: true });
     if (uploadError) throw new Error(`Failed to upload MP3: ${uploadError.message}`);
 
-    // --- Get public URL ---
+    // --- Get Public URL for the Uploaded File ---
     const { data: urlData } = supabaseService.storage.from("user-generates").getPublicUrl(filePath);
     const publicUrl = urlData?.publicUrl;
     if (!publicUrl) throw new Error("Could not retrieve public URL.");
 
-    // --- Update history with final info ---
+    // --- Update History Record with Final Details ---
     const generationCompletedAt = new Date();
-    await supabaseService
+    const { error: updateError } = await supabaseService
       .from("history")
       .update({
         audio_url: publicUrl,
         generation_completed_at: generationCompletedAt.toISOString(),
         processing_time_ms: generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime(),
-        text_sent: text,
-        voice_settings_sent: voice_settings,
-        language_sent: language
+        language: language // <-- update correct column
       })
       .eq("id", historyRecord.id);
 
-    // --- Deduct words ---
-    await supabaseService.rpc("deduct_words_smartly", {
+    if (updateError) {
+      console.error(`Failed to update history record ${historyRecord.id}:`, updateError.message);
+    }
+
+    // --- Deduct Words via RPC ---
+    const { error: deductError } = await supabaseService.rpc("deduct_words_smartly", {
       user_id_param: user.id,
       words_to_deduct: actualWordCount,
     });
 
-    // --- Success response ---
+    if (deductError) {
+      console.error(`Failed to deduct words for user ${user.id}:`, deductError.message);
+    }
+
+    // --- Success Response ---
     return new Response(JSON.stringify({
       success: true,
       audio_url: publicUrl,
-      history_id: historyRecord.id
+      history_id: historyRecord.id,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
