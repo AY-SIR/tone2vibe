@@ -9,7 +9,7 @@ export function WordsFlip() {
   return (
     <section className="flex justify-center items-center px-4 py-8 mb-6">
       <div className="max-w-5xl w-full">
-        <h1 className="text-left sm:text-center font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-700 dark:text-gray-100 leading-tight">
+        <h1 className="text-left sm:text-center font-heading text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-700 dark:text-gray-100 leading-tight">
           <span className="block mb-2">
             Make your words{" "}
             <span className="inline-block">
