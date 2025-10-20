@@ -24,13 +24,21 @@ export function EmailConfirmation() {
 
       try {
         const { data, error } = await supabase.functions.invoke('confirm-email', {
-          body: { token }
+          body: { token },
         });
 
         if (error) {
           console.error('Confirmation error:', error);
+          // Try to parse backend error message if JSON
+          let errorMsg = 'Failed to confirm email. Please try again.';
+          try {
+            const parsed = JSON.parse(error.message);
+            errorMsg = parsed?.error || errorMsg;
+          } catch {
+            errorMsg = error.message || errorMsg;
+          }
           setStatus('error');
-          setMessage(error.message || 'Failed to confirm email. Please try again.');
+          setMessage(errorMsg);
           toast.error(error.message || 'Failed to confirm email. Please try again.');
           return;
         }
@@ -47,8 +55,17 @@ export function EmailConfirmation() {
         }
 
         if (result?.error) {
+          // Specific backend error
           setStatus('error');
-          setMessage(result.error);
+
+          if (result.error.toLowerCase().includes('expired')) {
+            setMessage('This confirmation link has expired. Please request a new one.');
+          } else if (result.error.toLowerCase().includes('invalid')) {
+            setMessage('Invalid confirmation link. Please check your email.');
+          } else {
+            setMessage(result.error);
+          }
+
           toast.error(result.error);
           return;
         }
@@ -73,7 +90,7 @@ export function EmailConfirmation() {
       } catch (err) {
         console.error('Confirmation exception:', err);
         setStatus('error');
-        setMessage('An unexpected error occurred. Please try again.');
+        setMessage('An unexpected error occurred. Please try again later.');
         toast.error('An unexpected error occurred. Please try again.');
       }
     };

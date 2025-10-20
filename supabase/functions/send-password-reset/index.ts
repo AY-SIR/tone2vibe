@@ -57,9 +57,9 @@ Deno.serve(async (req: Request) => {
     // Always respond with success message to avoid email enumeration
     if (!user) {
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'If an account exists with this email, a password reset link has been sent.' 
+        JSON.stringify({
+          success: true,
+          message: 'If an account exists with this email, a password reset link has been sent.'
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -275,9 +275,9 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'If an account exists with this email, a password reset link has been sent.' 
+      JSON.stringify({
+        success: true,
+        message: 'If an account exists with this email, a password reset link has been sent.'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

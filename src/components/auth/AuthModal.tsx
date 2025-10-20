@@ -222,9 +222,10 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }
       });
 
+      // Check for network/function errors first
       if (error) {
-        console.error('Signup error:', error);
-        if (error.message?.includes('User already exists')) {
+        console.error('Signup network error:', error);
+        if (error.message?.includes('User already exists') || error.message?.includes('already registered')) {
           toast.error('This email is already registered. Please sign in or use forgot password.');
           setCurrentView('signin');
         } else {
@@ -233,15 +234,25 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         return;
       }
 
+      // Parse response data
       const result = typeof data === 'string' ? JSON.parse(data) : data;
 
+      // Check if the edge function returned an error in the response body
       if (result?.error) {
-        if (result.error.includes('User already exists')) {
+        console.error('Signup error from edge function:', result.error);
+        if (result.error.includes('User already exists') || result.error.includes('already registered')) {
           toast.error('This email is already registered. Please sign in or use forgot password.');
           setCurrentView('signin');
         } else {
           toast.error(result.error || 'Signup failed. Please try again.');
         }
+        return;
+      }
+
+      // Check if response indicates success
+      if (!result?.success) {
+        console.error('Signup failed - no success flag in response:', result);
+        toast.error('Signup failed. Please try again.');
         return;
       }
 
@@ -285,12 +296,26 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setIsResetLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('send-password-reset', { body: { email: resetEmail.trim().toLowerCase() } });
+      const { data, error } = await supabase.functions.invoke('send-password-reset', { body: { email: resetEmail.trim().toLowerCase() } });
+
+      // Check for network/function errors first
       if (error) {
         console.error('Reset email error:', error);
         toast.error('Failed to send reset email. Please try again.');
         return;
       }
+
+      // Parse the response data
+      const result = typeof data === 'string' ? JSON.parse(data) : data;
+
+      // Check if the edge function returned an error in the response body
+      if (result?.error) {
+        console.error('Password reset error:', result.error);
+        toast.error('Failed to send reset email. Please try again.');
+        return;
+      }
+
+      // Success - show generic message for security
       toast.success('If an account exists with this email, a password reset link has been sent. Please check your inbox.', { duration: 8000 });
       setCurrentView('choice');
     } catch (err) {
@@ -361,8 +386,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   </div>
                 </div>
 
-
- <Button
+                <Button
                   variant="outline"
                   className="w-full h-12 flex items-center justify-center gap-3 text-base font-medium hover:bg-accent"
                   onClick={handleGoogleSignIn}

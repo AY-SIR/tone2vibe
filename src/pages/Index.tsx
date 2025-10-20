@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GridPattern } from "@/components/GridPattern";
 import GridConnect from "@/components/gridconnect";
+import { Marque2 } from "@/components/Marque2"
+import { WordsFlip } from "@/components/wordsflip"
 
 import { FloatingNavigation } from "@/components/ui/FloatingNavigation";
 import { MobileWordCounter } from "@/components/layout/MobileWordCounter";
@@ -282,7 +284,7 @@ const Index = () => {
             <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
               ✨ Now with 50+ language support
             </Badge>
-            
+<WordsFlip />
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
@@ -302,8 +304,13 @@ const Index = () => {
                 Watch Demo
               </Button>
             </div>
+            <div className="mt-8">
+             <Marque2 />
+             </div>
           </div>
         </div>
+
+
       </section>
 
       {/* Animated Beams AFTER Hero */}
