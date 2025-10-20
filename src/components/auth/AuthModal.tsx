@@ -187,25 +187,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     setIsEmailLoading(true);
 
     try {
-      // Check if user already exists in profiles table
-      const { data: existingProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', signUpEmail.trim().toLowerCase())
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Error checking profiles:', profileError);
-        toast.error('Unable to check existing email. Please try again.');
-        return;
-      }
-
-      if (existingProfile) {
-        toast.error('This email is already registered. Please sign in or use forgot password.');
-        setCurrentView('signin');
-        return;
-      }
-
       // Indian-only check
       const location = await LocationCacheService.getLocation();
       if (!location.isIndian) {
@@ -222,48 +203,49 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }
       });
 
-      // Check for network/function errors first
+      // Check for network/function invocation errors
       if (error) {
-        console.error('Signup network error:', error);
-        if (error.message?.includes('User already exists') || error.message?.includes('already registered')) {
-          toast.error('This email is already registered. Please sign in or use forgot password.');
-          setCurrentView('signin');
-        } else {
-          toast.error(error.message || 'Signup failed. Please try again.');
-        }
+        console.error('Signup function invocation error:', error);
+        toast.error('Failed to create account. Please try again.');
         return;
       }
 
-      // Parse response data
-      const result = typeof data === 'string' ? JSON.parse(data) : data;
-
-      // Check if the edge function returned an error in the response body
-      if (result?.error) {
-        console.error('Signup error from edge function:', result.error);
-        if (result.error.includes('User already exists') || result.error.includes('already registered')) {
-          toast.error('This email is already registered. Please sign in or use forgot password.');
-          setCurrentView('signin');
-        } else {
-          toast.error(result.error || 'Signup failed. Please try again.');
+      // Parse response data (handle both string and object)
+      let result = data;
+      if (typeof data === 'string') {
+        try {
+          result = JSON.parse(data);
+        } catch (parseError) {
+          console.error('Failed to parse signup response:', parseError);
+          toast.error('Unexpected response from server. Please try again.');
+          return;
         }
-        return;
       }
 
-      // Check if response indicates success
+      // Check if the response indicates failure
       if (!result?.success) {
-        console.error('Signup failed - no success flag in response:', result);
-        toast.error('Signup failed. Please try again.');
+        const errorMessage = result?.error || 'Signup failed. Please try again.';
+
+        // Handle specific errors
+        if (errorMessage.includes('already exists') || errorMessage.includes('already registered')) {
+          toast.error('An account with this email already exists. Please sign in instead.');
+          setCurrentView('signin');
+          setSignInEmail(signUpEmail);
+        } else {
+          toast.error(errorMessage);
+        }
         return;
       }
 
-      // Success
-      toast.success('Account created successfully! Please check your email to verify your account before signing in.', { duration: 10000 });
-      onOpenChange(false);
+      // Success!
+      toast.success('Account created successfully! Please check your email to verify your account.', { duration: 10000 });
       clearSignUpFields();
+      setCurrentView('signin');
+      setSignInEmail(signUpEmail);
 
     } catch (err) {
-      console.error('Signup error:', err);
-      toast.error('An unexpected error occurred.');
+      console.error('Signup unexpected error:', err);
+      toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setIsEmailLoading(false);
     }
@@ -296,7 +278,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
     setIsResetLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-password-reset', { body: { email: resetEmail.trim().toLowerCase() } });
+      const { data, error } = await supabase.functions.invoke('send-password-reset', {
+        body: { email: resetEmail.trim().toLowerCase() }
+      });
 
       // Check for network/function errors first
       if (error) {
@@ -306,7 +290,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       }
 
       // Parse the response data
-      const result = typeof data === 'string' ? JSON.parse(data) : data;
+      let result = data;
+      if (typeof data === 'string') {
+        try {
+          result = JSON.parse(data);
+        } catch {
+          console.error('Failed to parse reset response');
+        }
+      }
 
       // Check if the edge function returned an error in the response body
       if (result?.error) {

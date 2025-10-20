@@ -24,74 +24,48 @@ export function EmailConfirmation() {
 
       try {
         const { data, error } = await supabase.functions.invoke('confirm-email', {
-          body: { token },
+          body: { token }
         });
 
+        // Handle the response
+        let result = data;
+
+        // Check if there was a function invocation error
         if (error) {
-          console.error('Confirmation error:', error);
-          // Try to parse backend error message if JSON
-          let errorMsg = 'Failed to confirm email. Please try again.';
+          console.error('Function invocation error:', error);
+          setStatus('error');
+          setMessage('Failed to confirm email. Please try again.');
+          toast.error('Failed to confirm email. Please try again.');
+          return;
+        }
+
+        // Parse string response if needed
+        if (typeof result === 'string') {
           try {
-            const parsed = JSON.parse(error.message);
-            errorMsg = parsed?.error || errorMsg;
+            result = JSON.parse(result);
           } catch {
-            errorMsg = error.message || errorMsg;
+            console.error('Failed to parse response:', result);
           }
-          setStatus('error');
-          setMessage(errorMsg);
-          toast.error(error.message || 'Failed to confirm email. Please try again.');
-          return;
         }
 
-        let result: any;
-        try {
-          result = typeof data === 'string' ? JSON.parse(data) : data;
-        } catch (parseErr) {
-          console.error('Failed to parse confirm-email response:', parseErr);
-          setStatus('error');
-          setMessage('Invalid server response. Please try again later.');
-          toast.error('Something went wrong. Please try again later.');
-          return;
-        }
-
-        if (result?.error) {
-          // Specific backend error
-          setStatus('error');
-
-          if (result.error.toLowerCase().includes('expired')) {
-            setMessage('This confirmation link has expired. Please request a new one.');
-          } else if (result.error.toLowerCase().includes('invalid')) {
-            setMessage('Invalid confirmation link. Please check your email.');
-          } else {
-            setMessage(result.error);
-          }
-
-          toast.error(result.error);
-          return;
-        }
-
+        // Check the success status
         if (result?.success) {
           setStatus('success');
           setMessage(result.message || 'Email confirmed successfully!');
           toast.success('Email confirmed! You can now sign in.');
-
-          // Redirect to sign-in after 2 seconds
           setTimeout(() => {
             navigate('/?auth=open&view=signin', { replace: true });
           }, 2000);
-          return;
+        } else {
+          setStatus('error');
+          setMessage(result?.error || 'Failed to confirm email. Please try again.');
+          toast.error(result?.error || 'Failed to confirm email.');
         }
-
-        // Unexpected case: no success or error
-        setStatus('error');
-        setMessage('Unexpected response from server.');
-        toast.error('Something went wrong. Please try again.');
-
       } catch (err) {
         console.error('Confirmation exception:', err);
         setStatus('error');
         setMessage('An unexpected error occurred. Please try again later.');
-        toast.error('An unexpected error occurred. Please try again.');
+        toast.error('An unexpected error occurred.');
       }
     };
 
