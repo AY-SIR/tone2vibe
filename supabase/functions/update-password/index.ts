@@ -1,41 +1,49 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
+
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey'
 };
 
-interface UpdatePasswordRequest {
-  token: string;
-  newPassword: string;
-}
-
-Deno.serve(async (req: Request) => {
+// Edge Function
+Deno.serve(async (req) => {
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    });
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { token, newPassword } = await req.json() as UpdatePasswordRequest;
-
-    if (!token || !newPassword) {
-      return new Response(
-        JSON.stringify({ error: 'Token and new password are required' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    // Only allow POST
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
+    const { token, newPassword } = await req.json();
+
+    if (!token || !newPassword) {
+      return new Response(JSON.stringify({ error: 'Token and new password are required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Supabase client with SERVICE_ROLE_KEY
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
     // Verify token
-    const { data: tokenData, error: tokenError } = await supabaseClient
+    const { data: tokenData, error: tokenError } = await supabase
       .from('password_reset_tokens')
       .select('*')
       .eq('token', token)
@@ -43,61 +51,48 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (tokenError || !tokenData) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired reset link' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Check if token is expired
+    // Check token expiry
     if (new Date(tokenData.expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({ error: 'Reset link has expired' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Token has expired' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Update user password using admin API
-    const { error: updateError } = await supabaseClient.auth.admin.updateUserById(
-      tokenData.user_id,
-      { password: newPassword }
-    );
+    // Update user password
+    const { error: updateError } = await supabase.auth.admin.updateUserById(tokenData.user_id, {
+      password: newPassword,
+    });
 
     if (updateError) {
       console.error('Password update error:', updateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to update password. Please try again.' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Failed to update password' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Mark token as used
-    await supabaseClient
+    await supabase
       .from('password_reset_tokens')
       .update({ used_at: new Date().toISOString() })
       .eq('token', token);
 
-    return new Response(
-      JSON.stringify({ success: true, message: 'Password updated successfully!' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (err) {
-    console.error('Edge Function error:', err);
-    return new Response(
-      JSON.stringify({ error: err.message || 'Internal server error' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (err: any) {
+    console.error('Edge function error:', err);
+    return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

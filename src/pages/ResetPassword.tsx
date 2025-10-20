@@ -1,117 +1,77 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tokenValid, setTokenValid] = useState(false);
-  const [userId, setUserId] = useState<string>('');
+
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Verify token existence (basic check only)
   useEffect(() => {
-    const verifyToken = async () => {
-      const token = searchParams.get('token');
-
-      if (!token) {
-        toast.error('Invalid reset link');
-        navigate('/');
-        return;
-      }
-
-      try {
-        const { data: tokenData, error } = await supabase
-          .from('password_reset_tokens')
-          .select('*')
-          .eq('token', token)
-          .is('used_at', null)
-          .single();
-
-        if (error || !tokenData) {
-          toast.error('Invalid or expired reset link');
-          navigate('/');
-          return;
-        }
-
-        if (new Date(tokenData.expires_at) < new Date()) {
-          toast.error('Reset link has expired');
-          navigate('/');
-          return;
-        }
-
-        setTokenValid(true);
-        setUserId(tokenData.user_id);
-      } catch (error) {
-        console.error('Token verification error:', error);
-        toast.error('An error occurred');
-        navigate('/');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    verifyToken();
+    const token = searchParams.get('token');
+    if (!token) {
+      toast.error('Invalid reset link');
+      navigate('/');
+      return;
+    }
+    setTokenValid(true);
+    setLoading(false);
   }, [searchParams, navigate]);
 
+  // Password validation function
   const validatePassword = (password: string) => {
     const requirements = [];
     if (password.length < 8) requirements.push('at least 8 characters');
     if (!/[a-z]/.test(password)) requirements.push('one lowercase letter');
     if (!/[A-Z]/.test(password)) requirements.push('one uppercase letter');
     if (!/[0-9]/.test(password)) requirements.push('one digit');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) requirements.push('one special character');
     return requirements;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newPassword || !confirmPassword) {
-      toast.error('Please fill in all fields');
-      return;
-    }
+    if (!newPassword || !confirmPassword) return toast.error('Please fill in all fields');
 
-    const passwordRequirements = validatePassword(newPassword);
-    if (passwordRequirements.length > 0) {
-      toast.error(`Password must include: ${passwordRequirements.join(', ')}`);
-      return;
-    }
+    const requirements = validatePassword(newPassword);
+    if (requirements.length > 0)
+      return toast.error(`Password must include: ${requirements.join(', ')}`);
 
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    if (newPassword !== confirmPassword) return toast.error('Passwords do not match');
 
     setSubmitting(true);
+
     try {
       const token = searchParams.get('token');
+      if (!token) return toast.error('Invalid reset token');
 
+      // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('update-password', {
-        body: {
-          token,
-          newPassword
-        }
+        body: { token, newPassword },
       });
 
-      if (error || !data?.success) {
-        toast.error(data?.error || error?.message || 'Failed to reset password. Please try again.');
-        return;
-      }
+      if (error) return toast.error(error.message || 'Failed to reset password');
+      if (data?.error) return toast.error(data.error);
 
       toast.success('Password reset successfully! You can now sign in.');
       navigate('/?auth=open');
-
-    } catch (error) {
-      console.error('Password reset error:', error);
+    } catch (err: any) {
+      console.error('Password reset error:', err);
       toast.error('Failed to reset password. Please try again.');
     } finally {
       setSubmitting(false);
@@ -126,9 +86,7 @@ export function ResetPassword() {
     );
   }
 
-  if (!tokenValid) {
-    return null;
-  }
+  if (!tokenValid) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 p-4">
@@ -140,6 +98,7 @@ export function ResetPassword() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* New Password */}
           <div className="space-y-2">
             <Label htmlFor="new-password">New Password</Label>
             <div className="relative">
@@ -169,6 +128,7 @@ export function ResetPassword() {
             )}
           </div>
 
+          {/* Confirm Password */}
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirm Password</Label>
             <div className="relative">
