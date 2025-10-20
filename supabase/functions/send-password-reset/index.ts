@@ -112,11 +112,159 @@ Deno.serve(async (req: Request) => {
         to: [{ email, name: fullName }],
         subject: 'Reset Your Password - Tone2Vibe',
         htmlContent: `
-          <h2>Hello ${fullName},</h2>
-          <p>We received a request to reset your password. Click below to reset it:</p>
-          <a href="${resetUrl}" target="_blank" style="background:#000;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;">Reset Password</a>
-          <p>This link expires in 1 hour. If you didn't request this, ignore this email.</p>
-        `,
+           <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Reset Your Password - Tone2Vibe</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table {border-collapse: collapse;}
+  </style>
+  <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0a; -webkit-font-smoothing: antialiased; width: 100% !important;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color: #0a0a0a; min-height: 100vh;">
+    <tr>
+      <td align="center" style="padding: 40px 15px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 600px; width: 100%; background-color: #ffffff;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding: 50px 40px; text-align: center; background-color: #000000; border-bottom: 1px solid #e5e5e5;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+              <tr>
+  <td align="center" style="vertical-align: middle;">
+    <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="display: inline-block;">
+      <tr>
+        <!-- Icon Circle -->
+        <td style="vertical-align: middle; padding-right: 15px;">
+          <div style="width: 70px; height: 70px; background: linear-gradient(135deg, #ffffff 0%, #e5e5e5 100%); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(255,255,255,0.2); border: 3px solid rgba(255,255,255,0.1);">
+            <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png" alt="Tone2Vibe" width="38" height="38" style="display: block;" />
+          </div>
+        </td>
+
+        <!-- Text -->
+        <td style="vertical-align: middle;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; line-height: 1;">
+            Password Reset
+          </h1>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 50px 40px;">
+              <p style="color: #000000; font-size: 18px; line-height: 1.8; margin: 0 0 20px; font-weight: 400;">Hello <strong style="font-weight: 600;">${fullName}</strong>,</p>
+
+              <p style="color: #333333; font-size: 16px; line-height: 1.9; margin: 0 0 35px; font-weight: 300;">
+                We received a request to reset your password. Click the button below to set a new password for your Tone2Vibe account.
+              </p>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                <tr>
+                  <td align="center" style="padding: 0 0 40px;">
+                    <a href="${resetUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 18px 50px; font-size: 14px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; border: 2px solid #000000;">Reset Password</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <div style="height: 1px; background-color: #e5e5e5; margin: 35px 0;"></div>
+
+              <!-- Security Info -->
+              <div style="background-color: #fafafa; padding: 25px; border: 1px solid #e5e5e5;">
+                <p style="color: #000000; font-size: 14px; line-height: 1.8; margin: 0 0 12px; font-weight: 600;">
+                  Security Information
+                </p>
+                <p style="color: #666666; font-size: 14px; line-height: 1.8; margin: 0 0 12px; font-weight: 300;">
+                  This link expires in <strong style="color: #000000; font-weight: 500;">1 hour</strong>.
+                </p>
+                <p style="color: #666666; font-size: 14px; line-height: 1.8; margin: 0; font-weight: 300;">
+                  If you didn't request this, you can safely ignore this email.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #000000; padding: 35px 40px; border-top: 1px solid #e5e5e5;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+                <tr>
+                  <td align="center">
+                    <p style="color: #ffffff; font-size: 16px; line-height: 1.6; margin: 0 0 8px; font-weight: 300; letter-spacing: 2px; ;">Tone2Vibe.in</p>
+                    <p style="color: #999999; font-size: 12px; line-height: 1.6; margin: 0; font-weight: 300;">
+                      &copy; ${new Date().getFullYear()} All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Legal Text -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width: 600px; width: 100%; margin-top: 25px;">
+          <tr>
+            <td align="center" style="padding: 0 15px;">
+              <p style="color: #666666; font-size: 11px; line-height: 1.7; margin: 0; font-weight: 300;">
+                This is an automated message from Tone2Vibe. Please do not reply to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+  <!-- Mobile Responsive Styles -->
+  <style type="text/css">
+    @media only screen and (max-width: 600px) {
+      .header-content {
+        display: block !important;
+      }
+      .header-icon {
+        display: block !important;
+        margin: 0 auto 15px !important;
+        padding-right: 0 !important;
+      }
+      .header-text {
+        display: block !important;
+        text-align: center !important;
+      }
+      h1 {
+        font-size: 24px !important;
+        white-space: normal !important;
+      }
+      .content-padding {
+        padding: 30px 25px !important;
+      }
+      .header-padding {
+        padding: 35px 25px !important;
+      }
+      .footer-padding {
+        padding: 25px 25px !important;
+      }
+    }
+  </style>
+</body>
+</html> `,
       }),
     });
 
