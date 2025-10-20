@@ -282,20 +282,7 @@ const Index = () => {
             <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
               ✨ Now with 50+ language support
             </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-black leading-tight">
-              Clone Your Voice with{" "}
-              <span className="block bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
-                <span className="bg-gradient-to-r from-pink-500 via-blue-500 to-orange-500 bg-clip-text text-transparent animate-gradient">
-                  AI
-                </span>{" "}
-                Precision
-              </span>
-            </h1>
-            <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-center">
-              Transform any text into speech that sounds exactly like you.
-              <br />
-              Perfect for content creators, educators, and anyone who wants personalized voice synthesis.
-            </p>
+            
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
