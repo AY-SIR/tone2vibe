@@ -8,9 +8,6 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  console.log('=== SIGNUP REQUEST START ===');
-  console.log('Method:', req.method);
-
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
@@ -214,7 +211,7 @@ Deno.serve(async (req) => {
           })
         });
       } catch (emailError) {
-        console.error('Email send error:', emailError);
+        // Email error - silent fail
       }
     }
 
@@ -228,7 +225,6 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
-    console.error('Edge Function error:', err);
     return new Response(
       JSON.stringify({ success: false, error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

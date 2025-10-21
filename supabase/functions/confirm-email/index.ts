@@ -8,9 +8,6 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  console.log('=== CONFIRM EMAIL REQUEST START ===');
-  console.log('Method:', req.method);
-
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
@@ -64,7 +61,6 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (tokenError) {
-      console.error('Token query error:', tokenError);
       return new Response(JSON.stringify({
         success: false,
         error: 'Failed to verify token'
@@ -102,7 +98,6 @@ Deno.serve(async (req) => {
     );
 
     if (confirmError) {
-      console.error('Confirmation error:', confirmError);
       return new Response(JSON.stringify({
         success: false,
         error: 'Failed to confirm email'
@@ -127,7 +122,6 @@ Deno.serve(async (req) => {
     });
 
   } catch (err) {
-    console.error('=== ERROR ===', err);
     return new Response(JSON.stringify({
       success: false,
       error: 'Internal server error'

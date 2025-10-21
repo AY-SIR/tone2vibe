@@ -203,34 +203,28 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }
       });
 
-      // Check for network/function invocation errors
-      if (error) {
-        console.error('Signup function invocation error:', error);
-        toast.error('Failed to create account. Please try again.');
-        return;
-      }
-
       // Parse response data (handle both string and object)
       let result = data;
       if (typeof data === 'string') {
         try {
           result = JSON.parse(data);
         } catch (parseError) {
-          console.error('Failed to parse signup response:', parseError);
-          toast.error('Unexpected response from server. Please try again.');
-          return;
+          // If can't parse, treat as error
+          result = null;
         }
       }
 
-      // Check if the response indicates failure
-      if (!result?.success) {
-        const errorMessage = result?.error || 'Signup failed. Please try again.';
+      // Check for errors - either in the error param or in the result
+      if (error || !result?.success) {
+        const errorMessage = result?.error || error?.message || 'Signup failed. Please try again.';
 
         // Handle specific errors
         if (errorMessage.includes('already exists') || errorMessage.includes('already registered')) {
           toast.error('An account with this email already exists. Please sign in instead.');
           setCurrentView('signin');
           setSignInEmail(signUpEmail);
+        } else if (errorMessage.includes('connection') || errorMessage.includes('network')) {
+          toast.error('Network error. Please check your connection and try again.');
         } else {
           toast.error(errorMessage);
         }
@@ -244,8 +238,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       setSignInEmail(signUpEmail);
 
     } catch (err) {
-      console.error('Signup unexpected error:', err);
-      toast.error('An unexpected error occurred. Please try again.');
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsEmailLoading(false);
     }
@@ -265,8 +258,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       if (error) throw new Error(error.message);
       if (data.url) window.location.href = data.url;
     } catch (error) {
-      console.error('Google sign in error:', error);
-      toast.error("Failed to sign in with Google. Please try again.");
+      toast.error("Failed to sign in with Google. Please check your connection and try again.");
       setIsGoogleLoading(false);
     }
   };
@@ -284,8 +276,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
       // Check for network/function errors first
       if (error) {
-        console.error('Reset email error:', error);
-        toast.error('Failed to send reset email. Please try again.');
+        toast.error('Failed to send reset email. Please check your connection and try again.');
         return;
       }
 
@@ -295,13 +286,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         try {
           result = JSON.parse(data);
         } catch {
-          console.error('Failed to parse reset response');
+          // Parse error - silent fail
         }
       }
 
       // Check if the edge function returned an error in the response body
       if (result?.error) {
-        console.error('Password reset error:', result.error);
         toast.error('Failed to send reset email. Please try again.');
         return;
       }
@@ -310,8 +300,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       toast.success('If an account exists with this email, a password reset link has been sent. Please check your inbox.', { duration: 8000 });
       setCurrentView('choice');
     } catch (err) {
-      console.error('Forgot password exception:', err);
-      toast.error('An unexpected error occurred.');
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsResetLoading(false);
       setResetEmail('');

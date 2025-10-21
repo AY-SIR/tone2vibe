@@ -326,31 +326,30 @@ const History = () => {
       let audioUrl = project.audio_url;
 
       if (project.source_type === "recorded") {
-        try {
-          const url = new URL(project.audio_url);
-          const bucketName = "user-voices";
-          const pathParts = url.pathname.split("/");
-          const bucketIndex = pathParts.indexOf(bucketName);
-          if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-            const filePath = pathParts.slice(bucketIndex + 1).join("/");
-            const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 60);
-            if (error) throw error;
-            audioUrl = signedData.signedUrl;
-          }
-        } catch (e) {
-          if (e instanceof TypeError) {
-            console.error("Invalid URL format for recorded voice (likely old data):", project.audio_url);
-            toast({
-              title: "Cannot Play Audio",
-              description: "This recording has an outdated format. Please record a new voice sample.",
-              variant: "destructive",
-            });
-            setPlayingAudio(null);
-            setLoadingAudio(null);
-            return;
-          }
-          throw e;
+      try {
+        const url = new URL(project.audio_url);
+        const bucketName = "user-voices";
+        const pathParts = url.pathname.split("/");
+        const bucketIndex = pathParts.indexOf(bucketName);
+        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
+          const filePath = pathParts.slice(bucketIndex + 1).join("/");
+          const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 3600); // 1 hour cache
+          if (error) throw error;
+          audioUrl = signedData.signedUrl;
         }
+      } catch (e) {
+        if (e instanceof TypeError) {
+          toast({
+            title: "Cannot Play Audio",
+            description: "This recording format is not supported.",
+            variant: "destructive",
+          });
+          setPlayingAudio(null);
+          setLoadingAudio(null);
+          return;
+        }
+        throw e;
+      }
       }
 
       const audio = new Audio(audioUrl);

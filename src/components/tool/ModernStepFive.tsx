@@ -5,8 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Volume2, FileAudio, Copy, Check, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { AudioDownloadDropdown } from '@/components/tool/AudioDownloadDropdown';
-import { ModernAudioPlayer } from '@/components/tool/ModernAudioPlayer'; // Import the new player
+import { ModernAudioPlayer } from '@/components/tool/ModernAudioPlayer';
 
 interface ModernStepFiveProps {
   audioUrl: string;
@@ -79,6 +78,27 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         window.location.href = '/tool';
       }
     }, 1500);
+  };
+
+  const handleDownload = async () => {
+    try {
+      const a = document.createElement('a');
+      a.href = audioUrl;
+      a.download = `voice_${Date.now()}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast({
+        title: "Download Started",
+        description: "Your audio file is downloading.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Unable to download audio file.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -172,24 +192,19 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Download Your Audio
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4 text-center ">
-          <div className="flex items-center space-x-2 border rounded-lg px-4 py-2 ">
-            <p className="text-sm text-black font-semibold">
-              Download in
-            </p>
-            <AudioDownloadDropdown
-              audioUrl={audioUrl}
-              fileName={`voice_${Date.now()}`}
-              isWebM={audioMimeType === 'audio/webm'}
-            />
-          </div>
+        <CardContent className="flex flex-col items-center gap-4">
+          <Button
+            onClick={handleDownload}
+            size="lg"
+            className="gap-2"
+          >
+            <Download className="w-5 h-5" />
+            Download MP3
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Audio will be downloaded in MP3 format
+          </p>
         </CardContent>
-        <p className="text-center mb-2 text-sm text-muted-foreground">
-          Download available in different formats:
-          <span className="inline font-medium">.mp3</span>
-          <span className="inline font-medium">.flac</span>
-          <span className="inline font-medium">.wav</span>
-        </p>
       </Card>
 
       <div className="flex justify-center">

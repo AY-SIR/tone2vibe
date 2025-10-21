@@ -109,7 +109,9 @@ export default function ModernStepThree({
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const canUsePrebuilt = profile?.plan !== "free";
+  // All users can ACCESS prebuilt tab to browse, but only paid users can USE paid voices
+  const canAccessPrebuiltTab = true; // Everyone can view prebuilt voices
+  const userPlan = profile?.plan || 'free';
 
   const clearSelection = () => {
     setSelectedVoice(null);
@@ -129,10 +131,10 @@ export default function ModernStepThree({
 
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
-      if (voiceMethod !== 'prebuilt' || !canUsePrebuilt) return;
+      if (voiceMethod !== 'prebuilt') return;
       setLoadingVoices(true);
       setPrebuiltVoices([]);
-      const allowedPlans = profile?.plan === 'premium' ? ['free','pro','premium'] : profile?.plan === 'pro' ? ['free','pro'] : ['free'];
+      // Load ALL active prebuilt voices for browsing, regardless of user plan
       const batchSize = 50;
       let from = 0;
       let hasMore = true;
@@ -141,7 +143,6 @@ export default function ModernStepThree({
           .from('prebuilt_voices')
           .select('*')
           .eq('is_active', true)
-          .in('required_plan', allowedPlans)
           .order('sort_order', { ascending: true })
           .range(from, from + batchSize - 1);
         if (error) {
@@ -159,7 +160,7 @@ export default function ModernStepThree({
       setLoadingVoices(false);
     };
     loadPrebuiltVoices();
-  }, [voiceMethod, canUsePrebuilt, profile?.plan, toast]);
+  }, [voiceMethod, toast]);
 
   useEffect(() => {
     let filtered = prebuiltVoices;
@@ -227,9 +228,28 @@ export default function ModernStepThree({
     }
   };
 
+  const canUserAccessVoice = (requiredPlan: string): boolean => {
+    if (requiredPlan === 'free') return true;
+    if (requiredPlan === 'pro' && ['pro', 'premium'].includes(userPlan)) return true;
+    if (requiredPlan === 'premium' && userPlan === 'premium') return true;
+    return false;
+  };
+
   const handlePrebuiltSelect = (voiceId: string) => {
-    clearSelection();
     const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
+    if (!voice) return;
+    
+    // Check if user can access this voice
+    if (!canUserAccessVoice(voice.required_plan)) {
+      toast({ 
+        title: "Upgrade Required", 
+        description: `This voice requires ${voice.required_plan === 'pro' ? 'Pro or Premium' : 'Premium'} plan. Please upgrade to use it.`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    clearSelection();
     setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice?.name || 'Prebuilt Voice' });
     onVoiceSelect(voiceId);
     toast({ title: "Voice Selected", description: `Selected "${voice?.name}" voice.` });
@@ -261,8 +281,8 @@ export default function ModernStepThree({
       <Tabs value={voiceMethod} onValueChange={(value) => setVoiceMethod(value as any)}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="record"><Mic className="h-4 w-4 mr-2" />Record</TabsTrigger>
-          <TabsTrigger value="prebuilt" disabled={!canUsePrebuilt}>
-            {canUsePrebuilt ? <Crown className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+          <TabsTrigger value="prebuilt">
+            <Crown className="h-4 w-4 mr-2" />
             Prebuilt
           </TabsTrigger>
           <TabsTrigger value="history">
@@ -341,32 +361,55 @@ export default function ModernStepThree({
         </TabsContent>
 
         <TabsContent value="prebuilt" className="space-y-4">
-          {canUsePrebuilt ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
                   <Crown className="h-5 w-5" />
                   <span>Prebuilt Voices</span>
-                  <Badge>Paid</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingVoices ? <p className="text-center p-4">Loading voices...</p> : (
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Search voices in this language..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-                    </div>
-                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                      {filteredVoices.length > 0 ? (
-                        filteredVoices.map((voice) => (
-                          <div key={voice.id} onClick={() => handlePrebuiltSelect(voice.voice_id)}
-                               className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedVoice?.id === voice.voice_id ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}>
+                </div>
+                <Badge variant={userPlan === 'free' ? 'secondary' : 'default'}>
+                  {userPlan === 'free' ? 'Free Plan - Limited Access' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingVoices ? <p className="text-center p-4">Loading voices...</p> : (
+                <div className="space-y-4">
+                  {userPlan === 'free' && (
+                    <Alert className="border-amber-200 bg-amber-50 text-amber-800">
+                      <AlertDescription>
+                        You can browse all voices but only use Free voices. <Button variant="link" className="p-0 h-auto text-amber-900 font-semibold" onClick={() => window.open("/payment", "_blank")}>Upgrade</Button> to unlock all voices.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search voices..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                  </div>
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {filteredVoices.length > 0 ? (
+                      filteredVoices.map((voice) => {
+                        const canAccess = canUserAccessVoice(voice.required_plan);
+                        return (
+                          <div key={voice.id} 
+                               onClick={() => handlePrebuiltSelect(voice.voice_id)}
+                               className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                                 !canAccess ? 'opacity-60' : ''
+                               } ${selectedVoice?.id === voice.voice_id ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}>
                             <div className="flex items-center gap-3">
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-medium">{voice.name}</h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium">{voice.name}</h4>
+                                  {!canAccess && <Lock className="h-3 w-3 text-muted-foreground" />}
+                                </div>
                                 <p className="text-xs text-muted-foreground line-clamp-2">{voice.description}</p>
                                 <div className="flex gap-1 mt-1 flex-wrap">
+                                  <Badge variant={canAccess ? "default" : "secondary"} className="text-xs capitalize">
+                                    {voice.required_plan === 'free' ? 'Free' : 
+                                     voice.required_plan === 'pro' ? 'Pro' : 
+                                     'Premium'}
+                                  </Badge>
                                   {voice.category && <Badge variant="outline" className="text-xs">{voice.category}</Badge>}
                                   {voice.gender && <Badge variant="outline" className="text-xs">{voice.gender}</Badge>}
                                   {voice.accent && <Badge variant="outline" className="text-xs">{voice.accent}</Badge>}
@@ -379,29 +422,18 @@ export default function ModernStepThree({
                               </Button>
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-sm text-muted-foreground p-6">
-                          No prebuilt voices found for the selected language or search term.
-                        </p>
-                      )}
-                    </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-center text-sm text-muted-foreground p-6">
+                        No prebuilt voices found for your search.
+                      </p>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="font-medium mb-2">Prebuilt Voices Locked</h3>
-                <p className="text-sm text-muted-foreground mb-4">Upgrade to Pro or Premium to access our collection of prebuilt AI voices.</p>
-                <Button variant="outline" onClick={() => window.open("/payment", "_blank")}>
-                  <Crown className="h-4 w-4 mr-2" /> Upgrade Plan
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
         })
       });
     } catch (emailError) {
-      console.error('Email send error:', emailError);
+      // Email error - silent fail
     }
 
     return new Response(
@@ -112,7 +112,6 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (err) {
-    console.error('Password reset error:', err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
