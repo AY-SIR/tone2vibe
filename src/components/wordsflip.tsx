@@ -1,4 +1,3 @@
-// src/components/WordsFlip.tsx (or wherever this file is)
 
 import React from "react";
 import { FlipWords } from "@/components/ui/flip-words";
