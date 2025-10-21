@@ -367,6 +367,13 @@ export default function ModernStepThree({
                                 <h4 className="font-medium">{voice.name}</h4>
                                 <p className="text-xs text-muted-foreground line-clamp-2">{voice.description}</p>
                                 <div className="flex gap-1 mt-1 flex-wrap">
+                                  {voice.required_plan && (
+                                    <Badge variant="secondary" className="text-xs capitalize">
+                                      {voice.required_plan === 'free' ? 'Free' : 
+                                       voice.required_plan === 'pro' ? 'Free+Pro' : 
+                                       'Free+Pro+Premium'}
+                                    </Badge>
+                                  )}
                                   {voice.category && <Badge variant="outline" className="text-xs">{voice.category}</Badge>}
                                   {voice.gender && <Badge variant="outline" className="text-xs">{voice.gender}</Badge>}
                                   {voice.accent && <Badge variant="outline" className="text-xs">{voice.accent}</Badge>}

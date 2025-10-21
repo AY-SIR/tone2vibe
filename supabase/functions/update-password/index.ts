@@ -71,7 +71,6 @@ Deno.serve(async (req) => {
     });
 
     if (updateError) {
-      console.error('Password update error:', updateError);
       return new Response(JSON.stringify({ error: 'Failed to update password' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -89,7 +88,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
-    console.error('Edge function error:', err);
     return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

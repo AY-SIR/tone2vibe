@@ -24,6 +24,7 @@ export const useWebSocket = (
 ): UseWebSocketReturn => {
   const { user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "disconnected" | "error"
@@ -136,6 +137,19 @@ export const useWebSocket = (
   };
 
   // Handle online/offline state changes
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   useEffect(() => {
     if (!isOnline) {
       // Disconnect when going offline

@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GridPattern } from "@/components/GridPattern";
 import GridConnect from "@/components/gridconnect";
-import { Marque2 } from "@/components/Marque2"
+import { Marque2 } from "@/components/marque2"
 import { WordsFlip } from "@/components/wordsflip"
 
 import { FloatingNavigation } from "@/components/ui/FloatingNavigation";
@@ -275,9 +274,6 @@ const Index = () => {
     <>
       {/* Hero Section */}
       <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
-        <div className="absolute inset-0 [mask-image:radial-gradient(circle_at_center,white,transparent_100%)] pointer-events-none z-[10] block">
-          <GridPattern rows={15} columns={50} cellSize={32} />
-        </div>
         <div className="relative z-10 container mx-auto max-w-4xl">
           {/* Hero Content */}
           <div className="animate-fade-in">
