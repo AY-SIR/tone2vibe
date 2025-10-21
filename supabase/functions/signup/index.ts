@@ -133,25 +133,44 @@ Deno.serve(async (req) => {
       <td align="center">
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px;">
 
-          <!-- Content -->
-          <tr>
-            <td style="padding: 50px 40px; text-align: center;">
+         <!-- Content -->
+<tr>
+  <td style="padding: 50px 40px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;">
 
-              <!-- Logo -->
-              <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png" alt="Tone2Vibe" width="48" height="48" style="margin-bottom: 24px;" />
+    <!-- Logo -->
+    <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
+         alt="Tone2Vibe" width="48" height="48" />
 
-              <h1 style="color: #000000; margin: 0 0 12px; font-size: 24px; font-weight: 600;">Confirm your email</h1>
+    <!-- Heading -->
+    <h1 style="color: #000000; margin: 0; font-size: 24px; font-weight: 600;">
+      Confirm your email
+    </h1>
 
-              <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 8px;">Hi <strong>${displayName}</strong>,</p>
+  </td>
+</tr>
 
-              <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 32px;">Click the button below to verify your account.</p>
+<!-- Greeting -->
+<tr>
+  <td style="padding: 0 40px 16px; text-align: center;">
+    <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 8px;">
+      Hi <strong>${displayName}</strong>,
+    </p>
 
-              <!-- Button -->
-              <a href="${confirmationUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 32px; font-size: 15px; font-weight: 500; border-radius: 6px;">Confirm Email</a>
+    <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 32px;">
+      Click the button below to verify your account.
+    </p>
 
-              <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 32px 0 0;">This link expires in 24 hours. Didn't sign up? Ignore this email.</p>
-            </td>
-          </tr>
+    <!-- Button -->
+    <a href="${confirmationUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 32px; font-size: 15px; font-weight: 500; border-radius: 6px;">
+      Confirm Email
+    </a>
+
+    <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 32px 0 0;">
+      This link expires in 24 hours. Didn't sign up? Ignore this email.
+    </p>
+  </td>
+</tr>
+
 
           <!-- Footer -->
           <tr>

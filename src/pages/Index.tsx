@@ -464,7 +464,7 @@ const Index = () => {
             </span>
           </button>
           <div className="flex items-center space-x-4">
-            {profile?.plan && (
+{user && profile?.plan && (
               <>
                 <div className="hidden min-[400px]:inline-block text-xs capitalize">
                   <MobileWordCounter />

@@ -17,14 +17,14 @@ export function StickyHeader() {
 
   const getWordCountDisplay = () => {
     if (!profile) return '';
-    
+
     // Show only total available words (plan remaining + purchased)
     const planWordsUsed = profile.plan_words_used || 0;
     const planLimit = profile.words_limit || 0;
     const purchasedWords = profile.word_balance || 0;
     const planWordsRemaining = Math.max(0, planLimit - planWordsUsed);
     const totalAvailable = planWordsRemaining + purchasedWords;
-    
+
     return `${totalAvailable.toLocaleString()} left`;
   };
 
@@ -110,10 +110,10 @@ export function StickyHeader() {
               >
                 <FastForward className="h-4 w-4 text-gray-600" />
               </Button>
-              
+
               {/* Word info popup for mobile */}
               {showWordInfo && (
-                <div 
+                <div
                   className="absolute top-12 right-0 bg-white border rounded-lg shadow-lg p-3 min-w-[200px] z-50"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -161,7 +161,7 @@ export function StickyHeader() {
               )}
             </div>
           )}
-          
+
           {/* Word count in header (desktop only) */}
           {user && profile && !isMobile && (
             <Badge variant="outline" className="text-xs">
@@ -169,7 +169,7 @@ export function StickyHeader() {
               {getWordCountDisplay()} words
             </Badge>
           )}
-          
+
           {user ? (
             <UserMenu />
           ) : (
@@ -199,44 +199,44 @@ export function StickyHeader() {
       {isMenuOpen && (
         <div className="md:hidden border-t bg-background">
           <div className="container mx-auto px-4 py-2 space-y-1">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => {
                 navigate('/');
                 setIsMenuOpen(false);
-              }} 
+              }}
               className="w-full justify-start text-sm"
             >
               Home
             </Button>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => {
                 navigate('/tool');
                 setIsMenuOpen(false);
-              }} 
+              }}
               className="w-full justify-start text-sm"
             >
               Voice Tool
             </Button>
             {user && (
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={() => {
                   navigate('/history');
                   setIsMenuOpen(false);
-                }} 
+                }}
                 className="w-full justify-start text-sm"
               >
                 History
               </Button>
             )}
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => {
                 navigate('/contact');
                 setIsMenuOpen(false);
-              }} 
+              }}
               className="w-full justify-start text-sm"
             >
               Contact

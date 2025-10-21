@@ -293,24 +293,24 @@ const ModernStepFour = ({
       </Card>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center text-lg">
-              <Settings className="h-5 w-5 mr-2" /> Advanced Settings
-              {isPremiumUser && <Crown className="h-4 w-4 ml-2 text-yellow-500" />}
-            </CardTitle>
-            {profile?.plan === 'free' ? (
-              <Badge variant="outline" className="text-xs">
-                <Lock className="h-3 w-3 mr-1" />
-                Upgrade to unlock
-              </Badge>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => setShowAdvanced(!showAdvanced)}>
-                {showAdvanced ? "Hide" : "Show"}
-              </Button>
-            )}
-          </div>
-        </CardHeader>
+       <CardHeader>
+  <div className="flex items-center justify-between gap-2">
+    <CardTitle className="flex items-center text-sm sm:text-base md:text-lg">
+      <Settings className="h-4 w-4 sm:h-5 sm:w-5 mr-2" /> Advanced Settings
+      {isPremiumUser && <Crown className="h-3 w-3 sm:h-4 sm:w-4 ml-2 text-yellow-500" />}
+    </CardTitle>
+    {profile?.plan === 'free' ? (
+      <Badge variant="outline" className="text-xs sm:text-sm whitespace-nowrap">
+        <Lock className="h-3 w-3 mr-1" />
+        Upgrade to unlock
+      </Badge>
+    ) : (
+      <Button variant="ghost" size="sm" onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs sm:text-sm">
+        {showAdvanced ? "Hide" : "Show"}
+      </Button>
+    )}
+  </div>
+</CardHeader>
 
         {profile?.plan === 'free' && (
           <CardContent className="text-center py-8">
@@ -555,14 +555,14 @@ const ModernStepFour = ({
                   {isPaidUser ? "Choose Your Generation Method" : "Ready to Generate Audio"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-600">
-                  {isPaidUser ? "Test with a 50-word sample first, or generate the full audio directly." : "Your text will be converted to high-quality speech using advanced AI."}
+                  {isPaidUser ? "Test with a  sample first, or generate the full audio directly." : "Your text will be converted to high-quality speech using advanced AI."}
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 justify-center">
                 {isPaidUser && (
                   <Button onClick={handleGenerateSample} disabled={isGenerating} variant="outline" size="lg" className="w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 border-2 border-gray-300 hover:bg-gray-50">
                     <Volume2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                    Generate Sample (50 words)
+                    Generate Sample Voice
                   </Button>
                 )}
                 <Button onClick={handleGenerateFullAudio} disabled={isGenerating} size="lg" className="w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 bg-black hover:bg-gray-800 text-white">

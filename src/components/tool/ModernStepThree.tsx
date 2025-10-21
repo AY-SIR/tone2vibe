@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Mic, Lock, Play, Pause, Search, CheckCircle, Clock, Crown } from "lucide-react";
+import {
+  Mic, Lock, Play, Pause, Search, CheckCircle,
+  Clock, Crown, Filter, X
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,6 +16,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { VoiceRecorder } from "@/components/tool/VoiceRecorder";
 import { VoiceHistoryDropdown } from "@/components/tool/VoiceHistoryDropdown";
 import { PrebuiltVoiceService, type PrebuiltVoice } from "@/services/prebuiltVoiceService";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 
 const sampleParagraphs: { [key: string]: string } = {
@@ -69,7 +79,6 @@ const sampleParagraphs: { [key: string]: string } = {
   "zh-TW": "今天早上，城市的街道沐浴在溫暖的陽光下。孩子們在公園裡玩耍，笑聲不斷。街頭小販在擺攤，大人們匆忙去上班。空氣中瀰漫著新鮮花朵和剛出爐麵包的香氣。一些人坐在咖啡館裡享受早晨的時光。"
 };
 
-
 interface ModernStepThreeProps {
   onNext: () => void;
   onPrevious: () => void;
@@ -98,9 +107,10 @@ export default function ModernStepThree({
   const { profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [voiceMethod, setVoiceMethod] = useState<"record" | "upload" | "prebuilt">("record");
-  const [selectedVoice, setSelectedVoice] = useState<VoiceSelection | null>(null);
 
+  // State management
+  const [voiceMethod, setVoiceMethod] = useState<"record" | "prebuilt" | "history">("record");
+  const [selectedVoice, setSelectedVoice] = useState<VoiceSelection | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
@@ -108,11 +118,13 @@ export default function ModernStepThree({
   const [filteredVoices, setFilteredVoices] = useState<PrebuiltVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [genderFilter, setGenderFilter] = useState<string>("all");
+  const [planFilter, setPlanFilter] = useState<string>("all");
 
-  // All users can ACCESS prebuilt tab to browse, but only paid users can USE paid voices
-  const canAccessPrebuiltTab = true; // Everyone can view prebuilt voices
   const userPlan = profile?.plan || 'free';
 
+  // Clear selection helper
   const clearSelection = () => {
     setSelectedVoice(null);
     onVoiceRecorded(new Blob());
@@ -121,51 +133,105 @@ export default function ModernStepThree({
 
   // Restore selection when user navigates back
   useEffect(() => {
-    if (selectedVoiceId) {
-      setSelectedVoice({ type: 'prebuilt', id: selectedVoiceId, name: 'Prebuilt Voice' });
-      setVoiceMethod('prebuilt');
-      onVoiceSelect(selectedVoiceId);
+    if (selectedVoiceId && !selectedVoice) {
+      const restoreSelection = async () => {
+        const voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
+        if (voice) {
+          setSelectedVoice({ type: 'prebuilt', id: selectedVoiceId, name: voice.name });
+          setVoiceMethod('prebuilt');
+        }
+      };
+      restoreSelection();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVoiceId]);
+  }, [selectedVoiceId, selectedVoice]);
 
+  // Load prebuilt voices when tab is active
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
-  if (voiceMethod !== 'prebuilt') return;
-  setLoadingVoices(true);
-  setPrebuiltVoices([]);
+      if (voiceMethod !== 'prebuilt') return;
 
-  const voices = await PrebuiltVoiceService.getVoicesForPlan(userPlan);
-  setPrebuiltVoices(voices);
-  setLoadingVoices(false);
-};
+      setLoadingVoices(true);
+      try {
+        const voices = await PrebuiltVoiceService.getVoicesForPlan(userPlan);
+        setPrebuiltVoices(voices);
+
+        if (voices.length === 0) {
+          toast({
+            title: "No Voices Available",
+            description: "No prebuilt voices found for your plan.",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error("Error loading voices:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load prebuilt voices. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingVoices(false);
+      }
+    };
+
     loadPrebuiltVoices();
-  }, [voiceMethod, toast]);
+  }, [voiceMethod, userPlan, toast]);
 
+  // Filter voices based on search and filters
   useEffect(() => {
     let filtered = prebuiltVoices;
+
+    // Language filter (always applied if language is selected)
     if (selectedLanguage) {
-      filtered = filtered.filter(voice => (voice as any).language === selectedLanguage);
+      filtered = filtered.filter(voice => voice.language === selectedLanguage);
     }
+
+    // Category filter
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter(v => v.category === categoryFilter);
+    }
+
+    // Gender filter
+    if (genderFilter !== "all") {
+      filtered = filtered.filter(v => v.gender === genderFilter);
+    }
+
+    // Plan filter
+    if (planFilter !== "all") {
+      filtered = filtered.filter(v => v.required_plan === planFilter);
+    }
+
+    // Search filter
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(v =>
         v.name.toLowerCase().includes(term) ||
+        v.description.toLowerCase().includes(term) ||
         (v.category?.toLowerCase().includes(term)) ||
         (v.gender?.toLowerCase().includes(term)) ||
         (v.accent?.toLowerCase().includes(term))
       );
     }
-    setFilteredVoices(filtered);
-  }, [selectedLanguage, searchTerm, prebuiltVoices]);
 
+    setFilteredVoices(filtered);
+  }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter]);
+
+  // Handle voice recording
   const handleVoiceRecorded = (blob: Blob) => {
     clearSelection();
-    setSelectedVoice({ type: 'record', id: `rec-${Date.now()}`, name: 'New Recording' });
+    setSelectedVoice({
+      type: 'record',
+      id: `rec-${Date.now()}`,
+      name: 'New Recording'
+    });
     onVoiceRecorded(blob);
-    toast({ title: "Voice Ready", description: "Your saved voice is ready for generation." });
+    toast({
+      title: "Voice Ready",
+      description: "Your recorded voice is ready for generation."
+    });
   };
 
+  // Handle history voice selection
   const handleHistoryVoiceSelect = async (voiceId: string) => {
     clearSelection();
 
@@ -204,85 +270,166 @@ export default function ModernStepThree({
     if (blob) {
       setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
       onVoiceRecorded(blob);
-      toast({ title: "Voice Selected", description: `Using your saved voice: "${voice.name}".` });
+      toast({
+        title: "Voice Selected",
+        description: `Using your saved voice: "${voice.name}".`
+      });
     }
   };
 
+  // Check if user can access voice
   const canUserAccessVoice = (requiredPlan: string): boolean => {
-    if (requiredPlan === 'free') return true;
-    if (requiredPlan === 'pro' && ['pro', 'premium'].includes(userPlan)) return true;
-    if (requiredPlan === 'premium' && userPlan === 'premium') return true;
-    return false;
+    return PrebuiltVoiceService.canAccessVoice(
+      { required_plan: requiredPlan } as PrebuiltVoice,
+      userPlan
+    );
   };
 
-  const handlePrebuiltSelect = (voiceId: string) => {
+  // Handle prebuilt voice selection
+  const handlePrebuiltSelect = async (voiceId: string) => {
     const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
     if (!voice) return;
-    
-    // Check if user can access this voice
-    if (!canUserAccessVoice(voice.required_plan)) {
-      toast({ 
-        title: "Upgrade Required", 
-        description: `This voice requires ${voice.required_plan === 'pro' ? 'Pro or Premium' : 'Premium'} plan. Please upgrade to use it.`,
+
+    // Validate access
+    const validation = await PrebuiltVoiceService.validateVoiceAccess(voiceId, userPlan);
+
+    if (!validation.canAccess) {
+      toast({
+        title: "Upgrade Required",
+        description: validation.message || `This voice requires ${voice.required_plan} plan.`,
         variant: "destructive"
       });
       return;
     }
-    
+
+    // Clear previous selection and set new one
+    if (currentAudio) {
+      currentAudio.pause();
+      setCurrentAudio(null);
+    }
+
     clearSelection();
-    setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice?.name || 'Prebuilt Voice' });
+    setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
     onVoiceSelect(voiceId);
-    toast({ title: "Voice Selected", description: `Selected "${voice?.name}" voice.` });
+    toast({
+      title: "Voice Selected",
+      description: `Selected "${voice.name}" voice.`
+    });
   };
 
-  const playPrebuiltSample = async (voiceId: string) => {
-    if (currentAudio) currentAudio.pause();
+  // Play prebuilt voice sample
+  const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    // Stop current audio if playing
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+
+    // Toggle if same voice is clicked
+    if (playingVoiceId === voiceId && isPlaying) {
+      setIsPlaying(false);
+      setPlayingVoiceId(null);
+      setCurrentAudio(null);
+      return;
+    }
+
     const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
-    if (!voice?.audio_preview_url) return;
+    if (!voice?.audio_preview_url) {
+      toast({
+        title: "No Preview Available",
+        description: "This voice doesn't have a preview sample.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       const audio = new Audio(voice.audio_preview_url);
       setCurrentAudio(audio);
       setPlayingVoiceId(voiceId);
       setIsPlaying(true);
-      audio.onended = () => { setIsPlaying(false); setPlayingVoiceId(null); setCurrentAudio(null); };
-      audio.onerror = () => { setIsPlaying(false); setPlayingVoiceId(null); toast({ title: "Playback Error", variant: "destructive" }); };
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setPlayingVoiceId(null);
+        setCurrentAudio(null);
+      };
+
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setPlayingVoiceId(null);
+        setCurrentAudio(null);
+        toast({
+          title: "Playback Error",
+          description: "Unable to play voice preview",
+          variant: "destructive"
+        });
+      };
+
       await audio.play();
     } catch (error) {
       setIsPlaying(false);
       setPlayingVoiceId(null);
-      toast({ title: "Playback Error", variant: "destructive" });
+      setCurrentAudio(null);
+      toast({
+        title: "Playback Error",
+        description: "Unable to play voice preview",
+        variant: "destructive"
+      });
     }
   };
 
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter("all");
+    setGenderFilter("all");
+    setPlanFilter("all");
+  };
+
+  // Get unique categories and genders for filters
+  const categories = Array.from(new Set(prebuiltVoices.map(v => v.category).filter(Boolean)));
+  const genders = Array.from(new Set(prebuiltVoices.map(v => v.gender).filter(Boolean)));
+
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
+  const hasActiveFilters = searchTerm || categoryFilter !== "all" || genderFilter !== "all" || planFilter !== "all";
 
   return (
     <div className="space-y-6">
       <Tabs value={voiceMethod} onValueChange={(value) => setVoiceMethod(value as any)}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="record"><Mic className="h-4 w-4 mr-2" />Record</TabsTrigger>
+          <TabsTrigger value="record">
+            <Mic className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Record</span>
+            <span className="sm:hidden">Record</span>
+          </TabsTrigger>
           <TabsTrigger value="prebuilt">
             <Crown className="h-4 w-4 mr-2" />
-            Prebuilt
+            <span className="hidden sm:inline">Prebuilt</span>
+            <span className="sm:hidden">Prebuilt</span>
           </TabsTrigger>
           <TabsTrigger value="history">
             <Clock className="h-4 w-4 mr-2" />
-            History
+            <span className="hidden sm:inline">History</span>
+            <span className="sm:hidden">History</span>
           </TabsTrigger>
         </TabsList>
 
+        {/* RECORD TAB */}
         <TabsContent value="record" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
+              <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
                 <Mic className="h-5 w-5" />
                 <span>Record Your Voice</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-4">
-                <h4 className="font-medium mb-2">Sample Text to Read:</h4>
-                <p className="text-sm leading-relaxed">{currentParagraph}</p>
+                <h4 className="font-medium mb-2 text-sm sm:text-base">Sample Text to Read:</h4>
+                <p className="text-xs sm:text-sm leading-relaxed">{currentParagraph}</p>
               </div>
               <VoiceRecorder
                 onRecordingComplete={handleVoiceRecorded}
@@ -298,31 +445,21 @@ export default function ModernStepThree({
           </Card>
         </TabsContent>
 
+        {/* HISTORY TAB */}
         <TabsContent value="history" className="space-y-4">
-          <Tabs defaultValue="recorded">
-            <TabsList className="grid grid-cols-2 w-full">
-              <TabsTrigger value="recorded">
-                <Clock className="h-4 w-4 mr-2" />
-                History
-              </TabsTrigger>
-              <TabsTrigger value="uploaded" disabled>
-                <Lock className="h-4 w-4 mr-2" />
-                Upload (Soon)
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="recorded" className="p-4 space-y-4">
-              <div className="flex items-center mb-4">
-                <Clock className="w-6 h-6 text-gray-700 mr-2" />
-                <h3 className="text-lg font-semibold text-gray-800">Your Voice History</h3>
-              </div>
-
-                 <VoiceHistoryDropdown
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                <Clock className="h-5 w-5" />
+                <span>Your Voice History</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <VoiceHistoryDropdown
                 onVoiceSelect={handleHistoryVoiceSelect}
                 selectedVoiceId={selectedVoice?.type === 'history' ? selectedVoice.id : ''}
                 selectedLanguage={selectedLanguage}
               />
-
               <div className="text-center mt-4">
                 <Button
                   variant="outline"
@@ -332,84 +469,228 @@ export default function ModernStepThree({
                   Learn More About History
                 </Button>
               </div>
-            </TabsContent>
-
-            <TabsContent value="uploaded" className="p-4 text-center text-muted-foreground">
-              <p>Coming Soon</p>
-            </TabsContent>
-          </Tabs>
+            </CardContent>
+          </Card>
         </TabsContent>
 
+        {/* PREBUILT TAB */}
         <TabsContent value="prebuilt" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Crown className="h-5 w-5" />
-                  <span>Prebuilt Voices</span>
+           <CardHeader className="space-y-3">
+  <div className="flex items-center justify-between gap-3">
+    <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
+      <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
+      <span>Prebuilt Voices</span>
+    </CardTitle>
+    <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
+      {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
+    </Badge>
+  </div>
+</CardHeader>
+<CardContent className="px-2 sm:px-3 md:px-4">
+              {loadingVoices ? (
+                <div className="text-center p-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-sm text-muted-foreground">Loading voices...</p>
                 </div>
-                <Badge variant={userPlan === 'free' ? 'secondary' : 'default'}>
-                  {userPlan === 'free' ? 'Free Plan - Limited Access' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingVoices ? <p className="text-center p-4">Loading voices...</p> : (
+              ) : (
                 <div className="space-y-4">
+                  {/* Upgrade Alert for Free Users */}
                   {userPlan === 'free' && (
                     <Alert className="border-amber-200 bg-amber-50 text-amber-800">
-                      <AlertDescription>
-                        You can browse all voices but only use Free voices. <Button variant="link" className="p-0 h-auto text-amber-900 font-semibold" onClick={() => window.open("/payment", "_blank")}>Upgrade</Button> to unlock all voices.
+                      <AlertDescription className="text-xs sm:text-sm">
+                        You can browse all voices but only use Free voices.{' '}
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto text-amber-900 font-semibold underline"
+                          onClick={() => window.open("/payment", "_blank")}
+                        >
+                          Upgrade
+                        </Button>
+                        {' '}to unlock Pro and Premium voices.
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  {/* Search Bar */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search voices..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                    <Input
+                      placeholder="Search voices by name, description..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 pr-10"
+                    />
+                    {searchTerm && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        onClick={() => setSearchTerm("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+
+                  {/* Filters */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                      <SelectTrigger className="w-full sm:w-[180px]">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.map(cat => (
+                          <SelectItem key={cat} value={cat} className="capitalize">
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={genderFilter} onValueChange={setGenderFilter}>
+                      <SelectTrigger className="w-full sm:w-[150px]">
+                        <SelectValue placeholder="Gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Genders</SelectItem>
+                        {genders.map(gender => (
+                          <SelectItem key={gender} value={gender} className="capitalize">
+                            {gender}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+
+
+                    {hasActiveFilters && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={clearAllFilters}
+                        className="w-full sm:w-auto"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Voice List */}
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                     {filteredVoices.length > 0 ? (
                       filteredVoices.map((voice) => {
                         const canAccess = canUserAccessVoice(voice.required_plan);
+                        const isSelected = selectedVoice?.id === voice.voice_id;
+                        const isCurrentlyPlaying = playingVoiceId === voice.voice_id && isPlaying;
+
                         return (
-                          <div key={voice.id} 
-                               onClick={() => handlePrebuiltSelect(voice.voice_id)}
-                               className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                                 !canAccess ? 'opacity-60' : ''
-                               } ${selectedVoice?.id === voice.voice_id ? "border-primary bg-primary/5" : "hover:border-primary/50"}`}>
-                            <div className="flex items-center gap-3">
+                          <div
+                            key={voice.id}
+                            onClick={() => handlePrebuiltSelect(voice.voice_id)}
+                            className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${
+                              !canAccess ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''
+                            } ${isSelected ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" : "hover:border-primary/50"}`}
+                          >
+                            <div className="flex items-start gap-3">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-medium">{voice.name}</h4>
-                                  {!canAccess && <Lock className="h-3 w-3 text-muted-foreground" />}
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <h4 className="font-medium text-sm sm:text-base truncate">
+                                    {voice.name}
+                                  </h4>
+                                  {!canAccess && (
+                                    <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  )}
+                                  {isSelected && (
+                                    <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
+                                  )}
                                 </div>
-                                <p className="text-xs text-muted-foreground line-clamp-2">{voice.description}</p>
-                                <div className="flex gap-1 mt-1 flex-wrap">
-                                  <Badge variant={canAccess ? "default" : "secondary"} className="text-xs capitalize">
-                                    {voice.required_plan === 'free' ? 'Free' : 
-                                     voice.required_plan === 'pro' ? 'Pro' : 
-                                     'Premium'}
+                                <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                                  {voice.description}
+                                </p>
+                                <div className="flex gap-1 flex-wrap">
+                                  <Badge
+                                    variant={canAccess ? "default" : "secondary"}
+                                    className="text-xs capitalize"
+                                  >
+                                    {voice.required_plan === 'free' ? ' Free' :
+                                     voice.required_plan === 'pro' ? ' Pro' :
+                                     ' Premium'}
                                   </Badge>
-                                  {voice.category && <Badge variant="outline" className="text-xs">{voice.category}</Badge>}
-                                  {voice.gender && <Badge variant="outline" className="text-xs">{voice.gender}</Badge>}
-                                  {voice.accent && <Badge variant="outline" className="text-xs">{voice.accent}</Badge>}
+                                  {voice.category && (
+                                    <Badge variant="outline" className="text-xs capitalize">
+                                      {voice.category}
+                                    </Badge>
+                                  )}
+                                  {voice.gender && (
+                                    <Badge variant="outline" className="text-xs capitalize">
+                                      {voice.gender}
+                                    </Badge>
+                                  )}
+                                  {voice.accent && (
+                                    <Badge variant="outline" className="text-xs capitalize">
+                                      {voice.accent}
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
-                              <Button variant="outline" size="icon" className="h-8 w-8"
-                                      onClick={(e) => { e.stopPropagation(); playPrebuiltSample(voice.voice_id); }}
-                                      disabled={isPlaying && playingVoiceId !== voice.voice_id}>
-                                {playingVoiceId === voice.voice_id && isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                              <Button
+                                variant={isCurrentlyPlaying ? "default" : "outline"}
+                                size="icon"
+                                className="h-9 w-9 flex-shrink-0"
+                                onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
+                                disabled={!voice.audio_preview_url}
+                              >
+                                {isCurrentlyPlaying ? (
+                                  <Pause className="h-4 w-4" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
                               </Button>
                             </div>
                           </div>
                         );
                       })
                     ) : (
-                      <p className="text-center text-sm text-muted-foreground p-6">
-                        No prebuilt voices found for your search.
-                      </p>
+                      <div className="text-center py-12">
+                        <div className="text-muted-foreground mb-4">
+                          <Search className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                          <p className="text-sm font-medium mb-1">
+                            {prebuiltVoices.length === 0
+                              ? "No voices available"
+                              : "No voices found"
+                            }
+                          </p>
+                          <p className="text-xs">
+                            {prebuiltVoices.length === 0
+                              ? "Please check your internet connection or try again later"
+                              : "Try adjusting your search or filters"
+                            }
+                          </p>
+                        </div>
+                        {hasActiveFilters && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={clearAllFilters}
+                          >
+                            Clear All Filters
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
+
+                  {/* Voice Count Info */}
+                  {filteredVoices.length > 0 && (
+                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+                      Showing {filteredVoices.length} of {prebuiltVoices.length} voices
+                      {selectedLanguage && ` for ${selectedLanguage}`}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -417,18 +698,31 @@ export default function ModernStepThree({
         </TabsContent>
       </Tabs>
 
+      {/* Selection Confirmation */}
       {selectedVoice && (
         <Alert className="border-green-200 bg-green-50 text-green-800">
           <CheckCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>{selectedVoice.name}</strong> is selected and ready.
+          <AlertDescription className="text-xs sm:text-sm">
+            <strong className="font-semibold">{selectedVoice.name}</strong> is selected and ready for generation.
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onPrevious}>Previous</Button>
-        <Button onClick={onNext} disabled={!selectedVoice} size="lg" className="px-8">
+      {/* Navigation Buttons */}
+      <div className="flex justify-between pt-4 gap-4">
+        <Button
+          variant="outline"
+          onClick={onPrevious}
+          className="px-6"
+        >
+          Previous
+        </Button>
+        <Button
+          onClick={onNext}
+          disabled={!selectedVoice}
+          size="lg"
+          className="px-6 sm:px-8"
+        >
           Continue to Generate
         </Button>
       </div>

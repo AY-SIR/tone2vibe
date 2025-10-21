@@ -92,7 +92,7 @@ export function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 p-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
         <div className="text-center mb-6">
-          <CheckCircle className="h-12 w-12 mx-auto text-purple-600 mb-4" />
+          <CheckCircle className="h-12 w-12 mx-auto text-gray-900 mb-4" />
           <h2 className="text-2xl font-bold">Reset Your Password</h2>
           <p className="text-gray-600 mt-2">Enter your new password below</p>
         </div>

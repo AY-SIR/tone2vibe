@@ -27,24 +27,42 @@ export function EmailConfirmation() {
           body: { token }
         });
 
-        // Handle the response
-        let result = data;
-
-        // Check if there was a function invocation error
+        // Check if there was a function invocation error (non-2xx response)
         if (error) {
           console.error('Function invocation error:', error);
+
+          // Try to extract error message from the error object
+          let errorMessage = 'Failed to confirm email. Please try again.';
+
+          // FunctionsHttpError may contain the response body
+          if (error.context?.body) {
+            try {
+              const errorBody = typeof error.context.body === 'string'
+                ? JSON.parse(error.context.body)
+                : error.context.body;
+              errorMessage = errorBody.error || errorMessage;
+            } catch {
+              // If parsing fails, use default message
+            }
+          }
+
           setStatus('error');
-          setMessage('Failed to confirm email. Please try again.');
-          toast.error('Failed to confirm email. Please try again.');
+          setMessage(errorMessage);
+          toast.error(errorMessage);
           return;
         }
 
         // Parse string response if needed
+        let result = data;
         if (typeof result === 'string') {
           try {
             result = JSON.parse(result);
           } catch {
             console.error('Failed to parse response:', result);
+            setStatus('error');
+            setMessage('Invalid response from server.');
+            toast.error('Invalid response from server.');
+            return;
           }
         }
 
@@ -53,6 +71,8 @@ export function EmailConfirmation() {
           setStatus('success');
           setMessage(result.message || 'Email confirmed successfully!');
           toast.success('Email confirmed! You can now sign in.');
+
+          // Redirect after 2 seconds
           setTimeout(() => {
             navigate('/?auth=open&view=signin', { replace: true });
           }, 2000);
