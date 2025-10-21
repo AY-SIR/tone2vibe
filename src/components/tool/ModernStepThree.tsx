@@ -131,34 +131,14 @@ export default function ModernStepThree({
 
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
-      if (voiceMethod !== 'prebuilt') return;
-      setLoadingVoices(true);
-      setPrebuiltVoices([]);
-      // Load ALL active prebuilt voices for browsing, regardless of user plan
-      const batchSize = 50;
-      let from = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('prebuilt_voices')
-          .select('*')
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true })
-          .range(from, from + batchSize - 1);
-        if (error) {
-          toast({ title: 'Error', description: 'Failed to load prebuilt voices.', variant: 'destructive' });
-          break;
-        }
-        if (data && data.length > 0) {
-          setPrebuiltVoices(prev => [...prev, ...(data as any)]);
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-      setLoadingVoices(false);
-    };
+  if (voiceMethod !== 'prebuilt') return;
+  setLoadingVoices(true);
+  setPrebuiltVoices([]);
+
+  const voices = await PrebuiltVoiceService.getVoicesForPlan(userPlan);
+  setPrebuiltVoices(voices);
+  setLoadingVoices(false);
+};
     loadPrebuiltVoices();
   }, [voiceMethod, toast]);
 
