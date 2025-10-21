@@ -203,32 +203,28 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         }
       });
 
-      // Check for network/function invocation errors
-      if (error) {
-        toast.error('Failed to create account. Please check your connection and try again.');
-        return;
-      }
-
       // Parse response data (handle both string and object)
       let result = data;
       if (typeof data === 'string') {
         try {
           result = JSON.parse(data);
         } catch (parseError) {
-          toast.error('Server error. Please try again.');
-          return;
+          // If can't parse, treat as error
+          result = null;
         }
       }
 
-      // Check if the response indicates failure
-      if (!result?.success) {
-        const errorMessage = result?.error || 'Signup failed. Please try again.';
+      // Check for errors - either in the error param or in the result
+      if (error || !result?.success) {
+        const errorMessage = result?.error || error?.message || 'Signup failed. Please try again.';
 
         // Handle specific errors
         if (errorMessage.includes('already exists') || errorMessage.includes('already registered')) {
           toast.error('An account with this email already exists. Please sign in instead.');
           setCurrentView('signin');
           setSignInEmail(signUpEmail);
+        } else if (errorMessage.includes('connection') || errorMessage.includes('network')) {
+          toast.error('Network error. Please check your connection and try again.');
         } else {
           toast.error(errorMessage);
         }
