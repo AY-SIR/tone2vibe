@@ -64,7 +64,7 @@ export function VoiceUpload({ onVoiceUploaded }: VoiceUploadProps) {
 
       // 3️⃣ Async DB insert
       supabase
-        .from("user_voices")
+        .from("")
         .insert({
           user_id: profile.id,
           name: file.name,
