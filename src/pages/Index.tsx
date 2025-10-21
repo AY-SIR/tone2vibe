@@ -281,6 +281,9 @@ const Index = () => {
               ✨ Now with 50+ language support
             </Badge>
 <WordsFlip />
+            <p class="text-left md:text-center text-sm md:text-lg leading-relaxed">
+  Your Words, Your Tone, Your Unique Vibe — All in One Place.
+</p>
           
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
