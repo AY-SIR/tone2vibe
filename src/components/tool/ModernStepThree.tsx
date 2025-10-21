@@ -612,14 +612,7 @@ export default function ModernStepThree({
                                   {voice.description}
                                 </p>
                                 <div className="flex gap-1 flex-wrap">
-                                  <Badge
-                                    variant={canAccess ? "default" : "secondary"}
-                                    className="text-xs capitalize"
-                                  >
-                                    {voice.required_plan === 'free' ? ' Free' :
-                                     voice.required_plan === 'pro' ? ' Pro' :
-                                     ' Premium'}
-                                  </Badge>
+
                                   {voice.category && (
                                     <Badge variant="outline" className="text-xs capitalize">
                                       {voice.category}

@@ -259,10 +259,13 @@ const ModernStepFour = ({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center text-lg">
-            <Wand2 className="h-5 w-5 mr-2" />
-            Audio Generation Summary
-          </CardTitle>
+         <CardTitle className="flex items-center justify-center w-full text-base md:text-lg">
+  <Wand2 className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+  Audio Generation Summary
+</CardTitle>
+
+
+
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -327,15 +330,24 @@ const ModernStepFour = ({
         {isPaidUser && showAdvanced && (
           <CardContent>
             <Tabs defaultValue="basic" className="w-full">
-              {/* === FIX: DYNAMIC TABS BASED ON USER PLAN === */}
-              <TabsList className={isPremiumUser ? "grid w-full grid-cols-3 sm:grid-cols-5" : "grid w-full grid-cols-2"}>
-  <TabsTrigger value="basic">Basic</TabsTrigger>
-  <TabsTrigger value="style">Style</TabsTrigger>
+         <TabsList className="grid w-full grid-cols-2 h-auto gap-1 p-1 bg-gray-100">
+  <TabsTrigger value="basic" className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm border-r border-gray-200">
+    Basic
+  </TabsTrigger>
+  <TabsTrigger value="style" className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+    Style
+  </TabsTrigger>
   {isPremiumUser && (
     <>
-      <TabsTrigger value="pacing">Pacing</TabsTrigger>
-      <TabsTrigger value="tuning">Tuning</TabsTrigger>
-      <TabsTrigger value="sfx">SFX</TabsTrigger>
+      <TabsTrigger value="pacing" className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm border-r border-t border-gray-200">
+        Pacing
+      </TabsTrigger>
+      <TabsTrigger value="tuning" className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm border-t border-gray-200">
+        Tuning
+      </TabsTrigger>
+      <TabsTrigger value="sfx" className="text-xs sm:text-sm px-2 py-2 col-span-2 data-[state=active]:bg-white data-[state=active]:shadow-sm border-t border-gray-200">
+        Sound Effects
+      </TabsTrigger>
     </>
   )}
 </TabsList>
@@ -527,7 +539,7 @@ const ModernStepFour = ({
               </audio>
               <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <p className="text-xs text-gray-700">
-                  ✨ <strong>Test Sample:</strong> First 50 words. No words deducted, no history saved.
+                   <strong>Test Sample:</strong>  No words deducted, no history saved.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
@@ -572,7 +584,7 @@ const ModernStepFour = ({
               </div>
               {isPaidUser && (
                 <p className="text-xs text-gray-500 mt-2">
-                  💡 Sample generation is free and doesn't use your word balance
+                  💡 Sample generation is free and doesn't use your words.
                 </p>
               )}
             </div>

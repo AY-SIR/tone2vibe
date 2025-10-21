@@ -325,7 +325,7 @@ export function PaymentGateway({
 
   // Main payment gateway
   return (
-    <div className="min-h-screen  flex items-center justify-center p-4">
+    <div className="min-h-screen  flex items-center justify-center ">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center p-6 block lg:hidden">
           <div className={`${plan.color} w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-white`}>
