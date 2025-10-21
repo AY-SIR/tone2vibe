@@ -8,7 +8,7 @@ export function WordsFlip() {
   const words = ["lively", "bright", "vivid"];
 
   return (
-    <section className="flex justify-center items-center px-0 py-6 mb-6">
+    <section className="flex justify-center items-center px-0 py-6 ">
       <div className="max-w-5xl w-full">
         <h1 className="text-left sm:text-center font-heading text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-700 dark:text-gray-700 leading-tight">
           <span className="block mb-2">

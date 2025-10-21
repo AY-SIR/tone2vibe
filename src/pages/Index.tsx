@@ -281,10 +281,12 @@ const Index = () => {
               ✨ Now with 50+ language support
             </Badge>
 <WordsFlip />
-            <p class="text-left md:text-center text-sm md:text-lg leading-relaxed">
-  Your Words, Your Tone, Your Unique Vibe — All in One Place.
-</p>
-          
+
+
+
+           <div className=" mb-6">
+             <Marque2 />
+             </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
@@ -304,9 +306,7 @@ const Index = () => {
                 Watch Demo
               </Button>
             </div>
-            <div className="mt-8">
-             <Marque2 />
-             </div>
+
           </div>
         </div>
 
@@ -607,9 +607,10 @@ const Index = () => {
               <Mic className="mx-3 h-5 w-5 text-gray-900" />
               <div className="flex-grow border-t border-gray-300"></div>
             </div>
-            <div className="text-center text-gray-600 mt-4">
-              <p>&copy; 2025 Tone2Vibe. All rights reserved.</p>
-            </div>
+           <div className="text-center text-gray-600 mt-4">
+  <p>&copy; {new Date().getFullYear()} Tone2Vibe.in All rights reserved.</p>
+</div>
+
           </div>
         </div>
       </footer>
