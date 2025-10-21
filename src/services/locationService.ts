@@ -16,7 +16,6 @@ export interface PricingData {
 }
 
 export class LocationService {
-  // List of APIs and how to map their response
   private static apis = [
     {
       url: 'https://ipapi.co/json/',
@@ -44,30 +43,33 @@ export class LocationService {
     },
   ];
 
-  /** Detects user location using multiple APIs */
+  /** Detects user location using multiple APIs — always succeeds silently */
   static async getUserLocation(): Promise<LocationData> {
     for (const api of this.apis) {
       try {
         const res = await fetch(api.url, { headers: { Accept: 'application/json' } });
-        if (!res.ok) throw new Error(`Failed API: ${api.url}`);
+        if (!res.ok) continue;
         const data = await res.json();
         return api.map(data);
-      } catch (err) {
-        console.warn(`API failed: ${api.url}`, err);
+      } catch {
+        continue;
       }
     }
-    console.error('All location APIs failed, using default.');
     return { country: 'Unknown', countryCode: 'Unknown' };
   }
 
-  /** Detects user location */
+  /** Detects user location — always returns something */
   static async detectUserLocation(): Promise<LocationData> {
-    return await this.getUserLocation();
+    try {
+      return await this.getUserLocation();
+    } catch {
+      return { country: 'Unknown', countryCode: 'Unknown' };
+    }
   }
 
   /** Checks if user is from India */
   static isIndianUser(countryCode: string): boolean {
-    return countryCode.toUpperCase() === 'IN';
+    return countryCode?.toUpperCase() === 'IN';
   }
 
   /** Returns pricing data */
@@ -79,10 +81,10 @@ export class LocationService {
     };
   }
 
-  /** Saves user location to Supabase */
+  /** Saves user location to Supabase — never fails or throws */
   static async saveUserLocation(userId: string, locationData: LocationData): Promise<void> {
     try {
-      const { error } = await supabase
+      await supabase
         .from('profiles')
         .update({
           country: locationData.country || 'Unknown',
@@ -90,32 +92,30 @@ export class LocationService {
           ip: locationData.ip || null,
         })
         .eq('user_id', userId);
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error saving location to Supabase:', err);
+    } catch {
+      // silently ignore errors
     }
   }
 
-  /** Gets user location from Supabase */
+  /** Gets user location from Supabase — always succeeds silently */
   static async getUserLocationFromDb(userId: string): Promise<LocationData> {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('country, country_code, ip')
         .eq('user_id', userId)
         .single();
 
-      if (error || !data) {
+      if (!data) {
         return { country: 'Unknown', countryCode: 'Unknown' };
       }
 
       return {
-        country: 'Unknown',
-        countryCode: 'Unknown',
-        ip: undefined,
+        country: data.country || 'Unknown',
+        countryCode: data.country_code || 'Unknown',
+        ip: data.ip || undefined,
       };
-    } catch (err) {
-      console.error('Error fetching location from DB:', err);
+    } catch {
       return { country: 'Unknown', countryCode: 'Unknown' };
     }
   }

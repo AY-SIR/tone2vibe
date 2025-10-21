@@ -277,7 +277,7 @@ const Index = () => {
         <div className="relative z-10 container mx-auto max-w-4xl">
           {/* Hero Content */}
           <div className="animate-fade-in">
-            <Badge className="mb-6 bg-gray-400 text-white hover:bg-gray-400 mt-2">
+            <Badge className="mb-2 bg-gray-400 text-white hover:bg-gray-400 mt-2">
               ✨ Now with 50+ language support
             </Badge>
 <WordsFlip />
