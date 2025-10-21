@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !supabaseKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -37,14 +37,14 @@ Deno.serve(async (req) => {
     } catch (e) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid request body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!email || !password) {
       return new Response(
         JSON.stringify({ success: false, error: 'Email and password are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     if (listError) {
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to verify user status' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     if (existingUser) {
       return new Response(
         JSON.stringify({ success: false, error: 'An account with this email already exists' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     if (createError || !userData?.user) {
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to create user' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       await supabaseClient.auth.admin.deleteUser(userId);
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to create verification token' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -127,67 +127,40 @@ Deno.serve(async (req) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Confirm Your Email - Tone2Vibe</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #fafafa;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fafafa; padding: 60px 20px;">
     <tr>
       <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-
-          <!-- Header -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #000000 0%, #2d2d2d 100%); padding: 40px 30px; text-align: center;">
-              <div style="display: inline-block; background-color: #ffffff; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
-                <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png" alt="Tone2Vibe" width="32" height="32" style="display: block; margin: 14px auto;" />
-              </div>
-              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">Confirm Your Email</h1>
-            </td>
-          </tr>
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px;">
 
           <!-- Content -->
           <tr>
-            <td style="padding: 40px 30px;">
-              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 15px;">Hello <strong>${displayName}</strong>,</p>
+            <td style="padding: 50px 40px; text-align: center;">
 
-              <p style="color: #666666; font-size: 15px; line-height: 1.6; margin: 0 0 10px;">Thank you for signing up for Tone2Vibe!</p>
+              <!-- Logo -->
+              <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png" alt="Tone2Vibe" width="48" height="48" style="margin-bottom: 24px;" />
 
-              <p style="color: #666666; font-size: 15px; line-height: 1.6; margin: 0 0 30px;">Please confirm your email address to activate your account.</p>
+              <h1 style="color: #000000; margin: 0 0 12px; font-size: 24px; font-weight: 600;">Confirm your email</h1>
+
+              <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 8px;">Hi <strong>${displayName}</strong>,</p>
+
+              <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 32px;">Click the button below to verify your account.</p>
 
               <!-- Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="center" style="padding: 0 0 30px;">
-                    <a href="${confirmationUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 14px 40px; font-size: 15px; font-weight: 600; border-radius: 6px; letter-spacing: 0.3px;">Confirm Email Address</a>
-                  </td>
-                </tr>
-              </table>
+              <a href="${confirmationUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 32px; font-size: 15px; font-weight: 500; border-radius: 6px;">Confirm Email</a>
 
-              <!-- Info Box -->
-              <div style="background-color: #f8f9fa; border-left: 3px solid #000000; padding: 20px; border-radius: 4px; margin-top: 20px;">
-                <p style="color: #333333; font-size: 14px; line-height: 1.6; margin: 0 0 10px; font-weight: 600;">Important:</p>
-                <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 0;">This link will expire in <strong>24 hours</strong>. If you didn't create this account, please ignore this email.</p>
-              </div>
+              <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 32px 0 0;">This link expires in 24 hours. Didn't sign up? Ignore this email.</p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
-              <p style="color: #333333; font-size: 16px; font-weight: 600; margin: 0 0 8px;">Tone2Vibe</p>
-              <p style="color: #999999; font-size: 13px; margin: 0;">&copy; ${new Date().getFullYear()} Tone2Vibe. All rights reserved.</p>
+            <td style="padding: 24px 40px; text-align: center; border-top: 1px solid #f0f0f0;">
+              <p style="color: #999999; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} Tone2Vibe. All rights reserved.</p>
             </td>
           </tr>
 
         </table>
-
-        <!-- Legal Text -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; margin-top: 20px;">
-          <tr>
-            <td align="center">
-              <p style="color: #999999; font-size: 12px; line-height: 1.5; margin: 0;">This is an automated message. Please do not reply to this email.</p>
-            </td>
-          </tr>
-        </table>
-
       </td>
     </tr>
   </table>
@@ -227,7 +200,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     return new Response(
       JSON.stringify({ success: false, error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

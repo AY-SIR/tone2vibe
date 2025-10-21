@@ -4,6 +4,56 @@ interface PasswordResetRequest {
   email: string;
 }
 
+// Email template function
+function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password - Tone2Vibe</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #fafafa;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fafafa; padding: 60px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px;">
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 50px 40px; text-align: center;">
+
+              <!-- Logo -->
+              <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png" alt="Tone2Vibe" width="48" height="48" style="margin-bottom: 24px;" />
+
+              <h1 style="color: #000000; margin: 0 0 12px; font-size: 24px; font-weight: 600;">Reset your password</h1>
+
+              <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 8px;">Hi <strong>${fullName}</strong>,</p>
+
+              <p style="color: #666666; font-size: 15px; line-height: 1.5; margin: 0 0 32px;">We received a request to reset your password. Click the button below to create a new password.</p>
+
+              <!-- Button -->
+              <a href="${resetUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 32px; font-size: 15px; font-weight: 500; border-radius: 6px;">Reset Password</a>
+
+              <p style="color: #999999; font-size: 13px; line-height: 1.5; margin: 32px 0 0;">This link expires in 1 hour. Didn't request this? Ignore this email.</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; text-align: center; border-top: 1px solid #f0f0f0;">
+              <p style="color: #999999; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} Tone2Vibe. All rights reserved.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 // Fixed CORS headers function
 function getCorsHeaders(origin: string | null) {
   const allowedOrigins = ['https://tone2vibe.in', 'http://localhost:8000'];
@@ -83,7 +133,7 @@ Deno.serve(async (req: Request) => {
       .single();
     const fullName = profileData?.full_name || normalizedEmail.split('@')[0];
 
-    // Send email
+    // Send email with template
     try {
       await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
@@ -96,7 +146,7 @@ Deno.serve(async (req: Request) => {
           sender: { name: 'Tone2Vibe', email: 'yadavakhilesh2519@gmail.com' },
           to: [{ email: normalizedEmail, name: fullName }],
           subject: 'Reset Your Password - Tone2Vibe',
-          htmlContent: `<p>Hello ${fullName},</p><p>Click the link to reset your password: <a href="${resetUrl}">Reset Password</a></p><p>This link expires in 1 hour.</p>`
+          htmlContent: getPasswordResetEmailTemplate(fullName, resetUrl)
         })
       });
     } catch (emailError) {

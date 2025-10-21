@@ -194,36 +194,23 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         return;
       }
 
-      // Call signup Edge Function
-      const { data, error } = await supabase.functions.invoke('signup', {
-        body: {
-          email: signUpEmail.trim().toLowerCase(),
-          password: signUpPassword,
-          fullName: signUpFullName.trim()
-        }
-      });
+      // Use the signUp function from AuthContext
+      const { data, error } = await signUp(
+        signUpEmail.trim().toLowerCase(),
+        signUpPassword,
+        { fullName: signUpFullName.trim() }
+      );
 
-      // Parse response data (handle both string and object)
-      let result = data;
-      if (typeof data === 'string') {
-        try {
-          result = JSON.parse(data);
-        } catch (parseError) {
-          // If can't parse, treat as error
-          result = null;
-        }
-      }
-
-      // Check for errors - either in the error param or in the result
-      if (error || !result?.success) {
-        const errorMessage = result?.error || error?.message || 'Signup failed. Please try again.';
+      // Handle errors
+      if (error) {
+        const errorMessage = error.message || 'Signup failed. Please try again.';
 
         // Handle specific errors
         if (errorMessage.includes('already exists') || errorMessage.includes('already registered')) {
           toast.error('An account with this email already exists. Please sign in instead.');
           setCurrentView('signin');
           setSignInEmail(signUpEmail);
-        } else if (errorMessage.includes('connection') || errorMessage.includes('network')) {
+        } else if (errorMessage.includes('network') || errorMessage.includes('connection') || errorMessage.includes('fetch')) {
           toast.error('Network error. Please check your connection and try again.');
         } else {
           toast.error(errorMessage);

@@ -150,7 +150,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auth actions
   const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
-      // FIXED: Changed from "send-email-confirmation" to "signup"
       const { data, error } = await supabase.functions.invoke("signup", {
         body: {
           email,
@@ -159,21 +158,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
-      if (error) {
-        console.error("Signup invoke error:", error);
-        throw error;
+      // Parse the response data
+      let parsedData;
+      try {
+        parsedData = typeof data === "string" ? JSON.parse(data) : data;
+      } catch (parseError) {
+        if (error) {
+          return { data: null, error: new Error("Network error. Please check your connection and try again.") };
+        }
+        return { data: null, error: new Error("Unexpected server response. Please try again.") };
       }
 
-      const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-
-      if (parsedData?.error) {
-        return { data: null, error: new Error(parsedData.error) };
+      // Check if the edge function returned an error in the response body
+      if (!parsedData || !parsedData.success) {
+        const errorMessage = parsedData?.error || "Signup failed. Please try again.";
+        return { data: null, error: new Error(errorMessage) };
       }
 
+      // Success
       return { data: parsedData, error: null };
     } catch (err) {
-      console.error("Signup failed:", err);
-      return { data: null, error: err as Error };
+      console.error("Signup exception:", err);
+      return { data: null, error: new Error("Network error. Please check your connection and try again.") };
     }
   };
 

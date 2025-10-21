@@ -1,25 +1,17 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
-
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey'
 };
 
-// Edge Function
 Deno.serve(async (req) => {
-  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
-    // Only allow POST
     if (req.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
@@ -36,17 +28,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Supabase client with SERVICE_ROLE_KEY
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Verify token
+    // Make sure token is trimmed and lowercase to match DB
+    const normalizedToken = token.trim();
+
+    // Verify token exists and not used
     const { data: tokenData, error: tokenError } = await supabase
       .from('password_reset_tokens')
       .select('*')
-      .eq('token', token)
+      .eq('token', normalizedToken)
       .is('used_at', null)
       .single();
 
@@ -78,15 +72,22 @@ Deno.serve(async (req) => {
     }
 
     // Mark token as used
-    await supabase
+    const { data: updatedRows, error: usedError } = await supabase
       .from('password_reset_tokens')
       .update({ used_at: new Date().toISOString() })
-      .eq('token', token);
+      .eq('token', normalizedToken)
+      .is('used_at', null)
+      .select();
+
+    if (usedError || !updatedRows || updatedRows.length === 0) {
+      console.warn('Token update failed or already used:', usedError);
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), {
       status: 500,
