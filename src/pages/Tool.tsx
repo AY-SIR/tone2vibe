@@ -12,27 +12,74 @@ import ModernStepThree from "@/components/tool/ModernStepThree";
 import ModernStepFour from "@/components/tool/ModernStepFour";
 import ModernStepFive from "@/components/tool/ModernStepFive";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
-import { AnalyticsService } from "@/services/analyticsService";
 import Header from "@/components/layout/Header";
+
+const STORAGE_KEY = "tool_state_v1";
+
+interface ToolState {
+  currentStep: number;
+  completedSteps: number[];
+  extractedText: string;
+  wordCount: number;
+  selectedLanguage: string;
+  selectedVoiceId: string;
+  processedAudioUrl: string;
+}
 
 const Tool = () => {
   const { user, profile, loading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const totalSteps = 5;
 
+  const [currentStep, setCurrentStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [extractedText, setExtractedText] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState<string>("");
-
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
+
+  // Load state from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const savedState = sessionStorage.getItem(STORAGE_KEY);
+      if (savedState) {
+        const state: ToolState = JSON.parse(savedState);
+        setCurrentStep(state.currentStep || 1);
+        setCompletedSteps(state.completedSteps || []);
+        setExtractedText(state.extractedText || "");
+        setWordCount(state.wordCount || 0);
+        setSelectedLanguage(state.selectedLanguage || "en-US");
+        setSelectedVoiceId(state.selectedVoiceId || "");
+        setProcessedAudioUrl(state.processedAudioUrl || "");
+      }
+    } catch (error) {
+      console.error("Error loading saved state:", error);
+    }
+  }, []);
+
+  // Save state to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      const state: ToolState = {
+        currentStep,
+        completedSteps,
+        extractedText,
+        wordCount,
+        selectedLanguage,
+        selectedVoiceId,
+        processedAudioUrl,
+      };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.error("Error saving state:", error);
+    }
+  }, [currentStep, completedSteps, extractedText, wordCount, selectedLanguage, selectedVoiceId, processedAudioUrl]);
 
   useEffect(() => {
     if (!loading && !user) navigate("/");
@@ -85,7 +132,6 @@ const Tool = () => {
   };
 
   const handleNext = () => {
-    // Don't check word balance here - let step 4 handle it during actual generation
     if (currentStep < totalSteps) {
       setCompletedSteps((prev) => Array.from(new Set([...prev, currentStep])));
       setCurrentStep(currentStep + 1);
@@ -130,11 +176,8 @@ const Tool = () => {
   const handleAudioGenerated = async (audioUrl: string) => {
     setProcessedAudioUrl(audioUrl);
 
-    if (user) {
-      // Refresh profile to update word balance
-      if (refreshProfile) {
-        await refreshProfile();
-      }
+    if (user && refreshProfile) {
+      await refreshProfile();
     }
   };
 
@@ -156,9 +199,15 @@ const Tool = () => {
     setSelectedVoiceId("");
     setVoiceRecording(null);
     setProcessedAudioUrl("");
-
     setCurrentStep(1);
     setCompletedSteps([]);
+
+    // Clear saved state
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error("Error clearing saved state:", error);
+    }
 
     setIsProcessing(false);
     setProcessingStep("");
@@ -238,7 +287,6 @@ const Tool = () => {
                       Need {wordCount} words, have {remainingWords} remaining.
                     </p>
                   </div>
-                  
                 </div>
               </CardContent>
             </Card>
