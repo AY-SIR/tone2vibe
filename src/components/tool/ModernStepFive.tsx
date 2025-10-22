@@ -1,23 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Volume2,
-  FileAudio,
-  Copy,
-  Check,
-  Download,
-  Loader2,
-  Sparkles
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { Volume2, FileAudio, Copy, Check, Download, Loader2, Sparkles } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,7 +15,7 @@ interface ModernStepFiveProps {
   extractedText: string;
   selectedLanguage: string;
   wordCount: number;
-  duration?: number;
+  duration?: number; // This prop is no longer strictly needed but kept for compatibility
   onNextGeneration?: () => void;
 }
 
@@ -40,18 +26,20 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   extractedText,
   selectedLanguage,
   wordCount,
-  duration,
+  duration, // Kept for compatibility, but we use actualDuration
   onNextGeneration,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (!user || !profile) return;
-  }, [user?.id, profile?.plan]);
+  // --- FIX ---
+  // 1. Add state for duration and a ref for the audio element
+  const [actualDuration, setActualDuration] = useState(duration || 0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  // --- END FIX ---
 
   const formatTime = (timeInSeconds: number = 0) => {
     if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
@@ -59,6 +47,15 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // --- FIX ---
+  // 2. Add useEffect to reset duration when audioUrl changes
+  useEffect(() => {
+    // Reset duration when audioUrl changes,
+    // onLoadedMetadata will set the new one
+    setActualDuration(0);
+  }, [audioUrl]);
+  // --- END FIX ---
 
   const copyToClipboard = async () => {
     try {
@@ -85,46 +82,37 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   };
 
   // --------------------
-  // Modern Server-Side Audio Conversion
+  // Audio Conversion & Download
   // --------------------
   const handleConvertAndDownload = async (format: string) => {
+    if (!user) {
+      toast({ title: "Login Required", description: "Please login to download audio.", variant: "destructive" });
+      return;
+    }
+
     setDownloading(format);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Authentication required");
 
-      if (!session) {
-        throw new Error('Authentication required');
-      }
+      toast({ title: "Converting Audio", description: `Converting to ${format.toUpperCase()}...` });
 
-      toast({
-        title: "Converting Audio",
-        description: `Converting to ${format.toUpperCase()}...`,
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/convert-audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ audioUrl, format, sourceType: "generated" }),
       });
 
-      // Call Edge Function to convert audio
-      const response = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/convert-audio`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            audioUrl,
-            format,
-            sourceType: "generated",
-          }),
-        }
-      );
-
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Conversion failed");
+        let errorMsg = "Conversion failed";
+        try { const errorJson = await response.json(); errorMsg = errorJson.error || errorMsg; } catch {}
+        throw new Error(errorMsg);
       }
 
-      // Download the converted file
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -135,17 +123,11 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast({
-        title: "Download Complete",
-        description: `Audio downloaded as ${format.toUpperCase()} successfully.`,
-      });
+      toast({ title: "Download Complete", description: `Audio downloaded as ${format.toUpperCase()}.` });
+
     } catch (error: any) {
       console.error("Download error:", error);
-      toast({
-        title: "Download Failed",
-        description: error.message || "Failed to download audio file.",
-        variant: "destructive",
-      });
+      toast({ title: "Download Failed", description: error.message || "Failed to download audio.", variant: "destructive" });
     } finally {
       setDownloading(null);
     }
@@ -153,25 +135,19 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
   const handleDownloadAll = async () => {
     const formats = ["mp3", "wav", "flac"];
-
-    toast({
-      title: "Batch Download Started",
-      description: "Downloading MP3, WAV, and FLAC formats...",
-    });
-
+    toast({ title: "Batch Download Started", description: "Downloading multiple formats..." });
     for (const format of formats) {
       await handleConvertAndDownload(format);
-      // Small delay between downloads
       await new Promise(resolve => setTimeout(resolve, 800));
     }
   };
 
   const formats = [
-    { value: "mp3", label: "MP3", desc: "Universal format", icon: "" },
-    { value: "wav", label: "WAV", desc: "Lossless quality", icon: "" },
-    { value: "flac", label: "FLAC", desc: "Compressed lossless", icon: "" },
-    { value: "ogg", label: "OGG", desc: "Open source", icon: "" },
-    { value: "aac", label: "AAC", desc: "Modern codec", icon: "" },
+    { value: "mp3", label: "MP3", desc: "Universal format", icon: <FileAudio /> },
+    { value: "wav", label: "WAV", desc: "Lossless quality", icon: <Volume2 /> },
+    { value: "flac", label: "FLAC", desc: "Compressed lossless", icon: <Download /> },
+    { value: "ogg", label: "OGG", desc: "Open source", icon: <Sparkles /> },
+    { value: "aac", label: "AAC", desc: "Modern codec", icon: <Check /> },
   ];
 
   return (
@@ -204,7 +180,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
               <div className="text-sm text-muted-foreground">Words Processed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{formatTime(duration)}</div>
+              {/* --- FIX --- */}
+              {/* 3. Use actualDuration state here */}
+              <div className="text-2xl font-bold text-primary">{formatTime(actualDuration)}</div>
+              {/* --- END FIX --- */}
               <div className="text-sm text-muted-foreground">Duration</div>
             </div>
             <div className="text-center">
@@ -231,6 +210,15 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardHeader>
         <CardContent>
           <audio
+            // --- FIX ---
+            // 4. Add ref and onLoadedMetadata handler
+            ref={audioRef}
+            onLoadedMetadata={() => {
+              if (audioRef.current) {
+                setActualDuration(audioRef.current.duration);
+              }
+            }}
+            // --- END FIX ---
             controls
             className="w-full"
             controlsList="nodownload noplaybackrate"
@@ -260,7 +248,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-      {/* Modern Download & Conversion */}
+      {/* Download & Conversion */}
       <Card className="border-2 border-gray-100">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -273,7 +261,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Choose a format to download, or get all popular formats at once
           </p>
 
-          {/* Format Buttons Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {formats.slice(0, 3).map((format) => (
               <Button
@@ -284,20 +271,23 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 size="lg"
                 className="flex flex-col h-auto py-4 gap-2 hover:border-blue-500 hover:bg-blue-50 transition-all"
               >
-                {downloading === format.value ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <span className="text-2xl">{format.icon}</span>
-                )}
+             <div className="flex items-center space-x-2 ">
+  {downloading === format.value ? (
+    <Loader2 className="w-6 h-6 animate-spin" />
+  ) : (
+    format.icon
+  )}
+  <div className="font-semibold ">{format.label}</div>
+</div>
+
                 <div className="text-center">
-                  <div className="font-semibold">{format.label}</div>
+
                   <div className="text-xs text-muted-foreground">{format.desc}</div>
                 </div>
               </Button>
             ))}
           </div>
 
-          {/* Advanced Options Dropdown */}
           <div className="flex justify-center pt-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -327,11 +317,11 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 {formats.slice(3).map((format) => (
                   <DropdownMenuItem
                     key={format.value}
-                    onSelect={() => handleConvertAndDownload(format.value)}
+                    onClick={() => handleConvertAndDownload(format.value)}
                     disabled={!!downloading}
                     className="flex items-center gap-3 py-2 cursor-pointer"
                   >
-                    <span className="text-xl">{format.icon}</span>
+                    {format.icon}
                     <div className="flex-1">
                       <div className="font-medium">{format.label}</div>
                       <div className="text-xs text-muted-foreground">{format.desc}</div>
@@ -341,8 +331,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-
-
 
           {downloading && (
             <div className="flex items-center justify-center gap-2 text-sm text-blue-600 animate-pulse">
@@ -375,4 +363,4 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   );
 };
 
-export default ModernStepFive
+export default ModernStepFive;
