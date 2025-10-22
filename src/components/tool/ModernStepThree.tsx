@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 
 
+
 const sampleParagraphs: { [key: string]: string } = {
   "ar-SA": "في الصباح، تنتشر أشعة الشمس الذهبية على المدينة. الأطفال يلعبون في الحدائق ويلتقطون الكرة معًا. الباعة ينظمون أكشاكهم بينما يمر الناس في شوارع المدينة. الطيور تغرد فوق الأشجار، والهواء مليء برائحة الزهور الطازجة. بعض الناس يجلسون على المقاهي يراقبون حركة المدينة.",
   "as-IN": "আজিৰ পুৱা, সূৰ্যৰ ৰশ্মিয়ে নগৰখনক ৰঙীন কৰি তুলিছে। শিশুৱে উদ্যানত খেলিছে আৰু বন্ধু-বান্ধৱীৰ সৈতে ৰঙীন খেল খেলিছে। মানুহে কামত ব্যস্ত, আৰু দোকানী সকলে সামগ্ৰী সাজি আছে। বতৰ মনোমোহা, আৰু পাৰ্কত ফুলৰ সুবাস আছে। কিছুমান মানুহ বেঞ্চত বহি বিশ্ৰাম লৈছে।",
@@ -127,28 +128,53 @@ export default function ModernStepThree({
   // Clear selection helper
   const clearSelection = () => {
     setSelectedVoice(null);
-    onVoiceRecorded(new Blob());
-    onVoiceSelect('');
+    onVoiceRecorded(new Blob()); // Clear any previous blob
+    onVoiceSelect(''); // Clear any previous ID
   };
 
   // Restore selection when user navigates back
   useEffect(() => {
     if (selectedVoiceId && !selectedVoice) {
       const restoreSelection = async () => {
-        const voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
+        // Attempt to find in prebuilt voices first
+        let voice = prebuiltVoices.find(v => v.voice_id === selectedVoiceId);
+        if (!voice) {
+           voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
+        }
+
         if (voice) {
           setSelectedVoice({ type: 'prebuilt', id: selectedVoiceId, name: voice.name });
           setVoiceMethod('prebuilt');
+          return;
         }
+
+        // If not found, check user's history voices
+        const { data: historyVoice } = await supabase
+          .from('user_voices')
+          .select('id, name')
+          .eq('id', selectedVoiceId)
+          .single();
+
+        if (historyVoice) {
+           setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
+           setVoiceMethod('history');
+           return;
+        }
+
+        // If it's a recorded voice that hasn't been saved, we can't restore it fully,
+        // but we can acknowledge a selection was made.
+        // This part needs a more robust implementation if you save recordings before generation.
       };
       restoreSelection();
     }
-  }, [selectedVoiceId, selectedVoice]);
+  }, [selectedVoiceId, selectedVoice, prebuiltVoices]);
+
 
   // Load prebuilt voices when tab is active
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
-      if (voiceMethod !== 'prebuilt') return;
+      // FIX: Don't reload if voices are already present
+      if (voiceMethod !== 'prebuilt' || prebuiltVoices.length > 0) return;
 
       setLoadingVoices(true);
       try {
@@ -175,7 +201,7 @@ export default function ModernStepThree({
     };
 
     loadPrebuiltVoices();
-  }, [voiceMethod, userPlan, toast]);
+  }, [voiceMethod, userPlan, toast, prebuiltVoices.length]);
 
   // Filter voices based on search and filters
   useEffect(() => {
@@ -219,6 +245,9 @@ export default function ModernStepThree({
   // Handle voice recording
   const handleVoiceRecorded = (blob: Blob) => {
     clearSelection();
+    // NOTE: For a full implementation, you should upload this blob to a "voice cloning"
+    // function in your backend, which would return a new voice_id.
+    // For now, we pass the blob up and let the parent handle it.
     setSelectedVoice({
       type: 'record',
       id: `rec-${Date.now()}`,
@@ -227,7 +256,7 @@ export default function ModernStepThree({
     onVoiceRecorded(blob);
     toast({
       title: "Voice Ready",
-      description: "Your recorded voice is ready for generation."
+      description: "Your recorded voice is ready for generation. Note: This is a temporary voice and will not be saved."
     });
   };
 
@@ -237,7 +266,7 @@ export default function ModernStepThree({
 
     const { data: voice, error } = await supabase
       .from('user_voices')
-      .select('*')
+      .select('id, name') // Optimized: Only get what we need
       .eq('id', voiceId)
       .single();
 
@@ -250,31 +279,14 @@ export default function ModernStepThree({
       return;
     }
 
-    let blob: Blob | null = null;
-    if (voice.audio_blob) {
-      blob = new Blob([voice.audio_blob], { type: 'audio/wav' });
-    } else if (voice.audio_url) {
-      try {
-        const response = await fetch(voice.audio_url);
-        blob = await response.blob();
-      } catch (err) {
-        toast({
-          title: "Error",
-          description: "Failed to load voice audio",
-          variant: "destructive"
-        });
-        return;
-      }
-    }
+    // Set the internal state and call the correct parent callback with the ID
+    setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
+    onVoiceSelect(voiceId); // <-- THIS IS THE FIX
 
-    if (blob) {
-      setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
-      onVoiceRecorded(blob);
-      toast({
-        title: "Voice Selected",
-        description: `Using your saved voice: "${voice.name}".`
-      });
-    }
+    toast({
+      title: "Voice Selected",
+      description: `Using your saved voice: "${voice.name}".`
+    });
   };
 
   // Check if user can access voice
@@ -697,7 +709,7 @@ export default function ModernStepThree({
           <CheckCircle className="h-4 w-4" />
           <AlertDescription className="text-xs sm:text-sm">
             <strong className="font-semibold">{selectedVoice.name}</strong> is selected and ready for generation.
-          </AlertDescription>
+          </Read>
         </Alert>
       )}
 

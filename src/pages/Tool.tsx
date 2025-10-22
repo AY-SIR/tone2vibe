@@ -158,11 +158,15 @@ const Tool = () => {
   };
 
   const handleVoiceRecorded = (blob: Blob) => {
+    // Note: The recording flow requires a backend change to first
+    // clone the voice and return an ID. For now, this just stores the blob.
     setVoiceRecording(blob);
+    setSelectedVoiceId(""); // Clear any previous ID
   };
 
   const handleVoiceSelect = (voiceId: string) => {
     setSelectedVoiceId(voiceId);
+    setVoiceRecording(null); // Clear any previous recording
   };
 
   const handleLanguageSelect = (language: string) => {
@@ -344,6 +348,7 @@ const Tool = () => {
                   extractedText={extractedText}
                   selectedLanguage={selectedLanguage}
                   voiceRecording={voiceRecording}
+                  selectedVoiceId={selectedVoiceId}
                   wordCount={wordCount}
                   onNext={handleNext}
                   onPrevious={handlePrevious}
