@@ -85,15 +85,27 @@ const RealAnalytics = () => {
     },
   ];
 
-  // --- FIX: Convert hourly usage to IST ---
-  const hourlyUsageIST = premiumAnalytics?.hourlyUsage?.map((item) => {
-    const [hourStr] = item.hour.split(':');
-    const utcHour = parseInt(hourStr, 10);
-    const istHour = (utcHour + 5) % 24;
-    const istMinute = 30;
-    const formattedHour = `${istHour.toString().padStart(2, '0')}:${istMinute.toString().padStart(2, '0')}`;
-    return { ...item, hour: formattedHour };
-  }) || [];
+
+const now = new Date(); // Current time in IST
+const hourlyUsageIST = Array.from({ length: 24 }, (_, i) => {
+  const date = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000); // rolling 24h
+  const hourLabel = `${date.getHours().toString().padStart(2, '0')}:00`; // IST hour:00
+  return { hour: hourLabel, words: 0 };
+});
+premiumAnalytics?.hourlyUsage?.forEach(item => {
+  const itemDate = new Date(item.hour); // item.hour should be UTC timestamp
+  itemDate.setHours(itemDate.getHours() + 5);
+  itemDate.setMinutes(itemDate.getMinutes() + 30); // Convert to IST
+
+  const hourLabel = `${itemDate.getHours().toString().padStart(2, '0')}:00`;
+  const index = hourlyUsageIST.findIndex(h => h.hour === hourLabel);
+  if (index !== -1) {
+    hourlyUsageIST[index].words += item.words;
+  }
+});
+
+
+
 
   // --- FIX: Convert weekly trends to IST with proper date formatting ---
   const weeklyTrendsIST = analytics?.weeklyTrends?.map(item => {
@@ -318,13 +330,15 @@ const RealAnalytics = () => {
                   <CardContent>
                     <div className="h-[250px] sm:h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={hourlyUsageIST}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip cursor={{ fill: 'rgba(200, 200, 200, 0.2)' }} />
-                          <Bar dataKey="words" name="Words Processed" fill="#FFA500" />
-                        </BarChart>
+                       <BarChart data={hourlyUsageIST}>
+  <CartesianGrid strokeDasharray="3 3" />
+  <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
+  <YAxis tick={{ fontSize: 12 }} />
+  <Tooltip cursor={{ fill: 'rgba(200, 200, 200, 0.2)' }} />
+  <Bar dataKey="words" name="Words Processed" fill="#FFA500" />
+</BarChart>
+
+
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
