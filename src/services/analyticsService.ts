@@ -26,7 +26,7 @@ export interface PremiumAnalytics extends ProAnalytics {
     peakUsageHours: string[];
     longestResponseTime: number;
     shortestResponseTime: number;
-    errorRate: number; // This is a rate from 0 to 1 (e.g., 0.05 for 5%)
+    errorRate: number;
   };
   last90DaysActivity: Array<{ date: string; words: number; projects: number }>;
 }
@@ -46,7 +46,6 @@ export interface DetailedAnalytics {
 
 /**
  * A highly optimized service for fetching user analytics.
- * Heavy calculations are offloaded to a Supabase database function for performance and scalability.
  */
 export class AnalyticsService {
   /**
@@ -56,7 +55,7 @@ export class AnalyticsService {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
 
     try {
-      // --- Step 1: Fetch profile data (needed for plan limits, etc.) ---
+      // --- Step 1: Fetch profile data ---
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('plan, plan_words_used, words_limit, word_balance, plan_expires_at')
@@ -66,7 +65,7 @@ export class AnalyticsService {
       if (profileError) throw profileError;
       if (!profile) return null;
 
-      // --- Step 2: Call the database function to get aggregated data ---
+      // --- Step 2: Call the database function ---
       const retentionDays = plan === 'premium' ? 90 : 30;
       const { data: summaryRaw, error: rpcError } = await supabase.rpc('get_user_analytics_summary' as any, {
         p_user_id: userId,
@@ -74,16 +73,16 @@ export class AnalyticsService {
       });
 
       if (rpcError) {
-        console.error('Database function `get_user_analytics_summary` error:', rpcError);
+        console.error('Database function error:', rpcError);
         throw rpcError;
       }
 
       const summary = summaryRaw as any;
 
-      // --- Step 3: Perform remaining lightweight calculations ---
+      // --- Step 3: Fetch raw data for additional calculations ---
       const { data: rawData, error: rawError } = await supabase
         .from('analytics')
-        .select('created_at, extra_info, words_used') // Fetch words_used for recent activity
+        .select('created_at, extra_info, words_used')
         .eq('user_id', userId)
         .gte('created_at', new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString());
 
@@ -94,10 +93,19 @@ export class AnalyticsService {
       const topVoices = this.calculateTopVoices(enrichedData);
       const recentActivity = this.calculateRecentActivity(enrichedData);
 
-      // --- Step 4: Combine all data into the final object ---
+      // --- Step 4: Calculate totals ---
       const totalWordsUsed = profile.plan_words_used || 0;
       const totalLimit = (profile.words_limit || 0) + (profile.word_balance || 0);
       const wordsRemaining = Math.max(0, totalLimit - totalWordsUsed);
+
+      // --- FIX: Process weeklyTrends properly ---
+      const weeklyTrends = this.formatWeeklyTrends(summary.weeklyTrends || []);
+
+      // --- FIX: Process hourly usage properly for Premium ---
+      const hourlyUsage = this.formatHourlyUsage(summary.peakUsageHours || []);
+
+      // --- FIX: Extract peak hours as string array ---
+      const peakUsageHours = this.extractPeakHours(summary.peakUsageHours || []);
 
       const baseAnalytics: ProAnalytics = {
         totalProjects: summary.totalProjects || 0,
@@ -108,7 +116,7 @@ export class AnalyticsService {
         peakDayOfWeek: summary.peakDayOfWeek || 'N/A',
         avgProjectTimeMs: Math.round(summary.avgProjectTimeMs) || 0,
         languageUsage: this.formatLanguageUsage(summary.languageUsage, summary.totalProjects),
-        weeklyTrends: this.formatWeeklyTrends(summary.weeklyTrends),
+        weeklyTrends: weeklyTrends,
         usageStreakDays: usageStreakDays,
         topVoices: topVoices,
         recentActivity: recentActivity,
@@ -123,13 +131,13 @@ export class AnalyticsService {
       if (plan === 'premium') {
         const premiumAnalytics: PremiumAnalytics = {
           ...baseAnalytics,
-          monthlyTrends: summary.monthlyTrends || [],
-          hourlyUsage: summary.hourlyUsage || [],
+          monthlyTrends: this.formatMonthlyTrends(summary.monthlyTrends || []),
+          hourlyUsage: hourlyUsage,
           performanceInsights: {
             avgProcessingTime: Math.round(summary.avgProjectTimeMs) || 0,
             longestResponseTime: summary.longestResponseTime || 0,
             shortestResponseTime: summary.shortestResponseTime === null ? 0 : summary.shortestResponseTime,
-            peakUsageHours: summary.peakUsageHours || [],
+            peakUsageHours: peakUsageHours,
             errorRate: summary.errorRate || 0,
             efficiencyScore: this.calculateEfficiencyScore(summary.avgWordsPerProject, summary.avgProjectTimeMs),
           },
@@ -145,9 +153,7 @@ export class AnalyticsService {
     }
   }
 
-  /** ------------------------------
-   * Detailed analytics per project (logic remains client-side)
-   * ------------------------------- */
+  /** Detailed analytics per project */
   static async getDetailedAnalytics(userId: string, plan?: string): Promise<DetailedAnalytics[] | null> {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
     try {
@@ -182,7 +188,6 @@ export class AnalyticsService {
   }
 
   // --- PRIVATE HELPER FUNCTIONS ---
-  // These handle final formatting or simple calcs not suited for the DB function.
 
   private static formatLanguageUsage(
     langs: any[] | null,
@@ -195,16 +200,73 @@ export class AnalyticsService {
     }));
   }
 
+  /**
+   * FIX: Properly format weekly trends from database
+   */
   private static formatWeeklyTrends(
     trends: any[] | null
   ): Array<{ week: string; words: number; projects: number; growth: number }> {
-    if (!trends) return [];
-    // Calculate growth percentage based on the previous week
-    for (let i = 1; i < trends.length; i++) {
-      const prevWords = trends[i - 1].words;
-      trends[i].growth = prevWords > 0 ? Math.round(((trends[i].words - prevWords) / prevWords) * 100) : 0;
+    if (!trends || trends.length === 0) return [];
+
+    const formatted = trends.map((t, i) => ({
+      week: t.week,
+      words: Number(t.words) || 0,
+      projects: Number(t.projects) || 0,
+      growth: 0
+    }));
+
+    // Calculate growth
+    for (let i = 1; i < formatted.length; i++) {
+      const prevWords = formatted[i - 1].words;
+      formatted[i].growth = prevWords > 0
+        ? Math.round(((formatted[i].words - prevWords) / prevWords) * 100)
+        : 0;
     }
-    return trends;
+
+    return formatted;
+  }
+
+  /**
+   * FIX: Format monthly trends from database
+   */
+  private static formatMonthlyTrends(
+    trends: any[] | null
+  ): Array<{ month: string; words: number; projects: number }> {
+    if (!trends || trends.length === 0) return [];
+
+    return trends.map(t => ({
+      month: t.month,
+      words: Number(t.words) || 0,
+      projects: Number(t.projects) || 0,
+    }));
+  }
+
+  /**
+   * FIX: Format hourly usage from database result
+   */
+  private static formatHourlyUsage(
+    hourlyData: any[] | null
+  ): Array<{ hour: string; words: number }> {
+    if (!hourlyData || !Array.isArray(hourlyData)) return [];
+
+    return hourlyData.map(item => ({
+      hour: item.hour || '00:00',
+      words: Number(item.words) || 0
+    }));
+  }
+
+  /**
+   * FIX: Extract top 3 peak hours as string array
+   */
+  private static extractPeakHours(hourlyData: any[] | null): string[] {
+    if (!hourlyData || !Array.isArray(hourlyData)) return [];
+
+    // Sort by words descending and take top 3
+    const sorted = [...hourlyData]
+      .sort((a, b) => (Number(b.words) || 0) - (Number(a.words) || 0))
+      .slice(0, 3);
+
+    return sorted.map(item => item.hour || '00:00');
   }
 
   private static calculateUsageStreak(data: any[]): number {
@@ -258,14 +320,8 @@ export class AnalyticsService {
           .sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  /**
-   * Calculates the efficiency score based on average words and processing time.
-   */
   private static calculateEfficiencyScore(avgWords: number, avgTime: number): number {
     if (!avgWords || !avgTime) return 0;
-    // The score is a 50/50 blend of word count and processing speed.
-    // - A project with 500 words is considered "standard" for the word score.
-    // - A processing time of 1000ms (1 sec) is the baseline for the speed score.
     const score = (avgWords / 500) * 50 + (1000 / Math.max(avgTime, 1)) * 50;
     return Math.min(100, Math.round(score));
   }

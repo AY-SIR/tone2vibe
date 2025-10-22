@@ -33,7 +33,7 @@ const RealAnalytics = () => {
     queryKey: ['real-analytics', user?.id, profile?.plan],
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
-      return await AnalyticsService.getUserAnalytics(user.id, profile?.plan) as (ProAnalytics & { weeklyTrends?: any[] });
+      return await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
     },
     enabled: !!user && profile?.plan !== 'free',
     refetchInterval: 30000,
@@ -62,13 +62,14 @@ const RealAnalytics = () => {
     return words.toString();
   };
 
-  // --- Data for Premium Insights Tab ---
-  // This refactor makes data handling safer and the code cleaner
+  // --- FIX: Properly extract performance insights ---
   const performanceInsights = premiumAnalytics?.performanceInsights;
   const insightsData = [
     {
       label: "Peak Hours",
-      value: performanceInsights?.peakUsageHours?.join(', ') || 'N/A',
+      value: performanceInsights?.peakUsageHours?.length
+        ? performanceInsights.peakUsageHours.join(', ')
+        : 'N/A',
     },
     {
       label: "Efficiency Score",
@@ -84,32 +85,33 @@ const RealAnalytics = () => {
     },
   ];
 
-// Hourly Usage in IST
-const hourlyUsageIST = premiumAnalytics?.hourlyUsage?.map((item) => {
-  const utcHour = parseInt(item.hour.split(':')[0], 10);
-  let istHour = (utcHour + 5) % 24;
-  const istMinute = 30;
-  const formattedHour = `${istHour.toString().padStart(2, '0')}:${istMinute.toString().padStart(2, '0')}`;
-  return { ...item, hour: formattedHour };
-}) || [];
+  // --- FIX: Convert hourly usage to IST ---
+  const hourlyUsageIST = premiumAnalytics?.hourlyUsage?.map((item) => {
+    const [hourStr] = item.hour.split(':');
+    const utcHour = parseInt(hourStr, 10);
+    const istHour = (utcHour + 5) % 24;
+    const istMinute = 30;
+    const formattedHour = `${istHour.toString().padStart(2, '0')}:${istMinute.toString().padStart(2, '0')}`;
+    return { ...item, hour: formattedHour };
+  }) || [];
 
-// Weekly Trends in IST
-const weeklyTrendsIST = analytics?.weeklyTrends?.map(item => {
-  const weekStart = new Date(item.week);
-  weekStart.setHours(weekStart.getHours() + 5);
-  weekStart.setMinutes(weekStart.getMinutes() + 30);
-  const weekLabel = weekStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  return { ...item, week: weekLabel };
-}) || [];
+  // --- FIX: Convert weekly trends to IST with proper date formatting ---
+  const weeklyTrendsIST = analytics?.weeklyTrends?.map(item => {
+    const dayDate = new Date(item.week + 'T00:00:00Z');
+    dayDate.setHours(dayDate.getHours() + 5);
+    dayDate.setMinutes(dayDate.getMinutes() + 30);
+    const dayLabel = dayDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    return { ...item, week: dayLabel };
+  }) || [];
 
-// Monthly Trends in IST
-const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
-  const date = new Date(item.month + '-01'); // month = 'YYYY-MM'
-  date.setHours(date.getHours() + 5);
-  date.setMinutes(date.getMinutes() + 30);
-  const monthLabel = date.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-  return { ...item, month: monthLabel };
-}) || [];
+  // --- FIX: Convert monthly trends to IST with proper date formatting ---
+  const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
+    const dayDate = new Date(item.month + 'T00:00:00Z');
+    dayDate.setHours(dayDate.getHours() + 5);
+    dayDate.setMinutes(dayDate.getMinutes() + 30);
+    const dayLabel = dayDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    return { ...item, month: dayLabel };
+  }) || [];
 
   return (
     <div className="min-h-screen bg-white animate-fade-in">
@@ -276,7 +278,6 @@ const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
             {/* --- Charts Tab --- */}
             <TabsContent value="charts" className="space-y-4 sm:space-y-6 animate-scale-in">
               {analytics?.languageUsage?.length > 0 && (
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg sm:text-xl">Language Distribution</CardTitle>
@@ -307,39 +308,41 @@ const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
                 </Card>
               )}
 
-{/* --- THIS IS THE NEW CHART TO ADD --- */}
-{isPremium && premiumAnalytics.hourlyUsage && premiumAnalytics.hourlyUsage.length > 0 && (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-lg sm:text-xl">Hourly Activity Breakdown</CardTitle>
-      <CardDescription className="text-xs sm:text-sm">Word usage by hour of the day</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <div className="h-[250px] sm:h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={premiumAnalytics.hourlyUsage} data={hourlyUsageIST}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip cursor={{ fill: 'rgba(200, 200, 200, 0.2)' }} />
-            <Bar dataKey="words" name="Words Processed" fill="#FFA500" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </CardContent>
-  </Card>
-)}
+              {/* Hourly Activity Breakdown - Premium Only */}
+              {isPremium && hourlyUsageIST && hourlyUsageIST.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg sm:text-xl">Hourly Activity Breakdown</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Word usage by hour of the day (IST)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px] sm:h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={hourlyUsageIST}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip cursor={{ fill: 'rgba(200, 200, 200, 0.2)' }} />
+                          <Bar dataKey="words" name="Words Processed" fill="#FFA500" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {(isPro || isPremium) && analytics?.weeklyTrends && analytics.weeklyTrends.length > 0 && (
+                {/* Weekly Trends - Pro & Premium */}
+                {(isPro || isPremium) && weeklyTrendsIST && weeklyTrendsIST.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Words and projects over the last 7 weeks</CardDescription>
+                      <CardDescription className="text-xs sm:text-sm">Last 7 days activity</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={analytics.weeklyTrends} data={weeklyTrendsIST}>
+                          <BarChart data={weeklyTrendsIST}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="week" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
@@ -352,16 +355,18 @@ const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
                     </CardContent>
                   </Card>
                 )}
-                {isPremium && premiumAnalytics?.monthlyTrends && premiumAnalytics.monthlyTrends.length > 0 && (
+
+                {/* Monthly Trends - Premium Only */}
+                {isPremium && monthlyTrendsIST && monthlyTrendsIST.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg sm:text-xl">Monthly Trends</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Words and projects over the last 6 months</CardDescription>
+                      <CardDescription className="text-xs sm:text-sm">Last 30 days activity</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={premiumAnalytics.monthlyTrends} data={monthlyTrendsIST}>
+                          <BarChart data={monthlyTrendsIST}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
@@ -375,35 +380,32 @@ const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
                   </Card>
                 )}
 
-
-                 {/* === NEW CHART ADDED: Projects per Language (Premium Only) === */}
-              {isPremium && analytics?.languageUsage && analytics.languageUsage.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg sm:text-xl">Projects per Language</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Total projects for each language used</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[250px] sm:h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={analytics.languageUsage}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="language" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip />
-                          <Bar dataKey="count" name="Projects" fill="#4a5568" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-
+                {/* Projects per Language - Premium Only */}
+                {isPremium && analytics?.languageUsage && analytics.languageUsage.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg sm:text-xl">Projects per Language</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Total projects for each language</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[250px] sm:h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={analytics.languageUsage}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="language" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Bar dataKey="count" name="Projects" fill="#4a5568" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </TabsContent>
 
-            {/* --- Insights Tab (Premium) --- */}
+            {/* --- Insights Tab (Premium Only) --- */}
             {isPremium && (
               <TabsContent value="insights" className="space-y-4 sm:space-y-6 animate-scale-in">
                 <Card>
@@ -416,10 +418,10 @@ const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
                     {insightsData.map((insight, index) => (
-                       <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg flex justify-between items-center text-sm sm:text-base">
-                         <h4 className="font-medium text-gray-800">{insight.label}</h4>
-                         <p className="font-semibold text-black">{insight.value}</p>
-                       </div>
+                      <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg flex justify-between items-center text-sm sm:text-base">
+                        <h4 className="font-medium text-gray-800">{insight.label}</h4>
+                        <p className="font-semibold text-black">{insight.value}</p>
+                      </div>
                     ))}
                   </CardContent>
                 </Card>

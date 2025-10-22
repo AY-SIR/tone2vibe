@@ -619,7 +619,21 @@ export default function ModernStepThree({
                                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                                   {voice.description}
                                 </p>
-                                <div className="flex gap-1 flex-wrap">
+                                <div className="flex gap-1 flex-wrap items-center">
+                                  {/* Display plan badge with access info */}
+                                  {(() => {
+                                    const planBadges = [];
+                                    if (voice.required_plan === 'free') planBadges.push('Free');
+                                    if (voice.required_plan === 'pro' || voice.required_plan === 'premium') {
+                                      if (voice.required_plan === 'pro') planBadges.push('Pro');
+                                      if (voice.required_plan === 'premium') planBadges.push('Premium');
+                                    }
+                                    return planBadges.map((label, i) => (
+                                      <Badge key={i} variant="secondary" className="text-xs">
+                                        {label}
+                                      </Badge>
+                                    ));
+                                  })()}
 
                                   {voice.category && (
                                     <Badge variant="outline" className="text-xs capitalize">
@@ -690,12 +704,14 @@ export default function ModernStepThree({
                   </div>
 
                   {/* Voice Count Info */}
-                  {filteredVoices.length > 0 && (
-                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-                      Showing {filteredVoices.length} of {prebuiltVoices.length} voices
-                      {selectedLanguage && ` for ${selectedLanguage}`}
-                    </div>
-                  )}
+{filteredVoices.length > 0 && (
+  <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+    {selectedLanguage
+      ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
+      : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
+  </div>
+)}
+
                 </div>
               )}
             </CardContent>

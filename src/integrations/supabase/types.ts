@@ -161,26 +161,35 @@ export type Database = {
         }
         Relationships: []
       }
-      expiry_notifications: {
+      email_verification_tokens: {
         Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
           id: string
-          notification_type: string
-          plan_expires_at: string
-          sent_at: string | null
+          token: string
+          token_type: string
+          used_at: string | null
           user_id: string
         }
         Insert: {
+          created_at?: string | null
+          email: string
+          expires_at?: string
           id?: string
-          notification_type: string
-          plan_expires_at: string
-          sent_at?: string | null
+          token: string
+          token_type?: string
+          used_at?: string | null
           user_id: string
         }
         Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
           id?: string
-          notification_type?: string
-          plan_expires_at?: string
-          sent_at?: string | null
+          token?: string
+          token_type?: string
+          used_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -189,6 +198,7 @@ export type Database = {
         Row: {
           audio_url: string | null
           created_at: string
+          duration_seconds: number | null
           generation_completed_at: string | null
           generation_started_at: string | null
           id: string
@@ -204,6 +214,7 @@ export type Database = {
         Insert: {
           audio_url?: string | null
           created_at?: string
+          duration_seconds?: number | null
           generation_completed_at?: string | null
           generation_started_at?: string | null
           id?: string
@@ -219,6 +230,7 @@ export type Database = {
         Update: {
           audio_url?: string | null
           created_at?: string
+          duration_seconds?: number | null
           generation_completed_at?: string | null
           generation_started_at?: string | null
           id?: string
@@ -287,39 +299,33 @@ export type Database = {
         }
         Relationships: []
       }
-      orders: {
+      password_reset_tokens: {
         Row: {
-          amount: number
-          created_at: string
-          currency: string
+          created_at: string | null
+          email: string
+          expires_at: string
           id: string
-          plan: string | null
-          status: string
-          updated_at: string
-          user_id: string | null
-          words_purchased: number | null
+          token: string
+          used_at: string | null
+          user_id: string
         }
         Insert: {
-          amount: number
-          created_at?: string
-          currency?: string
+          created_at?: string | null
+          email: string
+          expires_at?: string
           id?: string
-          plan?: string | null
-          status?: string
-          updated_at?: string
-          user_id?: string | null
-          words_purchased?: number | null
+          token: string
+          used_at?: string | null
+          user_id: string
         }
         Update: {
-          amount?: number
-          created_at?: string
-          currency?: string
+          created_at?: string | null
+          email?: string
+          expires_at?: string
           id?: string
-          plan?: string | null
-          status?: string
-          updated_at?: string
-          user_id?: string | null
-          words_purchased?: number | null
+          token?: string
+          used_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -443,6 +449,7 @@ export type Database = {
           required_plan: string
           sort_order: number
           updated_at: string
+          usage_count: number
           voice_id: string
         }
         Insert: {
@@ -459,6 +466,7 @@ export type Database = {
           required_plan?: string
           sort_order?: number
           updated_at?: string
+          usage_count?: number
           voice_id: string
         }
         Update: {
@@ -475,6 +483,7 @@ export type Database = {
           required_plan?: string
           sort_order?: number
           updated_at?: string
+          usage_count?: number
           voice_id?: string
         }
         Relationships: []
@@ -488,7 +497,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           is_vpn_user: boolean | null
           last_ip_check: string | null
           last_login_at: string | null
@@ -524,7 +533,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_vpn_user?: boolean | null
           last_ip_check?: string | null
           last_login_at?: string | null
@@ -560,7 +569,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_vpn_user?: boolean | null
           last_ip_check?: string | null
           last_login_at?: string | null
@@ -621,15 +630,7 @@ export type Database = {
           status?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "purchase_notifications_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_locations: {
         Row: {
@@ -676,30 +677,6 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           vpn_provider?: string | null
-        }
-        Relationships: []
-      }
-      user_sessions: {
-        Row: {
-          id: string
-          last_updated: string
-          session_start: string
-          user_id: string
-          words_used: number
-        }
-        Insert: {
-          id?: string
-          last_updated?: string
-          session_start?: string
-          user_id: string
-          words_used?: number
-        }
-        Update: {
-          id?: string
-          last_updated?: string
-          session_start?: string
-          user_id?: string
-          words_used?: number
         }
         Relationships: []
       }
@@ -790,36 +767,6 @@ export type Database = {
         }
         Relationships: []
       }
-      vpn_detections: {
-        Row: {
-          created_at: string | null
-          detection_result: Json | null
-          expires_at: string | null
-          id: string
-          ip_address: unknown
-          is_vpn: boolean
-          provider: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          detection_result?: Json | null
-          expires_at?: string | null
-          id?: string
-          ip_address: unknown
-          is_vpn?: boolean
-          provider?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          detection_result?: Json | null
-          expires_at?: string | null
-          id?: string
-          ip_address?: unknown
-          is_vpn?: boolean
-          provider?: string | null
-        }
-        Relationships: []
-      }
       word_purchases: {
         Row: {
           amount_paid: number
@@ -872,10 +819,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      check_plan_expiry: {
-        Args: { user_id_param: string }
-        Returns: Json
-      }
+      check_plan_expiry: { Args: { user_id_param: string }; Returns: Json }
       deduct_words_and_log_history: {
         Args: {
           p_audio_url: string
@@ -892,10 +836,12 @@ export type Database = {
         Args: { user_id_param: string; words_to_deduct: number }
         Returns: Json
       }
-      reset_plan_words: {
-        Args: { user_id_param: string }
-        Returns: undefined
+      generate_verification_token: { Args: never; Returns: string }
+      get_user_analytics_summary: {
+        Args: { p_retention_days: number; p_user_id: string }
+        Returns: Json
       }
+      reset_plan_words: { Args: { user_id_param: string }; Returns: undefined }
       safe_update_profile_for_subscription: {
         Args: {
           p_last_payment_amount: number
