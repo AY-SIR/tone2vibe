@@ -37,6 +37,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Play,
@@ -72,51 +73,139 @@ type HistoryItem = {
 };
 
 // ====================================================================
-// AudioDownloadDropdown Component
+// AudioDownloadDropdown Component - Modern Solution with FFmpeg
 // ====================================================================
-const AudioDownloadDropdown = ({ audioUrl, fileName }: {
+const AudioDownloadDropdown = ({
+  audioUrl,
+  fileName,
+  sourceType
+}: {
   audioUrl: string;
   fileName: string;
+  sourceType: "generated" | "recorded";
 }) => {
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const { toast } = useToast();
+
   if (!audioUrl) return null;
 
-  const handleDownload = (format: string) => {
+  const handleDownload = async (format: string) => {
+    setDownloading(format);
+
     try {
-      // This will fail for invalid URLs, which is fine since they can't be downloaded anyway.
-      const url = new URL(audioUrl);
-      const link = document.createElement('a');
-      const baseUrl = url.href.substring(0, url.href.lastIndexOf('.'));
-      link.href = `${baseUrl}.${format}`;
+      // Call Edge Function to convert audio
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/convert-audio`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            audioUrl,
+            format,
+            sourceType,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Conversion failed");
+      }
+
+      // Download the converted file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
       link.download = `${fileName}.${format}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (error) {
-       // Silently fail or show a toast if you prefer
-       console.error("Cannot download: Invalid URL provided.", audioUrl);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Download Complete",
+        description: `${fileName}.${format} has been downloaded successfully.`,
+      });
+    } catch (error: any) {
+      console.error("Download error:", error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download audio file.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(null);
     }
   };
 
-  const formats = ['mp3', 'wav', 'flac'];
+  const handleDownloadAll = async () => {
+    const formats = ["mp3", "wav", "flac"];
+
+    toast({
+      title: "Downloading All Formats",
+      description: "Starting downloads for MP3, WAV, and FLAC...",
+    });
+
+    for (const format of formats) {
+      await handleDownload(format);
+      // Small delay between downloads to prevent overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  };
+
+  const formats = [
+    { value: "mp3", label: "MP3", desc: "Universal compatibility" },
+    { value: "wav", label: "WAV", desc: "Lossless quality" },
+    { value: "flac", label: "FLAC", desc: "Compressed lossless" },
+    { value: "ogg", label: "OGG", desc: "Open format" },
+    { value: "aac", label: "AAC", desc: "Modern codec" },
+  ];
 
   return (
-   <DropdownMenu>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 px-3">
-          <Download className="h-4 w-4" />
-          <span className="sr-only">Download options</span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3"
+          disabled={!!downloading}
+        >
+          {downloading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <span className="text-xs">{downloading.toUpperCase()}</span>
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              <span className="sr-only">Download options</span>
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={5}>
+      <DropdownMenuContent align="start" side="bottom" sideOffset={5} className="w-56">
+        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+          Single Format
+        </div>
         {formats.map((format) => (
           <DropdownMenuItem
-            key={format}
-            onSelect={() => handleDownload(format)}
-            aria-label={`Download as ${format.toUpperCase()}`}
+            key={format.value}
+            onSelect={() => handleDownload(format.value)}
+            disabled={!!downloading}
+            className="flex flex-col items-start py-2"
           >
-           Download .{format.toUpperCase()}
+            <div className="font-medium">{format.label}</div>
+            <div className="text-xs text-muted-foreground">{format.desc}</div>
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -213,7 +302,6 @@ const History = () => {
 
       if (itemToDelete.audio_url) {
         try {
-            // This will only work for valid URLs, safely ignore errors for old invalid ones
             const url = new URL(itemToDelete.audio_url);
             const bucketName = isRecorded ? "user-voices" : "generated-voices";
             const pathParts = url.pathname.split("/");
@@ -256,7 +344,7 @@ const History = () => {
       const generatedItems = projects.map((p) => ({
         ...p,
         title: p.title,
-        duration: "0", // Generated audio doesn't have duration field
+        duration: "0",
         source_type: "generated" as const
       }));
     const recordedItems = userVoices.map((v) => ({
@@ -267,7 +355,7 @@ const History = () => {
       original_text: "",
       language: v.language || "N/A",
       word_count: 0,
-      duration: formatDuration(v.duration), // Formats raw seconds (e.g., "95") to "1:35"
+      duration: formatDuration(v.duration),
       source_type: "recorded" as const,
     }));
     return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -333,7 +421,7 @@ const History = () => {
         const bucketIndex = pathParts.indexOf(bucketName);
         if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
           const filePath = pathParts.slice(bucketIndex + 1).join("/");
-          const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 3600); // 1 hour cache
+          const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 3600);
           if (error) throw error;
           audioUrl = signedData.signedUrl;
         }
@@ -587,10 +675,7 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
-              {/* === FIX START === */}
-              {/* Changed this line to correctly display the pre-formatted duration */}
               {type === 'recorded' && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
-              {/* === FIX END === */}
               {project.processing_time_ms && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{(project.processing_time_ms / 1000).toFixed(1)}s</Badge>}
             </div>
           </div>
@@ -621,6 +706,7 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
             <AudioDownloadDropdown
               audioUrl={project.audio_url}
               fileName={project.title}
+              sourceType={project.source_type}
             />
 
             {onDelete && (

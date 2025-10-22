@@ -33,37 +33,32 @@ const Tool = () => {
 
   const totalSteps = 5;
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [extractedText, setExtractedText] = useState("");
-  const [wordCount, setWordCount] = useState(0);
-  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
+  // Load saved state from localStorage first
+  const savedState = localStorage.getItem(STORAGE_KEY);
+  const initialState: ToolState = savedState
+    ? JSON.parse(savedState)
+    : {
+        currentStep: 1,
+        completedSteps: [],
+        extractedText: "",
+        wordCount: 0,
+        selectedLanguage: "en-US",
+        selectedVoiceId: "",
+        processedAudioUrl: "",
+      };
+
+  const [currentStep, setCurrentStep] = useState(initialState.currentStep);
+  const [completedSteps, setCompletedSteps] = useState<number[]>(initialState.completedSteps);
+  const [extractedText, setExtractedText] = useState(initialState.extractedText);
+  const [wordCount, setWordCount] = useState(initialState.wordCount);
+  const [selectedLanguage, setSelectedLanguage] = useState(initialState.selectedLanguage);
+  const [selectedVoiceId, setSelectedVoiceId] = useState(initialState.selectedVoiceId);
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
-  const [processedAudioUrl, setProcessedAudioUrl] = useState<string>("");
+  const [processedAudioUrl, setProcessedAudioUrl] = useState(initialState.processedAudioUrl);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
 
-  // Load state from sessionStorage on mount
-  useEffect(() => {
-    try {
-      const savedState = sessionStorage.getItem(STORAGE_KEY);
-      if (savedState) {
-        const state: ToolState = JSON.parse(savedState);
-        setCurrentStep(state.currentStep || 1);
-        setCompletedSteps(state.completedSteps || []);
-        setExtractedText(state.extractedText || "");
-        setWordCount(state.wordCount || 0);
-        setSelectedLanguage(state.selectedLanguage || "en-US");
-        setSelectedVoiceId(state.selectedVoiceId || "");
-        setProcessedAudioUrl(state.processedAudioUrl || "");
-      }
-    } catch (error) {
-      console.error("Error loading saved state:", error);
-    }
-  }, []);
-
-  // Save state to sessionStorage whenever it changes
+  // Persist state to localStorage whenever it changes
   useEffect(() => {
     try {
       const state: ToolState = {
@@ -75,16 +70,18 @@ const Tool = () => {
         selectedVoiceId,
         processedAudioUrl,
       };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
       console.error("Error saving state:", error);
     }
   }, [currentStep, completedSteps, extractedText, wordCount, selectedLanguage, selectedVoiceId, processedAudioUrl]);
 
+  // Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) navigate("/");
   }, [user, loading, navigate]);
 
+  // Update word count
   useEffect(() => {
     if (!extractedText) {
       setWordCount(0);
@@ -158,15 +155,13 @@ const Tool = () => {
   };
 
   const handleVoiceRecorded = (blob: Blob) => {
-    // Note: The recording flow requires a backend change to first
-    // clone the voice and return an ID. For now, this just stores the blob.
     setVoiceRecording(blob);
-    setSelectedVoiceId(""); // Clear any previous ID
+    setSelectedVoiceId("");
   };
 
   const handleVoiceSelect = (voiceId: string) => {
     setSelectedVoiceId(voiceId);
-    setVoiceRecording(null); // Clear any previous recording
+    setVoiceRecording(null);
   };
 
   const handleLanguageSelect = (language: string) => {
@@ -206,9 +201,8 @@ const Tool = () => {
     setCurrentStep(1);
     setCompletedSteps([]);
 
-    // Clear saved state
     try {
-      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
     } catch (error) {
       console.error("Error clearing saved state:", error);
     }
@@ -223,7 +217,6 @@ const Tool = () => {
   };
 
   const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
-
   const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
   const purchasedWords = profile?.word_balance || 0;
   const remainingWords = planWordsAvailable + purchasedWords;

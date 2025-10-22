@@ -357,7 +357,7 @@ const ModernStepFour = ({
         {isPaidUser && showAdvanced && (
           <CardContent>
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 h-auto gap-1 p-1 bg-gray-100">
+              <TabsList className="grid w-full grid-cols-2 h-auto gap-1 p-1">
                 <TabsTrigger value="basic" className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm border-r border-gray-200">
                   Basic
                 </TabsTrigger>
@@ -402,45 +402,75 @@ const ModernStepFour = ({
                     <label className="text-sm font-medium">Voice Style</label>
                     <Select value={voiceStyle} onValueChange={(val) => {setVoiceStyle(val); handleSettingsChange();}}>
                       <SelectTrigger><SelectValue/></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="natural">Natural</SelectItem>
-                        <SelectItem value="news">News Reader</SelectItem>
-                        <SelectItem value="conversational">Conversational</SelectItem>
-                        <SelectItem value="cheerful">Cheerful</SelectItem>
-                        <SelectItem value="empathetic">Empathetic</SelectItem>
-                        <SelectItem value="dramatic">Dramatic</SelectItem>
-                        <SelectItem value="storytelling">Storytelling</SelectItem>
-                      </SelectContent>
+                     <SelectContent>
+  <SelectItem value="natural">Natural</SelectItem>
+  <SelectItem value="news">News Reader</SelectItem>
+  <SelectItem value="conversational">Conversational</SelectItem>
+  <SelectItem value="cheerful">Cheerful</SelectItem>
+  <SelectItem value="empathetic">Empathetic</SelectItem>
+  <SelectItem value="dramatic">Dramatic</SelectItem>
+  <SelectItem value="storytelling">Storytelling</SelectItem>
+  <SelectItem value="motivational">Motivational</SelectItem>
+  <SelectItem value="calm">Calm</SelectItem>
+  <SelectItem value="formal">Formal</SelectItem>
+  <SelectItem value="informal">Informal</SelectItem>
+  <SelectItem value="friendly">Friendly</SelectItem>
+  <SelectItem value="authoritative">Authoritative</SelectItem>
+  <SelectItem value="relaxed">Relaxed</SelectItem>
+  <SelectItem value="energetic">Energetic</SelectItem>
+  <SelectItem value="introspective">Introspective</SelectItem>
+  <SelectItem value="excited">Excited</SelectItem>
+</SelectContent>
+
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Emotion</label>
                     <Select value={emotion} onValueChange={(val) => {setEmotion(val); handleSettingsChange();}}>
                       <SelectTrigger><SelectValue/></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="neutral">Neutral</SelectItem>
-                        <SelectItem value="happy">Happy</SelectItem>
-                        <SelectItem value="sad">Sad</SelectItem>
-                        <SelectItem value="angry">Angry</SelectItem>
-                        <SelectItem value="excited">Excited</SelectItem>
-                        <SelectItem value="calm">Calm</SelectItem>
-                        <SelectItem value="surprised">Surprised</SelectItem>
-                      </SelectContent>
+                    <SelectContent>
+  <SelectItem value="neutral">Neutral</SelectItem>
+  <SelectItem value="happy">Happy</SelectItem>
+  <SelectItem value="sad">Sad</SelectItem>
+  <SelectItem value="angry">Angry</SelectItem>
+  <SelectItem value="excited">Excited</SelectItem>
+  <SelectItem value="calm">Calm</SelectItem>
+  <SelectItem value="surprised">Surprised</SelectItem>
+  <SelectItem value="confident">Confident</SelectItem>
+  <SelectItem value="friendly">Friendly</SelectItem>
+  <SelectItem value="serious">Serious</SelectItem>
+  <SelectItem value="dramatic">Dramatic</SelectItem>
+  <SelectItem value="whisper">Whisper</SelectItem>
+  <SelectItem value="soft">Soft</SelectItem>
+  <SelectItem value="shouting">Shouting</SelectItem>
+  <SelectItem value="curious">Curious</SelectItem>
+  <SelectItem value="bored">Bored</SelectItem>
+</SelectContent>
+
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Accent</label>
                     <Select value={accent} onValueChange={(val) => {setAccent(val); handleSettingsChange();}}>
                       <SelectTrigger><SelectValue/></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="default">Default</SelectItem>
-                        <SelectItem value="american">American</SelectItem>
-                        <SelectItem value="british">British</SelectItem>
-                        <SelectItem value="australian">Australian</SelectItem>
-                        <SelectItem value="canadian">Canadian</SelectItem>
-                        <SelectItem value="irish">Irish</SelectItem>
-                        <SelectItem value="southern">Southern US</SelectItem>
-                      </SelectContent>
+                     <SelectContent>
+  <SelectItem value="default">Default</SelectItem>
+  <SelectItem value="american">American</SelectItem>
+  <SelectItem value="british">British</SelectItem>
+  <SelectItem value="australian">Australian</SelectItem>
+  <SelectItem value="canadian">Canadian</SelectItem>
+  <SelectItem value="irish">Irish</SelectItem>
+  <SelectItem value="southern">Southern US</SelectItem>
+  <SelectItem value="scottish">Scottish</SelectItem>
+  <SelectItem value="welsh">Welsh</SelectItem>
+  <SelectItem value="newzealand">New Zealand</SelectItem>
+  <SelectItem value="indian">Indian</SelectItem>
+  <SelectItem value="southafrican">South African</SelectItem>
+  <SelectItem value="singaporean">Singaporean</SelectItem>
+  <SelectItem value="nigerian">Nigerian</SelectItem>
+  <SelectItem value="jamaican">Jamaican</SelectItem>
+</SelectContent>
+
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -555,7 +585,7 @@ const ModernStepFour = ({
                   "{getSampleText()}..."
                 </p>
               </div>
-              <audio controls className="w-full">
+              <audio controls className="w-full"   controlsList="nodownload noplaybackrate">
                 <source src={sampleAudio} type="audio/mpeg" />
                 Your browser does not support the audio element.
               </audio>

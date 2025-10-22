@@ -84,6 +84,33 @@ const RealAnalytics = () => {
     },
   ];
 
+// Hourly Usage in IST
+const hourlyUsageIST = premiumAnalytics?.hourlyUsage?.map((item) => {
+  const utcHour = parseInt(item.hour.split(':')[0], 10);
+  let istHour = (utcHour + 5) % 24;
+  const istMinute = 30;
+  const formattedHour = `${istHour.toString().padStart(2, '0')}:${istMinute.toString().padStart(2, '0')}`;
+  return { ...item, hour: formattedHour };
+}) || [];
+
+// Weekly Trends in IST
+const weeklyTrendsIST = analytics?.weeklyTrends?.map(item => {
+  const weekStart = new Date(item.week);
+  weekStart.setHours(weekStart.getHours() + 5);
+  weekStart.setMinutes(weekStart.getMinutes() + 30);
+  const weekLabel = weekStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return { ...item, week: weekLabel };
+}) || [];
+
+// Monthly Trends in IST
+const monthlyTrendsIST = premiumAnalytics?.monthlyTrends?.map(item => {
+  const date = new Date(item.month + '-01'); // month = 'YYYY-MM'
+  date.setHours(date.getHours() + 5);
+  date.setMinutes(date.getMinutes() + 30);
+  const monthLabel = date.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  return { ...item, month: monthLabel };
+}) || [];
+
   return (
     <div className="min-h-screen bg-white animate-fade-in">
       <div className="flex justify-end w-full mb-4 px-4">
@@ -290,7 +317,7 @@ const RealAnalytics = () => {
     <CardContent>
       <div className="h-[250px] sm:h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={premiumAnalytics.hourlyUsage}>
+          <BarChart data={premiumAnalytics.hourlyUsage} data={hourlyUsageIST}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
@@ -312,7 +339,7 @@ const RealAnalytics = () => {
                     <CardContent>
                       <div className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={analytics.weeklyTrends}>
+                          <BarChart data={analytics.weeklyTrends} data={weeklyTrendsIST}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="week" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
@@ -334,7 +361,7 @@ const RealAnalytics = () => {
                     <CardContent>
                       <div className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={premiumAnalytics.monthlyTrends}>
+                          <BarChart data={premiumAnalytics.monthlyTrends} data={monthlyTrendsIST}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />

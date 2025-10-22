@@ -709,7 +709,7 @@ export default function ModernStepThree({
           <CheckCircle className="h-4 w-4" />
           <AlertDescription className="text-xs sm:text-sm">
             <strong className="font-semibold">{selectedVoice.name}</strong> is selected and ready for generation.
-          </Read>
+          </AlertDescription>
         </Alert>
       )}
 

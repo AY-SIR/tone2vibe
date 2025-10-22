@@ -2,15 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Volume2, FileAudio, Copy, Check, Download } from 'lucide-react';
+import {
+  Volume2,
+  FileAudio,
+  Copy,
+  Check,
+  Download,
+  Loader2,
+  Sparkles
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { ModernAudioPlayer } from '@/components/tool/ModernAudioPlayer';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ModernStepFiveProps {
   audioUrl: string;
   audioData?: string;
-  audioMimeType?: 'audio/mpeg' | 'audio/webm'; // Optional prop to specify audio format
+  audioMimeType?: string;
   extractedText: string;
   selectedLanguage: string;
   wordCount: number;
@@ -30,12 +45,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const { toast } = useToast();
   const { user, profile } = useAuth();
 
   useEffect(() => {
     if (!user || !profile) return;
-    // Analytics are handled by the backend during generation.
   }, [user?.id, profile?.plan]);
 
   const formatTime = (timeInSeconds: number = 0) => {
@@ -50,73 +65,135 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       await navigator.clipboard.writeText(extractedText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: "Copied!",
-        description: "Text copied to clipboard.",
-      });
-    } catch (error) {
-      toast({
-        title: "Copy Failed",
-        description: "Unable to copy text to clipboard.",
-        variant: "destructive"
-      });
+      toast({ title: "Copied!", description: "Text copied to clipboard." });
+    } catch {
+      toast({ title: "Copy Failed", description: "Unable to copy.", variant: "destructive" });
     }
   };
 
-  const handleNextGeneration = async () => {
+  const handleNextGeneration = () => {
     setIsRefreshing(true);
     toast({
       title: "Preparing Next Generation",
       description: "Setting up your next voice generation...",
-      duration: 2000,
+      duration: 2000
     });
-
     setTimeout(() => {
-      if (onNextGeneration) {
-        onNextGeneration();
-      } else {
-        window.location.href = '/tool';
-      }
+      if (onNextGeneration) onNextGeneration();
+      else window.location.href = '/tool';
     }, 1500);
   };
 
-  const handleDownload = async () => {
+  // --------------------
+  // Modern Server-Side Audio Conversion
+  // --------------------
+  const handleConvertAndDownload = async (format: string) => {
+    setDownloading(format);
+
     try {
-      const a = document.createElement('a');
-      a.href = audioUrl;
-      a.download = `voice_${Date.now()}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+
       toast({
-        title: "Download Started",
-        description: "Your audio file is downloading.",
+        title: "Converting Audio",
+        description: `Converting to ${format.toUpperCase()}...`,
       });
-    } catch (error) {
+
+      // Call Edge Function to convert audio
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/convert-audio`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            audioUrl,
+            format,
+            sourceType: "generated",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Conversion failed");
+      }
+
+      // Download the converted file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `voice_${Date.now()}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Download Complete",
+        description: `Audio downloaded as ${format.toUpperCase()} successfully.`,
+      });
+    } catch (error: any) {
+      console.error("Download error:", error);
       toast({
         title: "Download Failed",
-        description: "Unable to download audio file.",
-        variant: "destructive"
+        description: error.message || "Failed to download audio file.",
+        variant: "destructive",
       });
+    } finally {
+      setDownloading(null);
     }
   };
 
+  const handleDownloadAll = async () => {
+    const formats = ["mp3", "wav", "flac"];
+
+    toast({
+      title: "Batch Download Started",
+      description: "Downloading MP3, WAV, and FLAC formats...",
+    });
+
+    for (const format of formats) {
+      await handleConvertAndDownload(format);
+      // Small delay between downloads
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+  };
+
+  const formats = [
+    { value: "mp3", label: "MP3", desc: "Universal format", icon: "" },
+    { value: "wav", label: "WAV", desc: "Lossless quality", icon: "" },
+    { value: "flac", label: "FLAC", desc: "Compressed lossless", icon: "" },
+    { value: "ogg", label: "OGG", desc: "Open source", icon: "" },
+    { value: "aac", label: "AAC", desc: "Modern codec", icon: "" },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Success Message */}
       <div className="text-center space-y-2">
-        <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="w-16 h-16 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
           <Check className="w-8 h-8 text-green-500" />
         </div>
-        <h2 className="text-2xl font-bold">Audio Generated Successfully!</h2>
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+          Audio Generated Successfully!
+        </h2>
         <p className="text-muted-foreground max-w-md mx-auto">
           Your complete voice generation is ready with full analytics tracking and history saved.
         </p>
       </div>
 
-      <Card>
+      {/* Analytics Card */}
+      <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50/50 to-emerald-50/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <FileAudio className="w-5 h-5" />
+            <FileAudio className="w-5 h-5 text-green-600" />
             Your Generated Audio
           </CardTitle>
         </CardHeader>
@@ -127,13 +204,11 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
               <div className="text-sm text-muted-foreground">Words Processed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">
-                {formatTime(duration)}
-              </div>
+              <div className="text-2xl font-bold text-primary">{formatTime(duration)}</div>
               <div className="text-sm text-muted-foreground">Duration</div>
             </div>
             <div className="text-center">
-              <Badge variant="secondary">{selectedLanguage}</Badge>
+              <Badge variant="secondary" className="text-xs">{selectedLanguage}</Badge>
               <div className="text-sm text-muted-foreground mt-1">Language</div>
             </div>
             <div className="text-center">
@@ -146,6 +221,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
+      {/* Audio Player */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -154,25 +230,24 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ModernAudioPlayer
-            srcUrl={audioUrl}
-            srcData={audioData}
-            mimeType={audioMimeType}
-            trackTitle="Generated Voice Output"
-          />
+          <audio
+            controls
+            className="w-full"
+            controlsList="nodownload noplaybackrate"
+          >
+            <source src={audioUrl} type={audioMimeType || 'audio/mpeg'} />
+            {audioData && <source src={`data:${audioMimeType || 'audio/mpeg'};base64,${audioData}`} />}
+            Your browser does not support the audio element.
+          </audio>
         </CardContent>
       </Card>
 
+      {/* Original Text */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between text-base sm:text-lg">
             <span>Original Text</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyToClipboard}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={copyToClipboard} className="gap-2">
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               {copied ? 'Copied!' : 'Copy'}
             </Button>
@@ -185,40 +260,113 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardContent>
       </Card>
 
-      <Card>
+      {/* Modern Download & Conversion */}
+      <Card className="border-2 border-gray-100">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Download className="w-5 h-5" />
-            Download Your Audio
+            <Download className="w-5 h-5 text-gray-600" />
+            Download in Multiple Formats
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4">
-          <Button
-            onClick={handleDownload}
-            size="lg"
-            className="gap-2"
-          >
-            <Download className="w-5 h-5" />
-            Download MP3
-          </Button>
-          <p className="text-sm text-muted-foreground">
-            Audio will be downloaded in MP3 format
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground text-center">
+            Choose a format to download, or get all popular formats at once
           </p>
+
+          {/* Format Buttons Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {formats.slice(0, 3).map((format) => (
+              <Button
+                key={format.value}
+                onClick={() => handleConvertAndDownload(format.value)}
+                disabled={!!downloading}
+                variant="outline"
+                size="lg"
+                className="flex flex-col h-auto py-4 gap-2 hover:border-blue-500 hover:bg-blue-50 transition-all"
+              >
+                {downloading === format.value ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <span className="text-2xl">{format.icon}</span>
+                )}
+                <div className="text-center">
+                  <div className="font-semibold">{format.label}</div>
+                  <div className="text-xs text-muted-foreground">{format.desc}</div>
+                </div>
+              </Button>
+            ))}
+          </div>
+
+          {/* Advanced Options Dropdown */}
+          <div className="flex justify-center pt-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!!downloading}
+                  className="gap-2"
+                >
+                  {downloading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-xs">Converting {downloading.toUpperCase()}...</span>
+                    </>
+                  ) : (
+                    <>
+                      More Formats
+                      <Sparkles className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-56">
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  Additional Formats
+                </div>
+                {formats.slice(3).map((format) => (
+                  <DropdownMenuItem
+                    key={format.value}
+                    onSelect={() => handleConvertAndDownload(format.value)}
+                    disabled={!!downloading}
+                    className="flex items-center gap-3 py-2 cursor-pointer"
+                  >
+                    <span className="text-xl">{format.icon}</span>
+                    <div className="flex-1">
+                      <div className="font-medium">{format.label}</div>
+                      <div className="text-xs text-muted-foreground">{format.desc}</div>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+
+
+          {downloading && (
+            <div className="flex items-center justify-center gap-2 text-sm text-blue-600 animate-pulse">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Converting to {downloading.toUpperCase()}... This may take a moment</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <div className="flex justify-center">
+      {/* Next Generation */}
+      <div className="flex justify-center pt-4">
         {isRefreshing ? (
           <div className="flex items-center space-x-3 px-8 py-3 bg-blue-50 rounded-lg">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
             <span className="text-blue-700 font-medium">Refreshing...</span>
           </div>
         ) : (
           <Button
             onClick={handleNextGeneration}
             size="lg"
-            className="px-8 py-3 text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-colors"
+            className="px-8 py-3 text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
           >
+            <Sparkles className="w-5 h-5 mr-2" />
             Next Generation
           </Button>
         )}
@@ -227,4 +375,4 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   );
 };
 
-export default ModernStepFive;
+export default ModernStepFive
