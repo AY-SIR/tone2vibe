@@ -249,15 +249,20 @@ export class AnalyticsService {
   ): Array<{ hour: string; words: number }> {
     if (!rawData || !Array.isArray(rawData)) return [];
 
-    // Group by hour
+    // Group by hour in IST (UTC+5:30)
+    const minutesOffset = 5 * 60 + 30; // 330 minutes
     const hourlyMap = new Map<string, number>();
-    
-    rawData.forEach(item => {
-      const date = new Date(item.created_at);
-      const hour = date.getHours().toString().padStart(2, '0');
+
+    rawData.forEach((item) => {
+      const utc = new Date(item.created_at);
+      const totalMinutes = utc.getUTCHours() * 60 + utc.getUTCMinutes() + minutesOffset;
+      const wrappedMinutes = ((totalMinutes % 1440) + 1440) % 1440; // wrap to [0, 1440)
+      const istHour = Math.floor(wrappedMinutes / 60)
+        .toString()
+        .padStart(2, '0');
       const words = item.words_used || 0;
-      
-      hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + words);
+
+      hourlyMap.set(istHour, (hourlyMap.get(istHour) || 0) + words);
     });
 
     // Convert to array and sort by hour
