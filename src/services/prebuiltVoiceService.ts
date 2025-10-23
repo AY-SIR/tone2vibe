@@ -13,6 +13,7 @@ export interface PrebuiltVoice {
   audio_preview_url?: string;
   is_active: boolean;
   sort_order: number;
+  usage_count?: number; // Track usage for sorting
   created_at: string;
   updated_at: string;
 }
@@ -327,6 +328,33 @@ export class PrebuiltVoiceService {
         canAccess: false,
         message: 'Error validating voice access'
       };
+    }
+  }
+
+  /**
+   * Track voice usage for analytics and sorting
+   */
+  static async trackVoiceUsage(voiceId: string): Promise<void> {
+    try {
+      // Increment usage count in localStorage for client-side tracking
+      const usageKey = `voice_usage_${voiceId}`;
+      const currentUsage = parseInt(localStorage.getItem(usageKey) || '0', 10);
+      localStorage.setItem(usageKey, (currentUsage + 1).toString());
+    } catch (error) {
+      console.error('Error tracking voice usage:', error);
+    }
+  }
+
+  /**
+   * Get voice usage count from localStorage
+   */
+  static getVoiceUsageCount(voiceId: string): number {
+    try {
+      const usageKey = `voice_usage_${voiceId}`;
+      return parseInt(localStorage.getItem(usageKey) || '0', 10);
+    } catch (error) {
+      console.error('Error getting voice usage count:', error);
+      return 0;
     }
   }
 

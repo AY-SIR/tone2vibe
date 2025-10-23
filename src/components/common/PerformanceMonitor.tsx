@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 
-export const usePerformance = () => {
+interface PerformanceMonitorProps {
+  enabled?: boolean;
+}
+
+export const PerformanceMonitor = ({ enabled = false }: PerformanceMonitorProps) => {
   const [metrics, setMetrics] = useState({
     loadTime: 0,
     renderTime: 0,
@@ -8,6 +12,8 @@ export const usePerformance = () => {
   });
 
   useEffect(() => {
+    if (!enabled) return;
+
     const startTime = performance.now();
     
     // Track page load time
@@ -40,7 +46,15 @@ export const usePerformance = () => {
     return () => {
       window.removeEventListener('load', handleLoad);
     };
-  }, []);
+  }, [enabled]);
 
-  return metrics;
+  if (!enabled) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 bg-black/80 text-white text-xs p-2 rounded z-50">
+      <div>Load: {metrics.loadTime.toFixed(0)}ms</div>
+      <div>Render: {metrics.renderTime.toFixed(0)}ms</div>
+      <div>Memory: {metrics.memoryUsage.toFixed(1)}MB</div>
+    </div>
+  );
 };

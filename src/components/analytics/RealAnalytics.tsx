@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,7 +64,7 @@ const RealAnalytics = () => {
 
   // --- FIX: Properly extract performance insights ---
   const performanceInsights = premiumAnalytics?.performanceInsights;
-  const insightsData = [
+  const insightsData = useMemo(() => [
     {
       label: "Peak Hours",
       value: performanceInsights?.peakUsageHours?.length
@@ -83,24 +83,20 @@ const RealAnalytics = () => {
       label: "Error Rate",
       value: `${((performanceInsights?.errorRate ?? 0) * 100).toFixed(1)}%`,
     },
-  ];
+  ], [performanceInsights]);
 
 
-const now = new Date(); // Current time in IST
+// Create hourly usage data for the last 24 hours
 const hourlyUsageIST = Array.from({ length: 24 }, (_, i) => {
-  const date = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000); // rolling 24h
-  const hourLabel = `${date.getHours().toString().padStart(2, '0')}:00`; // IST hour:00
-  return { hour: hourLabel, words: 0 };
+  const hour = i.toString().padStart(2, '0');
+  return { hour: `${hour}:00`, words: 0 };
 });
-premiumAnalytics?.hourlyUsage?.forEach(item => {
-  const itemDate = new Date(item.hour); // item.hour should be UTC timestamp
-  itemDate.setHours(itemDate.getHours() + 5);
-  itemDate.setMinutes(itemDate.getMinutes() + 30); // Convert to IST
 
-  const hourLabel = `${itemDate.getHours().toString().padStart(2, '0')}:00`;
-  const index = hourlyUsageIST.findIndex(h => h.hour === hourLabel);
-  if (index !== -1) {
-    hourlyUsageIST[index].words += item.words;
+// Map the analytics data to the hourly array
+premiumAnalytics?.hourlyUsage?.forEach(item => {
+  const hourIndex = parseInt(item.hour.split(':')[0], 10);
+  if (hourIndex >= 0 && hourIndex < 24) {
+    hourlyUsageIST[hourIndex].words += item.words || 0;
   }
 });
 

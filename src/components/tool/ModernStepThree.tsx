@@ -122,6 +122,8 @@ export default function ModernStepThree({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
   const [planFilter, setPlanFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"name" | "usage" | "plan">("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const userPlan = profile?.plan || 'free';
 
@@ -203,7 +205,7 @@ export default function ModernStepThree({
     loadPrebuiltVoices();
   }, [voiceMethod, userPlan, toast, prebuiltVoices.length]);
 
-  // Filter voices based on search and filters
+  // Filter and sort voices based on search and filters
   useEffect(() => {
     let filtered = prebuiltVoices;
 
@@ -239,8 +241,26 @@ export default function ModernStepThree({
       );
     }
 
+    // Sort voices
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      if (sortBy === "name") {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortBy === "usage") {
+        const usageA = PrebuiltVoiceService.getVoiceUsageCount(a.voice_id);
+        const usageB = PrebuiltVoiceService.getVoiceUsageCount(b.voice_id);
+        comparison = usageA - usageB;
+      } else if (sortBy === "plan") {
+        const planOrder = { free: 0, pro: 1, premium: 2 };
+        comparison = planOrder[a.required_plan] - planOrder[b.required_plan];
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
     setFilteredVoices(filtered);
-  }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter]);
+  }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter, sortBy, sortOrder]);
 
   // Handle voice recording
   const handleVoiceRecorded = (blob: Blob) => {
@@ -312,6 +332,9 @@ export default function ModernStepThree({
       return;
     }
     // === PERFORMANCE FIX END ===
+
+    // Track usage for sorting
+    PrebuiltVoiceService.trackVoiceUsage(voiceId);
 
     // Clear previous selection and set new one
     if (currentAudio) {
@@ -587,6 +610,31 @@ export default function ModernStepThree({
                     )}
                   </div>
 
+                  {/* Sorting Controls */}
+                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Sort by:</span>
+                      <Select value={sortBy} onValueChange={(value: "name" | "usage" | "plan") => setSortBy(value)}>
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="name">Name</SelectItem>
+                          <SelectItem value="usage">Usage</SelectItem>
+                          <SelectItem value="plan">Plan</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                        className="px-2"
+                      >
+                        {sortOrder === "asc" ? "↑" : "↓"}
+                      </Button>
+                    </div>
+                  </div>
+
                   {/* Voice List */}
                   <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                     {filteredVoices.length > 0 ? (
@@ -648,6 +696,11 @@ export default function ModernStepThree({
                                   {voice.accent && (
                                     <Badge variant="outline" className="text-xs capitalize">
                                       {voice.accent}
+                                    </Badge>
+                                  )}
+                                  {sortBy === "usage" && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Used {PrebuiltVoiceService.getVoiceUsageCount(voice.voice_id)} times
                                     </Badge>
                                   )}
                                 </div>
