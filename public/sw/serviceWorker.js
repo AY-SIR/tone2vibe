@@ -1,18 +1,20 @@
 
 
-const CACHE_NAME = "offline-cache-v3";
-const OFFLINE_PAGE = "/offline";
-const urlsToCache = [
-  "/", 
+const CACHE_NAME = "tone2vibe-cache-v1";
+const STATIC_CACHE = "tone2vibe-static-v1";
+
+// Only cache essential files
+const ESSENTIAL_URLS = [
+  "/",
   "/index.html",
-  "/offline"
-]; // precache app shell and offline page
+  "/favicon.png"
+];
 
 self.addEventListener("install", (event) => {
-  console.log("[SW] Installing...");
+  console.log("[SW] Installing lightweight service worker...");
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
+    caches.open(STATIC_CACHE).then((cache) => {
+      return cache.addAll(ESSENTIAL_URLS);
     })
   );
   self.skipWaiting();
@@ -21,86 +23,43 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   console.log("[SW] Activating...");
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => key !== CACHE_NAME && caches.delete(key)))
-    )
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME && key !== STATIC_CACHE) {
+            return caches.delete(key);
+          }
+        })
+      );
+    })
   );
   self.clients.claim();
 });
 
-// Helper function to check if request is for offline page
-function isOfflinePageRequest(request) {
-  return request.url.includes('/offline') || 
-         request.url.endsWith('/offline') ||
-         request.url.includes('offline');
-}
-
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-
-  // Handle navigation (page reloads)
+  // Only handle navigation requests
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
-        .then((res) => {
-          // Clone and cache the response for future use
-          const responseClone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return res;
-        })
-        .catch(async () => {
-          // When offline, check if we should show offline page
-          const isOfflineRequest = isOfflinePageRequest(event.request);
-          
-          if (isOfflineRequest) {
-            // Return cached offline page
-            const cachedOffline = await caches.match(OFFLINE_PAGE);
-            if (cachedOffline) {
-              return cachedOffline;
-            }
-          }
-          
-          // Check if we have a cached version of the requested page
-          const cachedResponse = await caches.match(event.request);
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          
-          // Fallback to index.html for SPA routing (avoid serving when explicitly requesting /offline)
-          const fallbackResponse = isOfflineRequest ? null : await caches.match("/index.html");
-          if (fallbackResponse) {
-            return fallbackResponse;
-          }
-          
-          // Last resort - return cached root
-          return caches.match("/");
+        .catch(() => {
+          // Return cached index.html for offline navigation
+          return caches.match("/index.html");
         })
     );
-    return;
   }
-
-  // For static assets (CSS, JS, images, etc.)
-  event.respondWith(
-    fetch(event.request)
-      .then((res) => {
-        // Cache static assets
-        const responseClone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
-        return res;
-      })
-      .catch(() => {
-        // Never intercept explicit network checks from app
-        const url = new URL(event.request.url);
-        if (url.pathname.startsWith('/api/health')) {
-          return new Response(null, { status: 503 });
-        }
-        return caches.match(event.request);
-      })
-  );
+  
+  // For API calls, always try network first
+  if (event.request.url.includes('/api/') || event.request.url.includes('/functions/')) {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => {
+          return new Response(JSON.stringify({ error: "Offline" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" }
+          });
+        })
+    );
+  }
 });
 
 // Listen for messages from the main thread

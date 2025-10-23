@@ -16,6 +16,7 @@ interface ModernStepFiveProps {
   selectedLanguage: string;
   wordCount: number;
   duration?: number; // This prop is no longer strictly needed but kept for compatibility
+  durationSeconds?: number; // For proper duration tracking
   onNextGeneration?: () => void;
 }
 
@@ -27,6 +28,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   selectedLanguage,
   wordCount,
   duration, // Kept for compatibility, but we use actualDuration
+  durationSeconds, // For proper duration tracking
   onNextGeneration,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -37,7 +39,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
   // --- FIX ---
   // 1. Add state for duration and a ref for the audio element
-  const [actualDuration, setActualDuration] = useState(duration || 0);
+  const [actualDuration, setActualDuration] = useState(durationSeconds || duration || 0);
   const audioRef = useRef<HTMLAudioElement>(null);
   // --- END FIX ---
 

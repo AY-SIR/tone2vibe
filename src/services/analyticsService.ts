@@ -102,10 +102,10 @@ export class AnalyticsService {
       const weeklyTrends = this.formatWeeklyTrends(summary.weeklyTrends || []);
 
       // --- FIX: Process hourly usage properly for Premium ---
-      const hourlyUsage = this.formatHourlyUsage(summary.peakUsageHours || []);
+      const hourlyUsage = this.calculateHourlyUsage(enrichedData);
 
       // --- FIX: Extract peak hours as string array ---
-      const peakUsageHours = this.extractPeakHours(summary.peakUsageHours || []);
+      const peakUsageHours = this.extractPeakHoursFromHourlyUsage(hourlyUsage);
 
       const baseAnalytics: ProAnalytics = {
         totalProjects: summary.totalProjects || 0,
@@ -242,6 +242,33 @@ export class AnalyticsService {
   }
 
   /**
+   * Calculate hourly usage from raw analytics data
+   */
+  private static calculateHourlyUsage(
+    rawData: any[]
+  ): Array<{ hour: string; words: number }> {
+    if (!rawData || !Array.isArray(rawData)) return [];
+
+    // Group by hour
+    const hourlyMap = new Map<string, number>();
+    
+    rawData.forEach(item => {
+      const date = new Date(item.created_at);
+      const hour = date.getHours().toString().padStart(2, '0');
+      const words = item.words_used || 0;
+      
+      hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + words);
+    });
+
+    // Convert to array and sort by hour
+    const hourlyUsage = Array.from(hourlyMap.entries())
+      .map(([hour, words]) => ({ hour: `${hour}:00`, words }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
+    return hourlyUsage;
+  }
+
+  /**
    * FIX: Format hourly usage from database result
    */
   private static formatHourlyUsage(
@@ -253,6 +280,22 @@ export class AnalyticsService {
       hour: item.hour || '00:00',
       words: Number(item.words) || 0
     }));
+  }
+
+  /**
+   * Extract top 3 peak hours from hourly usage data
+   */
+  private static extractPeakHoursFromHourlyUsage(
+    hourlyUsage: Array<{ hour: string; words: number }>
+  ): string[] {
+    if (!hourlyUsage || !Array.isArray(hourlyUsage)) return [];
+
+    // Sort by words descending and take top 3
+    const sorted = [...hourlyUsage]
+      .sort((a, b) => b.words - a.words)
+      .slice(0, 3);
+
+    return sorted.map(item => item.hour);
   }
 
   /**

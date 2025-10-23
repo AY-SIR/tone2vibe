@@ -67,6 +67,7 @@ type HistoryItem = {
   language: string;
   word_count: number;
   duration: string | null;
+  duration_seconds?: number | null; // For generated voices
   source_type: "generated" | "recorded";
   processing_time_ms?: number;
   generation_started_at?: string;
@@ -331,7 +332,17 @@ const History = () => {
     }
   };
 
-  const formatDuration = (duration: string | number | null) => {
+  const formatDuration = (duration: string | number | null, durationSeconds?: number | null) => {
+    // For generated voices, use duration_seconds if available
+    if (durationSeconds !== null && durationSeconds !== undefined) {
+      const totalSeconds = durationSeconds;
+      if (isNaN(totalSeconds) || totalSeconds < 0) return "--:--";
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = Math.floor(totalSeconds % 60);
+      return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+    }
+    
+    // For recorded voices or fallback
     if (!duration) return "--:--";
     const totalSeconds = typeof duration === "string" ? parseInt(duration, 10) : duration;
     if (isNaN(totalSeconds) || totalSeconds < 0) return "--:--";
@@ -344,7 +355,8 @@ const History = () => {
       const generatedItems = projects.map((p) => ({
         ...p,
         title: p.title,
-        duration: "0",
+        duration: formatDuration(null, p.duration_seconds),
+        duration_seconds: p.duration_seconds,
         source_type: "generated" as const
       }));
     const recordedItems = userVoices.map((v) => ({
@@ -675,7 +687,7 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
-              {type === 'recorded' && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
+              {(type === 'recorded' || type === 'generated') && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
               {project.processing_time_ms && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{(project.processing_time_ms / 1000).toFixed(1)}s</Badge>}
             </div>
           </div>

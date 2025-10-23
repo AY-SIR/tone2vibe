@@ -26,17 +26,27 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        globPatterns: [], // don't precache anything
-        runtimeCaching: [], // no runtime caching
-      },
+      workbox: false, // Disable workbox completely
       devOptions: {
-        enabled: true, // allows testing PWA in dev
+        enabled: true,
       },
     }),
   ],
 
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
 
-  build: { chunkSizeWarningLimit: 2000, sourcemap: false },
+  build: { 
+    chunkSizeWarningLimit: 1000, 
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+          charts: ['recharts'],
+          audio: ['@ffmpeg/ffmpeg', '@ffmpeg/core'],
+        }
+      }
+    }
+  },
 });

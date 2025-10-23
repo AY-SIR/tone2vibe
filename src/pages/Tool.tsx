@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -98,15 +98,15 @@ const Tool = () => {
     setWordCount(totalWordCount);
   }, [extractedText]);
 
-  const hasEnoughWords = () => {
+  const hasEnoughWords = useMemo(() => {
     if (!profile) return false;
     const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
     const purchasedWords = profile.word_balance || 0;
     const totalAvailable = planWordsAvailable + purchasedWords;
     return wordCount <= totalAvailable;
-  };
+  }, [profile, wordCount]);
 
-  const getStepTitle = (step: number) => {
+  const getStepTitle = useCallback((step: number) => {
     const titles: Record<number, string> = {
       1: "Upload & Extract",
       2: "Review & Edit",
@@ -115,9 +115,9 @@ const Tool = () => {
       5: "Download & Save",
     };
     return titles[step] || `Step ${step}`;
-  };
+  }, []);
 
-  const getStepDescription = (step: number) => {
+  const getStepDescription = useCallback((step: number) => {
     const descriptions: Record<number, string> = {
       1: "Upload files or type text to get started",
       2: "Review, translate and correct your text",
@@ -126,18 +126,18 @@ const Tool = () => {
       5: "Download and save to your history",
     };
     return descriptions[step] || "";
-  };
+  }, []);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentStep < totalSteps) {
       setCompletedSteps((prev) => Array.from(new Set([...prev, currentStep])));
       setCurrentStep(currentStep + 1);
     }
-  };
+  }, [currentStep, totalSteps]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
-  };
+  }, [currentStep]);
 
   const handleProcessingStart = (stepName: string) => {
     setIsProcessing(true);
@@ -216,10 +216,16 @@ const Tool = () => {
     });
   };
 
-  const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
-  const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
-  const purchasedWords = profile?.word_balance || 0;
-  const remainingWords = planWordsAvailable + purchasedWords;
+  const progressPercentage = useMemo(() => 
+    ((currentStep - 1) / (totalSteps - 1)) * 100, 
+    [currentStep, totalSteps]
+  );
+  
+  const remainingWords = useMemo(() => {
+    const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
+    const purchasedWords = profile?.word_balance || 0;
+    return planWordsAvailable + purchasedWords;
+  }, [profile]);
 
   if (loading) {
     return (
