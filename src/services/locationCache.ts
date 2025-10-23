@@ -12,7 +12,9 @@ export interface LocationCache {
 export class LocationCacheService {
   private static readonly CACHE_KEY = 'user_location_cache';
   private static readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24h
+  private static locationPromise: Promise<LocationCache> | null = null;
 
+  /** Generate or retrieve session ID */
   private static getSessionId(): string {
     try {
       let sessionId = sessionStorage.getItem('location_session_id');
@@ -26,6 +28,7 @@ export class LocationCacheService {
     }
   }
 
+  /** Mask IP for privacy */
   private static maskIP(ip: string): string {
     try {
       if (!ip) return 'x.x.x.x';
@@ -36,7 +39,8 @@ export class LocationCacheService {
     }
   }
 
-  static getCachedLocation(): LocationCache | null {
+  /** Fetch location from cache if valid */
+  private static getCachedLocation(): LocationCache | null {
     try {
       const cached = localStorage.getItem(this.CACHE_KEY);
       if (!cached) return null;
@@ -52,11 +56,14 @@ export class LocationCacheService {
     }
   }
 
-  static async cacheLocation(ip: string, countryCode: string, country: string): Promise<LocationCache> {
+  /** Save location to cache + cookies */
+  private static async cacheLocation(ip: string, countryCode: string, country: string): Promise<LocationCache> {
+    const countryCodeVal = (countryCode || 'XX').toUpperCase();
+    const countryVal = country || 'Unknown';
     const locationCache: LocationCache = {
-      countryCode: (countryCode || 'XX').toUpperCase(),
-      country: country || 'Unknown',
-      isIndian: countryCode?.toUpperCase() === 'IN',
+      countryCode: countryCodeVal,
+      country: countryVal,
+      isIndian: countryCodeVal === 'IN',
       partialIP: this.maskIP(ip),
       timestamp: Date.now(),
       sessionId: this.getSessionId(),
@@ -65,35 +72,44 @@ export class LocationCacheService {
     try {
       localStorage.setItem(this.CACHE_KEY, JSON.stringify(locationCache));
       const maxAge = Math.floor(this.CACHE_DURATION / 1000);
-      document.cookie = `user_country=${locationCache.countryCode}; path=/; max-age=${maxAge}; secure; samesite=strict`;
-      document.cookie = `user_ip_verified=${this.maskIP(ip)}; path=/; max-age=${maxAge}; secure; samesite=strict`;
-      document.cookie = `location_verified=true; path=/; max-age=${maxAge}; secure; samesite=strict`;
+      const secureFlag = location.origin.startsWith('https:') ? 'secure;' : '';
+      document.cookie = `user_country=${countryCodeVal}; path=/; max-age=${maxAge}; ${secureFlag} samesite=strict`;
+      document.cookie = `user_ip_verified=${this.maskIP(ip)}; path=/; max-age=${maxAge}; ${secureFlag} samesite=strict`;
+      document.cookie = `location_verified=true; path=/; max-age=${maxAge}; ${secureFlag} samesite=strict`;
     } catch {
-      // Silent ignore for storage/cookie errors
+      // ignore
     }
 
     return locationCache;
   }
 
-  static async fetchLocation(): Promise<LocationCache> {
+  /** Safe fetch with timeout */
+  private static fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 4000) {
+    return Promise.race([
+      fetch(url, options),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), timeout)
+      ),
+    ]);
+  }
+
+  /** Fetch location from multiple APIs */
+  private static async fetchLocation(): Promise<LocationCache> {
     const apis = [
       async () => {
-        const res = await fetch('https://ipapi.co/json/', {
-          headers: { Accept: 'application/json' },
-          signal: AbortSignal.timeout(4000),
-        });
+        const res = await this.fetchWithTimeout('https://ipapi.co/json/', { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error();
         const data = await res.json();
         return { ip: data.ip, countryCode: data.country_code, country: data.country_name };
       },
       async () => {
-        const res = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(4000) });
+        const res = await this.fetchWithTimeout('https://ipwho.is/');
         if (!res.ok) throw new Error();
         const data = await res.json();
         return { ip: data.ip, countryCode: data.country_code, country: data.country };
       },
       async () => {
-        const res = await fetch('https://geolocation-db.com/json/', { signal: AbortSignal.timeout(4000) });
+        const res = await this.fetchWithTimeout('https://geolocation-db.com/json/');
         if (!res.ok) throw new Error();
         const data = await res.json();
         return { ip: data.IPv4, countryCode: data.country_code, country: data.country_name };
@@ -107,31 +123,32 @@ export class LocationCacheService {
           return await this.cacheLocation(ip, countryCode, country);
         }
       } catch {
-        // Continue silently to next API
+        continue;
       }
     }
 
     // Fallback if all APIs fail
-    return await this.cacheLocation('unknown', 'XX', 'Unknown');
+    return await this.cacheLocation('unknown', 'XX', 'Other Country');
   }
 
+  /** Get location — first checks cache, otherwise fetches */
   static async getLocation(): Promise<LocationCache> {
-    try {
+    if (this.locationPromise) return this.locationPromise;
+
+    const promise = (async () => {
       const cached = this.getCachedLocation();
       if (cached) return cached;
       return await this.fetchLocation();
-    } catch {
-      return {
-        countryCode: 'XX',
-        country: 'Unknown',
-        isIndian: false,
-        partialIP: 'x.x.x.x',
-        timestamp: Date.now(),
-        sessionId: this.getSessionId(),
-      };
-    }
+    })();
+
+    this.locationPromise = promise;
+
+    const result = await promise;
+    this.locationPromise = null;
+    return result;
   }
 
+  /** Get location from cookies */
   static getLocationFromCookies(): { isIndian: boolean; country: string | null; ipVerified: string | null } {
     try {
       const cookies = document.cookie.split(';');
@@ -149,6 +166,7 @@ export class LocationCacheService {
     }
   }
 
+  /** Save location to Supabase (silent fail) */
   static async saveUserLocation(userId: string, locationData: LocationCache): Promise<void> {
     try {
       await supabase
@@ -176,10 +194,11 @@ export class LocationCacheService {
           { onConflict: 'user_id' }
         );
     } catch {
-      // Silent ignore for any Supabase failure
+      // silent ignore
     }
   }
 
+  /** Clear cache and cookies */
   static clearCache(): void {
     try {
       localStorage.removeItem(this.CACHE_KEY);
@@ -187,7 +206,7 @@ export class LocationCacheService {
       document.cookie = 'user_ip_verified=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       document.cookie = 'location_verified=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     } catch {
-      // Silent ignore
+      // silent ignore
     }
   }
-}
+            }
