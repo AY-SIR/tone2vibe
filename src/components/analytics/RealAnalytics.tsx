@@ -85,18 +85,22 @@ const RealAnalytics = () => {
     },
   ], [performanceInsights]);
 
+// Create hourly usage data for the last 24 hours (starting from current hour)
+const now = new Date();
+const currentHour = now.getHours();
 
-// Create hourly usage data for the last 24 hours
 const hourlyUsageIST = Array.from({ length: 24 }, (_, i) => {
-  const hour = i.toString().padStart(2, '0');
-  return { hour: `${hour}:00`, words: 0 };
+  const hourIndex = (currentHour - 23 + i + 24) % 24;
+  const hour = hourIndex.toString().padStart(2, '0');
+  return { hour: `${hour}:00`, words: 0, hourIndex };
 });
 
 // Map the analytics data to the hourly array
 premiumAnalytics?.hourlyUsage?.forEach(item => {
-  const hourIndex = parseInt(item.hour.split(':')[0], 10);
-  if (hourIndex >= 0 && hourIndex < 24) {
-    hourlyUsageIST[hourIndex].words += item.words || 0;
+  const itemHour = parseInt(item.hour.split(':')[0], 10);
+  const found = hourlyUsageIST.find(h => h.hourIndex === itemHour);
+  if (found) {
+    found.words += item.words || 0;
   }
 });
 
