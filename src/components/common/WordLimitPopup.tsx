@@ -51,39 +51,41 @@ export const WordLimitPopup = ({ planExpiryActive = false }: WordLimitPopupProps
               {isOutOfWords ? "Out of Words" : "Low Word Balance"}
             </DialogTitle>
           </div>
-          <DialogDescription className="pt-3">
-            {isOutOfWords ? (
-              <div className="space-y-2">
-                <p className="font-semibold text-red-600">
-                  You have run out of words!
-                </p>
-                <p className="text-sm">
-                  You need to purchase more words or upgrade your plan to continue generating voices.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="font-semibold text-yellow-600">
-                  You have only {totalAvailable} words remaining!
-                </p>
-                <p className="text-sm">
-                  Consider purchasing more words or upgrading your plan to continue uninterrupted service.
-                </p>
-                <div className="mt-3 p-3 bg-muted rounded-md">
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span>Plan Words:</span>
-                      <span className="font-medium">{planWordsRemaining}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Purchased Words:</span>
-                      <span className="font-medium">{profile.word_balance}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </DialogDescription>
+<DialogDescription asChild>
+  <div className="pt-3">
+    {isOutOfWords ? (
+      <div className="space-y-2">
+        <p className="font-semibold text-red-600">
+          You have run out of words!
+        </p>
+        <p className="text-sm">
+          You need to purchase more words or upgrade your plan to continue generating voices.
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        <p className="font-semibold text-yellow-600">
+          You have only {totalAvailable} words remaining!
+        </p>
+        <p className="text-sm">
+          Consider purchasing more words or upgrading your plan to continue uninterrupted service.
+        </p>
+        <div className="mt-3 p-3 bg-muted rounded-md">
+          <div className="text-xs space-y-1">
+            <div className="flex justify-between">
+              <span>Plan Words:</span>
+              <span className="font-medium">{planWordsRemaining}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Purchased Words:</span>
+              <span className="font-medium">{profile.word_balance}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button

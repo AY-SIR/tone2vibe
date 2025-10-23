@@ -67,7 +67,7 @@ type HistoryItem = {
   language: string;
   word_count: number;
   duration: string | null;
-  duration_seconds?: number | null; // For generated voices
+  duration_seconds?: number | null;
   source_type: "generated" | "recorded";
   processing_time_ms?: number;
   generation_started_at?: string;
@@ -94,7 +94,6 @@ const AudioDownloadDropdown = ({
     setDownloading(format);
 
     try {
-      // Call Edge Function to convert audio
       const { data: { session } } = await supabase.auth.getSession();
 
       const response = await fetch(
@@ -118,7 +117,6 @@ const AudioDownloadDropdown = ({
         throw new Error(error.error || "Conversion failed");
       }
 
-      // Download the converted file
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -155,7 +153,6 @@ const AudioDownloadDropdown = ({
 
     for (const format of formats) {
       await handleDownload(format);
-      // Small delay between downloads to prevent overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   };
@@ -206,7 +203,6 @@ const AudioDownloadDropdown = ({
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -219,6 +215,31 @@ type UserVoice = {
   created_at: string;
   duration: string | null;
   language: string | null;
+};
+
+// ====================================================================
+// ShowMoreText Component - Shows 2 lines with expand/collapse
+// ====================================================================
+const ShowMoreText = ({ text }: { text: string }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!text) return null;
+
+  return (
+    <div className="mb-3">
+      <p className={`text-xs sm:text-sm text-muted-foreground ${!expanded ? 'line-clamp-2' : ''}`}>
+        {text}
+      </p>
+      {text.length > 100 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-primary hover:underline mt-1 font-medium"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
 };
 
 const History = () => {
@@ -333,7 +354,6 @@ const History = () => {
   };
 
   const formatDuration = (duration: string | number | null, durationSeconds?: number | null) => {
-    // For generated voices, use duration_seconds if available
     if (durationSeconds !== null && durationSeconds !== undefined) {
       const totalSeconds = durationSeconds;
       if (isNaN(totalSeconds) || totalSeconds < 0) return "--:--";
@@ -341,8 +361,7 @@ const History = () => {
       const seconds = Math.floor(totalSeconds % 60);
       return `${minutes}:${seconds.toString().padStart(2, "0")}`;
     }
-    
-    // For recorded voices or fallback
+
     if (!duration) return "--:--";
     const totalSeconds = typeof duration === "string" ? parseInt(duration, 10) : duration;
     if (isNaN(totalSeconds) || totalSeconds < 0) return "--:--";
@@ -352,13 +371,13 @@ const History = () => {
   };
 
   const allItems = useMemo((): HistoryItem[] => {
-      const generatedItems = projects.map((p) => ({
-        ...p,
-        title: p.title,
-        duration: formatDuration(null, p.duration_seconds),
-        duration_seconds: p.duration_seconds,
-        source_type: "generated" as const
-      }));
+    const generatedItems = projects.map((p) => ({
+      ...p,
+      title: p.title,
+      duration: formatDuration(null, p.duration_seconds),
+      duration_seconds: p.duration_seconds,
+      source_type: "generated" as const
+    }));
     const recordedItems = userVoices.map((v) => ({
       id: v.id,
       title: v.name,
@@ -426,30 +445,30 @@ const History = () => {
       let audioUrl = project.audio_url;
 
       if (project.source_type === "recorded") {
-      try {
-        const url = new URL(project.audio_url);
-        const bucketName = "user-voices";
-        const pathParts = url.pathname.split("/");
-        const bucketIndex = pathParts.indexOf(bucketName);
-        if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-          const filePath = pathParts.slice(bucketIndex + 1).join("/");
-          const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 3600);
-          if (error) throw error;
-          audioUrl = signedData.signedUrl;
+        try {
+          const url = new URL(project.audio_url);
+          const bucketName = "user-voices";
+          const pathParts = url.pathname.split("/");
+          const bucketIndex = pathParts.indexOf(bucketName);
+          if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
+            const filePath = pathParts.slice(bucketIndex + 1).join("/");
+            const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 3600);
+            if (error) throw error;
+            audioUrl = signedData.signedUrl;
+          }
+        } catch (e) {
+          if (e instanceof TypeError) {
+            toast({
+              title: "Cannot Play Audio",
+              description: "This recording format is not supported.",
+              variant: "destructive",
+            });
+            setPlayingAudio(null);
+            setLoadingAudio(null);
+            return;
+          }
+          throw e;
         }
-      } catch (e) {
-        if (e instanceof TypeError) {
-          toast({
-            title: "Cannot Play Audio",
-            description: "This recording format is not supported.",
-            variant: "destructive",
-          });
-          setPlayingAudio(null);
-          setLoadingAudio(null);
-          return;
-        }
-        throw e;
-      }
       }
 
       const audio = new Audio(audioUrl);
@@ -515,15 +534,14 @@ const History = () => {
           <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
             Your voice projects • {retentionInfo("all")} retention
           </p>
-        <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
-  <div className="text-xs sm:text-sm flex items-center gap-2">
-    <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
-    <span>
-      Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown
-    </span>
-  </div>
-</div>
-
+          <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
+            <div className="text-xs sm:text-sm flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
+              <span>
+                Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown
+              </span>
+            </div>
+          </div>
         </div>
 
         <Card className="mb-4 sm:mb-6">
@@ -695,8 +713,9 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
       </CardHeader>
       <CardContent className="pt-0 p-3 sm:p-6">
         {type === 'generated' && project.original_text && (
-          <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 line-clamp-2">{project.original_text}</p>
+          <ShowMoreText text={project.original_text} />
         )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
             <Button
