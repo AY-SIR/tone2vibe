@@ -560,50 +560,55 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* Delete Account Confirmation */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Permanently Delete Account</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action is irreversible. To confirm, please type your email address:{" "}
-              <span className="font-bold text-foreground">{user?.email}</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2">
-            <Label htmlFor="confirmEmail" className="sr-only">
-              Confirm Email
-            </Label>
-            <Input
-              id="confirmEmail"
-              type="email"
-              placeholder="Enter your email to confirm"
-              value={confirmEmail}
-              onChange={(e) => setConfirmEmail(e.target.value)}
-              className="border-destructive focus:ring-destructive"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteAccount}
-              disabled={
-                isDeleting ||
-                confirmEmail.trim().toLowerCase() !== user.email?.toLowerCase()
-              }
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
-                </>
-              ) : (
-                "Delete Account"
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+     {/* Delete Account Confirmation */}
+<AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+  <AlertDialogContent
+    className="max-w-md w-[90%] rounded-2xl mx-auto px-4 sm:px-6 py-4"
+  >
+    <AlertDialogHeader>
+      <AlertDialogTitle>Permanently Delete Account</AlertDialogTitle>
+      <AlertDialogDescription>
+        This action is irreversible. To confirm, please type your email address:{" "}
+        <span className="font-bold text-foreground">{user?.email}</span>
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+
+    <div className="py-2">
+      <Label htmlFor="confirmEmail" className="sr-only">
+        Confirm Email
+      </Label>
+      <Input
+        id="confirmEmail"
+        type="email"
+        placeholder="Enter your email to confirm"
+        value={confirmEmail}
+        onChange={(e) => setConfirmEmail(e.target.value)}
+        className="border-destructive focus:ring-destructive"
+      />
+    </div>
+
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <Button
+        variant="destructive"
+        onClick={handleDeleteAccount}
+        disabled={
+          isDeleting ||
+          confirmEmail.trim().toLowerCase() !== user.email?.toLowerCase()
+        }
+      >
+        {isDeleting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+          </>
+        ) : (
+          "Delete Account"
+        )}
+      </Button>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+
     </div>
   );
 };

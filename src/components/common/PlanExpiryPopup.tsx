@@ -60,41 +60,42 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            {getIcon()}
-          </div>
-          <DialogTitle className="text-lg font-semibold">
-            {getTitle()}
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            {getDescription()}
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex flex-col gap-3 mt-4">
+   <Dialog open={isOpen} onOpenChange={onClose}>
+  <DialogContent
+    className="w-[90%] max-w-md mx-auto rounded-2xl px-4 sm:px-6 py-4"
+  >
+    <DialogHeader className="text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        {getIcon()}
+      </div>
+      <DialogTitle className="text-lg font-semibold">
+        {getTitle()}
+      </DialogTitle>
+      <DialogDescription className="text-sm text-muted-foreground">
+        {getDescription()}
+      </DialogDescription>
+    </DialogHeader>
 
+    <div className="flex flex-col gap-3 mt-4">
+      <Button
+        variant="outline"
+        onClick={onClose}
+        className="w-full bg-black text-white"
+      >
+        Remind Me Later
+      </Button>
+    </div>
 
-          
-          <Button 
-            variant="outline" 
-            onClick={onClose}
-            className="w-full bg-black text-white"
-          >
-            Remind Me Later
-          </Button>
-        </div>
-        
-        {isExpired && (
-          <div className="mt-4 p-3 bg-destructive/10 rounded-md">
-            <p className="text-xs text-destructive text-center">
-              Your plan has expired and you've been moved to the free tier. Purchased words never expire and are still available.
-            </p>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+    {isExpired && (
+      <div className="mt-4 p-3 bg-destructive/10 rounded-md">
+        <p className="text-xs text-destructive text-center">
+          Your plan has expired and you've been moved to the free tier.
+          Purchased words never expire and are still available.
+        </p>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
+
   );
 };
