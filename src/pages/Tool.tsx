@@ -279,7 +279,7 @@ const Tool = () => {
             <Progress value={progressPercentage} className="h-2 sm:h-2" />
           </div>
 
-          {!hasEnoughWords() && wordCount > 0 && (
+          {!hasEnoughWords && wordCount > 0 && (
             <Card className="mb-4 sm:mb-6 border-destructive/50 bg-destructive/5">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">

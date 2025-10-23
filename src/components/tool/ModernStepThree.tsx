@@ -624,14 +624,15 @@ export default function ModernStepThree({
                           <SelectItem value="plan">Plan</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                        className="px-2"
-                      >
-                        {sortOrder === "asc" ? "↑" : "↓"}
-                      </Button>
+                   <Button
+  variant="outline"
+  size="sm"
+  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+  className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
+>
+  {sortOrder === "asc" ? "↑" : "↓"}
+</Button>
+
                     </div>
                   </div>
 
