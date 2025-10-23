@@ -1,9 +1,10 @@
+// IndiaOnlyAlert.tsx
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, MapPin } from "lucide-react";
 import { IndiaOnlyService } from '@/services/indiaOnlyService';
 
-export function IndiaOnlyAlert() {
+export function IndiaOnlyAlert({ userId }: { userId?: string }) {
   const [accessCheck, setAccessCheck] = useState<{
     isAllowed: boolean;
     message: string;
@@ -12,27 +13,15 @@ export function IndiaOnlyAlert() {
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const checkIndianAccess = async () => {
-      try {
-        const access = await IndiaOnlyService.checkIndianAccess();
-        setAccessCheck(access);
-      } catch (error) {
-        console.error('India access check failed:', error);
-        setAccessCheck({ 
-          isAllowed: false, 
-          message: 'इस सेवा का उपयोग केवल भारत में ही किया जा सकता है। This service is only available in India.' 
-        });
-      } finally {
-        setIsChecking(false);
-      }
+    const checkAccess = async () => {
+      const access = await IndiaOnlyService.checkIndianAccess(userId);
+      setAccessCheck(access);
+      setIsChecking(false);
     };
+    checkAccess();
+  }, [userId]);
 
-    checkIndianAccess();
-  }, []);
-
-  if (isChecking || !accessCheck || accessCheck.isAllowed) {
-    return null;
-  }
+  if (isChecking || !accessCheck || accessCheck.isAllowed) return null;
 
   return (
     <Alert variant="destructive" className="mb-6">
