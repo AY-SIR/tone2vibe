@@ -193,10 +193,16 @@ export default function ModernStepOne({
         <TabsContent value="text" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="h-5 w-5" />
-                <span>Enter Your Text</span>
-              </CardTitle>
+             <CardTitle className="flex items-center space-x-2">
+  {/* Icon: smaller on mobile, larger on desktop */}
+  <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+
+ <span className="text-base sm:text-lg md:text-xl font-semibold">
+  Enter Your Text
+</span>
+
+</CardTitle>
+
             </CardHeader>
             <CardContent className="space-y-4">
               <Textarea
@@ -236,7 +242,8 @@ export default function ModernStepOne({
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Upload className="h-5 w-5" />
-                <span>Upload </span>
+                 <span className="text-base sm:text-lg md:text-xl font-semibold">
+Upload </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

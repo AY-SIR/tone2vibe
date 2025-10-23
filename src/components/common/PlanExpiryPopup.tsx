@@ -68,7 +68,7 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         {getIcon()}
       </div>
-      <DialogTitle className="text-lg font-semibold">
+      <DialogTitle className="text-lg font-semibold text-center">
         {getTitle()}
       </DialogTitle>
       <DialogDescription className="text-sm text-muted-foreground">

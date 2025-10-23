@@ -52,7 +52,7 @@ export const WorkflowSection = () => {
     <section id="workflow" className="py-12  bg-white">
       <div className="container mx-auto">
         <div className="text-center mb-16 animate-fade-in">
-                      <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                      <h2 className="text-4xl sm:text-5xl font-bold text-gray-800 tracking-tight">
 How It Works</h2>
           <p className="text-gray-600 text-xl max-w-2xl mx-auto mt-4">
             Transform your text into personalized voice audio in just 5 simple steps

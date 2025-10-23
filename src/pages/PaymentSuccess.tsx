@@ -17,6 +17,7 @@ const PaymentSuccess = () => {
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
   const [title, setTitle] = useState("Verifying Payment...")
   const [description, setDescription] = useState("Please wait while we confirm your transaction.")
+  const [countdown, setCountdown] = useState(5) // Countdown for redirect
 
   const confettiFired = useRef(false)
   const hasProcessedRef = useRef(false)
@@ -30,9 +31,28 @@ const PaymentSuccess = () => {
     confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1, y: 0.5 }, colors })
   }
 
+  // Track mount status
   useEffect(() => {
-    return () => { isMounted.current = false } // track component mount status
+    return () => { isMounted.current = false }
   }, [])
+
+  // Countdown timer for redirect
+  useEffect(() => {
+    if (status !== "success") return
+
+    const interval = setInterval(() => {
+      setCountdown(prev => prev - 1)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [status])
+
+  // Auto navigate when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0) {
+      navigate("/")
+    }
+  }, [countdown, navigate])
 
   useEffect(() => {
     if (hasProcessedRef.current || !profile?.id) return
@@ -40,7 +60,6 @@ const PaymentSuccess = () => {
 
     const verifyPayment = async () => {
       try {
-        // --- GET UNIQUE TRANSACTION KEY ---
         const paymentId = searchParams.get("payment_id")
         const paymentRequestId = searchParams.get("payment_request_id")
         const txId = searchParams.get("txId")
@@ -52,7 +71,6 @@ const PaymentSuccess = () => {
         const amount = searchParams.get("amount")
         const coupon = searchParams.get("coupon")
 
-        // --- SAFE SESSION STORAGE ---
         const userKey = `processed_${profile.id}`
         let processedTransactions: string[] = []
         try {
@@ -69,10 +87,8 @@ const PaymentSuccess = () => {
           fireConfetti()
           toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
           await refreshProfile()
-          setTimeout(() => navigate("/"), 5000)
         }
 
-        // --- CHECK IF ALREADY PROCESSED ---
         if (uniqueTransactionKey && processedTransactions.includes(uniqueTransactionKey)) {
           let welcomeTitle = "Welcome Back!"
           let welcomeDescription = "Your purchase is already confirmed and ready to use."
@@ -85,7 +101,6 @@ const PaymentSuccess = () => {
           return
         }
 
-        // --- MARK AS PROCESSED ---
         if (uniqueTransactionKey) {
           processedTransactions.push(uniqueTransactionKey)
           sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
@@ -103,9 +118,7 @@ const PaymentSuccess = () => {
           return
         }
 
-        // --- PAID TRANSACTION ---
         if (!paymentId || !paymentRequestId) {
-          // Missing IDs likely means user cancelled or was redirected without completing payment
           navigate(`/payment-failed?reason=${encodeURIComponent('Missing payment information in URL')}&type=${type || 'subscription'}`, { replace: true })
           return
         }
@@ -116,37 +129,6 @@ const PaymentSuccess = () => {
 
         if (error || !data?.success) {
           const message = (error && (error as any).message) || data?.error || 'Verification failed'
-          // Record failed status client-side for visibility
-          try {
-            const userId = profile?.user_id || null
-            // Try to restore pending info for words
-            let pending: any = null
-            try { pending = JSON.parse(sessionStorage.getItem('pending_transaction') || 'null') } catch {}
-            if (userId) {
-              if (type === 'words') {
-                await supabase.from('word_purchases').insert({
-                  user_id: userId,
-                  words_purchased: Number(count) || pending?.words || 0,
-                  amount_paid: Number(amount) || pending?.amount || 0,
-                  currency: 'INR',
-                  status: 'failed',
-                  payment_id: paymentId,
-                  payment_method: 'instamojo',
-                })
-              } else {
-                await supabase.from('payments').insert({
-                  user_id: userId,
-                  plan: plan || null,
-                  amount: Number(amount) || 0,
-                  currency: 'INR',
-                  status: 'failed',
-                  payment_id: paymentId,
-                  payment_method: 'instamojo',
-                  coupon_code: coupon || null,
-                })
-              }
-            }
-          } catch (_) {}
           navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
           return
         }
@@ -154,7 +136,6 @@ const PaymentSuccess = () => {
         if (type === "words") {
           const added = count ? Number(count).toLocaleString() : "Your purchased"
           await onVerificationSuccess("Words Purchased!", `${added} words have been added to your account.`)
-          // Clear pending transaction after success
           try { sessionStorage.removeItem('pending_transaction') } catch {}
         } else if (type === "subscription") {
           await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated successfully.`)
@@ -165,41 +146,6 @@ const PaymentSuccess = () => {
       } catch (error) {
         if (!isMounted.current) return
         console.error("Payment verification error:", error)
-        try {
-          const paymentId = searchParams.get("payment_id") || ''
-          const type = searchParams.get("type") || 'subscription'
-          const plan = searchParams.get("plan")
-          const count = searchParams.get("count")
-          const amount = searchParams.get("amount")
-          const coupon = searchParams.get("coupon")
-          const userId = profile?.user_id || null
-          let pending: any = null
-          try { pending = JSON.parse(sessionStorage.getItem('pending_transaction') || 'null') } catch {}
-          if (userId) {
-            if (type === 'words') {
-              await supabase.from('word_purchases').insert({
-                user_id: userId,
-                words_purchased: Number(count) || pending?.words || 0,
-                amount_paid: Number(amount) || pending?.amount || 0,
-                currency: 'INR',
-                status: 'failed',
-                payment_id: paymentId || pending?.payment_id || null,
-                payment_method: 'instamojo',
-              })
-            } else {
-              await supabase.from('payments').insert({
-                user_id: userId,
-                plan: plan || null,
-                amount: Number(amount) || 0,
-                currency: 'INR',
-                status: 'failed',
-                payment_id: paymentId,
-                payment_method: 'instamojo',
-                coupon_code: coupon || null,
-              })
-            }
-          }
-        } catch (_) {}
         const message = error instanceof Error ? error.message : String(error)
         navigate(`/payment-failed?reason=${encodeURIComponent(message)}`, { replace: true })
       }
@@ -254,8 +200,11 @@ const PaymentSuccess = () => {
               </Button>
             )}
           </div>
+
           {status === "success" && (
-            <p className="text-sm text-muted-foreground">Redirecting in 5 seconds...</p>
+            <p className="text-sm text-muted-foreground">
+              Redirecting in {countdown} second{countdown > 1 ? 's' : ''}...
+            </p>
           )}
         </CardContent>
       </Card>

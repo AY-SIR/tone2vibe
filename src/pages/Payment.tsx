@@ -61,7 +61,7 @@ const Payment = () => {
     try {
       // First check cookies for fast verification
       const cookieLocation = LocationCacheService.getLocationFromCookies();
-      
+
       if (cookieLocation.isIndian && cookieLocation.ipVerified) {
         setLocationVerified(true);
         return;
@@ -69,7 +69,7 @@ const Payment = () => {
 
       // If not in cookies, perform full location check
       const location = await LocationCacheService.getLocation();
-      
+
       if (!location.isIndian) {
         toast({
           title: "Access Restricted",
@@ -270,90 +270,32 @@ const Payment = () => {
   if (!user || !profile) return null;
 
   if (showPaymentGateway) {
-    return (
-      <div className="min-h-screen bg-white">
-        {/* Mobile Layout */}
-        <div className="block lg:hidden">
-          <div className="flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-              <div className="mb-6 text-center">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowPaymentGateway(false)}
-                  className="flex items-center space-x-2 mx-auto text-sm"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Back to Plans</span>
-                </Button>
-              </div>
-              <PaymentGateway
-                selectedPlan={selectedPlan}
-                onPayment={() => {}}
-                isProcessing={loading !== null}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop & Tablet Layout */}
-        <div className="hidden lg:block">
-          <div className="container mx-auto px-4 py-8">
-            <div className="mb-8 text-center">
-              <Button
-                variant="ghost"
-                onClick={() => setShowPaymentGateway(false)}
-                className="flex items-center space-x-2 text-sm justify-start"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back to Plans</span>
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-              {/* Left Side - Plan Details */}
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      {getPlanIcon(selectedPlan)}
-                      <span className="capitalize">{selectedPlan} Plan</span>
-                    </CardTitle>
-                    <CardDescription>
-                      {selectedPlan === 'pro' ? 'Best for content creators and professionals' : 'For teams and heavy users'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="text-3xl font-bold">
-                        {pricing.symbol}{pricing.plans[selectedPlan].price}/month
-                      </div>
-                      <ul className="space-y-2">
-                        {plans.find(p => p.id === selectedPlan)?.features.map((feature, index) => (
-                          <li key={index} className="flex items-start space-x-2">
-                            <Check className="h-4 w-4 text-green-600 mt-1 flex-shrink-0" />
-                            <span className="text-sm">{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Right Side - Payment Gateway */}
-              <div>
-                <PaymentGateway
-                  selectedPlan={selectedPlan}
-                  onPayment={() => {}}
-                  isProcessing={loading !== null}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4">
+      {/* Back Button */}
+      <div className="mb-6 w-full max-w-md text-left">
+        <Button
+          variant="ghost"
+          onClick={() => setShowPaymentGateway(false)}
+          className="flex items-center space-x-2 text-sm"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to Plans</span>
+        </Button>
       </div>
-    );
-  }
+
+      {/* Payment Gateway */}
+      <div className="w-full max-w-md">
+        <PaymentGateway
+          selectedPlan={selectedPlan}
+          onPayment={() => {}}
+          isProcessing={loading !== null}
+        />
+      </div>
+    </div>
+  );
+}
+
 
   return (
     <div className="min-h-screen bg-white">
@@ -382,7 +324,7 @@ const Payment = () => {
 
           <TabsContent value="plans" className="space-y-6 sm:space-y-8">
             <div className="text-center mb-6 sm:mb-12">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4">Choose Your Plan</h1>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold  mb-4">Choose Your Plan</h1>
               <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
                 Unlock the full potential of AI voice cloning with our flexible pricing plans.
               </p>
@@ -462,7 +404,7 @@ const Payment = () => {
             </div>
 
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
-              
+
               <div className="text-xs sm:text-sm">
                 Location: भारत | India • Currency: ₹ INR Only
               </div>

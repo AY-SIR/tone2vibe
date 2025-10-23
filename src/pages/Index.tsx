@@ -338,7 +338,7 @@ const Index = () => {
           <section className="relative py-28 px-6 bg-white text-black min-h-screen">
             <div className="container mx-auto">
               <div className="text-center mb-16">
-                <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                <h2 className="text-4xl sm:text-5xl font-bold text-gray-800 tracking-tight">
                   Our Key Features
                 </h2>
                 <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
@@ -380,7 +380,7 @@ const Index = () => {
           <section className="py-28 px-4 ">
             <div className="container mx-auto">
               <div className="text-center mb-16 animate-fade-in">
-                <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                <h2 className="text-4xl sm:text-5xl font-bold text-gray-800 tracking-tight">
                   Popular Plans
                 </h2>
                 <p className="text-gray-600 text-xl max-w-2xl mx-auto mt-4">

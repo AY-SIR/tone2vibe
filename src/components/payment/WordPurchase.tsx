@@ -369,7 +369,7 @@ export function WordPurchase() {
                 <div className="text-lg sm:text-xl font-bold">₹{finalAmount}</div>
                 <div className="text-xs opacity-75">
                   {wordsAmount.toLocaleString()} words
-                  {couponValidation.isValid && finalAmount === 0 && ' - FREE with coupon!'}
+                  {couponValidation.isValid && finalAmount === 0 && ' '}
                 </div>
               </div>
 
@@ -438,7 +438,7 @@ export function WordPurchase() {
               >
                 <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 <span className="truncate text-center">
-                  {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words FREE` : `Pay ₹${finalAmount} - Secure Payment`}
+                  {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words ` : `Pay ₹${finalAmount} - Secure Payment`}
                 </span>
               </Button>
 

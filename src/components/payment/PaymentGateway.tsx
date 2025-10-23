@@ -349,7 +349,7 @@ export function PaymentGateway({
           )}
 
           {/* Plan Features */}
-          <div className="space-y-3 lg:hidden">
+          <div className="space-y-3 ">
             <h4 className="font-medium text-sm text-gray-900">What's included:</h4>
             <ul className="space-y-2">
               {plan.features.map((feature, index) => (

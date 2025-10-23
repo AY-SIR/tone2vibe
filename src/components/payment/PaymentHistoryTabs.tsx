@@ -123,9 +123,15 @@ export function PaymentHistoryTabs() {
     <Card className="w-full max-w-8xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
-          <Calendar className="h-5 w-5" />
-          <span>Payment History</span>
-        </CardTitle>
+  {/* Icon size changes with screen */}
+  <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
+
+  {/* Text size changes with screen */}
+<span className="text-sm md:text-base lg:text-lg xl:text-xl font-semibold">
+    Payment History
+  </span>
+</CardTitle>
+
         <CardDescription >
           View your complete payment and purchase history
         </CardDescription>
