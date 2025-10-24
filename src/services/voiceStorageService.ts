@@ -204,12 +204,17 @@ export class VoiceStorageService {
   static async getVoiceAudioUrl(voice: StoredVoice): Promise<string | null> {
     try {
       if (voice.file_path) {
-        // Get public URL from storage
-        const { data } = supabase.storage
-          .from('user-voices')
-          .getPublicUrl(voice.file_path);
-        
-        return data.publicUrl;
+        // Issue token and return stream URL
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return null;
+        const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ bucket: 'user-voices', storagePath: voice.file_path, ttlSeconds: 24*3600 })
+        });
+        const issueJson = await issueRes.json();
+        if (!issueRes.ok || !issueJson?.token) return null;
+        return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
       } else if (voice.audio_blob) {
         // Convert base64 to blob URL
         const blob = this.base64ToBlob(voice.audio_blob, 'audio/wav');

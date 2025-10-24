@@ -180,24 +180,23 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
         throw new Error('Could not extract valid path from audio URL');
       }
 
-      // Get signed URL with extended expiry
-      const { data: signed, error: signErr } = await supabase.storage
-        .from('user-voices')
-        .createSignedUrl(path, 7200); // 2 hours
-        
-      if (signErr) {
-        console.error('Signed URL error:', signErr);
-        throw new Error('Failed to get audio access');
-      }
-      
-      if (!signed?.signedUrl) {
-        throw new Error('No signed URL returned');
-      }
+      // Issue a token and stream via edge function
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ bucket: 'user-voices', storagePath: path, ttlSeconds: 24*3600 })
+      });
+      const issueJson = await issueRes.json();
+      if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Failed to create playback token');
+
+      const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
 
       // Create and configure audio element
       const audio = new Audio();
       audio.preload = 'auto';
-      audio.src = signed.signedUrl;
+      audio.src = streamUrl;
       
       audioRef.current = audio;
       setPlayingVoiceId(voice.id);

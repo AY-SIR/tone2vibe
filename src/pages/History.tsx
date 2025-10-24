@@ -247,6 +247,7 @@ const History = () => {
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
+  const [loadingAudioMeta, setLoadingAudioMeta] = useState<Record<string, boolean>>({});
 
   const [projects, setProjects] = useState(projectsFromHook || []);
   const [userVoices, setUserVoices] = useState<UserVoice[]>([]);
@@ -321,18 +322,24 @@ const History = () => {
 
       if (itemToDelete.audio_url) {
         try {
-            const url = new URL(itemToDelete.audio_url);
-            const bucketName = isRecorded ? "user-voices" : "generated-voices";
-            const pathParts = url.pathname.split("/");
-            const bucketIndex = pathParts.indexOf(bucketName);
-
-            if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-              const filePath = pathParts.slice(bucketIndex + 1).join("/");
-              const { error: storageError } = await supabase.storage.from(bucketName).remove([filePath]);
-              if (storageError) console.error(`Storage Error:`, storageError.message);
-            }
+          // audio_url may be a storage path or full URL; support both
+          const tryUrl = () => {
+            try { return new URL(itemToDelete.audio_url); } catch { return null; }
+          };
+          let bucketName = isRecorded ? 'user-voices' : 'user-generates';
+          let filePath = itemToDelete.audio_url;
+          const parsed = tryUrl();
+          if (parsed) {
+            const parts = parsed.pathname.split('/');
+            const idxVoices = parts.indexOf('user-voices');
+            const idxGenerates = parts.indexOf('user-generates');
+            if (idxVoices > -1) { bucketName = 'user-voices'; filePath = parts.slice(idxVoices + 1).join('/'); }
+            if (idxGenerates > -1) { bucketName = 'user-generates'; filePath = parts.slice(idxGenerates + 1).join('/'); }
+          }
+          const { error: storageError } = await supabase.storage.from(bucketName).remove([filePath]);
+          if (storageError) console.error('Storage Error:', storageError.message);
         } catch (e) {
-            console.warn("Could not process storage deletion for invalid URL:", itemToDelete.audio_url);
+          console.warn('Could not process storage deletion for invalid URL or path:', itemToDelete.audio_url);
         }
       }
 
@@ -439,37 +446,38 @@ const History = () => {
     setLoadingAudio(project.id);
 
     try {
-      let audioUrl = project.audio_url;
-
-      if (project.source_type === "recorded") {
+      // Derive bucket and storage path; historical records may store full URL or storage path
+      const buildStreamUrl = async (rawUrl: string, sourceType: "generated"|"recorded") => {
         try {
-          const url = new URL(project.audio_url);
-          const bucketName = "user-voices";
-          const pathParts = url.pathname.split("/");
-          const bucketIndex = pathParts.indexOf(bucketName);
-          if (bucketIndex > -1 && bucketIndex < pathParts.length - 1) {
-            const filePath = pathParts.slice(bucketIndex + 1).join("/");
-            const { data: signedData, error } = await supabase.storage.from(bucketName).createSignedUrl(filePath, 3600);
-            if (error) throw error;
-            audioUrl = signedData.signedUrl;
-          }
-        } catch (e) {
-          if (e instanceof TypeError) {
-            toast({
-              title: "Cannot Play Audio",
-              description: "This recording format is not supported.",
-              variant: "destructive",
-            });
-            setPlayingAudio(null);
-            setLoadingAudio(null);
-            return;
-          }
-          throw e;
+          const u = new URL(rawUrl);
+          const pathParts = u.pathname.split("/");
+          const bucket = pathParts.includes("user-voices") ? "user-voices" : pathParts.includes("user-generates") ? "user-generates" : (sourceType === "recorded" ? "user-voices" : "user-generates");
+          const idx = pathParts.indexOf(bucket);
+          const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl; // if already path
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error("Not authenticated");
+          const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ bucket, storagePath, ttlSeconds: 24*3600 })
+          });
+          const issueJson = await issueRes.json();
+          if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
+          return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
+        } catch {
+          // As a safe fallback, attempt direct URL
+          return rawUrl;
         }
-      }
+      };
 
-// ... (rest of the playAudio function)
+      const audioUrl = await buildStreamUrl(project.audio_url, project.source_type);
+
       const audio = new Audio(audioUrl);
+      // Show small loader until metadata loaded
+      setLoadingAudioMeta((m) => ({ ...m, [project.id]: true }));
+      audio.onloadedmetadata = () => {
+        setLoadingAudioMeta((m) => ({ ...m, [project.id]: false }));
+      };
       audioRef.current = audio;
 
       audio.onended = () => {
@@ -733,6 +741,7 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
                 <Play className="h-3 w-3 sm:h-4 sm:w-4" />
               )}
             </Button>
+            {/* Small hint loader while audio metadata loads (optional UX) */}
 
             <AudioDownloadDropdown
               audioUrl={project.audio_url}

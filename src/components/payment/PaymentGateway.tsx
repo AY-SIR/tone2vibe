@@ -269,8 +269,8 @@ export function PaymentGateway({
 
   // ... rest of your component code remains the same ...
 
-  // Already subscribed card
-  if (!canPurchase && currentPlan === selectedPlan && !isExpired) {
+  // Already subscribed card (suppress during processing to avoid flicker)
+  if (!isProcessing && !canPurchase && currentPlan === selectedPlan && !isExpired) {
     return (
       <Card className="w-full max-w-md mx-auto border-orange-200">
         <CardHeader className="text-center p-3 sm:p-6">
@@ -296,7 +296,7 @@ export function PaymentGateway({
   }
 
   // Invalid plan change card
-  if (!canPurchase && !isExpired) {
+  if (!isProcessing && !canPurchase && !isExpired) {
     return (
       <Card className="w-full max-w-md mx-auto border-red-200">
         <CardHeader className="text-center p-3 sm:p-6">

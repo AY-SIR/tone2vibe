@@ -47,37 +47,29 @@ export function VoiceUpload({ onVoiceUploaded }: VoiceUploadProps) {
     }
 
     try {
-      // 1️⃣ Upload to Supabase Storage
-      const filePath = `/${profile.id}/${Date.now()}-${file.name}`;
+      // 1️⃣ Upload to Supabase Storage (private bucket)
+      const filePath = `${profile.id}/${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
-        .from("")
+        .from("user-voices")
         .upload(filePath, file, { cacheControl: "3600", upsert: false });
 
       if (uploadError) throw uploadError;
 
-      // 2️⃣ Get public URL
-      const { data: urlData } = supabase.storage
-        .from("user-voices")
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData.publicUrl;
-
-      // 3️⃣ Async DB insert
-      supabase
-        .from("")
+      // 2️⃣ Insert record with secure storage path (no public URL)
+      const { error: insertError } = await supabase
+        .from("user_voices")
         .insert({
           user_id: profile.id,
           name: file.name,
-          audio_url: publicUrl,
-          duration: null, // optional: can set after calculating
-        })
-        .then(({ error }) => {
-          if (error) console.error("DB insert error:", error);
+          audio_url: filePath,
+          duration: null,
+          language: profile.language || null
         });
+      if (insertError) console.error("DB insert error:", insertError);
 
-      toast({ title: "Upload started!", description: `Uploading ${file.name}` });
+      toast({ title: "Upload complete!", description: `${file.name} uploaded` });
 
-      if (onVoiceUploaded) onVoiceUploaded(publicUrl, file.name);
+      if (onVoiceUploaded) onVoiceUploaded(filePath, file.name);
 
       event.target.value = ""; // Reset input
     } catch (err: any) {
