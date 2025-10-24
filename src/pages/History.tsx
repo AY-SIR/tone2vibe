@@ -73,9 +73,6 @@ type HistoryItem = {
   generation_started_at?: string;
 };
 
-// ====================================================================
-// AudioDownloadDropdown Component - Modern Solution with FFmpeg
-// ====================================================================
 const AudioDownloadDropdown = ({
   audioUrl,
   fileName,
@@ -471,6 +468,7 @@ const History = () => {
         }
       }
 
+// ... (rest of the playAudio function)
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
 
@@ -706,7 +704,9 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
               {(type === 'recorded' || type === 'generated') && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
-              {project.processing_time_ms && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{(project.processing_time_ms / 1000).toFixed(1)}s</Badge>}
+
+
+
             </div>
           </div>
         </div>

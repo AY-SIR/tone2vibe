@@ -14,6 +14,7 @@ interface VoiceProject {
   processing_time_ms?: number;
   generation_started_at?: string;
   generation_completed_at?: string;
+  duration_seconds?: number; // Added this
 }
 
 export const useVoiceHistory = () => {
@@ -22,46 +23,7 @@ export const useVoiceHistory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const getHistoryRetentionDate = (voiceType: 'generated' | 'recorded' = 'generated') => {
-    const now = new Date();
-    
-    if (voiceType === 'recorded') {
-      // Recorded voices have separate retention
-      switch (profile?.plan) {
-        case 'free':
-          now.setDate(now.getDate() - 7);
-          break;
-        case 'pro':
-          now.setDate(now.getDate() - 30);
-          break;
-        case 'premium':
-          now.setDate(now.getDate() - 90);
-          break;
-        default:
-          now.setDate(now.getDate() - 7);
-      }
-    } else {
-      // Generated voices retention
-      switch (profile?.plan) {
-        case 'free':
-          now.setDate(now.getDate() - 7);
-          break;
-        case 'pro':
-          now.setDate(now.getDate() - 30);
-          break;
-        case 'premium':
-          now.setDate(now.getDate() - 90);
-          break;
-        default:
-          now.setDate(now.getDate() - 7);
-      }
-    }
-    
-    return now.toISOString();
-  };
-
   const getVoiceLimit = (voiceType: 'generated' | 'recorded' = 'generated') => {
-    // Kept for UI copy; no longer used for query limits
     if (voiceType === 'recorded') {
       switch (profile?.plan) {
         case 'pro': return 30;
@@ -84,13 +46,16 @@ export const useVoiceHistory = () => {
     setError(null);
 
     try {
-      // Compute time window by plan: item-level retention is stored on each row; filter by retention_expires_at
       const nowIso = new Date().toISOString();
 
-      // Optimized query with retention filter
       let query = supabase
         .from('history')
-        .select('id, title, original_text, language, words_used, audio_url, created_at, voice_settings, processing_time_ms, generation_started_at, generation_completed_at, retention_expires_at')
+        .select(`
+          id, title, original_text, language, words_used, audio_url,
+          created_at, voice_settings, processing_time_ms,
+          generation_started_at, generation_completed_at,
+          duration_seconds, retention_expires_at
+        `)
         .eq('user_id', user.id)
         .not('audio_url', 'is', null)
         .gt('retention_expires_at', nowIso)
@@ -103,20 +68,14 @@ export const useVoiceHistory = () => {
         return;
       }
 
-      // Removed sensitive logging
-      
-      // Map history data to VoiceProject format and remove duplicates + samples
       const mappedProjects = (data || [])
         .filter(item => {
-          // Filter out samples by checking voice_settings
           const voiceSettings = item.voice_settings;
-          // Check if voice_settings is an object and has is_sample set to true
-          const isSample = voiceSettings && 
-            typeof voiceSettings === 'object' && 
+          const isSample = voiceSettings &&
+            typeof voiceSettings === 'object' &&
             voiceSettings !== null &&
-            'is_sample' in voiceSettings && 
+            'is_sample' in voiceSettings &&
             voiceSettings.is_sample === true;
-          
           return !isSample;
         })
         .map(item => ({
@@ -130,16 +89,18 @@ export const useVoiceHistory = () => {
           voice_settings: item.voice_settings,
           processing_time_ms: item.processing_time_ms,
           generation_started_at: item.generation_started_at,
-          generation_completed_at: item.generation_completed_at
+          generation_completed_at: item.generation_completed_at,
+          duration_seconds: item.duration_seconds || 0 // ensure it's never undefined
         }));
-      
-      // Remove duplicates based on id (most reliable) or creation timestamp
+
+      // Remove duplicates based on ID
       const uniqueProjects = mappedProjects.filter((project, index, self) => {
         return index === self.findIndex(p => p.id === project.id);
       });
-      
+
       setProjects(uniqueProjects);
     } catch (err) {
+      console.error(err);
       setError('Failed to load voice history');
     } finally {
       setLoading(false);
@@ -148,9 +109,9 @@ export const useVoiceHistory = () => {
 
   useEffect(() => {
     fetchVoiceHistory();
-    
+
     if (user) {
-      // Set up real-time subscription for history updates
+      // Real-time updates for INSERT and DELETE
       const historyChannel = supabase
         .channel('history-updates')
         .on(
@@ -161,9 +122,7 @@ export const useVoiceHistory = () => {
             table: 'history',
             filter: `user_id=eq.${user.id}`
           },
-          (payload) => {
-            fetchVoiceHistory(); // Refresh the history
-          }
+          () => fetchVoiceHistory()
         )
         .on(
           'postgres_changes',
@@ -185,47 +144,17 @@ export const useVoiceHistory = () => {
     }
   }, [user?.id, profile?.plan]);
 
-
   const selectProject = async (projectId: string) => {
-    // This could be used to mark a project as selected for reuse
     console.log('Selected project:', projectId);
     return true;
   };
 
   const getRetentionInfo = (voiceType: 'generated' | 'recorded' | 'all' = 'generated') => {
-    if (voiceType === 'recorded') {
-      switch (profile?.plan) {
-        case 'free':
-          return '7 days';
-        case 'pro':
-          return '30 days';
-        case 'premium':
-          return '90 days';
-        default:
-          return '7 days';
-      }
-    } else if (voiceType === 'all') {
-      switch (profile?.plan) {
-        case 'free':
-          return '7 days';
-        case 'pro':
-          return '30 days';
-        case 'premium':
-          return '90 days';
-        default:
-          return '7 days';
-      }
-    } else {
-      switch (profile?.plan) {
-        case 'free':
-          return '7 days';
-        case 'pro':
-          return '30 days';
-        case 'premium':
-          return '90 days';
-        default:
-          return '7 days';
-      }
+    const plan = profile?.plan || 'free';
+    switch (plan) {
+      case 'pro': return '30 days';
+      case 'premium': return '90 days';
+      default: return '7 days';
     }
   };
 
