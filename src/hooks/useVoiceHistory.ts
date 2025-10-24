@@ -196,35 +196,35 @@ export const useVoiceHistory = () => {
     if (voiceType === 'recorded') {
       switch (profile?.plan) {
         case 'free':
-          return '7 days (last 7 recorded voices)';
+          return '7 days';
         case 'pro':
-          return '30 days (last 30 recorded voices)';
+          return '30 days';
         case 'premium':
-          return '90 days (last 90 recorded voices)';
+          return '90 days';
         default:
-          return '7 days (last 7 recorded voices)';
+          return '7 days';
       }
     } else if (voiceType === 'all') {
       switch (profile?.plan) {
         case 'free':
-          return '7 days (combined voices)';
+          return '7 days';
         case 'pro':
-          return '30 days (combined voices)';
+          return '30 days';
         case 'premium':
-          return '90 days (combined voices)';
+          return '90 days';
         default:
-          return '7 days (combined voices)';
+          return '7 days';
       }
     } else {
       switch (profile?.plan) {
         case 'free':
-          return '7 days (last 7 generated voices)';
+          return '7 days';
         case 'pro':
-          return '30 days (last 30 generated voices)';
+          return '30 days';
         case 'premium':
-          return '90 days (last 90 generated voices)';
+          return '90 days';
         default:
-          return '7 days (last 7 generated voices)';
+          return '7 days';
       }
     }
   };

@@ -162,14 +162,22 @@ export class AnalyticsService {
   static async getDetailedAnalytics(userId: string, plan?: string): Promise<DetailedAnalytics[] | null> {
     if (!plan || (plan !== 'pro' && plan !== 'premium')) return null;
     try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('plan_start_date, plan_expires_at')
+          .eq('user_id', userId)
+          .single();
         const retentionDays = plan === 'premium' ? 90 : 30;
-        const retentionDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+        const defaultStart = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+        const periodStart = (profile as any)?.plan_start_date || defaultStart;
+        const periodEnd = (profile as any)?.plan_expires_at || new Date().toISOString();
 
         const { data, error } = await supabase
             .from('analytics')
             .select('id, user_id, history_id, language, words_used, extra_info, created_at')
             .eq('user_id', userId)
-            .gte('created_at', retentionDate)
+            .gte('created_at', periodStart)
+            .lte('created_at', periodEnd)
             .order('created_at', { ascending: false })
             .limit(100);
 

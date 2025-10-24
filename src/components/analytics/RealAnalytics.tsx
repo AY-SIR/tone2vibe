@@ -30,7 +30,7 @@ const RealAnalytics = () => {
   }, [user, profile, navigate]);
 
   const { data: analytics, isLoading, error } = useQuery({
-    queryKey: ['real-analytics', user?.id, profile?.plan],
+    queryKey: ['real-analytics', user?.id, profile?.plan, profile?.plan_start_date, profile?.plan_expires_at],
     queryFn: async () => {
       if (!user || profile?.plan === 'free') return null;
       return await AnalyticsService.getUserAnalytics(user.id, profile?.plan);

@@ -87,6 +87,10 @@ const PaymentSuccess = () => {
           fireConfetti()
           toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
           await refreshProfile()
+          try {
+            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, { method: 'POST' })
+            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, { method: 'POST' })
+          } catch {}
         }
 
         if (uniqueTransactionKey && processedTransactions.includes(uniqueTransactionKey)) {

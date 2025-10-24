@@ -70,6 +70,7 @@ serve(async (req) => {
       .select("*")
       .eq("user_id", user.id)
       .eq("status", "pending")
+      .eq('payment_request_id', payment_request_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .single();

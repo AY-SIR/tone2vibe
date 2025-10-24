@@ -84,6 +84,7 @@ serve(async (req) => {
         const { data: existingPayments } = await service
           .from('payments')
           .select('id')
+          .eq('user_id', user.id)
           .limit(1);
         if (!existingPayments || existingPayments.length === 0) {
           const { data: coupon } = await service
@@ -157,6 +158,7 @@ serve(async (req) => {
       plan,
       words_purchased: word_count ? parseInt(word_count) : null,
       coupon_code: couponData?.code || null,
+      payment_request_id: data?.payment_request?.id || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

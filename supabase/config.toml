@@ -24,6 +24,9 @@ verify_jwt = false
 [functions.purge-expired-history]
 verify_jwt = false
 
+[functions.purge-user-analytics]
+verify_jwt = false
+
 [functions.translate-text]
 verify_jwt = true
 
