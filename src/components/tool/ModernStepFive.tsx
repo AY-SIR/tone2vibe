@@ -229,6 +229,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             {audioData && <source src={`data:${audioMimeType || 'audio/mpeg'};base64,${audioData}`} />}
             Your browser does not support the audio element.
           </audio>
+          {!actualDuration && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+              <span>Loading audio...</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

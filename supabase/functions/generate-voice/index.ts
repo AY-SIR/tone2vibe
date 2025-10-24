@@ -98,18 +98,28 @@ Deno.serve(async (req) => {
 
     if (uploadError) throw new Error(`Failed to upload MP3: ${uploadError.message}`);
 
-    const { data: urlData } = supabaseService.storage.from("user-generates").getPublicUrl(filePath);
-    const publicUrl = urlData?.publicUrl;
-    if (!publicUrl) throw new Error("Could not retrieve public URL.");
+    // Store storage path (not public URL) for security. We'll return a tokenized streaming URL to the client.
+    const storagePath = filePath;
 
     const generationCompletedAt = new Date();
     const { error: updateError } = await supabaseService
       .from("history")
       .update({
-        audio_url: publicUrl,
+        audio_url: storagePath,
         generation_completed_at: generationCompletedAt.toISOString(),
         processing_time_ms: generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime(),
-        language: language
+        language: language,
+        // Estimate duration in seconds based on text length and WPM if provided
+        duration_seconds: (() => {
+          try {
+            const wpm = Number(voice_settings?.wpm) || 150; // default 150 WPM
+            const baseSeconds = Math.max(1, Math.round((actualWordCount / wpm) * 60));
+            const pauseMult = Number(voice_settings?.overall_pause_multiplier) || 1.0;
+            return Math.max(1, Math.round(baseSeconds * pauseMult));
+          } catch {
+            return Math.max(1, Math.round((actualWordCount / 150) * 60));
+          }
+        })()
       })
       .eq("id", historyRecord.id);
 
@@ -126,9 +136,28 @@ Deno.serve(async (req) => {
       console.error(`Failed to deduct words for user ${user.id}:`, deductError.message);
     }
 
+    // Issue a 24h token for streaming the file
+    const token = crypto.randomUUID().replace(/-/g, "");
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    const { error: tokenError } = await supabaseService
+      .from("audio_access_tokens")
+      .insert({
+        user_id: user.id,
+        bucket: "user-generates",
+        storage_path: storagePath,
+        token,
+        expires_at: expiresAt,
+      });
+    if (tokenError) {
+      console.error("Failed to insert audio token:", tokenError.message);
+    }
+
+    const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
+
     return new Response(JSON.stringify({
       success: true,
-      audio_url: publicUrl,
+      audio_url: streamUrl,
+      storage_path: storagePath,
       history_id: historyRecord.id,
       voice_id_used: voice_settings.voice_id
     }), {

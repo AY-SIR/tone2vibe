@@ -269,14 +269,22 @@ export function LiveAudioPreview({
           </div>
           
           {previewUrl && (
-            <audio
-              ref={audioRef}
-              src={previewUrl}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              onEnded={() => setIsPlaying(false)}
-              preload="metadata"
-            />
+            <>
+              <audio
+                ref={audioRef}
+                src={previewUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onEnded={() => setIsPlaying(false)}
+                preload="metadata"
+              />
+              {duration === 0 && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                  <span>Preparing preview...</span>
+                </div>
+              )}
+            </>
           )}
         </div>
 

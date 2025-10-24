@@ -203,9 +203,8 @@ export const VoiceRecorder = ({
       const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from('user-voices').getPublicUrl(filePath);
-      if (!urlData || !urlData.publicUrl) throw new Error("Failed to get public URL.");
-      const publicUrl = urlData.publicUrl;
+      // Store secure storage path instead of public URL
+      const storagePath = filePath;
 
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
 
@@ -215,7 +214,7 @@ export const VoiceRecorder = ({
       const { error: insertError } = await supabase.from('user_voices').insert([{
         user_id: user.id,
         name: voiceName,
-        audio_url: publicUrl,
+        audio_url: storagePath,
         duration: audioDuration.toString(),
         language: selectedLanguage,
         is_selected: true,
