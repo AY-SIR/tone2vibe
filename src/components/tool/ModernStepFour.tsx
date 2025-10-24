@@ -248,6 +248,7 @@ const ModernStepFour = ({
         });
         setProgress(100);
         setGenerationComplete(true);
+        // --- FIX: Re-added the 2-second auto-redirect as requested ---
         setTimeout(() => onNext(), 2000);
       } else {
         throw new Error("No audio content received");
@@ -271,6 +272,44 @@ const ModernStepFour = ({
 
   const hasAudio = generatedAudio.length > 0;
 
+  // If generation is complete, show ONLY the success card and the "Continue" button.
+  // The page will auto-redirect, but this will be visible for 2 seconds.
+  if (generationComplete) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
+                  {hasAudio ? "Audio Generated Successfully!" : "Request Processed"}
+                </h3>
+                <p className="text-sm sm:text-base text-green-700">
+                  {hasAudio ? "Your high-quality audio is ready." : "Your request is complete. Proceeding to the final results."}
+                </p>
+              </div>
+              <Badge className="bg-green-100 text-green-800">
+                ✓ Process Complete
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Show only the "Continue" button, aligned to the right */}
+        <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-0">
+          <Button onClick={onNext} disabled={!generationComplete || isGenerating} size="lg" className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white">
+            Continue to Final Results
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // This is the original render logic for when generation is NOT complete
   return (
     <div className="space-y-6">
       {selectedVoiceId && (
@@ -403,24 +442,24 @@ const ModernStepFour = ({
                     <Select value={voiceStyle} onValueChange={(val) => {setVoiceStyle(val); handleSettingsChange();}}>
                       <SelectTrigger><SelectValue/></SelectTrigger>
                      <SelectContent>
-  <SelectItem value="natural">Natural</SelectItem>
-  <SelectItem value="news">News Reader</SelectItem>
-  <SelectItem value="conversational">Conversational</SelectItem>
-  <SelectItem value="cheerful">Cheerful</SelectItem>
-  <SelectItem value="empathetic">Empathetic</SelectItem>
-  <SelectItem value="dramatic">Dramatic</SelectItem>
-  <SelectItem value="storytelling">Storytelling</SelectItem>
-  <SelectItem value="motivational">Motivational</SelectItem>
-  <SelectItem value="calm">Calm</SelectItem>
-  <SelectItem value="formal">Formal</SelectItem>
-  <SelectItem value="informal">Informal</SelectItem>
-  <SelectItem value="friendly">Friendly</SelectItem>
-  <SelectItem value="authoritative">Authoritative</SelectItem>
-  <SelectItem value="relaxed">Relaxed</SelectItem>
-  <SelectItem value="energetic">Energetic</SelectItem>
-  <SelectItem value="introspective">Introspective</SelectItem>
-  <SelectItem value="excited">Excited</SelectItem>
-</SelectContent>
+                      <SelectItem value="natural">Natural</SelectItem>
+                      <SelectItem value="news">News Reader</SelectItem>
+                      <SelectItem value="conversational">Conversational</SelectItem>
+                      <SelectItem value="cheerful">Cheerful</SelectItem>
+                      <SelectItem value="empathetic">Empathetic</SelectItem>
+                      <SelectItem value="dramatic">Dramatic</SelectItem>
+                      <SelectItem value="storytelling">Storytelling</SelectItem>
+                      <SelectItem value="motivational">Motivational</SelectItem>
+                      <SelectItem value="calm">Calm</SelectItem>
+                      <SelectItem value="formal">Formal</SelectItem>
+                      <SelectItem value="informal">Informal</SelectItem>
+                      <SelectItem value="friendly">Friendly</SelectItem>
+                      <SelectItem value="authoritative">Authoritative</SelectItem>
+                      <SelectItem value="relaxed">Relaxed</SelectItem>
+                      <SelectItem value="energetic">Energetic</SelectItem>
+                      <SelectItem value="introspective">Introspective</SelectItem>
+                      <SelectItem value="excited">Excited</SelectItem>
+                    </SelectContent>
 
                     </Select>
                   </div>
@@ -429,23 +468,23 @@ const ModernStepFour = ({
                     <Select value={emotion} onValueChange={(val) => {setEmotion(val); handleSettingsChange();}}>
                       <SelectTrigger><SelectValue/></SelectTrigger>
                     <SelectContent>
-  <SelectItem value="neutral">Neutral</SelectItem>
-  <SelectItem value="happy">Happy</SelectItem>
-  <SelectItem value="sad">Sad</SelectItem>
-  <SelectItem value="angry">Angry</SelectItem>
-  <SelectItem value="excited">Excited</SelectItem>
-  <SelectItem value="calm">Calm</SelectItem>
-  <SelectItem value="surprised">Surprised</SelectItem>
-  <SelectItem value="confident">Confident</SelectItem>
-  <SelectItem value="friendly">Friendly</SelectItem>
-  <SelectItem value="serious">Serious</SelectItem>
-  <SelectItem value="dramatic">Dramatic</SelectItem>
-  <SelectItem value="whisper">Whisper</SelectItem>
-  <SelectItem value="soft">Soft</SelectItem>
-  <SelectItem value="shouting">Shouting</SelectItem>
-  <SelectItem value="curious">Curious</SelectItem>
-  <SelectItem value="bored">Bored</SelectItem>
-</SelectContent>
+                      <SelectItem value="neutral">Neutral</SelectItem>
+                      <SelectItem value="happy">Happy</SelectItem>
+                      <SelectItem valueA="sad">Sad</SelectItem>
+                      <SelectItem value="angry">Angry</SelectItem>
+                      <SelectItem value="excited">Excited</SelectItem>
+                      <SelectItem value="calm">Calm</SelectItem>
+                      <SelectItem value="surprised">Surprised</SelectItem>
+                      <SelectItem value="confident">Confident</SelectItem>
+                      <SelectItem value="friendly">Friendly</SelectItem>
+                      <SelectItem value="serious">Serious</SelectItem>
+                      <SelectItem value="dramatic">Dramatic</SelectItem>
+                      <SelectItem value="whisper">Whisper</SelectItem>
+                      <SelectItem value="soft">Soft</SelectItem>
+                      <SelectItem value="shouting">Shouting</SelectItem>
+                      <SelectItem value="curious">Curious</SelectItem>
+                      <SelectItem value="bored">Bored</SelectItem>
+                    </SelectContent>
 
                     </Select>
                   </div>
@@ -454,22 +493,22 @@ const ModernStepFour = ({
                     <Select value={accent} onValueChange={(val) => {setAccent(val); handleSettingsChange();}}>
                       <SelectTrigger><SelectValue/></SelectTrigger>
                      <SelectContent>
-  <SelectItem value="default">Default</SelectItem>
-  <SelectItem value="american">American</SelectItem>
-  <SelectItem value="british">British</SelectItem>
-  <SelectItem value="australian">Australian</SelectItem>
-  <SelectItem value="canadian">Canadian</SelectItem>
-  <SelectItem value="irish">Irish</SelectItem>
-  <SelectItem value="southern">Southern US</SelectItem>
-  <SelectItem value="scottish">Scottish</SelectItem>
-  <SelectItem value="welsh">Welsh</SelectItem>
-  <SelectItem value="newzealand">New Zealand</SelectItem>
-  <SelectItem value="indian">Indian</SelectItem>
-  <SelectItem value="southafrican">South African</SelectItem>
-  <SelectItem value="singaporean">Singaporean</SelectItem>
-  <SelectItem value="nigerian">Nigerian</SelectItem>
-  <SelectItem value="jamaican">Jamaican</SelectItem>
-</SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      <SelectItem value="american">American</SelectItem>
+                      <SelectItem value="british">British</SelectItem>
+                      <SelectItem value="australian">Australian</SelectItem>
+                      <SelectItem value="canadian">Canadian</SelectItem>
+                      <SelectItem value="irish">Irish</SelectItem>
+                      <SelectItem value="southern">Southern US</SelectItem>
+                      <SelectItem value="scottish">Scottish</SelectItem>
+                      <SelectItem value="welsh">Welsh</SelectItem>
+                      <SelectItem value="newzealand">New Zealand</SelectItem>
+                      <SelectItem value="indian">Indian</SelectItem>
+                      <SelectItem value="southafrican">South African</SelectItem>
+                      <SelectItem value="singaporean">Singaporean</SelectItem>
+                      <SelectItem value="nigerian">Nigerian</SelectItem>
+                      <SelectItem value="jamaican">Jamaican</SelectItem>
+                    </SelectContent>
 
                     </Select>
                   </div>
@@ -699,35 +738,17 @@ const ModernStepFour = ({
         </Card>
       )}
 
-      {generationComplete && !isGenerating && (
-        <Card className="border-green-200 bg-green-50/50">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
-                  {hasAudio ? "Audio Generated Successfully!" : "Request Processed"}
-                </h3>
-                <p className="text-sm sm:text-base text-green-700">
-                  {hasAudio ? "Your high-quality audio is ready." : "Your request is complete. Proceeding to the final results."}
-                </p>
-              </div>
-              <Badge className="bg-green-100 text-green-800">
-                ✓ Process Complete
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
+        {/* The "Back" button will now only show if generation is NOT complete */}
         {!generationComplete && !isGenerating && (
           <Button onClick={onPrevious} variant="outline" disabled={isGenerating} className="order-2 sm:order-1 w-full sm:w-auto text-sm">
             Back to Voice Selection
           </Button>
         )}
+
+        {/* The "Continue" button is hidden here unless generation is complete,
+           but it's handled by the `if (generationComplete)` block at the top.
+        */}
         <Button onClick={onNext} disabled={!generationComplete || isGenerating} size="lg" className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white">
           Continue to Final Results
           <ArrowRight className="h-4 w-4 ml-2" />

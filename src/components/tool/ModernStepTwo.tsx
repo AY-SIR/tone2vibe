@@ -405,7 +405,7 @@ const showTranslateIcon =
             <CardTitle className="flex items-center text-lg">
               <Edit3 className="h-5 w-5 mr-2" /> Review & Edit Text
             </CardTitle>
-            <Badge variant={"secondary"}>{currentWordCount} Words</Badge>
+            <Badge variant={"secondary"}>{currentWordCount} W</Badge>
           </div>
         </CardHeader>
         <CardContent>

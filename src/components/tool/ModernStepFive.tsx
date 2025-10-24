@@ -159,12 +159,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         <div className="w-16 h-16 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
           <Check className="w-8 h-8 text-green-500" />
         </div>
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-          Audio Generated Successfully!
-        </h2>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          Your complete voice generation is ready with full analytics tracking and history saved.
-        </p>
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-4">
+    Audio Generated Successfully!
+  </h2>
+  <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-md mx-auto">
+    Your complete voice generation is ready with full analytics tracking and history saved.
+  </p>
       </div>
 
       {/* Analytics Card */}
