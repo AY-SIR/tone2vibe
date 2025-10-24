@@ -59,7 +59,13 @@ export class AIVoiceService {
       // Create a unique voice ID
       const voiceId = `ai_voice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Store the voice data in history table
+      // Determine plan to compute retention
+      const { data: profile } = await supabase.from('profiles').select('plan').eq('user_id', userId).single();
+      const planAtCreation = (profile as any)?.plan || 'free';
+      const retentionDays = planAtCreation === 'premium' ? 90 : planAtCreation === 'pro' ? 30 : 7;
+      const retentionExpiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // Store the voice data in history table with retention
       const { data, error } = await supabase
         .from('history')
         .insert({
@@ -77,7 +83,9 @@ export class AIVoiceService {
             gender,
             age,
             description
-          }
+          },
+          plan_at_creation: planAtCreation,
+          retention_expires_at: retentionExpiresAt
         })
         .select()
         .single();
@@ -164,7 +172,13 @@ export class AIVoiceService {
       // Generate a unique voice ID
       const voiceId = `cloned_voice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Store the cloned voice data in history table
+      // Determine plan to compute retention
+      const { data: profile } = await supabase.from('profiles').select('plan').eq('user_id', userId).single();
+      const planAtCreation = (profile as any)?.plan || 'free';
+      const retentionDays = planAtCreation === 'premium' ? 90 : planAtCreation === 'pro' ? 30 : 7;
+      const retentionExpiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // Store the cloned voice data in history table with retention
       const { data, error } = await supabase
         .from('history')
         .insert({
@@ -179,7 +193,9 @@ export class AIVoiceService {
             original_name: voiceName,
             file_size: audioFile.size,
             file_type: audioFile.type
-          }
+          },
+          plan_at_creation: planAtCreation,
+          retention_expires_at: retentionExpiresAt
         })
         .select()
         .single();

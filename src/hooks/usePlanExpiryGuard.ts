@@ -92,6 +92,16 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
           setExpiryData({ show_popup: false });
         }
 
+        // Trigger server-side purge of expired history/analytics
+        try {
+          await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, { method: 'POST' });
+          await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id })
+          });
+        } catch (_) {}
+
         return;
       }
 

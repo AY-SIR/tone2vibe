@@ -39,7 +39,7 @@ serve(async (req) => {
 
     // Initialize vars
     let finalAmount = amount;
-    let couponData = null;
+    let couponData: any = null;
 
     // Coupon check
     try {
@@ -71,6 +71,36 @@ serve(async (req) => {
       }
     } catch (e) {
       console.error("Coupon check failed:", e);
+    }
+
+    // Auto-apply first-transaction coupon for subscriptions if none provided
+    try {
+      if (!couponData && type === 'subscription') {
+        const service = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          { auth: { persistSession: false } }
+        );
+        const { data: existingPayments } = await service
+          .from('payments')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+        if (!existingPayments || existingPayments.length === 0) {
+          const { data: coupon } = await service
+            .from('coupons')
+            .select('*')
+            .eq('code', 'AST2VPYRRy10')
+            .single();
+          if (coupon && coupon.active && (!coupon.expires_at || new Date(coupon.expires_at) > new Date())) {
+            const discount = Math.round((amount * coupon.discount_percentage) / 100);
+            finalAmount = Math.max(0, amount - discount);
+            couponData = coupon;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('First-transaction coupon check failed:', e);
     }
 
     if (finalAmount === 0) {
@@ -127,6 +157,8 @@ serve(async (req) => {
       status: "pending",
       plan,
       words_purchased: word_count ? parseInt(word_count) : null,
+      coupon_code: couponData?.code || null,
+      payment_request_id: data?.payment_request?.id || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
