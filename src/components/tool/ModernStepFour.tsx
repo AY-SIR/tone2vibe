@@ -298,13 +298,21 @@ const ModernStepFour = ({
           </CardContent>
         </Card>
 
-        {/* Show only the "Continue" button, aligned to the right */}
+
         <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-0">
-          <Button onClick={onNext} disabled={!generationComplete || isGenerating} size="lg" className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white">
-            Continue to Final Results
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
+  {isGenerating && (
+    <Button
+      onClick={onNext}
+      disabled={!generationComplete}
+      size="lg"
+      className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white"
+    >
+      Continue to Final Results
+      <ArrowRight className="h-4 w-4 ml-2" />
+    </Button>
+  )}
+</div>
+
       </div>
     );
   }
