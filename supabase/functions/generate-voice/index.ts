@@ -64,6 +64,11 @@ Deno.serve(async (req) => {
       throw new Error(`Insufficient word balance. Need ${actualWordCount}, but have ${totalWordsAvailable}.`);
     }
 
+    // Compute item-level retention based on plan at creation
+    const planAtCreation = (profile as any)?.plan || 'free';
+    const retentionDays = planAtCreation === 'premium' ? 90 : planAtCreation === 'pro' ? 30 : 7;
+    const retentionExpiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
@@ -73,7 +78,9 @@ Deno.serve(async (req) => {
         voice_settings: voice_settings,
         words_used: actualWordCount,
         generation_started_at: new Date().toISOString(),
-        language: language
+        language: language,
+        plan_at_creation: planAtCreation,
+        retention_expires_at: retentionExpiresAt
       })
       .select("id, generation_started_at")
       .single();

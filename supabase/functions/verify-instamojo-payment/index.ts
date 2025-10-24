@@ -130,6 +130,7 @@ serve(async (req) => {
           currency: payment.currency || "INR",
           status: "completed",
           plan: order.plan,
+          coupon_code: order.coupon_code || null,
           created_at: new Date().toISOString(),
         },
       ]);
@@ -157,9 +158,25 @@ serve(async (req) => {
           payment_id,
           status: "completed",
           payment_method: "instamojo",
+          // store coupon if any within purchase extra info
           created_at: new Date().toISOString(),
         },
       ]);
+    // If order had a coupon, increment coupon usage and last_used_at
+    if (order.coupon_code) {
+      const { data: coupon } = await supabaseService
+        .from('coupons')
+        .select('id, used_count')
+        .eq('code', order.coupon_code)
+        .single();
+      if (coupon) {
+        await supabaseService
+          .from('coupons')
+          .update({ used_count: (coupon.used_count || 0) + 1, last_used_at: new Date().toISOString() })
+          .eq('id', coupon.id);
+      }
+    }
+
 
       if (recordErr)
         console.warn("Words added, but word purchase record insert failed:", recordErr);

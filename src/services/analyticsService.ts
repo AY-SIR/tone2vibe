@@ -58,7 +58,7 @@ export class AnalyticsService {
       // --- Step 1: Fetch profile data ---
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('plan, plan_words_used, words_limit, word_balance, plan_expires_at')
+        .select('plan, plan_words_used, words_limit, word_balance, plan_expires_at, plan_start_date')
         .eq('user_id', userId)
         .single();
 
@@ -67,6 +67,10 @@ export class AnalyticsService {
 
       // --- Step 2: Call the database function ---
       const retentionDays = plan === 'premium' ? 90 : 30;
+      const planStart = (profile as any)?.plan_start_date ? new Date((profile as any).plan_start_date) : null;
+      const planEnd = (profile as any)?.plan_expires_at ? new Date((profile as any).plan_expires_at) : null;
+      const periodStart = planStart ? planStart.toISOString() : new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+      const periodEnd = planEnd && planEnd > new Date() ? planEnd.toISOString() : new Date().toISOString();
       const { data: summaryRaw, error: rpcError } = await supabase.rpc('get_user_analytics_summary' as any, {
         p_user_id: userId,
         p_retention_days: retentionDays,
@@ -84,7 +88,8 @@ export class AnalyticsService {
         .from('analytics')
         .select('created_at, extra_info, words_used')
         .eq('user_id', userId)
-        .gte('created_at', new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString());
+        .gte('created_at', periodStart)
+        .lte('created_at', periodEnd);
 
       if (rawError) throw rawError;
 

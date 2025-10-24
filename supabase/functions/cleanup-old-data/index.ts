@@ -39,23 +39,14 @@ Deno.serve(async (req) => {
     for (const profile of (profiles as ProfileRow[] || [])) {
       const { user_id, plan } = profile;
 
-      // Determine retention period based on plan
-      let retentionDays = 7; // Free tier default
-      if (plan === 'pro') retentionDays = 30;
-      if (plan === 'premium') retentionDays = 90;
+      // Use item-level retention: delete where retention_expires_at passed
+      console.log(`Processing user ${user_id} with plan ${plan} using item-level retention`);
 
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-      const cutoffDateStr = cutoffDate.toISOString();
-
-      console.log(`Processing user ${user_id} with plan ${plan} (${retentionDays} days retention)`);
-
-      // Delete old history records (only user-generated, not user-recorded voices)
       const { data: oldHistory, error: historyFetchError } = await supabase
         .from('history')
         .select('id, audio_url')
         .eq('user_id', user_id)
-        .lt('created_at', cutoffDateStr);
+        .lt('retention_expires_at', new Date().toISOString());
 
       if (historyFetchError) {
         console.error(`Error fetching history for user ${user_id}:`, historyFetchError);
@@ -97,7 +88,7 @@ Deno.serve(async (req) => {
           .from('history')
           .delete()
           .eq('user_id', user_id)
-          .lt('created_at', cutoffDateStr);
+          .lt('retention_expires_at', new Date().toISOString());
 
         if (deleteHistoryError) {
           console.error(`Error deleting history for user ${user_id}:`, deleteHistoryError);
@@ -107,12 +98,13 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Delete old analytics records
+      // Delete analytics records older than 90 days globally or linked to deleted history
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       const { error: analyticsDeleteError } = await supabase
         .from('analytics')
         .delete()
         .eq('user_id', user_id)
-        .lt('created_at', cutoffDateStr);
+        .lt('created_at', ninetyDaysAgo);
 
       if (analyticsDeleteError) {
         console.error(`Error deleting analytics for user ${user_id}:`, analyticsDeleteError);

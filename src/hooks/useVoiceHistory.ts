@@ -61,29 +61,18 @@ export const useVoiceHistory = () => {
   };
 
   const getVoiceLimit = (voiceType: 'generated' | 'recorded' = 'generated') => {
+    // Kept for UI copy; no longer used for query limits
     if (voiceType === 'recorded') {
-      // Recorded voices limits
       switch (profile?.plan) {
-        case 'free':
-          return 7; // Last 7 recorded voices
-        case 'pro':
-          return 30; // Last 30 recorded voices
-        case 'premium':
-          return 90; // Last 90 recorded voices
-        default:
-          return 7;
+        case 'pro': return 30;
+        case 'premium': return 90;
+        default: return 7;
       }
     } else {
-      // Generated voices limits
       switch (profile?.plan) {
-        case 'free':
-          return 7; // Last 7 generated voices
-        case 'pro':
-          return 30; // Last 30 generated voices
-        case 'premium':
-          return 90; // Last 90 generated voices
-        default:
-          return 7;
+        case 'pro': return 30;
+        case 'premium': return 90;
+        default: return 7;
       }
     }
   };
@@ -95,20 +84,17 @@ export const useVoiceHistory = () => {
     setError(null);
 
     try {
-      // Optimized: calculate limits first
-      const generatedLimit = getVoiceLimit('generated');
-      const recordedLimit = getVoiceLimit('recorded');
-      const limit = filterType === 'all' ? Math.max(generatedLimit, recordedLimit) : 
-                    filterType === 'generated' ? generatedLimit : recordedLimit;
-      
-      // Optimized query with minimal selection
+      // Compute time window by plan: item-level retention is stored on each row; filter by retention_expires_at
+      const nowIso = new Date().toISOString();
+
+      // Optimized query with retention filter
       let query = supabase
         .from('history')
-        .select('id, title, original_text, language, words_used, audio_url, created_at, voice_settings, processing_time_ms, generation_started_at, generation_completed_at')
+        .select('id, title, original_text, language, words_used, audio_url, created_at, voice_settings, processing_time_ms, generation_started_at, generation_completed_at, retention_expires_at')
         .eq('user_id', user.id)
         .not('audio_url', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+        .gt('retention_expires_at', nowIso)
+        .order('created_at', { ascending: false });
 
       const { data, error } = await query;
 
