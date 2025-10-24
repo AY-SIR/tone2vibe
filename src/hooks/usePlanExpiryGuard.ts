@@ -92,15 +92,38 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
           setExpiryData({ show_popup: false });
         }
 
-        // Trigger server-side purge of expired history/analytics
+        // Trigger server-side purge of expired history/analytics with authentication
         try {
-          await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, { method: 'POST' });
-          await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: user.id })
-          });
-        } catch (_) {}
+          // Get the current session token
+          const { data: { session } } = await supabase.auth.getSession();
+
+          if (session?.access_token) {
+            // Call purge-expired-history with auth header
+            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            // Call purge-user-analytics with auth header and user_id
+            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ user_id: user.id })
+            });
+
+            console.log('Cleanup functions triggered successfully');
+          } else {
+            console.warn('No active session found, skipping cleanup functions');
+          }
+        } catch (error) {
+          console.warn('Failed to trigger cleanup functions:', error);
+        }
 
         return;
       }

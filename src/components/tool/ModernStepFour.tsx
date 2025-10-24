@@ -332,7 +332,7 @@ const ModernStepFour = ({
             {profile?.plan === 'free' ? (
               <Badge variant="outline" className="text-xs sm:text-sm whitespace-nowrap">
                 <Lock className="h-3 w-3 mr-1" />
-                Upgrade to unlock
+                Upgrade
               </Badge>
             ) : (
               <Button variant="ghost" size="sm" onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs sm:text-sm">

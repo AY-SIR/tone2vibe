@@ -87,10 +87,31 @@ const PaymentSuccess = () => {
           fireConfetti()
           toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
           await refreshProfile()
-          try {
-            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, { method: 'POST' })
-            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, { method: 'POST' })
-          } catch {}
+         try {
+  const session = await supabase.auth.getSession()
+  const accessToken = session.data.session?.access_token
+
+  if (accessToken) {
+    await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+  }
+} catch (err) {
+  console.error('Failed to purge data:', err)
+}
+
         }
 
         if (uniqueTransactionKey && processedTransactions.includes(uniqueTransactionKey)) {

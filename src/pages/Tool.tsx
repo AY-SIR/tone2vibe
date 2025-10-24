@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import ModernStepOne from "@/components/tool/ModernStepOne";
@@ -136,7 +136,28 @@ const Tool = () => {
   }, [currentStep, totalSteps]);
 
   const handlePrevious = useCallback(() => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    if (currentStep > 1) {
+      // Reset data based on which step we're going back from
+      if (currentStep === 4) {
+        // Going back from step 4 to 3: Reset audio generation data
+        setProcessedAudioUrl("");
+      } else if (currentStep === 3) {
+        // Going back from step 3 to 2: Reset voice selection data
+        setSelectedVoiceId("");
+        setVoiceRecording(null);
+      } else if (currentStep === 2) {
+        // Going back from step 2 to 1: Reset text and language data
+        setExtractedText("");
+        setWordCount(0);
+        setSelectedLanguage("en-US");
+      }
+
+      // Remove current step from completed steps
+      setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
+
+      // Move to previous step
+      setCurrentStep(currentStep - 1);
+    }
   }, [currentStep]);
 
   const handleProcessingStart = (stepName: string) => {
@@ -216,11 +237,11 @@ const Tool = () => {
     });
   };
 
-  const progressPercentage = useMemo(() => 
-    ((currentStep - 1) / (totalSteps - 1)) * 100, 
+  const progressPercentage = useMemo(() =>
+    ((currentStep - 1) / (totalSteps - 1)) * 100,
     [currentStep, totalSteps]
   );
-  
+
   const remainingWords = useMemo(() => {
     const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
     const purchasedWords = profile?.word_balance || 0;
