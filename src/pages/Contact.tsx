@@ -102,14 +102,16 @@ useEffect(() => {
 
       {/* Hero Section */}
       <section className="py-16 px-4">
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-12 animate-fade-in">
-            <Mail className="h-16 w-16 text-black mx-auto mb-6" />
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 text-black">Get in Touch</h1>
-            <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto">
-              Have questions about Tone2Vibe? 
-            </p>
-          </div>
+        <div className="container mx-auto max-w-6xl">
+         <div className="text-center mb-12 animate-fade-in">
+  <div className="flex items-center justify-center gap-4 mb-6">
+    <Mail className="h-12 w-12 text-black" />
+    <h1 className="text-4xl md:text-5xl font-bold text-black">Get in Touch</h1>
+  </div>
+  <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto">
+    Have questions about Tone2Vibe? 
+  </p>
+</div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
             {/* Contact Form */}
