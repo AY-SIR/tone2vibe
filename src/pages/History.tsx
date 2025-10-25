@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import {
   Card,
   CardContent,
@@ -239,7 +239,7 @@ const ShowMoreText = ({ text }: { text: string }) => {
   );
 };
 
-const History = () => {
+const History = memo(() => {
   const { user, profile } = useAuth();
   const { projects: projectsFromHook, loading: projectsLoading, error: projectsError, retentionInfo } = useVoiceHistory();
 
@@ -251,12 +251,15 @@ const History = () => {
 
   const [projects, setProjects] = useState(projectsFromHook || []);
   const [userVoices, setUserVoices] = useState<UserVoice[]>([]);
-  const [voicesLoading, setVoicesLoading] = useState(true);
+  const [voicesLoading, setVoicesLoading] = useState(false);
   const [voicesError, setVoicesError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<HistoryItem | null>(null);
+  const [voicesFetched, setVoicesFetched] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBlobUrlRef = useRef<string | null>(null);
+  const audioBlobCacheRef = useRef<Map<string, string>>(new Map());
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -266,19 +269,32 @@ const History = () => {
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) audioRef.current.pause();
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+      }
+      // Clean up all cached blob URLs
+      audioBlobCacheRef.current.forEach((blobUrl) => {
+        URL.revokeObjectURL(blobUrl);
+      });
+      audioBlobCacheRef.current.clear();
     };
   }, []);
 
   useEffect(() => {
-    if (!user) navigate("/");
+    if (!user) {
+      navigate("/");
+    }
   }, [user, navigate]);
 
   useEffect(() => {
-    if (!user) {
-      setVoicesLoading(false);
+    if (!user || voicesFetched) {
       return;
     }
+
+    let isMounted = true;
 
     const fetchUserVoices = async () => {
       setVoicesLoading(true);
@@ -291,16 +307,27 @@ const History = () => {
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        setUserVoices(data || []);
+        if (isMounted) {
+          setUserVoices(data || []);
+          setVoicesFetched(true);
+        }
       } catch (err: any) {
-        setVoicesError("Failed to fetch recorded voices.");
+        if (isMounted) {
+          setVoicesError("Failed to fetch recorded voices.");
+        }
       } finally {
-        setVoicesLoading(false);
+        if (isMounted) {
+          setVoicesLoading(false);
+        }
       }
     };
 
     fetchUserVoices();
-  }, [user]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, voicesFetched]);
 
   const handleDeleteRequest = (itemToDelete: HistoryItem) => {
     setDeleteCandidate(itemToDelete);
@@ -322,7 +349,6 @@ const History = () => {
 
       if (itemToDelete.audio_url) {
         try {
-          // audio_url may be a storage path or full URL; support both
           const tryUrl = () => {
             try { return new URL(itemToDelete.audio_url); } catch { return null; }
           };
@@ -431,6 +457,7 @@ const History = () => {
       setPlayingAudio(null);
       setLoadingAudio(null);
       audioRef.current = null;
+      audioBlobUrlRef.current = null;
       return;
     }
 
@@ -446,34 +473,60 @@ const History = () => {
     setLoadingAudio(project.id);
 
     try {
-      // Derive bucket and storage path; historical records may store full URL or storage path
-      const buildStreamUrl = async (rawUrl: string, sourceType: "generated"|"recorded") => {
-        try {
-          const u = new URL(rawUrl);
-          const pathParts = u.pathname.split("/");
-          const bucket = pathParts.includes("user-voices") ? "user-voices" : pathParts.includes("user-generates") ? "user-generates" : (sourceType === "recorded" ? "user-voices" : "user-generates");
-          const idx = pathParts.indexOf(bucket);
-          const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl; // if already path
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("Not authenticated");
-          const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-            body: JSON.stringify({ bucket, storagePath, ttlSeconds: 24*3600 })
-          });
-          const issueJson = await issueRes.json();
-          if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
-          return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
-        } catch {
-          // As a safe fallback, attempt direct URL
-          return rawUrl;
+      let blobUrl: string;
+
+      // Check if we already have this audio cached
+      if (audioBlobCacheRef.current.has(project.id)) {
+        blobUrl = audioBlobCacheRef.current.get(project.id)!;
+      } else {
+        // Fetch and cache new audio
+
+        const buildStreamUrl = async (rawUrl: string, sourceType: "generated"|"recorded") => {
+          try {
+            const u = new URL(rawUrl);
+            const pathParts = u.pathname.split("/");
+            const bucket = pathParts.includes("user-voices") ? "user-voices" : pathParts.includes("user-generates") ? "user-generates" : (sourceType === "recorded" ? "user-voices" : "user-generates");
+            const idx = pathParts.indexOf(bucket);
+            const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Not authenticated");
+            const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+              body: JSON.stringify({ bucket, storagePath, ttlSeconds: 24*3600 })
+            });
+            const issueJson = await issueRes.json();
+            if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
+            return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
+          } catch {
+            return rawUrl;
+          }
+        };
+
+        const audioUrl = await buildStreamUrl(project.audio_url, project.source_type);
+
+        // Fetch audio with proper authentication and create blob URL
+        const { data: { session } } = await supabase.auth.getSession();
+        const audioResponse = await fetch(audioUrl, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+
+        if (!audioResponse.ok) {
+          throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
         }
-      };
 
-      const audioUrl = await buildStreamUrl(project.audio_url, project.source_type);
+        const audioBlob = await audioResponse.blob();
+        blobUrl = URL.createObjectURL(audioBlob);
 
-      const audio = new Audio(audioUrl);
-      // Show small loader until metadata loaded
+        // Cache the blob URL for reuse
+        audioBlobCacheRef.current.set(project.id, blobUrl);
+      }
+
+      audioBlobUrlRef.current = blobUrl;
+      const audio = new Audio(blobUrl);
+
       setLoadingAudioMeta((m) => ({ ...m, [project.id]: true }));
       audio.onloadedmetadata = () => {
         setLoadingAudioMeta((m) => ({ ...m, [project.id]: false }));
@@ -483,6 +536,8 @@ const History = () => {
       audio.onended = () => {
         setPlayingAudio(null);
         setLoadingAudio(null);
+        audioBlobUrlRef.current = null;
+        // Don't revoke the cached blob URL - keep it for reuse
       };
 
       audio.onerror = () => {
@@ -493,6 +548,12 @@ const History = () => {
         });
         setPlayingAudio(null);
         setLoadingAudio(null);
+        audioBlobUrlRef.current = null;
+        // Remove from cache if there was an error
+        if (audioBlobCacheRef.current.has(project.id)) {
+          URL.revokeObjectURL(audioBlobCacheRef.current.get(project.id)!);
+          audioBlobCacheRef.current.delete(project.id);
+        }
       };
 
       await audio.play();
@@ -683,9 +744,11 @@ const History = () => {
       </AlertDialog>
     </div>
   );
-};
+});
 
-const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, isDeleting }: {
+History.displayName = 'History';
+
+const ProjectCard = memo(({ project, playingAudio, loadingAudio, onPlay, onDelete, isDeleting }: {
   project: HistoryItem;
   playingAudio: string | null;
   loadingAudio: string | null;
@@ -712,9 +775,6 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
               )}
               {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
               {(type === 'recorded' || type === 'generated') && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
-
-
-
             </div>
           </div>
         </div>
@@ -741,7 +801,6 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
                 <Play className="h-3 w-3 sm:h-4 sm:w-4" />
               )}
             </Button>
-            {/* Small hint loader while audio metadata loads (optional UX) */}
 
             <AudioDownloadDropdown
               audioUrl={project.audio_url}
@@ -763,6 +822,8 @@ const ProjectCard = ({ project, playingAudio, loadingAudio, onPlay, onDelete, is
       </CardContent>
     </Card>
   );
-};
+});
+
+ProjectCard.displayName = 'ProjectCard';
 
 export default History;
