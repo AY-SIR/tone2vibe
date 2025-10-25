@@ -204,7 +204,7 @@ Deno.serve(async (req)=>{
 
           <!-- Notice Box -->
           <tr>
-            <td style="padding: 0 24px 32px;">
+            <td style="padding: 0 10px 30px;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-left: 3px solid #1a1a1a; border-radius: 6px;">
                 <tr>
                   <td style="padding: 16px 20px;">
