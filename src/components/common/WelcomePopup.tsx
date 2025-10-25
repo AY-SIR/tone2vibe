@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,36 +10,58 @@ interface WelcomePopupProps {
 }
 
 export function WelcomePopup({ onGetStarted, onClose }: WelcomePopupProps) {
-  const { user } = useAuth();
-  const [shouldShow, setShouldShow] = useState(false);
+  const { user, authOpen } = useAuth(); // authOpen = true if AuthModal is open
+  const [visible, setVisible] = useState(false);
+  const [show, setShow] = useState(false); // controls animation
 
   useEffect(() => {
-    // Only show if user is not logged in and hasn't seen welcome before
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
-    if (!user && !hasSeenWelcome) {
-      setShouldShow(true);
+
+    if (!user && !hasSeenWelcome && !authOpen) {
+      // Delay a tiny bit to prevent overlap with AuthModal opening
+      const timeout = setTimeout(() => {
+        setVisible(true);
+        setTimeout(() => setShow(true), 10); // trigger fade-in
+      }, 100);
+      return () => clearTimeout(timeout);
     } else {
-      setShouldShow(false);
+      // trigger fade-out animation
+      setShow(false);
+      setTimeout(() => setVisible(false), 300);
     }
-  }, [user]);
+  }, [user, authOpen]);
 
   const handleClose = () => {
     localStorage.setItem('hasSeenWelcome', 'true');
-    setShouldShow(false);
-    onClose?.();
+    setShow(false);
+    setTimeout(() => {
+      setVisible(false);
+      onClose?.();
+    }, 300);
   };
 
   const handleGetStarted = () => {
     localStorage.setItem('hasSeenWelcome', 'true');
-    setShouldShow(false);
-    onGetStarted?.();
+    setShow(false);
+    setTimeout(() => {
+      setVisible(false);
+      onGetStarted?.();
+    }, 300);
   };
 
-  if (!shouldShow) return null;
+  if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in">
-      <Card className="max-w-md w-full shadow-2xl border border-gray-200 bg-white animate-scale-in">
+    <div
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4 transition-opacity duration-300 ${
+        show ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <Card
+        className={`max-w-md w-full shadow-2xl border border-gray-200 bg-white transform transition-transform duration-300 ${
+          show ? "scale-100" : "scale-95"
+        }`}
+      >
         <CardHeader className="text-center relative">
           <Button
             variant="ghost"
@@ -54,7 +75,7 @@ export function WelcomePopup({ onGetStarted, onClose }: WelcomePopupProps) {
             <Mic className="h-8 w-8 text-black" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900">
-            Welcome to Tone2Vibe! 
+            Welcome to Tone2Vibe!
           </CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
