@@ -27,18 +27,19 @@ const Terms = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
-        {/* Header Section */}
-        <div className="text-center mb-12 animate-fade-in">
-          <FileText className="h-16 w-16 sm:h-12 sm:w-12 mx-auto mb-4 text-orange-600" />
-          <h1 className="text-4xl sm:text-3xl xs:text-2xl font-bold mb-4 text-gray-900">
-            Terms of Service
-          </h1>
-          <p className="text-lg sm:text-base text-gray-600">
-            Please read these terms carefully before using our voice cloning service.
-          </p>
-          <p className="text-sm text-gray-500 mt-2">Last updated: January 2025</p>
-        </div>
+      <div className="container mx-auto px-4 py-12 max-w-6xl">
+       <div className="text-center mb-12 animate-fade-in">
+  <div className="flex items-center justify-center gap-3 mb-4">
+    <FileText className="h-12 w-12 sm:h-10 sm:w-10 text-orange-600" />
+    <h1 className="text-4xl sm:text-3xl xs:text-2xl font-bold text-gray-900">
+      Terms of Service
+    </h1>
+  </div>
+  <p className="text-lg sm:text-base text-gray-600">
+    Please read these terms carefully before using our voice cloning service.
+  </p>
+  <p className="text-sm text-gray-500 mt-2">Last updated: January 2025</p>
+</div>
 
         {/* Terms Cards */}
         <div className="space-y-8">
