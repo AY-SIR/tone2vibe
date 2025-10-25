@@ -11,25 +11,25 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reset Your Password - Tone2Vibe</title>
+  <title>Reset Your Password</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef3 100%);">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 20px;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef3 100%); ">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 30px 2px;">
     <tr>
       <td align="center">
         <!-- Main Container -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06); overflow: hidden;">
-
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #ffffff; border-radius: 20px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06); overflow: hidden;">
+          
           <!-- Header with Logo -->
           <tr>
-            <td style="padding: 48px 48px 32px; background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);">
+            <td style="padding: 48px 12px 12px; background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);">
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center">
                     <div style="display: inline-flex; align-items: center; gap: 16px;">
                       <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
                            alt="Tone2Vibe" width="48" height="48" style="border-radius: 10px;" />
-                      <h1 style="color: #1a1a1a; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">
+                      <h1 style="color: #1a1a1a; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">
                         Reset Your Password
                       </h1>
                     </div>
@@ -41,11 +41,11 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
 
           <!-- Content -->
           <tr>
-            <td style="padding: 32px 48px 40px;">
+            <td style="padding: 32px 32px 32px;">
               <p style="color: #1a1a1a; font-size: 16px; line-height: 1.6; margin: 0 0 8px; font-weight: 500;">
                 Hi ${fullName},
               </p>
-
+              
               <p style="color: #666666; font-size: 15px; line-height: 1.7; margin: 0 0 32px;">
                 We received a request to reset your password for your Tone2Vibe account. Click the button below to create a new password.
               </p>
@@ -65,7 +65,7 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
 
           <!-- Notice Box -->
           <tr>
-            <td style="padding: 0 48px 40px;">
+            <td style="padding: 0 10px 40px;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-left: 3px solid #1a1a1a; border-radius: 6px;">
                 <tr>
                   <td style="padding: 16px 20px;">
