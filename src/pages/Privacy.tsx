@@ -28,16 +28,18 @@ useEffect(() => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 md:py-12 max-w-6xl">
         {/* Header Section */}
-        <div className="text-center mb-8 md:mb-12 animate-fade-in">
-          <Shield className="h-12 w-12 md:h-16 md:w-16 text-orange-600 mx-auto mb-4" />
-          <h1 className="text-3xl md:text-4xl font-bold mb-3 md:mb-4 text-gray-900">Privacy Policy</h1>
-          <p className="text-base md:text-lg text-gray-600 px-4">
-            Your privacy is our priority. Learn how we protect and handle your data.
-          </p>
-          <p className="text-sm text-gray-500 mt-2">Last updated: January 2025</p>
-        </div>
+<div className="text-center mb-8 md:mb-12 animate-fade-in">
+  <div className="flex items-center justify-center gap-3 mb-3 md:mb-4">
+    <Shield className="h-10 w-10 md:h-12 md:w-12 text-orange-600" />
+    <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Privacy Policy</h1>
+  </div>
+  <p className="text-base md:text-lg text-gray-600 px-4">
+    Your privacy is our priority. Learn how we protect and handle your data.
+  </p>
+  <p className="text-sm text-gray-500 mt-2">Last updated: January 2025</p>
+</div>
 
         {/* Privacy Cards */}
         <div className="space-y-6 md:space-y-8">
