@@ -76,7 +76,7 @@ const Cookies = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Success Alert */}
         {showSuccess && (
           <Alert className="mb-6 border-green-200 bg-green-50">
