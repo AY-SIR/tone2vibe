@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const shouldShowPopup = expiryData.show_popup;
 
-  // Load or create user profile
+  // Load profile
   const loadUserProfile = useCallback(async (user: User) => {
     try {
       const { data, error } = await supabase
@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {
         setProfile({
           ...data,
-          ip_address: (data.ip_address as string) || '',
+          ip_address: data.ip_address || "",
           word_balance: data.word_balance ?? Math.max(0, data.words_limit - data.words_used),
         });
         setLocationData({ country: data.country || "India", currency: "INR" });
@@ -98,27 +98,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Session handling
+  // Refresh session automatically if expired
+  const refreshSession = useCallback(async () => {
+    try {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      const currentSession = refreshed.session ?? null;
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      if (currentSession?.user) await loadUserProfile(currentSession.user);
+    } catch (err) {
+      console.error("Session refresh failed:", err);
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setLocationData(null);
+    }
+  }, [loadUserProfile]);
+
+  // Initialize session
   useEffect(() => {
     let mounted = true;
 
-    const handleSession = async (currentSession: Session | null) => {
-      if (!mounted) return;
-      const currentUser = currentSession?.user ?? null;
-      setSession(currentSession);
-      setUser(currentUser);
-      if (currentUser) await loadUserProfile(currentUser);
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session).finally(() => {
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) await loadUserProfile(session.user);
+      } catch (err) {
+        console.error("Initial session load failed:", err);
+      } finally {
         if (mounted) setLoading(false);
         setAuthInitialized(true);
-      });
-    });
+      }
+    };
+    init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      if (newSession?.user) loadUserProfile(newSession.user);
     });
 
     return () => {
@@ -147,52 +167,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => profileChannelRef.current?.unsubscribe();
   }, [user?.id]);
 
-  // Auth actions
   const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
       const { data, error } = await supabase.functions.invoke("signup", {
-        body: {
-          email,
-          password,
-          fullName: options?.fullName
-        }
+        body: { email, password, fullName: options?.fullName }
       });
-
-      // Parse the response data
-      let parsedData;
-      try {
-        parsedData = typeof data === "string" ? JSON.parse(data) : data;
-      } catch (parseError) {
-        if (error) {
-          return { data: null, error: new Error("Network error. Please check your connection and try again.") };
-        }
-        return { data: null, error: new Error("Unexpected server response. Please try again.") };
-      }
-
-      // Check if the edge function returned an error in the response body
-      if (!parsedData || !parsedData.success) {
-        const errorMessage = parsedData?.error || "Signup failed. Please try again.";
-        return { data: null, error: new Error(errorMessage) };
-      }
-
-      // Success
+      let parsedData = typeof data === "string" ? JSON.parse(data) : data;
+      if (!parsedData?.success) throw new Error(parsedData?.error || "Signup failed");
       return { data: parsedData, error: null };
     } catch (err) {
-      console.error("Signup exception:", err);
-      return { data: null, error: new Error("Network error. Please check your connection and try again.") };
+      console.error("Signup error:", err);
+      return { data: null, error: err };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error && error.message.includes("Email not confirmed")) {
-        return { data, error: new Error("Please confirm your email before signing in.") };
-      }
+      if (!error) await refreshSession();
       return { data, error };
     } catch (err) {
       console.error("SignIn error:", err);
-      return { data: null, error: err as Error };
+      return { data: null, error: err };
     }
   };
 
@@ -220,7 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error };
     } catch (err) {
       console.error("SignOut error:", err);
-      return { error: err as Error };
+      return { error: err };
     }
   };
 
@@ -260,9 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={value}>
-      {!isReady ? (
-        <LoadingScreen />
-      ) : (
+      {!isReady ? <LoadingScreen /> : (
         <>
           {children}
           <PlanExpiryPopup
