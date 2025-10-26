@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, Square, Play, Pause, Trash2, Loader2, CheckCircle } from "lucide-react";
+import { Mic, Square, Play, Pause, Trash2, Loader as Loader2, CircleCheck as CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -203,11 +203,8 @@ export const VoiceRecorder = ({
       const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
 
-      // Manually construct the public URL using Supabase URL
-      const { data: { publicUrl: baseUrl } } = supabase.storage.from('user-voices').getPublicUrl('');
-      const publicUrl = baseUrl.replace(/\/$/, '') + '/' + filePath;
-
-      console.log('Full Public URL:', publicUrl);
+      // Store secure storage path instead of public URL
+      const storagePath = filePath;
 
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
 
@@ -217,7 +214,7 @@ export const VoiceRecorder = ({
       const { error: insertError } = await supabase.from('user_voices').insert([{
         user_id: user.id,
         name: voiceName,
-        audio_url: publicUrl, // Save full public URL
+        audio_url: storagePath,
         duration: audioDuration.toString(),
         language: selectedLanguage,
         is_selected: true,
