@@ -280,4 +280,5 @@ isExpired={expiryData.is_expired || false}
 )}
 </AuthContext.Provider>
 );
-};
+}; 
+
