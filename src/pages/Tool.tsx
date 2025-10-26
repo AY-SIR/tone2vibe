@@ -137,10 +137,15 @@ const Tool = () => {
 
   const handlePrevious = useCallback(() => {
     if (currentStep > 1) {
-      // Reset data based on which step we're going back from
-      if (currentStep === 4) {
-        // Going back from step 4 to 3: Reset audio generation data
+      // Only reset data if going back from step 4 (audio generation)
+      // Don't reset voice recording or selection when going back from step 4 to step 3
+      if (currentStep === 5) {
+        // Going back from step 5 to 4: Reset download/save data
+        // Keep the processedAudioUrl so user can regenerate if needed
+      } else if (currentStep === 4) {
+        // Going back from step 4 to 3: Reset audio generation data only
         setProcessedAudioUrl("");
+        // DON'T reset voice recording or voice selection here
       } else if (currentStep === 3) {
         // Going back from step 3 to 2: Reset voice selection data
         setSelectedVoiceId("");
@@ -178,6 +183,8 @@ const Tool = () => {
   const handleVoiceRecorded = (blob: Blob) => {
     setVoiceRecording(blob);
     setSelectedVoiceId("");
+    // Don't auto-proceed - let user confirm the recording first
+    // User can manually click Next button when ready
   };
 
   const handleVoiceSelect = (voiceId: string) => {
@@ -361,6 +368,7 @@ const Tool = () => {
                   onVoiceSelect={handleVoiceSelect}
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
+                  voiceRecording={voiceRecording}
                 />
               )}
               {currentStep === 4 && (

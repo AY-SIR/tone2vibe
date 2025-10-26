@@ -262,23 +262,31 @@ export default function ModernStepThree({
     setFilteredVoices(filtered);
   }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter, sortBy, sortOrder]);
 
-  // Handle voice recording
-  const handleVoiceRecorded = (blob: Blob) => {
-    clearSelection();
-    // NOTE: For a full implementation, you should upload this blob to a "voice cloning"
-    // function in your backend, which would return a new voice_id.
-    // For now, we pass the blob up and let the parent handle it.
-    setSelectedVoice({
-      type: 'record',
-      id: `rec-${Date.now()}`,
-      name: 'New Recording'
-    });
-    onVoiceRecorded(blob);
-    toast({
-      title: "Voice Ready",
-      description: "Your recorded voice is ready for generation. Note: This is a temporary voice and will not be saved."
-    });
-  };
+  // In ModernStepThree.tsx
+// Update the handleVoiceRecorded function:
+
+const handleVoiceRecorded = (blob: Blob) => {
+  clearSelection();
+
+  // Create a temporary ID for the recorded voice
+  const tempVoiceId = `rec-${Date.now()}`;
+
+  // Set local selection state
+  setSelectedVoice({
+    type: 'record',
+    id: tempVoiceId,
+    name: 'New Recording'
+  });
+
+  // ✅ FIX: Call both callbacks to update parent state
+  onVoiceRecorded(blob);
+  onVoiceSelect(tempVoiceId); // <-- ADD THIS LINE
+
+  toast({
+    title: "Voice Ready",
+    description: "Your recorded voice is ready for generation."
+  });
+};
 
   // Handle history voice selection
   const handleHistoryVoiceSelect = async (voiceId: string) => {

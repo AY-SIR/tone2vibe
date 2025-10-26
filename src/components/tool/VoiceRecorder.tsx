@@ -188,51 +188,69 @@ export const VoiceRecorder = ({
     else audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
   };
 
-  const confirmRecording = async () => {
-    if (!audioBlob || isSaving) return;
+ // Replace the confirmRecording function in VoiceRecorder.tsx
 
-    setIsSaving(true);
+const confirmRecording = async () => {
+  if (!audioBlob || isSaving) return;
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+  setIsSaving(true);
 
-      const fileName = `user-voice-${user.id}-${Date.now()}.webm`;
-      const filePath = `${user.id}/${fileName}`;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
-      const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
-      if (uploadError) throw uploadError;
+    const fileName = `user-voice-${user.id}-${Date.now()}.webm`;
+    // FIXED: Store as simple path format
+    const storagePath = `${user.id}/${fileName}`;
 
-      // Store secure storage path instead of public URL
-      const storagePath = filePath;
+    const { error: uploadError } = await supabase.storage
+      .from('user-voices')
+      .upload(storagePath, audioBlob);
 
-      await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
+    if (uploadError) throw uploadError;
 
-      const audioDuration = Math.floor(recordedDuration); // exact seconds
-      const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`;
+    // Deselect all previous voices
+    await supabase
+      .from('user_voices')
+      .update({ is_selected: false })
+      .eq('user_id', user.id);
 
-      const { error: insertError } = await supabase.from('user_voices').insert([{
+    const audioDuration = Math.floor(recordedDuration);
+    const voiceName = `Recorded Voice ${new Date().toLocaleDateString('en-CA')}`;
+
+    // FIXED: Store storage path, not public URL
+    const { error: insertError } = await supabase
+      .from('user_voices')
+      .insert([{
         user_id: user.id,
         name: voiceName,
-        audio_url: storagePath,
+        audio_url: storagePath, // Store path only
         duration: audioDuration.toString(),
         language: selectedLanguage,
         is_selected: true,
       }]);
 
-      if (insertError) throw insertError;
-      onRecordingComplete(audioBlob);
+    if (insertError) throw insertError;
 
-      // ✅ Show exact recorded time
-      toast({ title: "Voice saved successfully!", description: `Recorded ${audioDuration}s` });
-      setStatus('saved');
+    onRecordingComplete(audioBlob);
 
-    } catch (err: any) {
-      console.error("Save error:", err);
-      toast({ title: "Failed to save voice", description: err.message, variant: "destructive" });
-      setIsSaving(false);
-    }
-  };
+    toast({
+      title: "Voice saved successfully!",
+      description: `Recorded ${audioDuration}s`
+    });
+
+    setStatus('saved');
+
+  } catch (err: any) {
+    console.error("Save error:", err);
+    toast({
+      title: "Failed to save voice",
+      description: err.message,
+      variant: "destructive"
+    });
+    setIsSaving(false);
+  }
+};
 
   const handleDeleteClick = () => setShowDeleteDialog(true);
   const confirmDelete = () => { reset(); setShowDeleteDialog(false); toast({ title: "Recording deleted", description: "Your voice sample has been removed." }); };
@@ -291,7 +309,7 @@ export const VoiceRecorder = ({
           {status === 'saved' && (
             <div className="space-y-3 animate-in fade-in">
               <div className="flex items-center justify-center gap-2 text-green-600">
-                <CheckCircle className="h-5 w-5"/>
+
                 <p className="font-medium">Voice Saved Successfully!</p>
               </div>
               {audioBlob && (

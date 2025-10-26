@@ -242,14 +242,10 @@ const ModernStepFour = ({
       if (data && data.audio_url) {
         setGeneratedAudio(data.audio_url);
         onAudioGenerated(data.audio_url);
-        toast({
-          title: "Success! Your Audio is Ready",
-          description: "Moving to the next step...",
-        });
         setProgress(100);
         setGenerationComplete(true);
-        // --- FIX: Re-added the 2-second auto-redirect as requested ---
-        setTimeout(() => onNext(), 2000);
+        // Immediate redirect with loader
+        onNext();
       } else {
         throw new Error("No audio content received");
       }
@@ -272,47 +268,6 @@ const ModernStepFour = ({
 
   const hasAudio = generatedAudio.length > 0;
 
-  // Show generation popup/loader when complete instead of card
-  if (generationComplete) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <Card className="w-full max-w-md mx-4 border-2 shadow-2xl animate-in fade-in zoom-in duration-300">
-          <CardContent className="p-8">
-            <div className="text-center space-y-6">
-              <div className="relative">
-                <div className="p-6 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center animate-pulse">
-                  <CheckCircle className="h-12 w-12 text-green-600" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-full h-full">
-                  <div className="w-6 h-6 bg-green-500 rounded-full animate-ping opacity-75"></div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                  Audio Generated Successfully!
-                </h3>
-                <p className="text-base text-gray-600">
-                  Your high-quality audio is ready. Redirecting to results...
-                </p>
-              </div>
-
-              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                <span>Processing...</span>
-              </div>
-
-              <Badge className="bg-green-600 text-white text-sm px-4 py-2">
-                ✓ Generation Complete
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // This is the original render logic for when generation is NOT complete
   return (
     <div className="space-y-6">
       {selectedVoiceId && (
@@ -463,7 +418,6 @@ const ModernStepFour = ({
                       <SelectItem value="introspective">Introspective</SelectItem>
                       <SelectItem value="excited">Excited</SelectItem>
                     </SelectContent>
-
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -473,7 +427,7 @@ const ModernStepFour = ({
                     <SelectContent>
                       <SelectItem value="neutral">Neutral</SelectItem>
                       <SelectItem value="happy">Happy</SelectItem>
-                      <SelectItem valueA="sad">Sad</SelectItem>
+                      <SelectItem value="sad">Sad</SelectItem>
                       <SelectItem value="angry">Angry</SelectItem>
                       <SelectItem value="excited">Excited</SelectItem>
                       <SelectItem value="calm">Calm</SelectItem>
@@ -488,7 +442,6 @@ const ModernStepFour = ({
                       <SelectItem value="curious">Curious</SelectItem>
                       <SelectItem value="bored">Bored</SelectItem>
                     </SelectContent>
-
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -512,7 +465,6 @@ const ModernStepFour = ({
                       <SelectItem value="nigerian">Nigerian</SelectItem>
                       <SelectItem value="jamaican">Jamaican</SelectItem>
                     </SelectContent>
-
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -627,7 +579,7 @@ const ModernStepFour = ({
                   "{getSampleText()}..."
                 </p>
               </div>
-              <audio controls className="w-full"   controlsList="nodownload noplaybackrate">
+              <audio controls className="w-full" controlsList="nodownload noplaybackrate">
                 <source src={sampleAudio} type="audio/mpeg" />
                 Your browser does not support the audio element.
               </audio>
@@ -742,16 +694,12 @@ const ModernStepFour = ({
       )}
 
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
-        {/* The "Back" button will now only show if generation is NOT complete */}
         {!generationComplete && !isGenerating && (
           <Button onClick={onPrevious} variant="outline" disabled={isGenerating} className="order-2 sm:order-1 w-full sm:w-auto text-sm">
             Back to Voice Selection
           </Button>
         )}
 
-        {/* The "Continue" button is hidden here unless generation is complete,
-           but it's handled by the `if (generationComplete)` block at the top.
-        */}
         <Button onClick={onNext} disabled={!generationComplete || isGenerating} size="lg" className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white">
           Continue to Final Results
           <ArrowRight className="h-4 w-4 ml-2" />

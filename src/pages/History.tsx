@@ -30,7 +30,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogOverlay,
 } from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
@@ -58,6 +57,46 @@ import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
+// ============================================
+// UTILITY: Clean Storage Path
+// ============================================
+const cleanStoragePath = (rawPath: string, bucket: string): string => {
+  if (!rawPath) return '';
+
+  let path = rawPath.trim();
+
+  // If it's already a clean path (userId/filename.ext), return it
+  if (!path.includes('http') &&
+      !path.includes('/storage/') &&
+      !path.startsWith('/') &&
+      path.split('/').length === 2) {
+    return path;
+  }
+
+  // Remove protocol and domain if present
+  path = path.replace(/^https?:\/\/[^\/]+/, '');
+
+  // Remove storage API paths
+  path = path.replace(/^\/storage\/v1\/object\/(public|sign)\//, '');
+
+  // Remove leading slashes
+  path = path.replace(/^\/+/, '');
+
+  // Remove bucket name if present
+  path = path.replace(new RegExp(`^${bucket}/`), '');
+
+  // Remove query strings
+  path = path.replace(/\?.*$/, '');
+
+  // Final cleanup
+  path = path.replace(/^\/+/, '');
+
+  return path;
+};
+
+// ============================================
+// TYPES
+// ============================================
 type HistoryItem = {
   id: string;
   title: string;
@@ -73,6 +112,18 @@ type HistoryItem = {
   generation_started_at?: string;
 };
 
+type UserVoice = {
+  id: string;
+  name: string;
+  audio_url: string;
+  created_at: string;
+  duration: string | null;
+  language: string | null;
+};
+
+// ============================================
+// AUDIO DOWNLOAD DROPDOWN COMPONENT
+// ============================================
 const AudioDownloadDropdown = ({
   audioUrl,
   fileName,
@@ -94,37 +145,46 @@ const AudioDownloadDropdown = ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      // Build streaming URL with token
-      const buildStreamUrl = async (rawUrl: string, srcType: "generated"|"recorded") => {
-        try {
-          const u = new URL(rawUrl);
-          const pathParts = u.pathname.split("/");
-          const bucket = pathParts.includes("user-voices") ? "user-voices" : pathParts.includes("user-generates") ? "user-generates" : (srcType === "recorded" ? "user-voices" : "user-generates");
-          const idx = pathParts.indexOf(bucket);
-          const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl;
+      const bucket = sourceType === "recorded" ? "user-voices" : "user-generates";
+      const cleanPath = cleanStoragePath(audioUrl, bucket);
 
-          const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-            body: JSON.stringify({ bucket, storagePath, ttlSeconds: 3600 })
-          });
-          const issueJson = await issueRes.json();
-          if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
-          return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
-        } catch {
-          return rawUrl;
+      // Get token for streaming
+      const tokenResponse = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            bucket,
+            storagePath: cleanPath,
+            ttlSeconds: 3600
+          })
         }
-      };
+      );
 
-      const streamUrl = await buildStreamUrl(audioUrl, sourceType);
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json();
+        throw new Error(errorData.error || 'Failed to get download token');
+      }
 
+      const tokenData = await tokenResponse.json();
+      if (!tokenData.ok || !tokenData.token) {
+        throw new Error('Invalid token response');
+      }
+
+      const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
+
+      // Call convert-audio with the authenticated stream URL
       const response = await fetch(
         `${supabase.supabaseUrl}/functions/v1/convert-audio`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${session?.access_token}`,
+            "Authorization": `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             audioUrl: streamUrl,
@@ -162,20 +222,6 @@ const AudioDownloadDropdown = ({
       });
     } finally {
       setDownloading(null);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    const formats = ["mp3", "wav", "flac"];
-
-    toast({
-      title: "Downloading All Formats",
-      description: "Starting downloads for MP3, WAV, and FLAC...",
-    });
-
-    for (const format of formats) {
-      await handleDownload(format);
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
   };
 
@@ -230,18 +276,9 @@ const AudioDownloadDropdown = ({
   );
 };
 
-type UserVoice = {
-  id: string;
-  name: string;
-  audio_url: string;
-  created_at: string;
-  duration: string | null;
-  language: string | null;
-};
-
-// ====================================================================
-// ShowMoreText Component - Shows 2 lines with expand/collapse
-// ====================================================================
+// ============================================
+// SHOW MORE TEXT COMPONENT
+// ============================================
 const ShowMoreText = ({ text }: { text: string }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -264,6 +301,132 @@ const ShowMoreText = ({ text }: { text: string }) => {
   );
 };
 
+// ============================================
+// PROJECT CARD COMPONENT
+// ============================================
+const ProjectCard = memo(({
+  project,
+  playingAudio,
+  loadingAudio,
+  onPlay,
+  onDelete,
+  isDeleting
+}: {
+  project: HistoryItem;
+  playingAudio: string | null;
+  loadingAudio: string | null;
+  onPlay: (project: HistoryItem) => void;
+  onDelete?: (project: HistoryItem) => void;
+  isDeleting?: boolean;
+}) => {
+  const type = project.source_type;
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-sm sm:text-base lg:text-lg flex items-center space-x-2 truncate">
+              {type === "generated" ? (
+                <Volume2 className="h-4 w-4 text-primary flex-shrink-0" />
+              ) : (
+                <Mic className="h-4 w-4 text-primary flex-shrink-0" />
+              )}
+              <span className="truncate">{project.title}</span>
+            </CardTitle>
+            <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
+              <Badge
+                variant="outline"
+                className={`text-xs ${
+                  type === "generated"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-secondary/10 text-primary"
+                }`}
+              >
+                {type === "generated" ? "AI Generated" : "User Recorded"}
+              </Badge>
+              {project.language && project.language !== 'N/A' && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                  {project.language}
+                </Badge>
+              )}
+              {type === 'generated' && project.word_count > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {project.word_count} words
+                </Badge>
+              )}
+              {project.duration && project.duration !== '--:--' && (
+                <Badge variant="secondary" className="text-xs">
+                  {project.duration}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 p-3 sm:p-6">
+        {type === 'generated' && project.original_text && (
+          <ShowMoreText text={project.original_text} />
+        )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            <Button
+              onClick={() => onPlay(project)}
+              variant="outline"
+              size="sm"
+              disabled={!project.audio_url || !!isDeleting || loadingAudio === project.id}
+              className="h-7 sm:h-8 px-2 sm:px-3"
+            >
+              {loadingAudio === project.id ? (
+                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+              ) : playingAudio === project.id ? (
+                <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
+              ) : (
+                <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+              )}
+            </Button>
+
+            <AudioDownloadDropdown
+              audioUrl={project.audio_url}
+              fileName={project.title}
+              sourceType={project.source_type}
+            />
+
+            {onDelete && (
+              <Button
+                onClick={() => onDelete(project)}
+                variant="outline"
+                size="sm"
+                disabled={!!isDeleting}
+                className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                )}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+            <span>{new Date(project.created_at).toLocaleDateString()}</span>
+            <span>
+              {type === "generated" && project.generation_started_at
+                ? new Date(project.generation_started_at).toLocaleTimeString()
+                : new Date(project.created_at).toLocaleTimeString()}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+ProjectCard.displayName = 'ProjectCard';
+
+// ============================================
+// MAIN HISTORY COMPONENT
+// ============================================
 const History = memo(() => {
   const { user, profile } = useAuth();
   const { projects: projectsFromHook, loading: projectsLoading, error: projectsError, retentionInfo } = useVoiceHistory();
@@ -300,7 +463,6 @@ const History = memo(() => {
       if (audioBlobUrlRef.current) {
         URL.revokeObjectURL(audioBlobUrlRef.current);
       }
-      // Clean up all cached blob URLs
       audioBlobCacheRef.current.forEach((blobUrl) => {
         URL.revokeObjectURL(blobUrl);
       });
@@ -325,7 +487,7 @@ const History = memo(() => {
       setVoicesLoading(true);
       setVoicesError(null);
       try {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from("user_voices")
           .select("id, name, audio_url, created_at, duration, language")
           .eq("user_id", user.id)
@@ -374,23 +536,13 @@ const History = memo(() => {
 
       if (itemToDelete.audio_url) {
         try {
-          const tryUrl = () => {
-            try { return new URL(itemToDelete.audio_url); } catch { return null; }
-          };
-          let bucketName = isRecorded ? 'user-voices' : 'user-generates';
-          let filePath = itemToDelete.audio_url;
-          const parsed = tryUrl();
-          if (parsed) {
-            const parts = parsed.pathname.split('/');
-            const idxVoices = parts.indexOf('user-voices');
-            const idxGenerates = parts.indexOf('user-generates');
-            if (idxVoices > -1) { bucketName = 'user-voices'; filePath = parts.slice(idxVoices + 1).join('/'); }
-            if (idxGenerates > -1) { bucketName = 'user-generates'; filePath = parts.slice(idxGenerates + 1).join('/'); }
-          }
-          const { error: storageError } = await supabase.storage.from(bucketName).remove([filePath]);
+          const bucket = isRecorded ? 'user-voices' : 'user-generates';
+          const cleanPath = cleanStoragePath(itemToDelete.audio_url, bucket);
+
+          const { error: storageError } = await supabase.storage.from(bucket).remove([cleanPath]);
           if (storageError) console.error('Storage Error:', storageError.message);
         } catch (e) {
-          console.warn('Could not process storage deletion for invalid URL or path:', itemToDelete.audio_url);
+          console.warn('Could not process storage deletion:', e);
         }
       }
 
@@ -447,6 +599,151 @@ const History = memo(() => {
     return [...generatedItems, ...recordedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [projects, userVoices]);
 
+  const playAudio = async (project: HistoryItem) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+    }
+
+    if (playingAudio === project.id) {
+      setPlayingAudio(null);
+      setLoadingAudio(null);
+      audioRef.current = null;
+      audioBlobUrlRef.current = null;
+      return;
+    }
+
+    if (!project.audio_url) {
+      toast({
+        title: "Audio Not Available",
+        description: "This audio file is no longer available.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoadingAudio(project.id);
+
+    try {
+      let blobUrl: string;
+
+      if (audioBlobCacheRef.current.has(project.id)) {
+        blobUrl = audioBlobCacheRef.current.get(project.id)!;
+      } else {
+        const bucket = project.source_type === "recorded" ? "user-voices" : "user-generates";
+        const cleanPath = cleanStoragePath(project.audio_url, bucket);
+
+        const pathParts = cleanPath.split('/');
+        if (pathParts.length !== 2) {
+          throw new Error("Invalid audio path format");
+        }
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+          throw new Error("Not authenticated");
+        }
+
+        const tokenRequestBody = {
+          bucket: bucket,
+          storagePath: cleanPath,
+          ttlSeconds: 86400
+        };
+
+        const tokenResponse = await fetch(
+          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify(tokenRequestBody)
+          }
+        );
+
+        if (!tokenResponse.ok) {
+          const errorData = await tokenResponse.json();
+          throw new Error(errorData.error || 'Failed to get playback token');
+        }
+
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenData.ok || !tokenData.token) {
+          throw new Error('Invalid token response');
+        }
+
+        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
+
+        const audioResponse = await fetch(streamUrl, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+
+        if (!audioResponse.ok) {
+          const errorText = await audioResponse.text();
+          throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
+        }
+
+        const audioBlob = await audioResponse.blob();
+        blobUrl = URL.createObjectURL(audioBlob);
+
+        audioBlobCacheRef.current.set(project.id, blobUrl);
+      }
+
+      audioBlobUrlRef.current = blobUrl;
+      const audio = new Audio(blobUrl);
+
+      setLoadingAudioMeta((m) => ({ ...m, [project.id]: true }));
+
+      audio.onloadedmetadata = () => {
+        setLoadingAudioMeta((m) => ({ ...m, [project.id]: false }));
+      };
+
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        setPlayingAudio(null);
+        setLoadingAudio(null);
+        audioBlobUrlRef.current = null;
+      };
+
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        toast({
+          title: "Playback Error",
+          description: "The audio file could not be loaded.",
+          variant: "destructive"
+        });
+        setPlayingAudio(null);
+        setLoadingAudio(null);
+
+        if (audioBlobCacheRef.current.has(project.id)) {
+          URL.revokeObjectURL(audioBlobCacheRef.current.get(project.id)!);
+          audioBlobCacheRef.current.delete(project.id);
+        }
+      };
+
+      await audio.play();
+
+      setPlayingAudio(project.id);
+      setLoadingAudio(null);
+
+    } catch (err: any) {
+      console.error("Playback failed:", err.message);
+
+      toast({
+        title: "Playback Failed",
+        description: err.message || "Could not play the audio file.",
+        variant: "destructive"
+      });
+
+      setPlayingAudio(null);
+      setLoadingAudio(null);
+    }
+  };
+
   const loading = projectsLoading || voicesLoading;
   const error = projectsError || voicesError;
 
@@ -470,139 +767,6 @@ const History = memo(() => {
   const generatedVoices = filteredItems.filter((p) => p.source_type === "generated");
   const recordedVoices = filteredItems.filter((p) => p.source_type === "recorded");
   const languages = Array.from(new Set(allItems.map((p) => p.language).filter(lang => lang && lang !== 'N/A')));
-
-  const playAudio = async (project: HistoryItem) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-    }
-
-    if (playingAudio === project.id) {
-      setPlayingAudio(null);
-      setLoadingAudio(null);
-      audioRef.current = null;
-      audioBlobUrlRef.current = null;
-      return;
-    }
-
-    if (!project.audio_url) {
-      toast({
-        title: "Audio Not Available",
-        description: "This audio file is no longer available. It may have been deleted.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoadingAudio(project.id);
-
-    try {
-      let blobUrl: string;
-
-      // Check if we already have this audio cached
-      if (audioBlobCacheRef.current.has(project.id)) {
-        blobUrl = audioBlobCacheRef.current.get(project.id)!;
-      } else {
-        // Fetch and cache new audio
-
-        const buildStreamUrl = async (rawUrl: string, sourceType: "generated"|"recorded") => {
-          try {
-            const u = new URL(rawUrl);
-            const pathParts = u.pathname.split("/");
-            const bucket = pathParts.includes("user-voices") ? "user-voices" : pathParts.includes("user-generates") ? "user-generates" : (sourceType === "recorded" ? "user-voices" : "user-generates");
-            const idx = pathParts.indexOf(bucket);
-            const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl;
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("Not authenticated");
-            const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-              body: JSON.stringify({ bucket, storagePath, ttlSeconds: 24*3600 })
-            });
-            const issueJson = await issueRes.json();
-            if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
-            return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
-          } catch {
-            return rawUrl;
-          }
-        };
-
-        const audioUrl = await buildStreamUrl(project.audio_url, project.source_type);
-
-        // Fetch audio with proper authentication and create blob URL
-        const { data: { session } } = await supabase.auth.getSession();
-        const audioResponse = await fetch(audioUrl, {
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`
-          }
-        });
-
-        if (!audioResponse.ok) {
-          throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
-        }
-
-        const audioBlob = await audioResponse.blob();
-        blobUrl = URL.createObjectURL(audioBlob);
-
-        // Cache the blob URL for reuse
-        audioBlobCacheRef.current.set(project.id, blobUrl);
-      }
-
-      audioBlobUrlRef.current = blobUrl;
-      const audio = new Audio(blobUrl);
-
-      setLoadingAudioMeta((m) => ({ ...m, [project.id]: true }));
-      audio.onloadedmetadata = () => {
-        setLoadingAudioMeta((m) => ({ ...m, [project.id]: false }));
-      };
-      audioRef.current = audio;
-
-      audio.onended = () => {
-        setPlayingAudio(null);
-        setLoadingAudio(null);
-        audioBlobUrlRef.current = null;
-        // Don't revoke the cached blob URL - keep it for reuse
-      };
-
-      audio.onerror = () => {
-        toast({
-          title: "Playback Error",
-          description: "The audio file could not be loaded. It may be corrupted or expired.",
-          variant: "destructive"
-        });
-        setPlayingAudio(null);
-        setLoadingAudio(null);
-        audioBlobUrlRef.current = null;
-        // Remove from cache if there was an error
-        if (audioBlobCacheRef.current.has(project.id)) {
-          URL.revokeObjectURL(audioBlobCacheRef.current.get(project.id)!);
-          audioBlobCacheRef.current.delete(project.id);
-        }
-      };
-
-      await audio.play();
-      setPlayingAudio(project.id);
-      setLoadingAudio(null);
-    } catch (err: any) {
-      console.error("Audio playback failed:", err);
-      let description = "Could not play the audio file. Please try again.";
-
-      if (err.message?.includes('network')) {
-        description = "Network error. Check your connection and try again.";
-      } else if (err.message?.includes('expired')) {
-        description = "This audio file has expired. Please generate a new one.";
-      }
-
-      toast({
-        title: "Playback Failed",
-        description: description,
-        variant: "destructive"
-      });
-      setPlayingAudio(null);
-      setLoadingAudio(null);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background py-2 px-2 sm:py-4 sm:px-4 lg:px-8">
@@ -744,8 +908,7 @@ const History = memo(() => {
       </div>
 
       <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
-        <AlertDialogOverlay className="fixed inset-0 bg-black/0" />
-        <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg m- sm:m-auto">
+        <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
           <AlertDialogHeader className="text-left">
             <AlertDialogTitle className="text-lg font-semibold">
               Are you absolutely sure?
@@ -772,83 +935,5 @@ const History = memo(() => {
 });
 
 History.displayName = 'History';
-
-const ProjectCard = memo(({ project, playingAudio, loadingAudio, onPlay, onDelete, isDeleting }: {
-  project: HistoryItem;
-  playingAudio: string | null;
-  loadingAudio: string | null;
-  onPlay: (project: HistoryItem) => void;
-  onDelete?: (project: HistoryItem) => void;
-  isDeleting?: boolean;
-}) => {
-  const type = project.source_type;
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-sm sm:text-base lg:text-lg flex items-center space-x-2 truncate">
-              {type === "generated" ? <Volume2 className="h-4 w-4 text-primary" /> : <Mic className="h-4 w-4 text-primary" />}
-              <span className="truncate">{project.title}</span>
-            </CardTitle>
-            <div className="flex items-center flex-wrap gap-1 sm:gap-2 mt-2">
-              <Badge variant="outline" className={`text-xs ${type === "generated" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-primary"}`}>
-                {type === "generated" ? "AI Generated" : "User Recorded"}
-              </Badge>
-              {project.language && project.language !== 'N/A' && (
-                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">{project.language}</Badge>
-              )}
-              {type === 'generated' && project.word_count > 0 && <Badge variant="secondary" className="text-xs">{project.word_count} words</Badge>}
-              {(type === 'recorded' || type === 'generated') && project.duration && project.duration !== '--:--' && <Badge variant="secondary" className="text-xs">{project.duration}</Badge>}
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 p-3 sm:p-6">
-        {type === 'generated' && project.original_text && (
-          <ShowMoreText text={project.original_text} />
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-1 sm:space-x-2">
-            <Button
-              onClick={() => onPlay(project)}
-              variant="outline"
-              size="sm"
-              disabled={!project.audio_url || !!isDeleting || loadingAudio === project.id}
-              className="h-7 sm:h-8 px-2 sm:px-3"
-            >
-              {loadingAudio === project.id ? (
-                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-              ) : playingAudio === project.id ? (
-                <Pause className="h-3 w-3 sm:h-4 sm:w-4" />
-              ) : (
-                <Play className="h-3 w-3 sm:h-4 sm:w-4" />
-              )}
-            </Button>
-
-            <AudioDownloadDropdown
-              audioUrl={project.audio_url}
-              fileName={project.title}
-              sourceType={project.source_type}
-            />
-
-            {onDelete && (
-              <Button onClick={() => onDelete(project)} variant="outline" size="sm" disabled={!!isDeleting} className="h-7 sm:h-8 px-2 sm:px-3 text-destructive hover:bg-destructive/10 hover:text-destructive">
-                {isDeleting ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />}
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-            <span>{new Date(project.created_at).toLocaleDateString()}</span>
-            <span>{type === "generated" && project.generation_started_at ? new Date(project.generation_started_at).toLocaleTimeString() : new Date(project.created_at).toLocaleTimeString()}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-});
-
-ProjectCard.displayName = 'ProjectCard';
 
 export default History;

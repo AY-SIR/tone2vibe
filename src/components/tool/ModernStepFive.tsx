@@ -10,36 +10,158 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface ModernStepFiveProps {
   audioUrl: string;
-  audioData?: string;
-  audioMimeType?: string;
   extractedText: string;
   selectedLanguage: string;
   wordCount: number;
-  duration?: number;
-  durationSeconds?: number;
   onNextGeneration?: () => void;
 }
 
+const cleanStoragePath = (rawPath: string, bucket: string): string => {
+  if (!rawPath) return '';
+
+  let path = rawPath.trim();
+
+  // If it's already a clean path (userId/filename.ext), return it
+  if (!path.includes('http') &&
+      !path.includes('/storage/') &&
+      !path.startsWith('/') &&
+      path.split('/').length === 2) {
+    return path;
+  }
+
+  // Remove protocol and domain if present
+  path = path.replace(/^https?:\/\/[^\/]+/, '');
+
+  // Remove storage API paths
+  path = path.replace(/^\/storage\/v1\/object\/(public|sign)\//, '');
+
+  // Remove leading slashes
+  path = path.replace(/^\/+/, '');
+
+  // Remove bucket name if present
+  path = path.replace(new RegExp(`^${bucket}/`), '');
+
+  // Remove query strings
+  path = path.replace(/\?.*$/, '');
+
+  // Final cleanup
+  path = path.replace(/^\/+/, '');
+
+  return path;
+};
+
 export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   audioUrl,
-  audioData,
-  audioMimeType,
   extractedText,
   selectedLanguage,
   wordCount,
-  duration,
-  durationSeconds,
   onNextGeneration,
 }) => {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actualDuration, setActualDuration] = useState(0);
+  const [audioReady, setAudioReady] = useState(false);
+  const [secureAudioUrl, setSecureAudioUrl] = useState<string>('');
+
   const { toast } = useToast();
   const { user, profile } = useAuth();
-
-  // State for duration and a ref for the audio element
-  const [actualDuration, setActualDuration] = useState(durationSeconds || duration || 0);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Get secure audio URL on mount
+  useEffect(() => {
+    const getSecureUrl = async () => {
+      if (!audioUrl) return;
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Not authenticated");
+
+        // If audioUrl is already a streaming URL with token
+        if (audioUrl.includes('stream-audio?token=')) {
+          // Fetch audio with Authorization header
+          const audioResponse = await fetch(audioUrl, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          });
+
+          if (!audioResponse.ok) {
+            throw new Error('Failed to fetch audio');
+          }
+
+          // Create blob URL from the audio data
+          const audioBlob = await audioResponse.blob();
+          const blobUrl = URL.createObjectURL(audioBlob);
+
+          setSecureAudioUrl(blobUrl);
+          setAudioReady(true);
+          return;
+        }
+
+        // Otherwise, it's a storage path - get a new token
+        const storagePath = cleanStoragePath(audioUrl, 'user-generates');
+
+        const issueResponse = await fetch(
+          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              bucket: 'user-generates',
+              storagePath: storagePath,
+              ttlSeconds: 24 * 3600
+            })
+          }
+        );
+
+        if (!issueResponse.ok) {
+          throw new Error('Failed to get audio token');
+        }
+
+        const { token } = await issueResponse.json();
+        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+
+        // Fetch the audio with Authorization header
+        const audioResponse = await fetch(streamUrl, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+
+        if (!audioResponse.ok) {
+          throw new Error('Failed to fetch audio');
+        }
+
+        // Create blob URL from the audio data
+        const audioBlob = await audioResponse.blob();
+        const blobUrl = URL.createObjectURL(audioBlob);
+
+        setSecureAudioUrl(blobUrl);
+        setAudioReady(true);
+
+      } catch (error) {
+        console.error('Failed to get secure audio URL:', error);
+        toast({
+          title: "Audio Loading Error",
+          description: "Could not load audio. Please try again.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    getSecureUrl();
+
+    // Cleanup: Revoke blob URL on unmount
+    return () => {
+      if (secureAudioUrl && secureAudioUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(secureAudioUrl);
+      }
+    };
+  }, [audioUrl]);
 
   const formatTime = (timeInSeconds: number = 0) => {
     if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
@@ -47,11 +169,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
-
-  // Reset duration when audioUrl changes
-  useEffect(() => {
-    setActualDuration(0);
-  }, [audioUrl]);
 
   const copyToClipboard = async () => {
     try {
@@ -91,28 +208,36 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       toast({ title: "Converting Audio", description: `Converting to ${format.toUpperCase()}...` });
 
-      const buildStreamUrl = async (rawUrl: string) => {
-        try {
-          const u = new URL(rawUrl);
-          const pathParts = u.pathname.split("/");
-          const bucket = pathParts.includes("user-generates") ? "user-generates" : "user-voices";
-          const idx = pathParts.indexOf(bucket);
-          const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl;
+      // Use the original audioUrl for download (streaming URL with token)
+      let downloadUrl = audioUrl;
 
-          const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+      // If audioUrl is a storage path, get a token for it
+      if (!audioUrl.includes('stream-audio?token=')) {
+        const storagePath = cleanStoragePath(audioUrl, 'user-generates');
+
+        const issueResponse = await fetch(
+          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-            body: JSON.stringify({ bucket, storagePath, ttlSeconds: 3600 })
-          });
-          const issueJson = await issueRes.json();
-          if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
-          return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
-        } catch {
-          return rawUrl;
-        }
-      };
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              bucket: 'user-generates',
+              storagePath: storagePath,
+              ttlSeconds: 3600
+            })
+          }
+        );
 
-      const streamUrl = await buildStreamUrl(audioUrl);
+        if (!issueResponse.ok) {
+          throw new Error('Failed to get download token');
+        }
+
+        const { token } = await issueResponse.json();
+        downloadUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+      }
 
       const response = await fetch(`${supabase.supabaseUrl}/functions/v1/convert-audio`, {
         method: "POST",
@@ -120,12 +245,19 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ audioUrl: streamUrl, format, sourceType: "generated" }),
+        body: JSON.stringify({
+          audioUrl: downloadUrl,
+          format,
+          sourceType: "generated"
+        }),
       });
 
       if (!response.ok) {
         let errorMsg = "Conversion failed";
-        try { const errorJson = await response.json(); errorMsg = errorJson.error || errorMsg; } catch {}
+        try {
+          const errorJson = await response.json();
+          errorMsg = errorJson.error || errorMsg;
+        } catch {}
         throw new Error(errorMsg);
       }
 
@@ -143,18 +275,13 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
     } catch (error: any) {
       console.error("Download error:", error);
-      toast({ title: "Download Failed", description: error.message || "Failed to download audio.", variant: "destructive" });
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download audio.",
+        variant: "destructive"
+      });
     } finally {
       setDownloading(null);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    const formats = ["mp3", "wav", "flac"];
-    toast({ title: "Batch Download Started", description: "Downloading multiple formats..." });
-    for (const format of formats) {
-      await handleConvertAndDownload(format);
-      await new Promise(resolve => setTimeout(resolve, 800));
     }
   };
 
@@ -181,7 +308,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </p>
       </div>
 
-      {/* Analytics Card - Only for Pro and Premium */}
+      {/* Analytics Card */}
       {['pro', 'premium'].includes(profile?.plan || '') && (
         <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50/50 to-emerald-50/30">
           <CardHeader className="pb-3 sm:pb-6">
@@ -197,7 +324,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 <div className="text-xs sm:text-sm text-muted-foreground">Words Processed</div>
               </div>
               <div className="text-center p-3">
-                <div className="text-xl sm:text-2xl font-bold text-primary">{formatTime(actualDuration)}</div>
+                <div className="text-xl sm:text-2xl font-bold text-primary">
+                  {actualDuration > 0 ? formatTime(actualDuration) : '--:--'}
+                </div>
                 <div className="text-xs sm:text-sm text-muted-foreground">Duration</div>
               </div>
               <div className="text-center p-3">
@@ -224,26 +353,34 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <audio
-            ref={audioRef}
-            onLoadedMetadata={() => {
-              if (audioRef.current) {
-                setActualDuration(audioRef.current.duration);
-              }
-            }}
-            controls
-            className="w-full"
-            controlsList="nodownload noplaybackrate"
-          >
-            <source src={audioUrl} type={audioMimeType || 'audio/mpeg'} />
-            {audioData && <source src={`data:${audioMimeType || 'audio/mpeg'};base64,${audioData}`} />}
-            Your browser does not support the audio element.
-          </audio>
-          {!actualDuration && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-              <span>Loading audio...</span>
+          {!audioReady ? (
+            <div className="flex items-center justify-center gap-2 py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading audio...</span>
             </div>
+          ) : (
+            <>
+              <audio
+                ref={audioRef}
+                onLoadedMetadata={() => {
+                  if (audioRef.current) {
+                    setActualDuration(audioRef.current.duration);
+                  }
+                }}
+                controls
+                className="w-full"
+                controlsList="nodownload noplaybackrate"
+              >
+                <source src={secureAudioUrl} type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+              {actualDuration === 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                  <span>Loading audio metadata...</span>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -269,22 +406,20 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       {/* Download & Conversion */}
       <Card className="border-2 border-gray-100">
         <CardHeader className="pb-3 sm:pb-6">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Download className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg mb-4">
+            <Download className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 " />
             Download in Multiple Formats
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 sm:space-y-4">
-          <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
-            Choose a format to download, or get all popular formats at once
-          </p>
+
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             {formats.slice(0, 3).map((format) => (
               <Button
                 key={format.value}
                 onClick={() => handleConvertAndDownload(format.value)}
-                disabled={!!downloading}
+                disabled={!!downloading || !audioReady}
                 variant="outline"
                 size="lg"
                 className="flex flex-col h-auto py-3 sm:py-4 gap-2 hover:border-blue-500 hover:bg-blue-50 transition-all"
@@ -310,7 +445,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!!downloading}
+                  disabled={!!downloading || !audioReady}
                   className="gap-2 text-xs sm:text-sm"
                 >
                   {downloading ? (
@@ -351,7 +486,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
           {downloading && (
             <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-blue-600 animate-pulse px-2">
-              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+              <Loader2 className="w-3 h-3 sm:w-4 sm:w-4 animate-spin" />
               <span className="text-center">Converting to {downloading.toUpperCase()}...</span>
             </div>
           )}
@@ -362,7 +497,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       <div className="flex justify-center pt-2 sm:pt-4 pb-4">
         {isRefreshing ? (
           <div className="flex items-center space-x-2 sm:space-x-3 px-6 sm:px-8 py-2.5 sm:py-3 bg-blue-50 rounded-lg">
-            <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-blue-600" />
+            <Loader2 className="h-4 w-4 sm:h-5 sm:h-5 animate-spin text-blue-600" />
             <span className="text-sm sm:text-base text-blue-700 font-medium">Refreshing...</span>
           </div>
         ) : (

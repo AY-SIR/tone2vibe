@@ -1,14 +1,52 @@
-// src/components/tool/VoiceHistoryDropdown.tsx
 import { useState, useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Play, Pause, Mic } from "lucide-react";
+import { Play, Pause, Mic, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// NOTE: This could be moved to a shared constants/data file
+// ============================================
+// UTILITY: Clean Storage Path
+// ============================================
+const cleanStoragePath = (rawPath: string, bucket: string): string => {
+  if (!rawPath) return '';
+
+  let path = rawPath.trim();
+
+  // If it's already a clean path (userId/filename.ext), return it
+  if (!path.includes('http') &&
+      !path.includes('/storage/') &&
+      !path.startsWith('/') &&
+      path.split('/').length === 2) {
+    return path;
+  }
+
+  // Remove protocol and domain if present
+  path = path.replace(/^https?:\/\/[^\/]+/, '');
+
+  // Remove storage API paths
+  path = path.replace(/^\/storage\/v1\/object\/(public|sign)\//, '');
+
+  // Remove leading slashes
+  path = path.replace(/^\/+/, '');
+
+  // Remove bucket name if present
+  path = path.replace(new RegExp(`^${bucket}/`), '');
+
+  // Remove query strings
+  path = path.replace(/\?.*$/, '');
+
+  // Final cleanup
+  path = path.replace(/^\/+/, '');
+
+  return path;
+};
+
+// ============================================
+// LANGUAGE DATA
+// ============================================
 const languages = [
   { code: 'ar-SA', name: 'Arabic (Saudi Arabia)', nativeName: 'العربية' },
   { code: 'as-IN', name: 'Assamese', nativeName: 'অসমীয়া' },
@@ -65,10 +103,13 @@ const languages = [
 ];
 
 const getLanguageNativeName = (code: string) => {
-    const language = languages.find(lang => lang.code === code);
-    return language ? language.nativeName : code; // Fallback to code if not found
+  const language = languages.find(lang => lang.code === code);
+  return language ? language.nativeName : code;
 };
 
+// ============================================
+// TYPES
+// ============================================
 type UserVoice = {
   id: string;
   name: string;
@@ -82,12 +123,23 @@ interface VoiceHistoryDropdownProps {
   selectedLanguage: string;
 }
 
-export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedLanguage }: VoiceHistoryDropdownProps) => {
+// ============================================
+// MAIN COMPONENT
+// ============================================
+export const VoiceHistoryDropdown = ({
+  onVoiceSelect,
+  selectedVoiceId,
+  selectedLanguage
+}: VoiceHistoryDropdownProps) => {
   const [voices, setVoices] = useState<UserVoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBlobUrlRef = useRef<string | null>(null);
+  const audioBlobCacheRef = useRef<Map<string, string>>(new Map());
+
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
@@ -107,11 +159,11 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
         setLoading(false);
         return;
       }
+
       setLoading(true);
       try {
         const limit = getLimitForPlan();
-        
-        // Optimized query: only fetch necessary fields
+
         const { data, error } = await supabase
           .from("user_voices")
           .select("id, name, created_at, audio_url")
@@ -122,7 +174,8 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
 
         if (error) throw error;
         setVoices(data || []);
-      } catch {
+      } catch (err) {
+        console.error("Error fetching voices:", err);
         toast({
           title: "Could not load voices",
           description: "Please try again later",
@@ -137,97 +190,172 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
     fetchUserVoices();
   }, [user, profile?.plan, selectedLanguage]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+      }
+      audioBlobCacheRef.current.forEach((blobUrl) => {
+        URL.revokeObjectURL(blobUrl);
+      });
+      audioBlobCacheRef.current.clear();
+    };
+  }, []);
+
   const stopPlayback = () => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
     }
     setPlayingVoiceId(null);
+    setLoadingVoiceId(null);
   };
 
   const playVoice = async (voice: UserVoice) => {
     if (!voice.audio_url) {
-      toast({ title: "No audio found", description: "This voice cannot be played", variant: "default" });
+      toast({
+        title: "No audio found",
+        description: "This voice cannot be played",
+        variant: "default"
+      });
       return;
     }
 
-    if (playingVoiceId === voice.id) { stopPlayback(); return; }
+    // Toggle playback if same voice
+    if (playingVoiceId === voice.id) {
+      stopPlayback();
+      return;
+    }
+
     stopPlayback();
+    setLoadingVoiceId(voice.id);
 
     try {
-      // Enhanced path extraction with better error handling
-      const getPathFromUrl = (url: string) => {
-        try {
-          // Handle both full URLs and direct paths
-          if (!url.startsWith('http')) return url;
-          
-          const u = new URL(url);
-          const pathParts = u.pathname.split('/user-voices/');
-          if (pathParts.length > 1) {
-            return pathParts[1];
-          }
-          // Fallback: return full pathname without leading slash
-          return u.pathname.startsWith('/') ? u.pathname.substring(1) : u.pathname;
-        } catch (err) {
-          console.error('URL parsing error:', err);
-          // If it's not a URL, assume it's a direct path
-          return url.replace(/^\/+/, '');
-        }
-      };
+      let blobUrl: string;
 
-      const path = getPathFromUrl(voice.audio_url);
-      if (!path || path.length === 0) {
-        throw new Error('Could not extract valid path from audio URL');
+      // Check if we have cached this audio
+      if (audioBlobCacheRef.current.has(voice.id)) {
+        blobUrl = audioBlobCacheRef.current.get(voice.id)!;
+      } else {
+        // Get current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+          throw new Error("Not authenticated");
+        }
+
+        // Clean the storage path
+        const cleanPath = cleanStoragePath(voice.audio_url, 'user-voices');
+
+        if (!cleanPath || cleanPath.length === 0) {
+          throw new Error("Invalid audio path");
+        }
+
+        // Validate path format
+        const pathParts = cleanPath.split('/');
+        if (pathParts.length !== 2) {
+          throw new Error("Invalid audio path format");
+        }
+
+        // Request token from edge function
+        const tokenRequestBody = {
+          bucket: 'user-voices',
+          storagePath: cleanPath,
+          ttlSeconds: 86400
+        };
+
+        const issueResponse = await fetch(
+          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify(tokenRequestBody),
+          }
+        );
+
+        if (!issueResponse.ok) {
+          const errorData = await issueResponse.json();
+          throw new Error(errorData.error || 'Failed to create playback token');
+        }
+
+        const { token, ok } = await issueResponse.json();
+
+        if (!ok || !token) {
+          throw new Error('Invalid token response');
+        }
+
+        // Create streaming URL with token
+        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+
+        // Fetch the audio with Authorization header
+        const audioResponse = await fetch(streamUrl, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+
+        if (!audioResponse.ok) {
+          throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
+        }
+
+        // Create blob from response
+        const audioBlob = await audioResponse.blob();
+        blobUrl = URL.createObjectURL(audioBlob);
+
+        // Cache the blob URL
+        audioBlobCacheRef.current.set(voice.id, blobUrl);
       }
 
-      // Issue a token and stream via edge function
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-      const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ bucket: 'user-voices', storagePath: path, ttlSeconds: 24*3600 })
-      });
-      const issueJson = await issueRes.json();
-      if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Failed to create playback token');
+      // Create audio element with blob URL
+      audioBlobUrlRef.current = blobUrl;
+      const audio = new Audio(blobUrl);
 
-      const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
-
-      // Create and configure audio element
-      const audio = new Audio();
-      audio.preload = 'auto';
-      audio.src = streamUrl;
-      
       audioRef.current = audio;
-      setPlayingVoiceId(voice.id);
 
+      // Setup event listeners
       audio.onended = () => {
         setPlayingVoiceId(null);
+        setLoadingVoiceId(null);
+        audioBlobUrlRef.current = null;
       };
-      
+
       audio.onerror = (e) => {
         console.error('Audio playback error:', e);
         stopPlayback();
-        toast({ 
-          title: "Playback failed", 
-          description: "Could not play this audio. The file may be corrupted or expired.",
-          variant: "default" 
+
+        // Remove from cache if playback failed
+        if (audioBlobCacheRef.current.has(voice.id)) {
+          URL.revokeObjectURL(audioBlobCacheRef.current.get(voice.id)!);
+          audioBlobCacheRef.current.delete(voice.id);
+        }
+
+        toast({
+          title: "Playback failed",
+          description: "Could not play this audio",
+          variant: "default"
         });
       };
 
       // Attempt playback
-      await audio.play().catch(err => {
-        console.error('Play() failed:', err);
-        throw new Error('Audio playback was blocked or failed');
-      });
-      
+      await audio.play();
+
+      setPlayingVoiceId(voice.id);
+      setLoadingVoiceId(null);
+
     } catch (error) {
       console.error('Voice playback error:', error);
       stopPlayback();
-      toast({ 
-        title: "Could not play voice", 
+      toast({
+        title: "Could not play voice",
         description: error instanceof Error ? error.message : "Please try again",
-        variant: "default" 
+        variant: "default"
       });
     }
   };
@@ -258,12 +386,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
         Showing last {voices.length} voices for {languageDisplayName} ({profile?.plan} plan)
       </div>
 
-      <Select
-        value={selectedVoiceId}
-        onValueChange={(voiceId) => {
-          onVoiceSelect(voiceId);
-        }}
-      >
+      <Select value={selectedVoiceId} onValueChange={onVoiceSelect}>
         <SelectTrigger>
           <SelectValue placeholder="Select a saved voice" />
         </SelectTrigger>
@@ -276,9 +399,10 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
             >
               <div className="flex items-center justify-between w-full">
                 <span className="truncate flex-1">{voice.name}</span>
-                 <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                  {/* CHANGE IS HERE */}
-                  {voice.created_at ? new Date(voice.created_at).toLocaleString() : "No date"}
+                <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                  {voice.created_at
+                    ? new Date(voice.created_at).toLocaleDateString()
+                    : "No date"}
                 </span>
               </div>
             </SelectItem>
@@ -292,8 +416,7 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{selectedVoiceDetails.name}</p>
               <p className="text-xs text-gray-500">
-                {/* AND CHANGE IS HERE */}
-                Created: {new Date(selectedVoiceDetails.created_at).toLocaleString()}
+                Created: {new Date(selectedVoiceDetails.created_at).toLocaleDateString()}
               </p>
             </div>
             <div className="flex space-x-1 flex-shrink-0">
@@ -303,9 +426,15 @@ export const VoiceHistoryDropdown = ({ onVoiceSelect, selectedVoiceId, selectedL
                 size="icon"
                 className="h-8 w-8"
                 title={selectedVoiceDetails.audio_url ? "Play/Pause" : "Not available"}
-                disabled={!selectedVoiceDetails.audio_url}
+                disabled={!selectedVoiceDetails.audio_url || loadingVoiceId === selectedVoiceDetails.id}
               >
-                {playingVoiceId === selectedVoiceDetails.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                {loadingVoiceId === selectedVoiceDetails.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : playingVoiceId === selectedVoiceDetails.id ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </CardContent>
