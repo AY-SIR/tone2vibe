@@ -36,7 +36,7 @@ const RealAnalytics = () => {
       return await AnalyticsService.getUserAnalytics(user.id, profile?.plan);
     },
     enabled: !!user && profile?.plan !== 'free',
-    refetchInterval: 5000,
+    refetchInterval: 2000,
     retry: 3
   });
 

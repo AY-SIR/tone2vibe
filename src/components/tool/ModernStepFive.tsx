@@ -100,13 +100,37 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       toast({ title: "Converting Audio", description: `Converting to ${format.toUpperCase()}...` });
 
+      // Build streaming URL with token
+      const buildStreamUrl = async (rawUrl: string) => {
+        try {
+          const u = new URL(rawUrl);
+          const pathParts = u.pathname.split("/");
+          const bucket = pathParts.includes("user-generates") ? "user-generates" : "user-voices";
+          const idx = pathParts.indexOf(bucket);
+          const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl;
+
+          const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ bucket, storagePath, ttlSeconds: 3600 })
+          });
+          const issueJson = await issueRes.json();
+          if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
+          return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
+        } catch {
+          return rawUrl;
+        }
+      };
+
+      const streamUrl = await buildStreamUrl(audioUrl);
+
       const response = await fetch(`${supabase.supabaseUrl}/functions/v1/convert-audio`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ audioUrl, format, sourceType: "generated" }),
+        body: JSON.stringify({ audioUrl: streamUrl, format, sourceType: "generated" }),
       });
 
       if (!response.ok) {
@@ -167,40 +191,39 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   </p>
       </div>
 
-      {/* Analytics Card */}
-      <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50/50 to-emerald-50/30">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <FileAudio className="w-5 h-5 text-green-600" />
-            Your Generated Audio
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{wordCount}</div>
-              <div className="text-sm text-muted-foreground">Words Processed</div>
+      {/* Analytics Card - Only for Pro and Premium */}
+      {['pro', 'premium'].includes(profile?.plan || '') && (
+        <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50/50 to-emerald-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <FileAudio className="w-5 h-5 text-green-600" />
+              Your Generated Audio
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary">{wordCount}</div>
+                <div className="text-sm text-muted-foreground">Words Processed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary">{formatTime(actualDuration)}</div>
+                <div className="text-sm text-muted-foreground">Duration</div>
+              </div>
+              <div className="text-center">
+                <Badge variant="secondary" className="text-xs">{selectedLanguage}</Badge>
+                <div className="text-sm text-muted-foreground mt-1">Language</div>
+              </div>
+              <div className="text-center">
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  Tracked
+                </Badge>
+                <div className="text-sm text-muted-foreground mt-1">Analytics</div>
+              </div>
             </div>
-            <div className="text-center">
-              {/* --- FIX --- */}
-              {/* 3. Use actualDuration state here */}
-              <div className="text-2xl font-bold text-primary">{formatTime(actualDuration)}</div>
-              {/* --- END FIX --- */}
-              <div className="text-sm text-muted-foreground">Duration</div>
-            </div>
-            <div className="text-center">
-              <Badge variant="secondary" className="text-xs">{selectedLanguage}</Badge>
-              <div className="text-sm text-muted-foreground mt-1">Language</div>
-            </div>
-            <div className="text-center">
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                Tracked
-              </Badge>
-              <div className="text-sm text-muted-foreground mt-1">Analytics</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Audio Player */}
       <Card>

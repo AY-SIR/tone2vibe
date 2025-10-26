@@ -286,7 +286,7 @@ export default function ModernStepThree({
 
     const { data: voice, error } = await supabase
       .from('user_voices')
-      .select('id, name') // Optimized: Only get what we need
+      .select('id, name')
       .eq('id', voiceId)
       .single();
 
@@ -299,11 +299,12 @@ export default function ModernStepThree({
       return;
     }
 
-    // Set the internal state and call the correct parent callback with the ID
     setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId); // <-- THIS IS THE FIX
-
-
+    onVoiceSelect(voiceId);
+    toast({
+      title: "Voice Selected",
+      description: `${voice.name} is ready for generation`
+    });
   };
 
   // Check if user can access voice

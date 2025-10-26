@@ -272,47 +272,42 @@ const ModernStepFour = ({
 
   const hasAudio = generatedAudio.length > 0;
 
-  // If generation is complete, show ONLY the success card and the "Continue" button.
-  // The page will auto-redirect, but this will be visible for 2 seconds.
+  // Show generation popup/loader when complete instead of card
   if (generationComplete) {
     return (
-      <div className="space-y-6">
-        <Card className="border-green-200 bg-green-50/50">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="p-4 bg-green-100 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <Card className="w-full max-w-md mx-4 border-2 shadow-2xl animate-in fade-in zoom-in duration-300">
+          <CardContent className="p-8">
+            <div className="text-center space-y-6">
+              <div className="relative">
+                <div className="p-6 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center animate-pulse">
+                  <CheckCircle className="h-12 w-12 text-green-600" />
+                </div>
+                <div className="absolute -top-2 -right-2 w-full h-full">
+                  <div className="w-6 h-6 bg-green-500 rounded-full animate-ping opacity-75"></div>
+                </div>
               </div>
+
               <div>
-                <h3 className="text-lg sm:text-xl font-semibold text-green-900 mb-2">
-                  {hasAudio ? "Audio Generated Successfully!" : "Request Processed"}
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                  Audio Generated Successfully!
                 </h3>
-                <p className="text-sm sm:text-base text-green-700">
-                  {hasAudio ? "Your high-quality audio is ready." : "Your request is complete. Proceeding to the final results."}
+                <p className="text-base text-gray-600">
+                  Your high-quality audio is ready. Redirecting to results...
                 </p>
               </div>
-              <Badge className="bg-green-100 text-green-800">
-                ✓ Process Complete
+
+              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                <span>Processing...</span>
+              </div>
+
+              <Badge className="bg-green-600 text-white text-sm px-4 py-2">
+                ✓ Generation Complete
               </Badge>
             </div>
           </CardContent>
         </Card>
-
-
-        <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-0">
-  {isGenerating && (
-    <Button
-      onClick={onNext}
-      disabled={!generationComplete}
-      size="lg"
-      className="order-1 sm:order-2 w-full sm:w-auto px-4 sm:px-8 py-3 text-sm sm:text-base bg-black hover:bg-gray-800 text-white"
-    >
-      Continue to Final Results
-      <ArrowRight className="h-4 w-4 ml-2" />
-    </Button>
-  )}
-</div>
-
       </div>
     );
   }

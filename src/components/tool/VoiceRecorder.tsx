@@ -106,7 +106,7 @@ export const VoiceRecorder = ({
       const mime = 'audio/webm;codecs=opus';
       if (!MediaRecorder.isTypeSupported(mime)) throw new Error("Recording not supported");
 
-      const recorder = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 256000 });
+      const recorder = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 320000 });
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = e => {

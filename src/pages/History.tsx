@@ -92,6 +92,31 @@ const AudioDownloadDropdown = ({
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      // Build streaming URL with token
+      const buildStreamUrl = async (rawUrl: string, srcType: "generated"|"recorded") => {
+        try {
+          const u = new URL(rawUrl);
+          const pathParts = u.pathname.split("/");
+          const bucket = pathParts.includes("user-voices") ? "user-voices" : pathParts.includes("user-generates") ? "user-generates" : (srcType === "recorded" ? "user-voices" : "user-generates");
+          const idx = pathParts.indexOf(bucket);
+          const storagePath = idx > -1 ? pathParts.slice(idx + 1).join("/") : rawUrl;
+
+          const issueRes = await fetch(`${supabase.supabaseUrl}/functions/v1/issue-audio-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ bucket, storagePath, ttlSeconds: 3600 })
+          });
+          const issueJson = await issueRes.json();
+          if (!issueRes.ok || !issueJson?.token) throw new Error(issueJson?.error || 'Token issue failed');
+          return `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${issueJson.token}`;
+        } catch {
+          return rawUrl;
+        }
+      };
+
+      const streamUrl = await buildStreamUrl(audioUrl, sourceType);
 
       const response = await fetch(
         `${supabase.supabaseUrl}/functions/v1/convert-audio`,
@@ -102,7 +127,7 @@ const AudioDownloadDropdown = ({
             "Authorization": `Bearer ${session?.access_token}`,
           },
           body: JSON.stringify({
-            audioUrl,
+            audioUrl: streamUrl,
             format,
             sourceType,
           }),

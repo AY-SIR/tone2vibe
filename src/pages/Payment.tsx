@@ -196,10 +196,7 @@ const Payment = () => {
     const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
 
     if (planId === profile?.plan && !isExpired) {
-      toast({
-        title: "Already subscribed",
-        description: `You're already on the ${planId} plan. Use word purchase to buy additional words.`,
-      });
+      // Don't show toast, just switch tab silently
       setActiveTab('words');
       return;
     }
