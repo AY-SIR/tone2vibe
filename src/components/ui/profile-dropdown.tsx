@@ -12,11 +12,29 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { 
-  User, 
-  BarChart3, 
-  History, 
-  CreditCard, 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  BarChart3,
+  History,
+  CreditCard,
   LogOut,
   Settings
 } from 'lucide-react';
@@ -27,10 +45,12 @@ export function ProfileDropdown() {
   const { realTimeWordsUsed, realTimePurchasedWords } = useRealTimeWordCount();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   if (!user || !profile) return null;
 
   const handleSignOut = async () => {
+    setShowConfirmModal(false); // hide modal
     setIsLoading(true);
     try {
       await signOut();
@@ -51,7 +71,6 @@ export function ProfileDropdown() {
       .slice(0, 2);
   };
 
-  // Use real-time values when available
   const planWordsUsed = realTimeWordsUsed || profile.plan_words_used || 0;
   const planLimit = profile.words_limit || 0;
   const purchasedWords = realTimePurchasedWords || profile.word_balance || 0;
@@ -60,99 +79,127 @@ export function ProfileDropdown() {
   const wordsPercentage = planLimit > 0 ? (planWordsUsed / planLimit) * 100 : 0;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-black text-white">
-              {getInitials(profile.full_name || user.email || 'U')}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium leading-none">
-                {profile.full_name || 'User'}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-black text-white">
+                {getInitials(profile.full_name || user.email || 'U')}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-64" align="end" forceMount>
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium leading-none">
+                  {profile.full_name || 'User'}
+                </p>
+                <Badge variant={profile.plan === 'free' ? 'secondary' : 'default'}>
+                  {profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1)}
+                </Badge>
+              </div>
+              <p className="text-xs leading-none text-muted-foreground">
+                {user.email}
               </p>
-              <Badge variant={profile.plan === 'free' ? 'secondary' : 'default'}>
-                {profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1)}
-              </Badge>
+              <div className="flex flex-col space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span>Plan Words:</span>
+                  <span className={planWordsRemaining < 100 ? 'text-red-600' : 'text-gray-600'}>
+                    {planWordsUsed.toLocaleString()}/{planLimit.toLocaleString()}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full ${
+                      wordsPercentage > 90 ? 'bg-red-500' :
+                      wordsPercentage > 75 ? 'bg-yellow-500' : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(wordsPercentage, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Purchased:</span>
+                  <span className="text-blue-600 font-medium">
+                    {purchasedWords > 0 ? purchasedWords.toLocaleString() : "0"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Total available:</span>
+                  <span className="text-gray-800 font-medium">
+                    {totalAvailable.toLocaleString()}
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
-            <div className="flex flex-col space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Plan Words:</span>
-                <span className={planWordsRemaining < 100 ? 'text-red-600' : 'text-gray-600'}>
-                  {planWordsUsed.toLocaleString()}/{planLimit.toLocaleString()}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                <div 
-                  className={`h-1.5 rounded-full ${
-                    wordsPercentage > 90 ? 'bg-red-500' : 
-                    wordsPercentage > 75 ? 'bg-yellow-500' : 'bg-green-500'
-                  }`}
-                  style={{ width: `${Math.min(wordsPercentage, 100)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Purchased:</span>
-                <span className="text-blue-600 font-medium">
-                  {purchasedWords > 0 ? purchasedWords.toLocaleString() : "0"}
-                </span>
-              </div>
-              
-              <div className="flex justify-between text-xs">
-  <span className="text-muted-foreground">Total available:</span>
-  <span className="text-gray-800 font-medium">
-    {totalAvailable.toLocaleString()}
-  </span>
-</div>
-            </div>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
 
-         <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Profile Settings</span>
-        </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Profile Settings</span>
+          </DropdownMenuItem>
 
-         <DropdownMenuItem onClick={() => navigate('/payment')} className="cursor-pointer">
-          <CreditCard className="mr-2 h-4 w-4" />
-          <span>Subscription Plans</span>
-        </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/payment')} className="cursor-pointer">
+            <CreditCard className="mr-2 h-4 w-4" />
+            <span>Subscription Plans</span>
+          </DropdownMenuItem>
 
+          <DropdownMenuItem onClick={() => navigate('/history')} className="cursor-pointer">
+            <History className="mr-2 h-4 w-4" />
+            <span>Voice History</span>
+          </DropdownMenuItem>
 
-        
-        <DropdownMenuItem onClick={() => navigate('/history')} className="cursor-pointer">
-          <History className="mr-2 h-4 w-4" />
-          <span>Voice History</span>
-        </DropdownMenuItem>
-        
+          <DropdownMenuItem onClick={() => navigate('/analytics')} className="cursor-pointer">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            <span>Analytics</span>
+          </DropdownMenuItem>
 
-         <DropdownMenuItem onClick={() => navigate('/analytics')} className="cursor-pointer">
-          <BarChart3 className="mr-2 h-4 w-4" />
-          <span>Analytics</span>
-        </DropdownMenuItem>
+          <DropdownMenuSeparator />
 
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem 
-          onClick={handleSignOut} 
-          className="cursor-pointer text-red-600 focus:text-red-600"
-          disabled={isLoading}
+          <DropdownMenuItem
+            onClick={() => setShowConfirmModal(true)}
+            className="cursor-pointer text-red-600 focus:text-red-600"
+            disabled={isLoading}
+            onSelect={(e) => e.preventDefault()} // Prevents dropdown from closing when dialog opens
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>{isLoading ? 'Signing out...' : 'Sign Out'}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent
+          className="sm:max-w-md w-[95%] rounded-2xl p-6"
         >
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>{isLoading ? 'Signing out...' : 'Sign Out'}</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DialogHeader>
+            <DialogTitle  className="mt-2 mb-4">Are you sure you want to sign out?</DialogTitle>
+            <DialogDescription >
+              This will end your current session and you will be logged out.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowConfirmModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleSignOut}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing out...' : 'Sign Out'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
