@@ -15,8 +15,8 @@ interface ModernStepFiveProps {
   extractedText: string;
   selectedLanguage: string;
   wordCount: number;
-  duration?: number; // This prop is no longer strictly needed but kept for compatibility
-  durationSeconds?: number; // For proper duration tracking
+  duration?: number;
+  durationSeconds?: number;
   onNextGeneration?: () => void;
 }
 
@@ -27,21 +27,19 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   extractedText,
   selectedLanguage,
   wordCount,
-  duration, // Kept for compatibility, but we use actualDuration
-  durationSeconds, // For proper duration tracking
+  duration,
+  durationSeconds,
   onNextGeneration,
 }) => {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
-  // --- FIX ---
-  // 1. Add state for duration and a ref for the audio element
+  // State for duration and a ref for the audio element
   const [actualDuration, setActualDuration] = useState(durationSeconds || duration || 0);
   const audioRef = useRef<HTMLAudioElement>(null);
-  // --- END FIX ---
 
   const formatTime = (timeInSeconds: number = 0) => {
     if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
@@ -50,14 +48,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // --- FIX ---
-  // 2. Add useEffect to reset duration when audioUrl changes
+  // Reset duration when audioUrl changes
   useEffect(() => {
-    // Reset duration when audioUrl changes,
-    // onLoadedMetadata will set the new one
     setActualDuration(0);
   }, [audioUrl]);
-  // --- END FIX ---
 
   const copyToClipboard = async () => {
     try {
@@ -83,9 +77,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }, 1500);
   };
 
-  // --------------------
-  // Audio Conversion & Download
-  // --------------------
   const handleConvertAndDownload = async (format: string) => {
     if (!user) {
       toast({ title: "Login Required", description: "Please login to download audio.", variant: "destructive" });
@@ -100,7 +91,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       toast({ title: "Converting Audio", description: `Converting to ${format.toUpperCase()}...` });
 
-      // Build streaming URL with token
       const buildStreamUrl = async (rawUrl: string) => {
         try {
           const u = new URL(rawUrl);
@@ -169,56 +159,56 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   };
 
   const formats = [
-    { value: "mp3", label: "MP3", desc: "Universal format", icon: <FileAudio /> },
-    { value: "wav", label: "WAV", desc: "Lossless quality", icon: <Volume2 /> },
-    { value: "flac", label: "FLAC", desc: "Compressed lossless", icon: <Download /> },
-    { value: "ogg", label: "OGG", desc: "Open source", icon: <Sparkles /> },
-    { value: "aac", label: "AAC", desc: "Modern codec", icon: <Check /> },
+    { value: "mp3", label: "MP3", desc: "Universal format", icon: <FileAudio className="w-5 h-5" /> },
+    { value: "wav", label: "WAV", desc: "Lossless quality", icon: <Volume2 className="w-5 h-5" /> },
+    { value: "flac", label: "FLAC", desc: "Compressed lossless", icon: <Download className="w-5 h-5" /> },
+    { value: "ogg", label: "OGG", desc: "Open source", icon: <Sparkles className="w-5 h-5" /> },
+    { value: "aac", label: "AAC", desc: "Modern codec", icon: <Check className="w-5 h-5" /> },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
       {/* Success Message */}
-      <div className="text-center space-y-2">
-        <div className="w-16 h-16 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-          <Check className="w-8 h-8 text-green-500" />
+      <div className="text-center space-y-2 sm:space-y-3 py-4">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 animate-pulse">
+          <Check className="w-7 h-7 sm:w-8 sm:h-8 text-green-500" />
         </div>
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-4">
-    Audio Generated Successfully!
-  </h2>
-  <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-md mx-auto">
-    Your complete voice generation is ready with full analytics tracking and history saved.
-  </p>
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent px-4">
+          Audio Generated Successfully!
+        </h2>
+        <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-md mx-auto px-4">
+          Your complete voice generation is ready with full analytics tracking and history saved.
+        </p>
       </div>
 
       {/* Analytics Card - Only for Pro and Premium */}
       {['pro', 'premium'].includes(profile?.plan || '') && (
         <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50/50 to-emerald-50/30">
-          <CardHeader>
+          <CardHeader className="pb-3 sm:pb-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <FileAudio className="w-5 h-5 text-green-600" />
+              <FileAudio className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
               Your Generated Audio
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{wordCount}</div>
-                <div className="text-sm text-muted-foreground">Words Processed</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="text-center p-3">
+                <div className="text-xl sm:text-2xl font-bold text-primary">{wordCount}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Words Processed</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{formatTime(actualDuration)}</div>
-                <div className="text-sm text-muted-foreground">Duration</div>
+              <div className="text-center p-3">
+                <div className="text-xl sm:text-2xl font-bold text-primary">{formatTime(actualDuration)}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Duration</div>
               </div>
-              <div className="text-center">
-                <Badge variant="secondary" className="text-xs">{selectedLanguage}</Badge>
-                <div className="text-sm text-muted-foreground mt-1">Language</div>
+              <div className="text-center p-3">
+                <Badge variant="secondary" className="text-xs mb-1">{selectedLanguage}</Badge>
+                <div className="text-xs sm:text-sm text-muted-foreground">Language</div>
               </div>
-              <div className="text-center">
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <div className="text-center p-3">
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs mb-1">
                   Tracked
                 </Badge>
-                <div className="text-sm text-muted-foreground mt-1">Analytics</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Analytics</div>
               </div>
             </div>
           </CardContent>
@@ -227,23 +217,20 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       {/* Audio Player */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3 sm:pb-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Volume2 className="w-5 h-5" />
+            <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
             Audio Player
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <audio
-            // --- FIX ---
-            // 4. Add ref and onLoadedMetadata handler
             ref={audioRef}
             onLoadedMetadata={() => {
               if (audioRef.current) {
                 setActualDuration(audioRef.current.duration);
               }
             }}
-            // --- END FIX ---
             controls
             className="w-full"
             controlsList="nodownload noplaybackrate"
@@ -253,7 +240,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Your browser does not support the audio element.
           </audio>
           {!actualDuration && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center">
               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
               <span>Loading audio...</span>
             </div>
@@ -263,36 +250,36 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       {/* Original Text */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-base sm:text-lg">
-            <span>Original Text</span>
-            <Button variant="outline" size="sm" onClick={copyToClipboard} className="gap-2">
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'Copied!' : 'Copy'}
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center justify-between text-base sm:text-lg gap-2">
+            <span className="truncate">Original Text</span>
+            <Button variant="outline" size="sm" onClick={copyToClipboard} className="gap-1.5 sm:gap-2 flex-shrink-0 text-xs sm:text-sm">
+              {copied ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : <Copy className="w-3 h-3 sm:w-4 sm:h-4" />}
+              <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
             </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-muted rounded-lg p-4 max-h-40 overflow-y-auto">
-            <p className="text-sm leading-relaxed">{extractedText}</p>
+          <div className="bg-muted rounded-lg p-3 sm:p-4 max-h-32 sm:max-h-40 overflow-y-auto">
+            <p className="text-xs sm:text-sm leading-relaxed">{extractedText}</p>
           </div>
         </CardContent>
       </Card>
 
       {/* Download & Conversion */}
       <Card className="border-2 border-gray-100">
-        <CardHeader>
+        <CardHeader className="pb-3 sm:pb-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Download className="w-5 h-5 text-gray-600" />
+            <Download className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
             Download in Multiple Formats
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground text-center">
+        <CardContent className="space-y-3 sm:space-y-4">
+          <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
             Choose a format to download, or get all popular formats at once
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             {formats.slice(0, 3).map((format) => (
               <Button
                 key={format.value}
@@ -300,19 +287,17 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 disabled={!!downloading}
                 variant="outline"
                 size="lg"
-                className="flex flex-col h-auto py-4 gap-2 hover:border-blue-500 hover:bg-blue-50 transition-all"
+                className="flex flex-col h-auto py-3 sm:py-4 gap-2 hover:border-blue-500 hover:bg-blue-50 transition-all"
               >
-             <div className="flex items-center space-x-2 ">
-  {downloading === format.value ? (
-    <Loader2 className="w-6 h-6 animate-spin" />
-  ) : (
-    format.icon
-  )}
-  <div className="font-semibold ">{format.label}</div>
-</div>
-
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+                  {downloading === format.value ? (
+                    <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
+                  ) : (
+                    format.icon
+                  )}
+                  <div className="font-semibold text-sm sm:text-base">{format.label}</div>
+                </div>
                 <div className="text-center">
-
                   <div className="text-xs text-muted-foreground">{format.desc}</div>
                 </div>
               </Button>
@@ -326,22 +311,23 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                   variant="outline"
                   size="sm"
                   disabled={!!downloading}
-                  className="gap-2"
+                  className="gap-2 text-xs sm:text-sm"
                 >
                   {downloading ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-xs">Converting {downloading.toUpperCase()}...</span>
+                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                      <span className="hidden sm:inline">Converting {downloading.toUpperCase()}...</span>
+                      <span className="sm:hidden">Converting...</span>
                     </>
                   ) : (
                     <>
                       More Formats
-                      <Sparkles className="h-4 w-4" />
+                      <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
                     </>
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-56">
+              <DropdownMenuContent align="center" className="w-48 sm:w-56">
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                   Additional Formats
                 </div>
@@ -350,11 +336,11 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                     key={format.value}
                     onClick={() => handleConvertAndDownload(format.value)}
                     disabled={!!downloading}
-                    className="flex items-center gap-3 py-2 cursor-pointer"
+                    className="flex items-center gap-2 sm:gap-3 py-2 cursor-pointer"
                   >
                     {format.icon}
                     <div className="flex-1">
-                      <div className="font-medium">{format.label}</div>
+                      <div className="font-medium text-sm">{format.label}</div>
                       <div className="text-xs text-muted-foreground">{format.desc}</div>
                     </div>
                   </DropdownMenuItem>
@@ -364,28 +350,28 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           </div>
 
           {downloading && (
-            <div className="flex items-center justify-center gap-2 text-sm text-blue-600 animate-pulse">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Converting to {downloading.toUpperCase()}... This may take a moment</span>
+            <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-blue-600 animate-pulse px-2">
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+              <span className="text-center">Converting to {downloading.toUpperCase()}...</span>
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Next Generation */}
-      <div className="flex justify-center pt-4">
+      <div className="flex justify-center pt-2 sm:pt-4 pb-4">
         {isRefreshing ? (
-          <div className="flex items-center space-x-3 px-8 py-3 bg-blue-50 rounded-lg">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-            <span className="text-blue-700 font-medium">Refreshing...</span>
+          <div className="flex items-center space-x-2 sm:space-x-3 px-6 sm:px-8 py-2.5 sm:py-3 bg-blue-50 rounded-lg">
+            <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-blue-600" />
+            <span className="text-sm sm:text-base text-blue-700 font-medium">Refreshing...</span>
           </div>
         ) : (
           <Button
             onClick={handleNextGeneration}
             size="lg"
-            className="px-8 py-3 text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
+            className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl w-full sm:w-auto"
           >
-            <Sparkles className="w-5 h-5 mr-2" />
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
             Next Generation
           </Button>
         )}
