@@ -203,10 +203,22 @@ export const VoiceRecorder = ({
       const { error: uploadError } = await supabase.storage.from('user-voices').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
 
-      // Get the public URL instead of just storing the path
-      const { data: { publicUrl } } = supabase.storage
+      // Get the public URL from Supabase Storage
+      const { data } = supabase.storage
         .from('user-voices')
         .getPublicUrl(filePath);
+
+      const publicUrl = data.publicUrl;
+
+      // Log for debugging
+      console.log('Storage path:', filePath);
+      console.log('Public URL:', publicUrl);
+      
+      // Verify URL format
+      if (!publicUrl.includes('https://')) {
+        console.error('Invalid public URL generated:', publicUrl);
+        throw new Error('Failed to generate valid public URL');
+      }
 
       await supabase.from('user_voices').update({ is_selected: false }).eq('user_id', user.id);
 
