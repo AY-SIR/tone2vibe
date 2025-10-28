@@ -251,10 +251,7 @@ export function PaymentGateway({
       }
 
       // 6️⃣ Show success toast & redirect
-      toast({
-        title: 'Plan Activated Successfully!',
-        description: `Your ${selectedPlan} plan has been activated for free using coupon ${couponValidation.code}!`,
-      });
+
 
       // 3. Replace window.location.href with navigate
       navigate(
@@ -267,7 +264,6 @@ export function PaymentGateway({
     }
   };
 
-  // ... rest of your component code remains the same ...
 
   // Already subscribed card (suppress during processing to avoid flicker)
   if (!isProcessing && !canPurchase && currentPlan === selectedPlan && !isExpired) {

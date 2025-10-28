@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Volume2, FileAudio, Copy, Check, Download, Loader2, Sparkles } from 'lucide-react';
+import { Volume2, FileAudio, Copy, Check, Download, Loader2, Sparkles, Play, Pause, SkipForward } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,30 +22,20 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
 
   let path = rawPath.trim();
 
-  // If it's already a clean path (userId/filename.ext), return it
-  if (!path.includes('http') &&
-      !path.includes('/storage/') &&
-      !path.startsWith('/') &&
-      path.split('/').length === 2) {
+  if (
+    !path.includes('http') &&
+    !path.includes('/storage/') &&
+    !path.startsWith('/') &&
+    path.split('/').length === 2
+  ) {
     return path;
   }
 
-  // Remove protocol and domain if present
   path = path.replace(/^https?:\/\/[^\/]+/, '');
-
-  // Remove storage API paths
   path = path.replace(/^\/storage\/v1\/object\/(public|sign)\//, '');
-
-  // Remove leading slashes
   path = path.replace(/^\/+/, '');
-
-  // Remove bucket name if present
   path = path.replace(new RegExp(`^${bucket}/`), '');
-
-  // Remove query strings
   path = path.replace(/\?.*$/, '');
-
-  // Final cleanup
   path = path.replace(/^\/+/, '');
 
   return path;
@@ -64,9 +55,25 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   const [audioReady, setAudioReady] = useState(false);
   const [secureAudioUrl, setSecureAudioUrl] = useState<string>('');
 
+  // Custom audio player state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(1);
+
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // ✅ LocalStorage Key
+  const storageKey = `audioDuration_${audioUrl}`;
+
+  // ✅ Load duration from localStorage on mount
+  useEffect(() => {
+    const savedDuration = localStorage.getItem(storageKey);
+    if (savedDuration) {
+      setActualDuration(parseFloat(savedDuration));
+    }
+  }, [audioUrl]);
 
   // Get secure audio URL on mount
   useEffect(() => {
@@ -77,9 +84,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Not authenticated");
 
-        // If audioUrl is already a streaming URL with token
         if (audioUrl.includes('stream-audio?token=')) {
-          // Fetch audio with Authorization header
           const audioResponse = await fetch(audioUrl, {
             headers: {
               'Authorization': `Bearer ${session.access_token}`
@@ -90,7 +95,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             throw new Error('Failed to fetch audio');
           }
 
-          // Create blob URL from the audio data
           const audioBlob = await audioResponse.blob();
           const blobUrl = URL.createObjectURL(audioBlob);
 
@@ -99,7 +103,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           return;
         }
 
-        // Otherwise, it's a storage path - get a new token
         const storagePath = cleanStoragePath(audioUrl, 'user-generates');
 
         const issueResponse = await fetch(
@@ -125,7 +128,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         const { token } = await issueResponse.json();
         const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
 
-        // Fetch the audio with Authorization header
         const audioResponse = await fetch(streamUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
@@ -136,7 +138,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           throw new Error('Failed to fetch audio');
         }
 
-        // Create blob URL from the audio data
         const audioBlob = await audioResponse.blob();
         const blobUrl = URL.createObjectURL(audioBlob);
 
@@ -155,7 +156,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
     getSecureUrl();
 
-    // Cleanup: Revoke blob URL on unmount
     return () => {
       if (secureAudioUrl && secureAudioUrl.startsWith('blob:')) {
         URL.revokeObjectURL(secureAudioUrl);
@@ -163,11 +163,63 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     };
   }, [audioUrl]);
 
+  // ✅ Setup audio event listeners
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleLoadedMetadata = () => {
+      setActualDuration(audio.duration);
+      localStorage.setItem(storageKey, audio.duration.toString()); // ✅ Save duration
+    };
+    const handleEnded = () => setIsPlaying(false);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+    };
+  }, [audioReady]);
+
   const formatTime = (timeInSeconds: number = 0) => {
     if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  const handleSeek = (value: number[]) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = value[0];
+    setCurrentTime(value[0]);
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    if (!audioRef.current) return;
+    const newVolume = value[0];
+    audioRef.current.volume = newVolume;
+    setVolume(newVolume);
   };
 
   const copyToClipboard = async () => {
@@ -181,8 +233,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
   };
 
+  // ✅ Clear cached duration when Next Generation clicked
   const handleNextGeneration = () => {
     setIsRefreshing(true);
+    localStorage.removeItem(storageKey); // ✅ Clear cache
     toast({
       title: "Preparing Next Generation",
       description: "Setting up your next voice generation...",
@@ -208,10 +262,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       toast({ title: "Converting Audio", description: `Converting to ${format.toUpperCase()}...` });
 
-      // Use the original audioUrl for download (streaming URL with token)
       let downloadUrl = audioUrl;
 
-      // If audioUrl is a storage path, get a token for it
       if (!audioUrl.includes('stream-audio?token=')) {
         const storagePath = cleanStoragePath(audioUrl, 'user-generates');
 
@@ -344,7 +396,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </Card>
       )}
 
-      {/* Audio Player */}
+      {/* Custom Audio Player */}
       <Card>
         <CardHeader className="pb-3 sm:pb-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -352,7 +404,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             Audio Player
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {!audioReady ? (
             <div className="flex items-center justify-center gap-2 py-8">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -360,26 +412,57 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             </div>
           ) : (
             <>
-              <audio
-                ref={audioRef}
-                onLoadedMetadata={() => {
-                  if (audioRef.current) {
-                    setActualDuration(audioRef.current.duration);
-                  }
-                }}
-                controls
-                className="w-full"
-                controlsList="nodownload noplaybackrate"
-              >
-                <source src={secureAudioUrl} type="audio/mpeg" />
-                Your browser does not support the audio element.
-              </audio>
-              {actualDuration === 0 && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center">
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-                  <span>Loading audio metadata...</span>
+              <audio ref={audioRef} src={secureAudioUrl} className="hidden" />
+
+
+
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <Slider
+                  value={[currentTime]}
+                  max={actualDuration || 100}
+                  step={0.1}
+                  onValueChange={handleSeek}
+                  disabled={!audioReady}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(actualDuration)}</span>
                 </div>
-              )}
+              </div>
+
+              {/* Volume Control */}
+              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center">
+  <Button
+    onClick={togglePlayPause}
+    size="sm"
+    className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
+    disabled={!audioReady}
+  >
+    {isPlaying ? (
+      <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
+    ) : (
+      <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
+    )}
+  </Button>
+</div>
+
+
+                <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Slider
+                  value={[volume]}
+                  max={1}
+                  step={0.01}
+                  onValueChange={handleVolumeChange}
+                  className="w-32"
+                />
+                <span className="text-xs text-muted-foreground w-10">
+                  {Math.round(volume * 100)}%
+                </span>
+
+              </div>
             </>
           )}
         </CardContent>
@@ -407,13 +490,11 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       <Card className="border-2 border-gray-100">
         <CardHeader className="pb-3 sm:pb-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg mb-4">
-            <Download className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 " />
+            <Download className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
             Download in Multiple Formats
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 sm:space-y-4">
-
-
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             {formats.slice(0, 3).map((format) => (
               <Button
@@ -457,7 +538,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                   ) : (
                     <>
                       More Formats
-                      <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
+
                     </>
                   )}
                 </Button>
@@ -486,7 +567,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
           {downloading && (
             <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-blue-600 animate-pulse px-2">
-              <Loader2 className="w-3 h-3 sm:w-4 sm:w-4 animate-spin" />
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
               <span className="text-center">Converting to {downloading.toUpperCase()}...</span>
             </div>
           )}
@@ -506,8 +587,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             size="lg"
             className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl w-full sm:w-auto"
           >
-            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
             Next Generation
+                        <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+
           </Button>
         )}
       </div>

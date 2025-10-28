@@ -241,6 +241,8 @@ const Tool = () => {
     toast({
       title: "Ready for New Generation",
       description: "All data cleared. Start fresh!",
+        duration: 3000, // <-- Auto-hide after 3 seconds
+
     });
   };
 

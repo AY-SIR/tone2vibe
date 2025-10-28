@@ -30,56 +30,70 @@ export class CouponService {
   static async validateCoupon(
     code: string,
     amount: number,
-    type?: 'subscription' | 'words' | 'both'
+    type?: "subscription" | "words" | "both"
   ): Promise<CouponValidation> {
     if (!code) {
-      return { isValid: false, discount: 0, message: "Please provide a coupon code." };
+      return {
+        isValid: false,
+        discount: 0,
+        message: "Please provide a coupon code.",
+      };
     }
 
     try {
-      // Fetch coupon with case-insensitive match
-      let query = supabase
-        .from("coupons")
-        .select("*")
-        .ilike("code", code) // case-insensitive
-        .maybeSingle();
+      // Base query
+      let query = supabase.from("coupons").select("*").ilike("code", code);
 
       // Apply type filter if provided
-      if (type) {
-        query = supabase
-          .from("coupons")
-          .select("*")
-          .ilike("code", code)
-          .eq("type", type)
-          .maybeSingle();
-      }
+      if (type) query = query.eq("type", type);
 
-      const { data, error } = await query;
+      // Execute query
+      const { data, error } = await query.maybeSingle();
 
       if (error) {
         console.error("Error fetching coupon:", error);
-        return { isValid: false, discount: 0, message: "Error validating coupon. Please try again." };
+        return {
+          isValid: false,
+          discount: 0,
+          message: "Error validating coupon. Please try again.",
+        };
       }
 
       if (!data) {
-        return { isValid: false, discount: 0, message: "Invalid coupon code." };
+        return {
+          isValid: false,
+          discount: 0,
+          message: "Invalid coupon code.",
+        };
       }
 
       const coupon = data as any;
 
       // Check if coupon is active
       if (!coupon.active) {
-        return { isValid: false, discount: 0, message: "This coupon is no longer active." };
+        return {
+          isValid: false,
+          discount: 0,
+          message: "This coupon is no longer active.",
+        };
       }
 
       // Check expiration
       if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-        return { isValid: false, discount: 0, message: "This coupon has expired." };
+        return {
+          isValid: false,
+          discount: 0,
+          message: "This coupon has expired.",
+        };
       }
 
-      // Check max uses
+      // Check usage limit
       if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
-        return { isValid: false, discount: 0, message: "This coupon has reached its usage limit." };
+        return {
+          isValid: false,
+          discount: 0,
+          message: "This coupon has reached its usage limit.",
+        };
       }
 
       // Calculate discount
@@ -107,9 +121,13 @@ export class CouponService {
           last_used_at: coupon.last_used_at,
         },
       };
-    } catch (err: any) {
+    } catch (err) {
       console.error("Unexpected error in validateCoupon:", err);
-      return { isValid: false, discount: 0, message: "Unexpected error occurred. Try again later." };
+      return {
+        isValid: false,
+        discount: 0,
+        message: "Unexpected error occurred. Try again later.",
+      };
     }
   }
 }
