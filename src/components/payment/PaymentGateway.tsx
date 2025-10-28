@@ -446,7 +446,7 @@ export function PaymentGateway({
           {/* Security Notice */}
           <div className="text-sm text-gray-500 text-center mt-2">
             <div className="flex items-center justify-center space-x-2">
-              <span>🔒</span>
+
               <span>{finalAmount === 0 ? 'Secure free activation' : 'Secure payment processing'}</span>
             </div>
             <div className="mt-1 text-xs">
