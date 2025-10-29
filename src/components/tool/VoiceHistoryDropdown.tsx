@@ -15,7 +15,6 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
 
   let path = rawPath.trim();
 
-  // If it's already a clean path (userId/filename.ext), return it
   if (!path.includes('http') &&
       !path.includes('/storage/') &&
       !path.startsWith('/') &&
@@ -23,22 +22,11 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
     return path;
   }
 
-  // Remove protocol and domain if present
   path = path.replace(/^https?:\/\/[^\/]+/, '');
-
-  // Remove storage API paths
   path = path.replace(/^\/storage\/v1\/object\/(public|sign)\//, '');
-
-  // Remove leading slashes
   path = path.replace(/^\/+/, '');
-
-  // Remove bucket name if present
   path = path.replace(new RegExp(`^${bucket}/`), '');
-
-  // Remove query strings
   path = path.replace(/\?.*$/, '');
-
-  // Final cleanup
   path = path.replace(/^\/+/, '');
 
   return path;
@@ -190,7 +178,6 @@ export const VoiceHistoryDropdown = ({
     fetchUserVoices();
   }, [user, profile?.plan, selectedLanguage]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -225,7 +212,6 @@ export const VoiceHistoryDropdown = ({
       return;
     }
 
-    // Toggle playback if same voice
     if (playingVoiceId === voice.id) {
       stopPlayback();
       return;
@@ -237,37 +223,36 @@ export const VoiceHistoryDropdown = ({
     try {
       let blobUrl: string;
 
-      // Check if we have cached this audio
       if (audioBlobCacheRef.current.has(voice.id)) {
         blobUrl = audioBlobCacheRef.current.get(voice.id)!;
       } else {
-        // Get current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // ✅ FIX: Get session properly
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError || !session) {
-          throw new Error("Not authenticated");
+        if (sessionError || !sessionData.session) {
+          throw new Error("Not authenticated. Please log in again.");
         }
 
-        // Clean the storage path
+        const session = sessionData.session;
+
         const cleanPath = cleanStoragePath(voice.audio_url, 'user-voices');
 
         if (!cleanPath || cleanPath.length === 0) {
           throw new Error("Invalid audio path");
         }
 
-        // Validate path format
         const pathParts = cleanPath.split('/');
         if (pathParts.length !== 2) {
           throw new Error("Invalid audio path format");
         }
 
-        // Request token from edge function
         const tokenRequestBody = {
           bucket: 'user-voices',
           storagePath: cleanPath,
           ttlSeconds: 86400
         };
 
+        // ✅ FIX: Proper Authorization header
         const issueResponse = await fetch(
           `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
           {
@@ -275,26 +260,26 @@ export const VoiceHistoryDropdown = ({
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`,
+              'apikey': session.access_token // Some Supabase configs need this
             },
             body: JSON.stringify(tokenRequestBody),
           }
         );
 
         if (!issueResponse.ok) {
-          const errorData = await issueResponse.json();
-          throw new Error(errorData.error || 'Failed to create playback token');
+          const errorText = await issueResponse.text();
+          console.error('Token request failed:', errorText);
+          throw new Error(`Failed to create playback token: ${issueResponse.status}`);
         }
 
-        const { token, ok } = await issueResponse.json();
+        const tokenData = await issueResponse.json();
 
-        if (!ok || !token) {
+        if (!tokenData.ok || !tokenData.token) {
           throw new Error('Invalid token response');
         }
 
-        // Create streaming URL with token
-        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
 
-        // Fetch the audio with Authorization header
         const audioResponse = await fetch(streamUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
@@ -305,21 +290,17 @@ export const VoiceHistoryDropdown = ({
           throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
         }
 
-        // Create blob from response
         const audioBlob = await audioResponse.blob();
         blobUrl = URL.createObjectURL(audioBlob);
 
-        // Cache the blob URL
         audioBlobCacheRef.current.set(voice.id, blobUrl);
       }
 
-      // Create audio element with blob URL
       audioBlobUrlRef.current = blobUrl;
       const audio = new Audio(blobUrl);
 
       audioRef.current = audio;
 
-      // Setup event listeners
       audio.onended = () => {
         setPlayingVoiceId(null);
         setLoadingVoiceId(null);
@@ -330,7 +311,6 @@ export const VoiceHistoryDropdown = ({
         console.error('Audio playback error:', e);
         stopPlayback();
 
-        // Remove from cache if playback failed
         if (audioBlobCacheRef.current.has(voice.id)) {
           URL.revokeObjectURL(audioBlobCacheRef.current.get(voice.id)!);
           audioBlobCacheRef.current.delete(voice.id);
@@ -343,7 +323,6 @@ export const VoiceHistoryDropdown = ({
         });
       };
 
-      // Attempt playback
       await audio.play();
 
       setPlayingVoiceId(voice.id);
