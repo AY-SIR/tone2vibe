@@ -671,7 +671,7 @@ const handleVoiceRecorded = (blob: Blob) => {
                                     <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                   )}
                                   {isSelected && (
-                                    <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
+                                    <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                                   )}
                                 </div>
                                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">

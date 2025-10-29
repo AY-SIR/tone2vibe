@@ -102,19 +102,81 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
   ];
 
+   // FIXED: Much more accurate code detection
   const isCodeDetected = (text: string): boolean => {
-    const codePatterns = [
-      /function\s+\w+\s*\(|def\s+\w+\s*\(/,
-      /(const|let|var)\s+\w+\s*=[^>]/,
-      /class\s+\w+/,
-      /<[^>]+>/,
-      /\/\/[^\n]|\/\*[\s\S]*?\*\/|#[^\n]+/,
-      /(import|export)\s+.*\s+from/,
-      /console\.log\(|System\.out\.println\(/,
-      /\([^)]*\)\s*=>/,
-      /{\s*"\w+"\s*:/,
-    ];
-    return codePatterns.some(pattern => pattern.test(text));
+    if (!text || text.trim().length < 20) return false;
+
+    // Count how many code patterns match
+    let codeIndicators = 0;
+    const lines = text.split('\n');
+
+    // 1. Check for function declarations (must be at line start or after whitespace)
+    if (/^\s*(function\s+\w+\s*\(|def\s+\w+\s*\(|const\s+\w+\s*=\s*\()/m.test(text)) {
+      codeIndicators += 2;
+    }
+
+    // 2. Check for variable declarations with proper context
+    const varMatches = text.match(/^\s*(const|let|var)\s+\w+\s*=/gm);
+    if (varMatches && varMatches.length >= 3) { // Need multiple declarations
+      codeIndicators += 2;
+    }
+
+    // 3. Check for class declarations
+    if (/^\s*class\s+[A-Z]\w+/m.test(text)) {
+      codeIndicators += 2;
+    }
+
+    // 4. Check for import/export statements
+    const importExportMatches = text.match(/^\s*(import|export)\s+/gm);
+    if (importExportMatches && importExportMatches.length >= 2) {
+      codeIndicators += 2;
+    }
+
+    // 5. Check for console/print statements (multiple required)
+    const consoleMatches = text.match(/(console\.(log|error|warn)|System\.out\.println|print\()/g);
+    if (consoleMatches && consoleMatches.length >= 2) {
+      codeIndicators += 1;
+    }
+
+    // 6. Check for arrow functions (multiple required)
+    const arrowMatches = text.match(/\([^)]*\)\s*=>/g);
+    if (arrowMatches && arrowMatches.length >= 3) {
+      codeIndicators += 1;
+    }
+
+    // 7. Check for code comments (multiple lines)
+    const commentMatches = text.match(/^\s*(\/\/|#|\/\*)/gm);
+    if (commentMatches && commentMatches.length >= 3) {
+      codeIndicators += 1;
+    }
+
+    // 8. Check for multiple semicolons at line endings (code pattern)
+    const semicolonLines = lines.filter(line => /;\s*$/.test(line.trim()));
+    if (semicolonLines.length >= 5) {
+      codeIndicators += 1;
+    }
+
+    // 9. Check for curly braces on their own lines (code formatting)
+    const bracesOnOwnLine = lines.filter(line => /^\s*[{}]\s*$/.test(line));
+    if (bracesOnOwnLine.length >= 3) {
+      codeIndicators += 1;
+    }
+
+    // 10. Check code-to-prose ratio
+    const codelikeLinesCount = lines.filter(line => {
+      const trimmed = line.trim();
+      return trimmed.length > 0 && (
+        /^\s*(if|else|for|while|switch|case|return|break|continue)\s*[\(\{]/.test(trimmed) ||
+        /[;{}]\s*$/.test(trimmed)
+      );
+    }).length;
+
+    if (codelikeLinesCount > lines.length * 0.3) { // More than 30% lines look like code
+      codeIndicators += 2;
+    }
+
+    // Require at least 4 indicators to mark as code (prevents false positives)
+    return codeIndicators >= 4;
   };
 
   const textLengthError = useMemo(() => {
