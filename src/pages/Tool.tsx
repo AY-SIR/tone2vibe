@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,35 +31,61 @@ const Tool = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // FIXED: Ref to scroll to top of page
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const totalSteps = 5;
 
-  // Load saved state from localStorage first
-  const savedState = localStorage.getItem(STORAGE_KEY);
-  const initialState: ToolState = savedState
-    ? JSON.parse(savedState)
-    : {
-        currentStep: 1,
-        completedSteps: [],
-        extractedText: "",
-        wordCount: 0,
-        selectedLanguage: "en-US",
-        selectedVoiceId: "",
-        processedAudioUrl: "",
-      };
+  const getInitialState = (): ToolState => {
+    try {
+      const savedState = sessionStorage.getItem(STORAGE_KEY);
+      if (savedState) {
+        return JSON.parse(savedState);
+      }
+    } catch (error) {
+      console.error("Error loading saved state:", error);
+    }
 
-  const [currentStep, setCurrentStep] = useState(initialState.currentStep);
-  const [completedSteps, setCompletedSteps] = useState<number[]>(initialState.completedSteps);
-  const [extractedText, setExtractedText] = useState(initialState.extractedText);
-  const [wordCount, setWordCount] = useState(initialState.wordCount);
-  const [selectedLanguage, setSelectedLanguage] = useState(initialState.selectedLanguage);
-  const [selectedVoiceId, setSelectedVoiceId] = useState(initialState.selectedVoiceId);
+    return {
+      currentStep: 1,
+      completedSteps: [],
+      extractedText: "",
+      wordCount: 0,
+      selectedLanguage: "en-US",
+      selectedVoiceId: "",
+      processedAudioUrl: "",
+    };
+  };
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [extractedText, setExtractedText] = useState("");
+  const [wordCount, setWordCount] = useState(0);
+  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
+  const [selectedVoiceId, setSelectedVoiceId] = useState("");
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
-  const [processedAudioUrl, setProcessedAudioUrl] = useState(initialState.processedAudioUrl);
+  const [processedAudioUrl, setProcessedAudioUrl] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Persist state to localStorage whenever it changes
   useEffect(() => {
+    if (!loading && user && !isInitialized) {
+      const initialState = getInitialState();
+      setCurrentStep(initialState.currentStep);
+      setCompletedSteps(initialState.completedSteps);
+      setExtractedText(initialState.extractedText);
+      setWordCount(initialState.wordCount);
+      setSelectedLanguage(initialState.selectedLanguage);
+      setSelectedVoiceId(initialState.selectedVoiceId);
+      setProcessedAudioUrl(initialState.processedAudioUrl);
+      setIsInitialized(true);
+    }
+  }, [loading, user, isInitialized]);
+
+  useEffect(() => {
+  if (!isInitialized || currentStep === 5) return; // ⬅️ skip saving at step 5
+
     try {
       const state: ToolState = {
         currentStep,
@@ -70,18 +96,35 @@ const Tool = () => {
         selectedVoiceId,
         processedAudioUrl,
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
       console.error("Error saving state:", error);
     }
-  }, [currentStep, completedSteps, extractedText, wordCount, selectedLanguage, selectedVoiceId, processedAudioUrl]);
+  }, [
+    currentStep,
+    completedSteps,
+    extractedText,
+    wordCount,
+    selectedLanguage,
+    selectedVoiceId,
+    processedAudioUrl,
+    isInitialized
+  ]);
 
-  // Redirect if not logged in
+  // FIXED: Scroll to top whenever currentStep changes
+  useEffect(() => {
+    if (isInitialized) {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  }, [currentStep, isInitialized]);
+
   useEffect(() => {
     if (!loading && !user) navigate("/");
   }, [user, loading, navigate]);
 
-  // Update word count
   useEffect(() => {
     if (!extractedText) {
       setWordCount(0);
@@ -137,15 +180,11 @@ const Tool = () => {
 
   const handlePrevious = useCallback(() => {
     if (currentStep > 1) {
-      // Only reset data if going back from step 4 (audio generation)
-      // Don't reset voice recording or selection when going back from step 4 to step 3
       if (currentStep === 5) {
-        // Going back from step 5 to 4: Reset download/save data
-        // Keep the processedAudioUrl so user can regenerate if needed
+        // Going back from step 5 to 4: Keep everything
       } else if (currentStep === 4) {
         // Going back from step 4 to 3: Reset audio generation data only
         setProcessedAudioUrl("");
-        // DON'T reset voice recording or voice selection here
       } else if (currentStep === 3) {
         // Going back from step 3 to 2: Reset voice selection data
         setSelectedVoiceId("");
@@ -157,10 +196,7 @@ const Tool = () => {
         setSelectedLanguage("en-US");
       }
 
-      // Remove current step from completed steps
       setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
-
-      // Move to previous step
       setCurrentStep(currentStep - 1);
     }
   }, [currentStep]);
@@ -183,8 +219,6 @@ const Tool = () => {
   const handleVoiceRecorded = (blob: Blob) => {
     setVoiceRecording(blob);
     setSelectedVoiceId("");
-    // Don't auto-proceed - let user confirm the recording first
-    // User can manually click Next button when ready
   };
 
   const handleVoiceSelect = (voiceId: string) => {
@@ -230,7 +264,7 @@ const Tool = () => {
     setCompletedSteps([]);
 
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     } catch (error) {
       console.error("Error clearing saved state:", error);
     }
@@ -241,8 +275,7 @@ const Tool = () => {
     toast({
       title: "Ready for New Generation",
       description: "All data cleared. Start fresh!",
-        duration: 3000, // <-- Auto-hide after 3 seconds
-
+      duration: 3000,
     });
   };
 
@@ -252,12 +285,13 @@ const Tool = () => {
   );
 
   const remainingWords = useMemo(() => {
-    const planWordsAvailable = Math.max(0, profile?.words_limit - (profile?.plan_words_used || 0));
-    const purchasedWords = profile?.word_balance || 0;
+    if (!profile) return 0;
+    const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
+    const purchasedWords = profile.word_balance || 0;
     return planWordsAvailable + purchasedWords;
   }, [profile]);
 
-  if (loading) {
+  if (loading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -271,7 +305,7 @@ const Tool = () => {
     <>
       <LoadingOverlay isVisible={isProcessing} message={processingStep || "Processing your request..."} />
 
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background" ref={containerRef}>
         <div className="sticky top-2 z-50">
           <Header />
         </div>

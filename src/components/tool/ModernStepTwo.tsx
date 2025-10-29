@@ -471,22 +471,22 @@ const showTranslateIcon =
         </CardContent>
       </Card>
 
-      <Card className="bg-muted/50 border-dashed">
+      <Card className=" border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
-            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+            <div className="p-3 sm:p-4 bg-muted/50 rounded-lg">
               <div className="text-lg sm:text-2xl font-bold">{currentWordCount}</div>
               <div className="text-xs sm:text-sm text-muted-foreground">Words</div>
             </div>
-            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+            <div className="p-3 sm:p-4 bg-muted/50 rounded-lg">
               <div className="text-lg sm:text-2xl font-bold">{editedText.replace(/\s/g, '').length}</div>
               <div className="text-xs sm:text-sm text-muted-foreground">Characters</div>
             </div>
-            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+            <div className="p-3 sm:p-4 bg-muted/50 rounded-lg">
               <div className="text-lg sm:text-2xl font-bold">~{Math.ceil(currentWordCount / 150)} min</div>
               <div className="text-xs sm:text-sm text-muted-foreground">Speaking Time</div>
             </div>
-            <div className="p-3 sm:p-4 bg-background/50 rounded-lg">
+            <div className="p-3 sm:p-4 bg-muted/50 rounded-lg">
               <div className="text-lg sm:text-2xl font-bold text-primary truncate" title={languages.find(l => l.code === selectedLanguage)?.name}>
                 {languages.find(l => l.code === selectedLanguage)?.name || 'Unknown'}
               </div>

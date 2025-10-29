@@ -65,7 +65,6 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
 
   let path = rawPath.trim();
 
-  // If it's already a clean path (userId/filename.ext), return it
   if (!path.includes('http') &&
       !path.includes('/storage/') &&
       !path.startsWith('/') &&
@@ -73,26 +72,88 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
     return path;
   }
 
-  // Remove protocol and domain if present
   path = path.replace(/^https?:\/\/[^\/]+/, '');
-
-  // Remove storage API paths
   path = path.replace(/^\/storage\/v1\/object\/(public|sign)\//, '');
-
-  // Remove leading slashes
   path = path.replace(/^\/+/, '');
-
-  // Remove bucket name if present
   path = path.replace(new RegExp(`^${bucket}/`), '');
-
-  // Remove query strings
   path = path.replace(/\?.*$/, '');
-
-  // Final cleanup
   path = path.replace(/^\/+/, '');
 
   return path;
 };
+
+// ============================================
+// TOKEN CACHE MANAGER
+// ============================================
+class TokenCache {
+  private cache: Map<string, { token: string; expiresAt: Date }> = new Map();
+
+  async getOrFetchToken(
+    bucket: string,
+    storagePath: string,
+    sessionToken: string,
+    supabaseUrl: string
+  ): Promise<string> {
+    const key = `${bucket}:${storagePath}`;
+    const cached = this.cache.get(key);
+
+    // Return cached token if valid for at least 5 more minutes
+    if (cached && cached.expiresAt.getTime() - Date.now() > 5 * 60 * 1000) {
+      return cached.token;
+    }
+
+    // Fetch new token
+    const tokenResponse = await fetch(
+      `${supabaseUrl}/functions/v1/issue-audio-token`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          bucket,
+          storagePath,
+          ttlSeconds: 86400
+        })
+      }
+    );
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json();
+      throw new Error(errorData.error || 'Failed to get token');
+    }
+
+    const tokenData = await tokenResponse.json();
+    if (!tokenData.ok || !tokenData.token) {
+      throw new Error('Invalid token response');
+    }
+
+    // Cache the token
+    this.cache.set(key, {
+      token: tokenData.token,
+      expiresAt: new Date(tokenData.expires_at)
+    });
+
+    return tokenData.token;
+  }
+
+  clearExpired() {
+    const now = Date.now();
+    for (const [key, value] of this.cache.entries()) {
+      if (value.expiresAt.getTime() <= now) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  clear() {
+    this.cache.clear();
+  }
+}
+
+// Global token cache instance
+const tokenCache = new TokenCache();
 
 // ============================================
 // TYPES
@@ -148,59 +209,31 @@ const AudioDownloadDropdown = ({
       const bucket = sourceType === "recorded" ? "user-voices" : "user-generates";
       const cleanPath = cleanStoragePath(audioUrl, bucket);
 
-      // Get token for streaming
-      const tokenResponse = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            bucket,
-            storagePath: cleanPath,
-            ttlSeconds: 3600
-          })
-        }
+      // Get or reuse cached token
+      const token = await tokenCache.getOrFetchToken(
+        bucket,
+        cleanPath,
+        session.access_token,
+        supabase.supabaseUrl
       );
 
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        throw new Error(errorData.error || 'Failed to get download token');
-      }
+      const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
 
-      const tokenData = await tokenResponse.json();
-      if (!tokenData.ok || !tokenData.token) {
-        throw new Error('Invalid token response');
-      }
-
-      const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
-
-      // Call convert-audio with the authenticated stream URL
-      const response = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/convert-audio`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            audioUrl: streamUrl,
-            format,
-            sourceType,
-          }),
+      // Download the audio file
+      const audioResponse = await fetch(streamUrl, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
         }
-      );
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Conversion failed");
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const audioBlob = await audioResponse.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(audioBlob);
       const link = document.createElement("a");
       link.href = url;
       link.download = `${fileName}.${format}`;
@@ -209,10 +242,18 @@ const AudioDownloadDropdown = ({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast({
-        title: "Download Complete",
-        description: `${fileName}.${format} has been downloaded successfully.`,
-      });
+      // Inform user about format
+      if (format !== 'mp3') {
+        toast({
+          title: "Download Complete",
+          description: `Downloaded as MP3 (${format.toUpperCase()} conversion not available). You can convert it using external tools.`,
+        });
+      } else {
+        toast({
+          title: "Download Complete",
+          description: `${fileName}.mp3 has been downloaded successfully.`,
+        });
+      }
     } catch (error: any) {
       console.error("Download error:", error);
       toast({
@@ -257,7 +298,7 @@ const AudioDownloadDropdown = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom" sideOffset={5} className="w-56">
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-          Single Format
+          Download Format
         </div>
         {formats.map((format) => (
           <DropdownMenuItem
@@ -435,7 +476,6 @@ const History = memo(() => {
   const [languageFilter, setLanguageFilter] = useState("all");
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
-  const [loadingAudioMeta, setLoadingAudioMeta] = useState<Record<string, boolean>>({});
 
   const [projects, setProjects] = useState(projectsFromHook || []);
   const [userVoices, setUserVoices] = useState<UserVoice[]>([]);
@@ -446,7 +486,6 @@ const History = memo(() => {
   const [voicesFetched, setVoicesFetched] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioBlobUrlRef = useRef<string | null>(null);
   const audioBlobCacheRef = useRef<Map<string, string>>(new Map());
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -455,19 +494,29 @@ const History = memo(() => {
     setProjects(projectsFromHook || []);
   }, [projectsFromHook]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
-      }
-      if (audioBlobUrlRef.current) {
-        URL.revokeObjectURL(audioBlobUrlRef.current);
+        audioRef.current.src = '';
+        audioRef.current = null;
       }
       audioBlobCacheRef.current.forEach((blobUrl) => {
         URL.revokeObjectURL(blobUrl);
       });
       audioBlobCacheRef.current.clear();
+      tokenCache.clear();
     };
+  }, []);
+
+  // Clean expired tokens periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      tokenCache.clearExpired();
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -477,9 +526,7 @@ const History = memo(() => {
   }, [user, navigate]);
 
   useEffect(() => {
-    if (!user || voicesFetched) {
-      return;
-    }
+    if (!user || voicesFetched) return;
 
     let isMounted = true;
 
@@ -520,10 +567,37 @@ const History = memo(() => {
     setDeleteCandidate(itemToDelete);
   };
 
+  const stopCurrentAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.src = '';
+    }
+    setPlayingAudio(null);
+  };
+
   const executeDelete = async () => {
     if (!deleteCandidate) return;
 
     const itemToDelete = deleteCandidate;
+
+    // Stop audio immediately if playing
+    if (playingAudio === itemToDelete.id) {
+      stopCurrentAudio();
+      setLoadingAudio(null);
+    }
+
+    // Clean up cached blob
+    if (audioBlobCacheRef.current.has(itemToDelete.id)) {
+      const cachedUrl = audioBlobCacheRef.current.get(itemToDelete.id);
+      if (cachedUrl) {
+        URL.revokeObjectURL(cachedUrl);
+      }
+      audioBlobCacheRef.current.delete(itemToDelete.id);
+    }
+
     setIsDeleting(itemToDelete.id);
     setDeleteCandidate(null);
 
@@ -538,7 +612,6 @@ const History = memo(() => {
         try {
           const bucket = isRecorded ? 'user-voices' : 'user-generates';
           const cleanPath = cleanStoragePath(itemToDelete.audio_url, bucket);
-
           const { error: storageError } = await supabase.storage.from(bucket).remove([cleanPath]);
           if (storageError) console.error('Storage Error:', storageError.message);
         } catch (e) {
@@ -600,19 +673,15 @@ const History = memo(() => {
   }, [projects, userVoices]);
 
   const playAudio = async (project: HistoryItem) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-    }
-
+    // If clicking same audio, stop it immediately
     if (playingAudio === project.id) {
-      setPlayingAudio(null);
+      stopCurrentAudio();
       setLoadingAudio(null);
-      audioRef.current = null;
-      audioBlobUrlRef.current = null;
       return;
     }
+
+    // Stop any currently playing audio IMMEDIATELY
+    stopCurrentAudio();
 
     if (!project.audio_url) {
       toast({
@@ -627,10 +696,28 @@ const History = memo(() => {
 
     try {
       let blobUrl: string;
+      let needsNewFetch = false;
 
+      // Check cache first
       if (audioBlobCacheRef.current.has(project.id)) {
         blobUrl = audioBlobCacheRef.current.get(project.id)!;
+
+        // Verify the blob URL is still valid by testing it
+        try {
+          const testAudio = new Audio();
+          testAudio.src = blobUrl;
+          // If we get here without error, the blob is valid
+        } catch (e) {
+          console.log("Cached blob invalid, fetching new one");
+          URL.revokeObjectURL(blobUrl);
+          audioBlobCacheRef.current.delete(project.id);
+          needsNewFetch = true;
+        }
       } else {
+        needsNewFetch = true;
+      }
+
+      if (needsNewFetch) {
         const bucket = project.source_type === "recorded" ? "user-voices" : "user-generates";
         const cleanPath = cleanStoragePath(project.audio_url, bucket);
 
@@ -644,36 +731,15 @@ const History = memo(() => {
           throw new Error("Not authenticated");
         }
 
-        const tokenRequestBody = {
-          bucket: bucket,
-          storagePath: cleanPath,
-          ttlSeconds: 86400
-        };
-
-        const tokenResponse = await fetch(
-          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify(tokenRequestBody)
-          }
+        // Use cached token or fetch new one
+        const token = await tokenCache.getOrFetchToken(
+          bucket,
+          cleanPath,
+          session.access_token,
+          supabase.supabaseUrl
         );
 
-        if (!tokenResponse.ok) {
-          const errorData = await tokenResponse.json();
-          throw new Error(errorData.error || 'Failed to get playback token');
-        }
-
-        const tokenData = await tokenResponse.json();
-
-        if (!tokenData.ok || !tokenData.token) {
-          throw new Error('Invalid token response');
-        }
-
-        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
+        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
 
         const audioResponse = await fetch(streamUrl, {
           headers: {
@@ -682,64 +748,112 @@ const History = memo(() => {
         });
 
         if (!audioResponse.ok) {
-          const errorText = await audioResponse.text();
           throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
         }
 
         const audioBlob = await audioResponse.blob();
+
+        // Verify it's a valid audio blob
+        if (!audioBlob.type.startsWith('audio/')) {
+          throw new Error("Invalid audio file format");
+        }
+
         blobUrl = URL.createObjectURL(audioBlob);
 
+        // Cache the blob URL
         audioBlobCacheRef.current.set(project.id, blobUrl);
       }
 
-      audioBlobUrlRef.current = blobUrl;
-      const audio = new Audio(blobUrl);
+      // Create new audio element
+      const audio = new Audio();
 
-      setLoadingAudioMeta((m) => ({ ...m, [project.id]: true }));
-
-      audio.onloadedmetadata = () => {
-        setLoadingAudioMeta((m) => ({ ...m, [project.id]: false }));
-      };
-
-      audioRef.current = audio;
-
+      // Set up event handlers BEFORE setting src
       audio.onended = () => {
         setPlayingAudio(null);
         setLoadingAudio(null);
-        audioBlobUrlRef.current = null;
+        // Don't stop or clear audioRef here to keep cache
       };
 
       audio.onerror = (e) => {
         console.error('Audio playback error:', e);
+
+        // Get more detailed error info
+        const mediaError = audio.error;
+        let errorMessage = "The audio file could not be loaded.";
+
+        if (mediaError) {
+          switch (mediaError.code) {
+            case MediaError.MEDIA_ERR_ABORTED:
+              errorMessage = "Audio playback was aborted.";
+              break;
+            case MediaError.MEDIA_ERR_NETWORK:
+              errorMessage = "Network error while loading audio.";
+              break;
+            case MediaError.MEDIA_ERR_DECODE:
+              errorMessage = "Audio file is corrupted or unsupported.";
+              break;
+            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+              errorMessage = "Audio format not supported.";
+              break;
+          }
+        }
+
         toast({
           title: "Playback Error",
-          description: "The audio file could not be loaded.",
+          description: errorMessage,
           variant: "destructive"
         });
-        setPlayingAudio(null);
+
+        stopCurrentAudio();
         setLoadingAudio(null);
 
+        // Remove from cache if error
         if (audioBlobCacheRef.current.has(project.id)) {
-          URL.revokeObjectURL(audioBlobCacheRef.current.get(project.id)!);
+          const cachedUrl = audioBlobCacheRef.current.get(project.id)!;
+          URL.revokeObjectURL(cachedUrl);
           audioBlobCacheRef.current.delete(project.id);
         }
       };
 
-      await audio.play();
+      audio.oncanplaythrough = () => {
+        console.log("Audio ready to play");
+      };
 
+      // Now set the source and load
+      audio.src = blobUrl;
+      audio.load();
+      audioRef.current = audio;
+
+      // Wait for the audio to be ready before playing
+      await new Promise((resolve, reject) => {
+        const loadedHandler = () => {
+          audio.removeEventListener('loadeddata', loadedHandler);
+          audio.removeEventListener('error', errorHandler);
+          resolve(null);
+        };
+
+        const errorHandler = () => {
+          audio.removeEventListener('loadeddata', loadedHandler);
+          audio.removeEventListener('error', errorHandler);
+          reject(new Error('Failed to load audio'));
+        };
+
+        audio.addEventListener('loadeddata', loadedHandler);
+        audio.addEventListener('error', errorHandler);
+      });
+
+      await audio.play();
       setPlayingAudio(project.id);
       setLoadingAudio(null);
 
     } catch (err: any) {
       console.error("Playback failed:", err.message);
-
       toast({
         title: "Playback Failed",
         description: err.message || "Could not play the audio file.",
         variant: "destructive"
       });
-
-      setPlayingAudio(null);
+      stopCurrentAudio();
       setLoadingAudio(null);
     }
   };
