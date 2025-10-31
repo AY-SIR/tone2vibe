@@ -313,6 +313,14 @@ const Index = () => {
 
       </section>
 
+       {/* Divider */}
+      <div className="flex items-center my-8">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <Mic className="mx-3 h-5 w-5 text-gray-900" />
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
+
+
       {/* Animated Beams AFTER Hero */}
       <div className="w-full  overflow-hidden">
         <Animated />

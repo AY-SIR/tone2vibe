@@ -221,11 +221,7 @@ export function PaymentHistoryTabs() {
         <Package className="h-4 w-4" />
         <div className="font-medium">
           {purchase.words_purchased.toLocaleString()} Words
-          {purchase.payment_method === 'coupon' && (
-            <div className="text-xs text-green-600 mt-1">
-              FREE - Applied Coupon
-            </div>
-          )}
+
         </div>
       </div>
       <div className="text-right font-bold">
