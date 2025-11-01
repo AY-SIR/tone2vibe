@@ -545,7 +545,6 @@ const Tool = () => {
                   initialText={extractedText}
                 />
               )}
-
               {currentStep === 2 && (
                 <ModernStepTwo
                   extractedText={extractedText}
@@ -569,7 +568,7 @@ const Tool = () => {
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
                 />
-              )}
+      )}
 
               {currentStep === 4 && (
                 <ModernStepFour

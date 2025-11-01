@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Mic, Lock, Play, Pause, Search, CheckCircle,
-  Clock, Crown, Filter, X, Loader2
+  Clock, Crown, Filter, X
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+
 
 const sampleParagraphs: { [key: string]: string } = {
   "ar-SA": "في الصباح، تنتشر أشعة الشمس الذهبية على المدينة. الأطفال يلعبون في الحدائق ويلتقطون الكرة معًا. الباعة ينظمون أكشاكهم بينما يمر الناس في شوارع المدينة. الطيور تغرد فوق الأشجار، والهواء مليء برائحة الزهور الطازجة. بعض الناس يجلسون على المقاهي يراقبون حركة المدينة.",
@@ -84,7 +86,7 @@ interface ModernStepThreeProps {
   onVoiceRecorded: (blob: Blob) => void;
   onProcessingStart: (step: string) => void;
   onProcessingEnd: () => void;
-  onVoiceSelect: (voiceId: string, type: 'prebuilt' | 'history') => void; // ✅ FIXED: Added type parameter
+  onVoiceSelect: (voiceId: string) => void;
   selectedVoiceId: string;
   selectedLanguage: string;
 }
@@ -107,10 +109,7 @@ export default function ModernStepThree({
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // ============================================================================
-  // STATE MANAGEMENT
-  // ============================================================================
-
+  // State management
   const [voiceMethod, setVoiceMethod] = useState<"record" | "prebuilt" | "history">("record");
   const [selectedVoice, setSelectedVoice] = useState<VoiceSelection | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -119,7 +118,6 @@ export default function ModernStepThree({
   const [prebuiltVoices, setPrebuiltVoices] = useState<PrebuiltVoice[]>([]);
   const [filteredVoices, setFilteredVoices] = useState<PrebuiltVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
-  const [generatingPreview, setGeneratingPreview] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
@@ -129,27 +127,21 @@ export default function ModernStepThree({
 
   const userPlan = profile?.plan || 'free';
 
-  // ============================================================================
-  // CLEAR SELECTION HELPER
-  // ============================================================================
-
+  // Clear selection helper
   const clearSelection = () => {
     setSelectedVoice(null);
-    onVoiceRecorded(new Blob());
-    onVoiceSelect('', 'prebuilt'); // Clear with default type
+    onVoiceRecorded(new Blob()); // Clear any previous blob
+    onVoiceSelect(''); // Clear any previous ID
   };
 
-  // ============================================================================
-  // RESTORE SELECTION ON MOUNT
-  // ============================================================================
-
+  // Restore selection when user navigates back
   useEffect(() => {
     if (selectedVoiceId && !selectedVoice) {
       const restoreSelection = async () => {
-        // Check prebuilt voices first
+        // Attempt to find in prebuilt voices first
         let voice = prebuiltVoices.find(v => v.voice_id === selectedVoiceId);
         if (!voice) {
-          voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
+           voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
         }
 
         if (voice) {
@@ -158,7 +150,7 @@ export default function ModernStepThree({
           return;
         }
 
-        // Check history voices
+        // If not found, check user's history voices
         const { data: historyVoice } = await supabase
           .from('user_voices')
           .select('id, name')
@@ -166,20 +158,24 @@ export default function ModernStepThree({
           .single();
 
         if (historyVoice) {
-          setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
-          setVoiceMethod('history');
+           setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
+           setVoiceMethod('history');
+           return;
         }
+
+        // If it's a recorded voice that hasn't been saved, we can't restore it fully,
+        // but we can acknowledge a selection was made.
+        // This part needs a more robust implementation if you save recordings before generation.
       };
       restoreSelection();
     }
   }, [selectedVoiceId, selectedVoice, prebuiltVoices]);
 
-  // ============================================================================
-  // LOAD PREBUILT VOICES
-  // ============================================================================
 
+  // Load prebuilt voices when tab is active
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
+      // FIX: Don't reload if voices are already present
       if (voiceMethod !== 'prebuilt' || prebuiltVoices.length > 0) return;
 
       setLoadingVoices(true);
@@ -209,10 +205,7 @@ export default function ModernStepThree({
     loadPrebuiltVoices();
   }, [voiceMethod, userPlan, toast, prebuiltVoices.length]);
 
-  // ============================================================================
-  // FILTER AND SORT VOICES
-  // ============================================================================
-
+  // Filter and sort voices based on search and filters
   useEffect(() => {
     let filtered = prebuiltVoices;
 
@@ -269,34 +262,33 @@ export default function ModernStepThree({
     setFilteredVoices(filtered);
   }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter, sortBy, sortOrder]);
 
-  // ============================================================================
-  // VOICE RECORDING HANDLER
-  // ============================================================================
+  // In ModernStepThree.tsx
+// Update the handleVoiceRecorded function:
 
-  const handleVoiceRecorded = (blob: Blob) => {
-    clearSelection();
+const handleVoiceRecorded = (blob: Blob) => {
+  clearSelection();
 
-    const tempVoiceId = `rec-${Date.now()}`;
+  // Create a temporary ID for the recorded voice
+  const tempVoiceId = `rec-${Date.now()}`;
 
-    setSelectedVoice({
-      type: 'record',
-      id: tempVoiceId,
-      name: 'New Recording'
-    });
+  // Set local selection state
+  setSelectedVoice({
+    type: 'record',
+    id: tempVoiceId,
+    name: 'New Recording'
+  });
 
-    onVoiceRecorded(blob);
-    onVoiceSelect(tempVoiceId, 'history'); // ✅ FIXED: Pass type
+  // ✅ FIX: Call both callbacks to update parent state
+  onVoiceRecorded(blob);
+  onVoiceSelect(tempVoiceId); // <-- ADD THIS LINE
 
-    toast({
-      title: "Voice Ready",
-      description: "Your recorded voice is ready for generation."
-    });
-  };
+  toast({
+    title: "Voice Ready",
+    description: "Your recorded voice is ready for generation."
+  });
+};
 
-  // ============================================================================
-  // HISTORY VOICE SELECTION
-  // ============================================================================
-
+  // Handle history voice selection
   const handleHistoryVoiceSelect = async (voiceId: string) => {
     clearSelection();
 
@@ -316,17 +308,14 @@ export default function ModernStepThree({
     }
 
     setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId, 'history'); // ✅ FIXED: Pass type
+    onVoiceSelect(voiceId);
     toast({
       title: "Voice Selected",
       description: `${voice.name} is ready for generation`
     });
   };
 
-  // ============================================================================
-  // ACCESS CHECK
-  // ============================================================================
-
+  // Check if user can access voice
   const canUserAccessVoice = (requiredPlan: string): boolean => {
     return PrebuiltVoiceService.canAccessVoice(
       { required_plan: requiredPlan } as PrebuiltVoice,
@@ -334,14 +323,13 @@ export default function ModernStepThree({
     );
   };
 
-  // ============================================================================
-  // PREBUILT VOICE SELECTION
-  // ============================================================================
-
-  const handlePrebuiltSelect = (voiceId: string) => {
+  // Handle prebuilt voice selection
+  const handlePrebuiltSelect = (voiceId: string) => { // <-- REMOVED ASYNC
     const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
     if (!voice) return;
 
+    // === PERFORMANCE FIX START ===
+    // Validate access using the local data. No need for an async call.
     const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
 
     if (!canAccess) {
@@ -352,9 +340,12 @@ export default function ModernStepThree({
       });
       return;
     }
+    // === PERFORMANCE FIX END ===
 
+    // Track usage for sorting
     PrebuiltVoiceService.trackVoiceUsage(voiceId);
 
+    // Clear previous selection and set new one
     if (currentAudio) {
       currentAudio.pause();
       setCurrentAudio(null);
@@ -362,70 +353,21 @@ export default function ModernStepThree({
 
     clearSelection();
     setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId, 'prebuilt'); // ✅ FIXED: Pass type
+    onVoiceSelect(voiceId);
+
   };
 
-  // ============================================================================
-  // GENERATE PREBUILT PREVIEW (NEW FEATURE)
-  // ============================================================================
-
-  const generatePrebuiltPreview = async (voiceId: string): Promise<string | null> => {
-    try {
-      setGeneratingPreview(voiceId);
-
-      const sampleText = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
-
-      const { data, error } = await supabase.functions.invoke('generate-prebuilt-preview', {
-        body: {
-          voice_id: voiceId,
-          sample_text: sampleText,
-          language: selectedLanguage
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.preview_url) {
-        // Update database with preview URL
-        await supabase
-          .from('prebuilt_voices')
-          .update({ audio_preview_url: data.preview_url })
-          .eq('voice_id', voiceId);
-
-        // Update local state
-        setPrebuiltVoices(prev =>
-          prev.map(v => v.voice_id === voiceId ? { ...v, audio_preview_url: data.preview_url } : v)
-        );
-
-        return data.preview_url;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Preview generation error:', error);
-      toast({
-        title: "Preview Generation Failed",
-        description: "Could not generate voice preview",
-        variant: "destructive"
-      });
-      return null;
-    } finally {
-      setGeneratingPreview(null);
-    }
-  };
-
-  // ============================================================================
-  // PLAY PREBUILT SAMPLE
-  // ============================================================================
-
+  // Play prebuilt voice sample
   const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
     event.stopPropagation();
 
+    // Stop current audio if playing
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.currentTime = 0;
     }
 
+    // Toggle if same voice is clicked
     if (playingVoiceId === voiceId && isPlaying) {
       setIsPlaying(false);
       setPlayingVoiceId(null);
@@ -434,17 +376,17 @@ export default function ModernStepThree({
     }
 
     const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
-
-    let previewUrl = voice?.audio_preview_url;
-
-    // ✅ NEW: Generate preview if doesn't exist
-    if (!previewUrl) {
-      previewUrl = await generatePrebuiltPreview(voiceId);
-      if (!previewUrl) return;
+    if (!voice?.audio_preview_url) {
+      toast({
+        title: "No Preview Available",
+        description: "This voice doesn't have a preview sample.",
+        variant: "destructive"
+      });
+      return;
     }
 
     try {
-      const audio = new Audio(previewUrl);
+      const audio = new Audio(voice.audio_preview_url);
       setCurrentAudio(audio);
       setPlayingVoiceId(voiceId);
       setIsPlaying(true);
@@ -479,10 +421,7 @@ export default function ModernStepThree({
     }
   };
 
-  // ============================================================================
-  // CLEAR FILTERS
-  // ============================================================================
-
+  // Clear all filters
   const clearAllFilters = () => {
     setSearchTerm("");
     setCategoryFilter("all");
@@ -490,19 +429,12 @@ export default function ModernStepThree({
     setPlanFilter("all");
   };
 
-  // ============================================================================
-  // FILTER OPTIONS
-  // ============================================================================
-
+  // Get unique categories and genders for filters
   const categories = Array.from(new Set(prebuiltVoices.map(v => v.category).filter(Boolean)));
   const genders = Array.from(new Set(prebuiltVoices.map(v => v.gender).filter(Boolean)));
 
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
   const hasActiveFilters = searchTerm || categoryFilter !== "all" || genderFilter !== "all" || planFilter !== "all";
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
 
   return (
     <div className="space-y-6">
@@ -584,18 +516,18 @@ export default function ModernStepThree({
         {/* PREBUILT TAB */}
         <TabsContent value="prebuilt" className="space-y-4">
           <Card>
-            <CardHeader className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
-                  <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span>Prebuilt Voices</span>
-                </CardTitle>
-                <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
-                  {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="px-2 sm:px-3 md:px-4">
+           <CardHeader className="space-y-3">
+  <div className="flex items-center justify-between gap-3">
+    <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
+      <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
+      <span>Prebuilt Voices</span>
+    </CardTitle>
+    <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
+      {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
+    </Badge>
+  </div>
+</CardHeader>
+<CardContent className="px-2 sm:px-3 md:px-4">
               {loadingVoices ? (
                 <div className="text-center p-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
@@ -672,6 +604,8 @@ export default function ModernStepThree({
                       </SelectContent>
                     </Select>
 
+
+
                     {hasActiveFilters && (
                       <Button
                         variant="outline"
@@ -699,14 +633,15 @@ export default function ModernStepThree({
                           <SelectItem value="plan">Plan</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                        className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
-                      >
-                        {sortOrder === "asc" ? "↑" : "↓"}
-                      </Button>
+                   <Button
+  variant="outline"
+  size="sm"
+  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+  className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
+>
+  {sortOrder === "asc" ? "↑" : "↓"}
+</Button>
+
                     </div>
                   </div>
 
@@ -717,7 +652,6 @@ export default function ModernStepThree({
                         const canAccess = canUserAccessVoice(voice.required_plan);
                         const isSelected = selectedVoice?.id === voice.voice_id;
                         const isCurrentlyPlaying = playingVoiceId === voice.voice_id && isPlaying;
-                        const isGenerating = generatingPreview === voice.voice_id;
 
                         return (
                           <div
@@ -725,7 +659,7 @@ export default function ModernStepThree({
                             onClick={() => handlePrebuiltSelect(voice.voice_id)}
                             className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${
                               !canAccess ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''
-                            } ${isSelected ? "border-primary bg-primary/5 shadow-md ring-primary/20" : "hover:border-primary/50"}`}
+                            } ${isSelected ? "border-primary bg-primary/5 shadow-md  ring-primary/20" : "hover:border-primary/50"}`}
                           >
                             <div className="flex items-start gap-3">
                               <div className="flex-1 min-w-0">
@@ -744,9 +678,21 @@ export default function ModernStepThree({
                                   {voice.description}
                                 </p>
                                 <div className="flex gap-1 flex-wrap items-center">
-                                  <Badge variant="secondary" className="text-xs capitalize">
-                                    {voice.required_plan}
-                                  </Badge>
+                                  {/* Display plan badge with access info */}
+                                  {(() => {
+                                    const planBadges = [];
+                                    if (voice.required_plan === 'free') planBadges.push('Free');
+                                    if (voice.required_plan === 'pro' || voice.required_plan === 'premium') {
+                                      if (voice.required_plan === 'pro') planBadges.push('Pro');
+                                      if (voice.required_plan === 'premium') planBadges.push('Premium');
+                                    }
+                                    return planBadges.map((label, i) => (
+                                      <Badge key={i} variant="secondary" className="text-xs">
+                                        {label}
+                                      </Badge>
+                                    ));
+                                  })()}
+
                                   {voice.category && (
                                     <Badge variant="outline" className="text-xs capitalize">
                                       {voice.category}
@@ -762,25 +708,30 @@ export default function ModernStepThree({
                                       {voice.accent}
                                     </Badge>
                                   )}
+                                  {sortBy === "usage" && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Used {PrebuiltVoiceService.getVoiceUsageCount(voice.voice_id)} times
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
-
-                              {/* ✅ NEW: Always show play button, generate if needed */}
-                              <Button
-                                variant={isCurrentlyPlaying ? "default" : "outline"}
-                                size="icon"
-                                className="h-9 w-9 flex-shrink-0"
-                                onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
-                                disabled={isGenerating}
-                              >
-                                {isGenerating ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : isCurrentlyPlaying ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
+                              {/* FIX: Only show the play button if a preview URL exists */}
+                                  {voice.audio_preview_url && (
+                                    <Button
+                                      variant={isCurrentlyPlaying ? "default" : "outline"}
+                                      size="icon"
+                                      className="h-9 w-9 flex-shrink-0"
+                                      onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
+                                      // The 'disabled' prop is no longer needed for this check,
+                                      // because the button won't exist at all if there's no URL.
+                                    >
+                                      {isCurrentlyPlaying ? (
+                                        <Pause className="h-4 w-4" />
+                                      ) : (
+                                        <Play className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  )}
                             </div>
                           </div>
                         );
@@ -816,13 +767,14 @@ export default function ModernStepThree({
                   </div>
 
                   {/* Voice Count Info */}
-                  {filteredVoices.length > 0 && (
-                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-                      {selectedLanguage
-                        ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
-                        : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
-                    </div>
-                  )}
+{filteredVoices.length > 0 && (
+  <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+    {selectedLanguage
+      ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
+      : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
+  </div>
+)}
+
                 </div>
               )}
             </CardContent>
@@ -861,4 +813,3 @@ export default function ModernStepThree({
     </div>
   );
 }
-

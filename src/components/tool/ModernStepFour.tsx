@@ -720,7 +720,6 @@ const ModernStepFour = ({
                   Redirecting to download page...
                 </p>
               </div>
-              <Progress value={100} className="h-3" />
             </div>
           </CardContent>
         </Card>

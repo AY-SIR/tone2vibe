@@ -64,24 +64,18 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
   const { user, profile } = useAuth();
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // ✅ LocalStorage Key for duration caching
+  // ✅ LocalStorage Key
   const storageKey = `audioDuration_${audioUrl}`;
 
-  // ============================================================================
-  // LOAD CACHED DURATION
-  // ============================================================================
-
+  // ✅ Load duration from localStorage on mount
   useEffect(() => {
     const savedDuration = localStorage.getItem(storageKey);
     if (savedDuration) {
       setActualDuration(parseFloat(savedDuration));
     }
-  }, [audioUrl, storageKey]);
+  }, [audioUrl]);
 
-  // ============================================================================
-  // GET SECURE AUDIO URL
-  // ============================================================================
-
+  // Get secure audio URL on mount
   useEffect(() => {
     const getSecureUrl = async () => {
       if (!audioUrl) return;
@@ -169,10 +163,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     };
   }, [audioUrl]);
 
-  // ============================================================================
-  // AUDIO EVENT LISTENERS
-  // ============================================================================
-
+  // ✅ Setup audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -199,11 +190,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
     };
-  }, [audioReady, storageKey]);
-
-  // ============================================================================
-  // UTILITY FUNCTIONS
-  // ============================================================================
+  }, [audioReady]);
 
   const formatTime = (timeInSeconds: number = 0) => {
     if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
@@ -246,29 +233,20 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
   };
 
-  // ============================================================================
-  // NEXT GENERATION HANDLER
-  // ============================================================================
-
+  // ✅ Clear cached duration when Next Generation clicked
   const handleNextGeneration = () => {
     setIsRefreshing(true);
-    localStorage.removeItem(storageKey); // ✅ Clear cached duration
-
+    localStorage.removeItem(storageKey); // ✅ Clear cache
     toast({
       title: "Preparing Next Generation",
       description: "Setting up your next voice generation...",
       duration: 2000
     });
-
     setTimeout(() => {
       if (onNextGeneration) onNextGeneration();
       else window.location.href = '/tool';
     }, 1500);
   };
-
-  // ============================================================================
-  // DOWNLOAD & CONVERSION
-  // ============================================================================
 
   const handleConvertAndDownload = async (format: string) => {
     if (!user) {
@@ -359,10 +337,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
   };
 
-  // ============================================================================
-  // FORMAT OPTIONS
-  // ============================================================================
-
   const formats = [
     { value: "mp3", label: "MP3", desc: "Universal format", icon: <FileAudio className="w-5 h-5" /> },
     { value: "wav", label: "WAV", desc: "Lossless quality", icon: <Volume2 className="w-5 h-5" /> },
@@ -370,10 +344,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     { value: "ogg", label: "OGG", desc: "Open source", icon: <Sparkles className="w-5 h-5" /> },
     { value: "aac", label: "AAC", desc: "Modern codec", icon: <Check className="w-5 h-5" /> },
   ];
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
 
   return (
     <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
@@ -430,7 +400,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       <Card>
         <CardHeader className="pb-3 sm:pb-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Volume2 className="w-4 h-4 sm:w-5 sm:w-5" />
+            <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
             Audio Player
           </CardTitle>
         </CardHeader>
@@ -443,6 +413,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           ) : (
             <>
               <audio ref={audioRef} src={secureAudioUrl} className="hidden" />
+
+
 
               {/* Progress Bar */}
               <div className="space-y-2">
@@ -462,20 +434,21 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
               {/* Volume Control */}
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center">
-                  <Button
-                    onClick={togglePlayPause}
-                    size="sm"
-                    className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
-                    disabled={!audioReady}
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
-                    ) : (
-                      <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
-                    )}
-                  </Button>
-                </div>
+            <div className="flex items-center justify-center">
+  <Button
+    onClick={togglePlayPause}
+    size="sm"
+    className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
+    disabled={!audioReady}
+  >
+    {isPlaying ? (
+      <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
+    ) : (
+      <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
+    )}
+  </Button>
+</div>
+
 
                 <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <Slider
@@ -488,6 +461,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 <span className="text-xs text-muted-foreground w-10">
                   {Math.round(volume * 100)}%
                 </span>
+
               </div>
             </>
           )}
@@ -564,6 +538,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                   ) : (
                     <>
                       More Formats
+
                     </>
                   )}
                 </Button>
@@ -592,7 +567,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
           {downloading && (
             <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-blue-600 animate-pulse px-2">
-              <Loader2 className="w-3 h-3 sm:w-4 sm:w-4 animate-spin" />
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
               <span className="text-center">Converting to {downloading.toUpperCase()}...</span>
             </div>
           )}
@@ -613,7 +588,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl w-full sm:w-auto"
           >
             Next Generation
-            <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
+                        <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+
           </Button>
         )}
       </div>
