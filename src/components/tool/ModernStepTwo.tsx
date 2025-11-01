@@ -40,9 +40,10 @@ const ModernStepTwo = ({
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [translationAlertDismissed, setTranslationAlertDismissed] = useState(false);
   const [hasDetectedOnce, setHasDetectedOnce] = useState(false);
-  const [pasteError, setPasteError] = useState<string | null>(null); // <<< NEW >>> State for paste errors
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  const [isEnhanced, setIsEnhanced] = useState(false);
+
   const { toast } = useToast();
-const [isEnhanced, setIsEnhanced] = useState(false);
 
   const MIN_CHARS = 20;
 
@@ -102,67 +103,69 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     { code: 'vi-VN', name: 'Vietnamese', nativeName: 'Tiếng Việt' }
   ];
 
-   // FIXED: Much more accurate code detection
+  // ============================================================================
+  // CODE DETECTION (Same as Step 1)
+  // ============================================================================
+
   const isCodeDetected = (text: string): boolean => {
     if (!text || text.trim().length < 20) return false;
 
-    // Count how many code patterns match
     let codeIndicators = 0;
     const lines = text.split('\n');
 
-    // 1. Check for function declarations (must be at line start or after whitespace)
+    // 1. Function declarations
     if (/^\s*(function\s+\w+\s*\(|def\s+\w+\s*\(|const\s+\w+\s*=\s*\()/m.test(text)) {
       codeIndicators += 2;
     }
 
-    // 2. Check for variable declarations with proper context
+    // 2. Variable declarations
     const varMatches = text.match(/^\s*(const|let|var)\s+\w+\s*=/gm);
-    if (varMatches && varMatches.length >= 3) { // Need multiple declarations
+    if (varMatches && varMatches.length >= 3) {
       codeIndicators += 2;
     }
 
-    // 3. Check for class declarations
+    // 3. Class declarations
     if (/^\s*class\s+[A-Z]\w+/m.test(text)) {
       codeIndicators += 2;
     }
 
-    // 4. Check for import/export statements
+    // 4. Import/export statements
     const importExportMatches = text.match(/^\s*(import|export)\s+/gm);
     if (importExportMatches && importExportMatches.length >= 2) {
       codeIndicators += 2;
     }
 
-    // 5. Check for console/print statements (multiple required)
+    // 5. Console/print statements
     const consoleMatches = text.match(/(console\.(log|error|warn)|System\.out\.println|print\()/g);
     if (consoleMatches && consoleMatches.length >= 2) {
       codeIndicators += 1;
     }
 
-    // 6. Check for arrow functions (multiple required)
+    // 6. Arrow functions
     const arrowMatches = text.match(/\([^)]*\)\s*=>/g);
     if (arrowMatches && arrowMatches.length >= 3) {
       codeIndicators += 1;
     }
 
-    // 7. Check for code comments (multiple lines)
+    // 7. Code comments
     const commentMatches = text.match(/^\s*(\/\/|#|\/\*)/gm);
     if (commentMatches && commentMatches.length >= 3) {
       codeIndicators += 1;
     }
 
-    // 8. Check for multiple semicolons at line endings (code pattern)
+    // 8. Semicolons at line endings
     const semicolonLines = lines.filter(line => /;\s*$/.test(line.trim()));
     if (semicolonLines.length >= 5) {
       codeIndicators += 1;
     }
 
-    // 9. Check for curly braces on their own lines (code formatting)
+    // 9. Curly braces on own lines
     const bracesOnOwnLine = lines.filter(line => /^\s*[{}]\s*$/.test(line));
     if (bracesOnOwnLine.length >= 3) {
       codeIndicators += 1;
     }
 
-    // 10. Check code-to-prose ratio
+    // 10. Code-to-prose ratio
     const codelikeLinesCount = lines.filter(line => {
       const trimmed = line.trim();
       return trimmed.length > 0 && (
@@ -171,13 +174,16 @@ const [isEnhanced, setIsEnhanced] = useState(false);
       );
     }).length;
 
-    if (codelikeLinesCount > lines.length * 0.3) { // More than 30% lines look like code
+    if (codelikeLinesCount > lines.length * 0.3) {
       codeIndicators += 2;
     }
 
-    // Require at least 4 indicators to mark as code (prevents false positives)
     return codeIndicators >= 4;
   };
+
+  // ============================================================================
+  // VALIDATION ERRORS
+  // ============================================================================
 
   const textLengthError = useMemo(() => {
     const trimmedLength = editedText.trim().length;
@@ -194,8 +200,11 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     return null;
   }, [editedText]);
 
-  // <<< MODIFIED >>> Combine all possible text area errors including the new pasteError
   const displayedTextAreaError = textLengthError || codeDetectionError || pasteError;
+
+  // ============================================================================
+  // LANGUAGE DETECTION
+  // ============================================================================
 
   const detectTextLanguage = async (text: string) => {
     if (text.trim().length < MIN_CHARS) {
@@ -250,6 +259,10 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     }
   };
 
+  // ============================================================================
+  // INITIALIZATION
+  // ============================================================================
+
   useEffect(() => {
     setEditedText(extractedText);
     setHasDetectedOnce(false);
@@ -258,20 +271,28 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     }
   }, [extractedText]);
 
-  // <<< MODIFIED >>> Clear paste error when user types
+  // ============================================================================
+  // TEXT CHANGE HANDLER
+  // ============================================================================
+
   const handleTextChange = (newText: string) => {
     setEditedText(newText);
-    onTextUpdated(newText);
+    onTextUpdated(newText); // ✅ Notify parent immediately
     setDetectionError(null);
+
     if (pasteError) {
-      setPasteError(null); // Clear paste error on new input
-
-
+      setPasteError(null);
     }
- if (isEnhanced) setIsEnhanced(false); // <<< Reset enhancement
+
+    if (isEnhanced) {
+      setIsEnhanced(false);
+    }
   };
 
-  // <<< MODIFIED >>> Prevent paste and show alert, but do not change the text
+  // ============================================================================
+  // PASTE HANDLER
+  // ============================================================================
+
   const handleTextPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = e.clipboardData.getData("text");
     if (isCodeDetected(pastedText)) {
@@ -280,6 +301,10 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     }
   };
 
+  // ============================================================================
+  // LANGUAGE CHANGE HANDLER
+  // ============================================================================
+
   const handleLanguageChange = (languageCode: string) => {
     setSelectedLanguage(languageCode);
     onLanguageSelect(languageCode);
@@ -287,6 +312,10 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     setHasDetectedOnce(true);
     setTranslationAlertDismissed(false);
   };
+
+  // ============================================================================
+  // TRANSLATION HANDLER
+  // ============================================================================
 
   const handleTranslateText = async () => {
     if (editedText.trim().length < 3) {
@@ -297,13 +326,15 @@ const [isEnhanced, setIsEnhanced] = useState(false);
       });
       return;
     }
+
     setIsTranslating(true);
     onProcessingStart("Translating text...");
+
     try {
       const result = await translateText(editedText, selectedLanguage, detectedLanguage);
       if (result.success && result.translatedText) {
         setEditedText(result.translatedText);
-        onTextUpdated(result.translatedText);
+        onTextUpdated(result.translatedText); // ✅ Notify parent
         setDetectedLanguage(selectedLanguage);
         setTranslationAlertDismissed(true);
         setDetectionConfidence(1.0);
@@ -331,47 +362,56 @@ const [isEnhanced, setIsEnhanced] = useState(false);
     }
   };
 
- const handleImproveText = async () => {
-  if (editedText.trim().length < 3) {
-    toast({
-      title: "Error",
-      description: "Text is too short to improve",
-      variant: "destructive"
-    });
-    return;
-  }
-  setIsImproving(true);
-  onProcessingStart("Improving text with AI...");
-  try {
-    const result = await GrammarService.improveText(editedText, selectedLanguage);
-    if (result.success && result.improvedText) {
-      setEditedText(result.improvedText);
-      onTextUpdated(result.improvedText);
-      setIsEnhanced(true); // <<< Mark as enhanced
+  // ============================================================================
+  // AI IMPROVEMENT HANDLER
+  // ============================================================================
+
+  const handleImproveText = async () => {
+    if (editedText.trim().length < 3) {
       toast({
-        title: "Text Improved",
-        description: "Grammar and clarity enhanced",
-      });
-    } else {
-      toast({
-        title: "Improvement Failed",
-        description: result.error || "Could not improve text",
+        title: "Error",
+        description: "Text is too short to improve",
         variant: "destructive"
       });
+      return;
     }
-  } catch (error) {
-    console.error('Improvement error:', error);
-    toast({
-      title: "Improvement Error",
-      description: "An error occurred during text improvement",
-      variant: "destructive"
-    });
-  } finally {
-    setIsImproving(false);
-    onProcessingEnd();
-  }
-};
 
+    setIsImproving(true);
+    onProcessingStart("Improving text with AI...");
+
+    try {
+      const result = await GrammarService.improveText(editedText, selectedLanguage);
+      if (result.success && result.improvedText) {
+        setEditedText(result.improvedText);
+        onTextUpdated(result.improvedText); // ✅ Notify parent
+        setIsEnhanced(true);
+        toast({
+          title: "Text Improved",
+          description: "Grammar and clarity enhanced",
+        });
+      } else {
+        toast({
+          title: "Improvement Failed",
+          description: result.error || "Could not improve text",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Improvement error:', error);
+      toast({
+        title: "Improvement Error",
+        description: "An error occurred during text improvement",
+        variant: "destructive"
+      });
+    } finally {
+      setIsImproving(false);
+      onProcessingEnd();
+    }
+  };
+
+  // ============================================================================
+  // WORD COUNT CALCULATION
+  // ============================================================================
 
   const calculateDisplayWordCount = (text: string) => {
     const words = text.trim().split(/\s+/).filter(Boolean);
@@ -380,10 +420,13 @@ const [isEnhanced, setIsEnhanced] = useState(false);
 
   const currentWordCount = calculateDisplayWordCount(editedText);
 
+  // ============================================================================
+  // UI STATE CHECKS
+  // ============================================================================
+
   const languageMismatch = selectedLanguage !== detectedLanguage && detectionConfidence > 0.6;
   const isFallbackLanguage = detectionConfidence <= 0.5 && editedText.trim().length >= MIN_CHARS;
-const showTranslateIcon =
-  !isDetecting && hasDetectedOnce && (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
+  const showTranslateIcon = !isDetecting && hasDetectedOnce && (languageMismatch || isFallbackLanguage) && editedText.trim().length >= 3;
 
   const hasError = detectionError !== null || displayedTextAreaError !== null;
 
@@ -395,8 +438,13 @@ const showTranslateIcon =
     hasError ||
     showTranslateIcon;
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
     <div className="space-y-6">
+      {/* Language Selection */}
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center text-lg">
@@ -426,6 +474,7 @@ const showTranslateIcon =
                 ))}
               </SelectContent>
             </Select>
+
             {showTranslateIcon && (
               <Button
                 onClick={handleTranslateText}
@@ -457,17 +506,17 @@ const showTranslateIcon =
               Translation Required
             </p>
           )}
-
         </CardContent>
       </Card>
 
+      {/* Text Editor */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center text-lg">
               <Edit3 className="h-5 w-5 mr-2" /> Review & Edit Text
             </CardTitle>
-            <Badge variant={"secondary"}>{currentWordCount} W</Badge>
+            <Badge variant="secondary">{currentWordCount} W</Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -480,6 +529,7 @@ const showTranslateIcon =
               hasError ? 'border-red-500 focus-visible:ring-red-500' : ''
             }`}
           />
+
           {displayedTextAreaError && (
             <div className="flex items-start gap-2 mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
               <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -493,37 +543,37 @@ const showTranslateIcon =
               Detecting language...
             </p>
           )}
-          {!isDetecting && detectionConfidence > 0.5 && !detectionError && !displayedTextAreaError &&(
+
+          {!isDetecting && detectionConfidence > 0.5 && !detectionError && !displayedTextAreaError && (
             <p className="text-sm text-green-600 mt-2">
-               Detected: {languages.find(l => l.code === detectedLanguage)?.name}
+              Detected: {languages.find(l => l.code === detectedLanguage)?.name}
             </p>
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
-          <Button
-  onClick={handleImproveText}
-  disabled={isImproving || isTranslating || editedText.trim().length < MIN_CHARS || hasError || isEnhanced} // <<< added isEnhanced
-  variant="outline"
-  className="flex-1"
->
-  {isImproving ? (
-    <>
-      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-      Improving...
-    </>
-  ) : isEnhanced ? (
-    <>
-      <Wand2 className="h-4 w-4 mr-2" />
-      Enhanced
-    </>
-  ) : (
-    <>
-      <Wand2 className="h-4 w-4 mr-2" />
-      Improve with AI
-    </>
-  )}
-</Button>
-
+            <Button
+              onClick={handleImproveText}
+              disabled={isImproving || isTranslating || editedText.trim().length < MIN_CHARS || hasError || isEnhanced}
+              variant="outline"
+              className="flex-1"
+            >
+              {isImproving ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                  Improving...
+                </>
+              ) : isEnhanced ? (
+                <>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Enhanced
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Improve with AI
+                </>
+              )}
+            </Button>
 
             <div className="flex items-center space-x-2 justify-center text-muted-foreground">
               <BookOpen className="h-4 w-4" />
@@ -533,7 +583,8 @@ const showTranslateIcon =
         </CardContent>
       </Card>
 
-      <Card className=" border-dashed">
+      {/* Statistics Card */}
+      <Card className="border-dashed">
         <CardContent className="p-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-center">
             <div className="p-3 sm:p-4 bg-muted/50 rounded-lg">
@@ -558,8 +609,14 @@ const showTranslateIcon =
         </CardContent>
       </Card>
 
+      {/* Navigation Buttons */}
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0">
-        <Button onClick={onPrevious} variant="outline" disabled={isImproving || isTranslating || isDetecting} className="order-2 sm:order-1">
+        <Button
+          onClick={onPrevious}
+          variant="outline"
+          disabled={isImproving || isTranslating || isDetecting}
+          className="order-2 sm:order-1"
+        >
           Back to Upload
         </Button>
         <Button

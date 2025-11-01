@@ -87,7 +87,7 @@ const Tool = () => {
 
   const calculateWordCount = useCallback((text: string): number => {
     if (!text || !text.trim()) return 0;
-    
+
     const words = text.trim().split(/\s+/).filter(w => w.length > 0);
     let totalWordCount = 0;
 
@@ -180,11 +180,11 @@ const Tool = () => {
 
   const hasEnoughWords = useMemo(() => {
     if (!profile || wordCount === 0) return true;
-    
+
     const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
     const purchasedWords = profile.word_balance || 0;
     const totalAvailable = planWordsAvailable + purchasedWords;
-    
+
     return wordCount <= totalAvailable;
   }, [profile, wordCount]);
 
@@ -333,7 +333,7 @@ const Tool = () => {
   const handleTextUpdated = (updatedText: string) => {
     const previousText = extractedText;
     setExtractedText(updatedText);
-    
+
     // Recalculate word count
     const newCount = calculateWordCount(updatedText);
     setWordCount(newCount);
@@ -346,7 +346,7 @@ const Tool = () => {
       setVoiceRecording(null);
       setProcessedAudioUrl("");
       setCompletedSteps(prev => prev.filter(step => step <= 2));
-      
+
       toast({
         title: "Text Changed",
         description: "Voice selection cleared due to significant text changes. Please reselect a voice.",
@@ -508,8 +508,8 @@ const Tool = () => {
                       Need {wordCount.toLocaleString()} words, have {remainingWords.toLocaleString()} remaining.
                     </p>
                   </div>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="destructive"
                     onClick={() => navigate('/payment')}
                   >
@@ -545,6 +545,7 @@ const Tool = () => {
                   initialText={extractedText}
                 />
               )}
+
               {currentStep === 2 && (
                 <ModernStepTwo
                   extractedText={extractedText}
@@ -556,7 +557,7 @@ const Tool = () => {
                   onLanguageSelect={handleLanguageSelect}
                 />
               )}
-              
+
               {currentStep === 3 && (
                 <ModernStepThree
                   onNext={handleNext}
@@ -568,8 +569,8 @@ const Tool = () => {
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
                 />
-      )}
-              
+              )}
+
               {currentStep === 4 && (
                 <ModernStepFour
                   extractedText={extractedText}
@@ -585,7 +586,7 @@ const Tool = () => {
                   onProcessingEnd={handleProcessingEnd}
                 />
               )}
-              
+
               {currentStep === 5 && (
                 <ModernStepFive
                   audioUrl={processedAudioUrl || ""}

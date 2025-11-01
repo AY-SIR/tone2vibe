@@ -1,3 +1,5 @@
+// File: supabase/functions/convert-audio/index.ts
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
@@ -7,34 +9,101 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-type Body = { audioUrl: string; format: "mp3"|"wav"|"flac"|"ogg"|"aac"; sourceType?: "generated"|"recorded" };
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      throw new Error("Missing Supabase environment variables");
+    }
+
     const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-    const anon = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: `Bearer ${token}` } } });
-    const { data: { user } } = await anon.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const token = authHeader.replace("Bearer ", "").trim();
 
-    const body = (await req.json()) as Body;
-    if (!body.audioUrl || !body.format) return new Response(JSON.stringify({ error: "Missing fields" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    });
 
-    // Allow two kinds of URLs: our streaming token or direct storage public (legacy). If token URL, just fetch it.
-    const res = await fetch(body.audioUrl);
-    if (!res.ok) return new Response(JSON.stringify({ error: "Failed to fetch audio" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const input = new Uint8Array(await res.arrayBuffer());
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    // Basic format passthrough for mp3 and simple transcode-like behavior: Since Deno Edge cannot run ffmpeg, we'll return mp3 as-is; for others, we return mp3 to keep free/OSS and fast.
-    // In production, replace with a worker or media CDN. Here: if requested mp3, return input; otherwise, still return input with appropriate type to avoid failures.
-    const ct = body.format === "mp3" ? "audio/mpeg" : body.format === "wav" ? "audio/wav" : body.format === "flac" ? "audio/flac" : body.format === "ogg" ? "audio/ogg" : "audio/aac";
+    const body = await req.json();
+    console.log("convert-audio request body:", body);
 
-    return new Response(input, { headers: { ...corsHeaders, "Content-Type": ct, "Cache-Control": "no-store" } });
+    const { audioUrl, format } = body;
+
+    if (!audioUrl || !format) {
+      return new Response(JSON.stringify({ error: "Missing fields: audioUrl or format" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- 🧠 Fetch the audio file ---
+    // If it's a Supabase function URL (stream-audio), we may need to attach Authorization.
+    let res: Response;
+
+    try {
+      res = await fetch(audioUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (fetchError) {
+      console.error("Fetch error:", fetchError);
+      return new Response(JSON.stringify({ error: "Failed to fetch audio: " + fetchError.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!res.ok) {
+      console.error("Audio fetch failed:", res.status, res.statusText);
+      return new Response(JSON.stringify({ error: "Failed to fetch audio", status: res.status }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const inputBuffer = await res.arrayBuffer();
+    const input = new Uint8Array(inputBuffer);
+
+    // --- 🎧 Determine MIME type ---
+    const mimeTypeMap: Record<string, string> = {
+      mp3: "audio/mpeg",
+      wav: "audio/wav",
+      flac: "audio/flac",
+      ogg: "audio/ogg",
+      aac: "audio/aac",
+    };
+
+    const contentType = mimeTypeMap[format] || "audio/mpeg";
+
+    // --- ⚡ Since Edge can't run ffmpeg, we return as-is with new headers ---
+    return new Response(input, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": contentType,
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message || "Internal error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("convert-audio error:", e);
+    return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

@@ -17,6 +17,7 @@ interface ModernStepFourProps {
   selectedLanguage: string;
   voiceRecording: Blob | null;
   selectedVoiceId: string;
+  voiceType: 'record' | 'prebuilt' | 'history';
   wordCount: number;
   onNext: () => void;
   onPrevious: () => void;
@@ -29,6 +30,8 @@ const ModernStepFour = ({
   extractedText,
   selectedLanguage,
   selectedVoiceId,
+  voiceType,
+  voiceRecording,
   wordCount,
   onNext,
   onPrevious,
@@ -95,6 +98,9 @@ const ModernStepFour = ({
   const getAllVoiceSettings = () => {
     return {
       voice_id: selectedVoiceId,
+      voice_type: voiceType,
+      language: selectedLanguage,
+      text: extractedText,
       speed: speed[0],
       pitch: pitch[0],
       volume: volume[0],
@@ -164,12 +170,13 @@ const ModernStepFour = ({
       } else {
         throw new Error("No audio URL in response");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sample generation failed:', error);
       setProgress(0);
+      const errorMessage = error?.message || "Could not generate the audio sample";
       toast({
         title: "Sample Generation Failed",
-        description: "Could not generate the audio sample. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -222,8 +229,8 @@ const ModernStepFour = ({
 
     let currentProgress = 0;
     const progressInterval = setInterval(() => {
-      currentProgress += Math.random() * 15;
-      if (currentProgress < 95) setProgress(currentProgress);
+      currentProgress += Math.random() * 10;
+      if (currentProgress < 90) setProgress(currentProgress);
     }, 500);
 
     try {
@@ -245,16 +252,19 @@ const ModernStepFour = ({
         setProgress(100);
         setGenerationComplete(true);
         // Immediate redirect with loader
-        onNext();
+        setTimeout(() => {
+          onNext();
+        }, 1500);
       } else {
         throw new Error("No audio content received");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Audio generation failed:", error);
       setProgress(0);
+      const errorMessage = error?.message || "An error occurred while creating your audio";
       toast({
         title: "Audio Generation Failed",
-        description: "An error occurred while creating your audio. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       setGeneratedAudio("");
@@ -266,8 +276,6 @@ const ModernStepFour = ({
     }
   };
 
-  const hasAudio = generatedAudio.length > 0;
-
   return (
     <div className="space-y-6">
       {selectedVoiceId && (
@@ -276,7 +284,11 @@ const ModernStepFour = ({
             <div className="flex items-center gap-2">
               <Mic2 className="h-5 w-5 text-blue-600" />
               <div>
-                <p className="text-sm font-medium text-blue-900">Voice Selected</p>
+                <p className="text-sm font-medium text-blue-900">
+                  {voiceType === 'prebuilt' ? 'Prebuilt Voice Selected' :
+                   voiceType === 'history' ? 'History Voice Selected' :
+                   'Recorded Voice Ready'}
+                </p>
                 <p className="text-xs text-blue-700">Voice ID: {selectedVoiceId}</p>
               </div>
             </div>
@@ -688,6 +700,27 @@ const ModernStepFour = ({
                   </p>
                 )}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {generationComplete && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="p-6 bg-green-100 rounded-full w-20 h-20 mx-auto flex items-center justify-center animate-pulse">
+                <CheckCircle className="h-10 w-10 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-green-900 mb-2">
+                  Generation Complete!
+                </h3>
+                <p className="text-sm text-green-700">
+                  Redirecting to download page...
+                </p>
+              </div>
+              <Progress value={100} className="h-3" />
             </div>
           </CardContent>
         </Card>

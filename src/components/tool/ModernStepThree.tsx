@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Mic, Lock, Play, Pause, Search, CheckCircle,
-  Clock, Crown, Filter, X
+  Clock, Crown, Filter, X, Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -23,8 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-
 
 const sampleParagraphs: { [key: string]: string } = {
   "ar-SA": "في الصباح، تنتشر أشعة الشمس الذهبية على المدينة. الأطفال يلعبون في الحدائق ويلتقطون الكرة معًا. الباعة ينظمون أكشاكهم بينما يمر الناس في شوارع المدينة. الطيور تغرد فوق الأشجار، والهواء مليء برائحة الزهور الطازجة. بعض الناس يجلسون على المقاهي يراقبون حركة المدينة.",
@@ -86,7 +84,7 @@ interface ModernStepThreeProps {
   onVoiceRecorded: (blob: Blob) => void;
   onProcessingStart: (step: string) => void;
   onProcessingEnd: () => void;
-  onVoiceSelect: (voiceId: string) => void;
+  onVoiceSelect: (voiceId: string, type: 'prebuilt' | 'history') => void; // ✅ FIXED: Added type parameter
   selectedVoiceId: string;
   selectedLanguage: string;
 }
@@ -109,7 +107,10 @@ export default function ModernStepThree({
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // State management
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
+
   const [voiceMethod, setVoiceMethod] = useState<"record" | "prebuilt" | "history">("record");
   const [selectedVoice, setSelectedVoice] = useState<VoiceSelection | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -118,6 +119,7 @@ export default function ModernStepThree({
   const [prebuiltVoices, setPrebuiltVoices] = useState<PrebuiltVoice[]>([]);
   const [filteredVoices, setFilteredVoices] = useState<PrebuiltVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
+  const [generatingPreview, setGeneratingPreview] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
@@ -127,21 +129,27 @@ export default function ModernStepThree({
 
   const userPlan = profile?.plan || 'free';
 
-  // Clear selection helper
+  // ============================================================================
+  // CLEAR SELECTION HELPER
+  // ============================================================================
+
   const clearSelection = () => {
     setSelectedVoice(null);
-    onVoiceRecorded(new Blob()); // Clear any previous blob
-    onVoiceSelect(''); // Clear any previous ID
+    onVoiceRecorded(new Blob());
+    onVoiceSelect('', 'prebuilt'); // Clear with default type
   };
 
-  // Restore selection when user navigates back
+  // ============================================================================
+  // RESTORE SELECTION ON MOUNT
+  // ============================================================================
+
   useEffect(() => {
     if (selectedVoiceId && !selectedVoice) {
       const restoreSelection = async () => {
-        // Attempt to find in prebuilt voices first
+        // Check prebuilt voices first
         let voice = prebuiltVoices.find(v => v.voice_id === selectedVoiceId);
         if (!voice) {
-           voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
+          voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
         }
 
         if (voice) {
@@ -150,7 +158,7 @@ export default function ModernStepThree({
           return;
         }
 
-        // If not found, check user's history voices
+        // Check history voices
         const { data: historyVoice } = await supabase
           .from('user_voices')
           .select('id, name')
@@ -158,24 +166,20 @@ export default function ModernStepThree({
           .single();
 
         if (historyVoice) {
-           setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
-           setVoiceMethod('history');
-           return;
+          setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
+          setVoiceMethod('history');
         }
-
-        // If it's a recorded voice that hasn't been saved, we can't restore it fully,
-        // but we can acknowledge a selection was made.
-        // This part needs a more robust implementation if you save recordings before generation.
       };
       restoreSelection();
     }
   }, [selectedVoiceId, selectedVoice, prebuiltVoices]);
 
+  // ============================================================================
+  // LOAD PREBUILT VOICES
+  // ============================================================================
 
-  // Load prebuilt voices when tab is active
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
-      // FIX: Don't reload if voices are already present
       if (voiceMethod !== 'prebuilt' || prebuiltVoices.length > 0) return;
 
       setLoadingVoices(true);
@@ -205,7 +209,10 @@ export default function ModernStepThree({
     loadPrebuiltVoices();
   }, [voiceMethod, userPlan, toast, prebuiltVoices.length]);
 
-  // Filter and sort voices based on search and filters
+  // ============================================================================
+  // FILTER AND SORT VOICES
+  // ============================================================================
+
   useEffect(() => {
     let filtered = prebuiltVoices;
 
@@ -244,7 +251,7 @@ export default function ModernStepThree({
     // Sort voices
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       if (sortBy === "name") {
         comparison = a.name.localeCompare(b.name);
       } else if (sortBy === "usage") {
@@ -255,40 +262,41 @@ export default function ModernStepThree({
         const planOrder = { free: 0, pro: 1, premium: 2 };
         comparison = planOrder[a.required_plan] - planOrder[b.required_plan];
       }
-      
+
       return sortOrder === "asc" ? comparison : -comparison;
     });
 
     setFilteredVoices(filtered);
   }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter, sortBy, sortOrder]);
 
-  // In ModernStepThree.tsx
-// Update the handleVoiceRecorded function:
+  // ============================================================================
+  // VOICE RECORDING HANDLER
+  // ============================================================================
 
-const handleVoiceRecorded = (blob: Blob) => {
-  clearSelection();
+  const handleVoiceRecorded = (blob: Blob) => {
+    clearSelection();
 
-  // Create a temporary ID for the recorded voice
-  const tempVoiceId = `rec-${Date.now()}`;
+    const tempVoiceId = `rec-${Date.now()}`;
 
-  // Set local selection state
-  setSelectedVoice({
-    type: 'record',
-    id: tempVoiceId,
-    name: 'New Recording'
-  });
+    setSelectedVoice({
+      type: 'record',
+      id: tempVoiceId,
+      name: 'New Recording'
+    });
 
-  // ✅ FIX: Call both callbacks to update parent state
-  onVoiceRecorded(blob);
-  onVoiceSelect(tempVoiceId); // <-- ADD THIS LINE
+    onVoiceRecorded(blob);
+    onVoiceSelect(tempVoiceId, 'history'); // ✅ FIXED: Pass type
 
-  toast({
-    title: "Voice Ready",
-    description: "Your recorded voice is ready for generation."
-  });
-};
+    toast({
+      title: "Voice Ready",
+      description: "Your recorded voice is ready for generation."
+    });
+  };
 
-  // Handle history voice selection
+  // ============================================================================
+  // HISTORY VOICE SELECTION
+  // ============================================================================
+
   const handleHistoryVoiceSelect = async (voiceId: string) => {
     clearSelection();
 
@@ -308,14 +316,17 @@ const handleVoiceRecorded = (blob: Blob) => {
     }
 
     setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId);
+    onVoiceSelect(voiceId, 'history'); // ✅ FIXED: Pass type
     toast({
       title: "Voice Selected",
       description: `${voice.name} is ready for generation`
     });
   };
 
-  // Check if user can access voice
+  // ============================================================================
+  // ACCESS CHECK
+  // ============================================================================
+
   const canUserAccessVoice = (requiredPlan: string): boolean => {
     return PrebuiltVoiceService.canAccessVoice(
       { required_plan: requiredPlan } as PrebuiltVoice,
@@ -323,13 +334,14 @@ const handleVoiceRecorded = (blob: Blob) => {
     );
   };
 
-  // Handle prebuilt voice selection
-  const handlePrebuiltSelect = (voiceId: string) => { // <-- REMOVED ASYNC
+  // ============================================================================
+  // PREBUILT VOICE SELECTION
+  // ============================================================================
+
+  const handlePrebuiltSelect = (voiceId: string) => {
     const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
     if (!voice) return;
 
-    // === PERFORMANCE FIX START ===
-    // Validate access using the local data. No need for an async call.
     const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
 
     if (!canAccess) {
@@ -340,12 +352,9 @@ const handleVoiceRecorded = (blob: Blob) => {
       });
       return;
     }
-    // === PERFORMANCE FIX END ===
 
-    // Track usage for sorting
     PrebuiltVoiceService.trackVoiceUsage(voiceId);
 
-    // Clear previous selection and set new one
     if (currentAudio) {
       currentAudio.pause();
       setCurrentAudio(null);
@@ -353,21 +362,70 @@ const handleVoiceRecorded = (blob: Blob) => {
 
     clearSelection();
     setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId);
-
+    onVoiceSelect(voiceId, 'prebuilt'); // ✅ FIXED: Pass type
   };
 
-  // Play prebuilt voice sample
+  // ============================================================================
+  // GENERATE PREBUILT PREVIEW (NEW FEATURE)
+  // ============================================================================
+
+  const generatePrebuiltPreview = async (voiceId: string): Promise<string | null> => {
+    try {
+      setGeneratingPreview(voiceId);
+
+      const sampleText = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
+
+      const { data, error } = await supabase.functions.invoke('generate-prebuilt-preview', {
+        body: {
+          voice_id: voiceId,
+          sample_text: sampleText,
+          language: selectedLanguage
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.preview_url) {
+        // Update database with preview URL
+        await supabase
+          .from('prebuilt_voices')
+          .update({ audio_preview_url: data.preview_url })
+          .eq('voice_id', voiceId);
+
+        // Update local state
+        setPrebuiltVoices(prev =>
+          prev.map(v => v.voice_id === voiceId ? { ...v, audio_preview_url: data.preview_url } : v)
+        );
+
+        return data.preview_url;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Preview generation error:', error);
+      toast({
+        title: "Preview Generation Failed",
+        description: "Could not generate voice preview",
+        variant: "destructive"
+      });
+      return null;
+    } finally {
+      setGeneratingPreview(null);
+    }
+  };
+
+  // ============================================================================
+  // PLAY PREBUILT SAMPLE
+  // ============================================================================
+
   const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
     event.stopPropagation();
 
-    // Stop current audio if playing
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.currentTime = 0;
     }
 
-    // Toggle if same voice is clicked
     if (playingVoiceId === voiceId && isPlaying) {
       setIsPlaying(false);
       setPlayingVoiceId(null);
@@ -376,17 +434,17 @@ const handleVoiceRecorded = (blob: Blob) => {
     }
 
     const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
-    if (!voice?.audio_preview_url) {
-      toast({
-        title: "No Preview Available",
-        description: "This voice doesn't have a preview sample.",
-        variant: "destructive"
-      });
-      return;
+
+    let previewUrl = voice?.audio_preview_url;
+
+    // ✅ NEW: Generate preview if doesn't exist
+    if (!previewUrl) {
+      previewUrl = await generatePrebuiltPreview(voiceId);
+      if (!previewUrl) return;
     }
 
     try {
-      const audio = new Audio(voice.audio_preview_url);
+      const audio = new Audio(previewUrl);
       setCurrentAudio(audio);
       setPlayingVoiceId(voiceId);
       setIsPlaying(true);
@@ -421,7 +479,10 @@ const handleVoiceRecorded = (blob: Blob) => {
     }
   };
 
-  // Clear all filters
+  // ============================================================================
+  // CLEAR FILTERS
+  // ============================================================================
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setCategoryFilter("all");
@@ -429,12 +490,19 @@ const handleVoiceRecorded = (blob: Blob) => {
     setPlanFilter("all");
   };
 
-  // Get unique categories and genders for filters
+  // ============================================================================
+  // FILTER OPTIONS
+  // ============================================================================
+
   const categories = Array.from(new Set(prebuiltVoices.map(v => v.category).filter(Boolean)));
   const genders = Array.from(new Set(prebuiltVoices.map(v => v.gender).filter(Boolean)));
 
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
   const hasActiveFilters = searchTerm || categoryFilter !== "all" || genderFilter !== "all" || planFilter !== "all";
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <div className="space-y-6">
@@ -516,18 +584,18 @@ const handleVoiceRecorded = (blob: Blob) => {
         {/* PREBUILT TAB */}
         <TabsContent value="prebuilt" className="space-y-4">
           <Card>
-           <CardHeader className="space-y-3">
-  <div className="flex items-center justify-between gap-3">
-    <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
-      <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
-      <span>Prebuilt Voices</span>
-    </CardTitle>
-    <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
-      {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
-    </Badge>
-  </div>
-</CardHeader>
-<CardContent className="px-2 sm:px-3 md:px-4">
+            <CardHeader className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
+                  <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span>Prebuilt Voices</span>
+                </CardTitle>
+                <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
+                  {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="px-2 sm:px-3 md:px-4">
               {loadingVoices ? (
                 <div className="text-center p-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
@@ -604,8 +672,6 @@ const handleVoiceRecorded = (blob: Blob) => {
                       </SelectContent>
                     </Select>
 
-
-
                     {hasActiveFilters && (
                       <Button
                         variant="outline"
@@ -633,15 +699,14 @@ const handleVoiceRecorded = (blob: Blob) => {
                           <SelectItem value="plan">Plan</SelectItem>
                         </SelectContent>
                       </Select>
-                   <Button
-  variant="outline"
-  size="sm"
-  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-  className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
->
-  {sortOrder === "asc" ? "↑" : "↓"}
-</Button>
-
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                        className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
+                      >
+                        {sortOrder === "asc" ? "↑" : "↓"}
+                      </Button>
                     </div>
                   </div>
 
@@ -652,6 +717,7 @@ const handleVoiceRecorded = (blob: Blob) => {
                         const canAccess = canUserAccessVoice(voice.required_plan);
                         const isSelected = selectedVoice?.id === voice.voice_id;
                         const isCurrentlyPlaying = playingVoiceId === voice.voice_id && isPlaying;
+                        const isGenerating = generatingPreview === voice.voice_id;
 
                         return (
                           <div
@@ -659,7 +725,7 @@ const handleVoiceRecorded = (blob: Blob) => {
                             onClick={() => handlePrebuiltSelect(voice.voice_id)}
                             className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${
                               !canAccess ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''
-                            } ${isSelected ? "border-primary bg-primary/5 shadow-md  ring-primary/20" : "hover:border-primary/50"}`}
+                            } ${isSelected ? "border-primary bg-primary/5 shadow-md ring-primary/20" : "hover:border-primary/50"}`}
                           >
                             <div className="flex items-start gap-3">
                               <div className="flex-1 min-w-0">
@@ -678,21 +744,9 @@ const handleVoiceRecorded = (blob: Blob) => {
                                   {voice.description}
                                 </p>
                                 <div className="flex gap-1 flex-wrap items-center">
-                                  {/* Display plan badge with access info */}
-                                  {(() => {
-                                    const planBadges = [];
-                                    if (voice.required_plan === 'free') planBadges.push('Free');
-                                    if (voice.required_plan === 'pro' || voice.required_plan === 'premium') {
-                                      if (voice.required_plan === 'pro') planBadges.push('Pro');
-                                      if (voice.required_plan === 'premium') planBadges.push('Premium');
-                                    }
-                                    return planBadges.map((label, i) => (
-                                      <Badge key={i} variant="secondary" className="text-xs">
-                                        {label}
-                                      </Badge>
-                                    ));
-                                  })()}
-
+                                  <Badge variant="secondary" className="text-xs capitalize">
+                                    {voice.required_plan}
+                                  </Badge>
                                   {voice.category && (
                                     <Badge variant="outline" className="text-xs capitalize">
                                       {voice.category}
@@ -708,30 +762,25 @@ const handleVoiceRecorded = (blob: Blob) => {
                                       {voice.accent}
                                     </Badge>
                                   )}
-                                  {sortBy === "usage" && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Used {PrebuiltVoiceService.getVoiceUsageCount(voice.voice_id)} times
-                                    </Badge>
-                                  )}
                                 </div>
                               </div>
-                              {/* FIX: Only show the play button if a preview URL exists */}
-                                  {voice.audio_preview_url && (
-                                    <Button
-                                      variant={isCurrentlyPlaying ? "default" : "outline"}
-                                      size="icon"
-                                      className="h-9 w-9 flex-shrink-0"
-                                      onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
-                                      // The 'disabled' prop is no longer needed for this check,
-                                      // because the button won't exist at all if there's no URL.
-                                    >
-                                      {isCurrentlyPlaying ? (
-                                        <Pause className="h-4 w-4" />
-                                      ) : (
-                                        <Play className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  )}
+
+                              {/* ✅ NEW: Always show play button, generate if needed */}
+                              <Button
+                                variant={isCurrentlyPlaying ? "default" : "outline"}
+                                size="icon"
+                                className="h-9 w-9 flex-shrink-0"
+                                onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
+                                disabled={isGenerating}
+                              >
+                                {isGenerating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : isCurrentlyPlaying ? (
+                                  <Pause className="h-4 w-4" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
                             </div>
                           </div>
                         );
@@ -767,14 +816,13 @@ const handleVoiceRecorded = (blob: Blob) => {
                   </div>
 
                   {/* Voice Count Info */}
-{filteredVoices.length > 0 && (
-  <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-    {selectedLanguage
-      ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
-      : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
-  </div>
-)}
-
+                  {filteredVoices.length > 0 && (
+                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+                      {selectedLanguage
+                        ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
+                        : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -813,3 +861,4 @@ const handleVoiceRecorded = (blob: Blob) => {
     </div>
   );
 }
+
