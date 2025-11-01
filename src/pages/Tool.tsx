@@ -141,13 +141,28 @@ const Tool = () => {
     setWordCount(totalWordCount);
   }, [extractedText]);
 
-  const hasEnoughWords = useMemo(() => {
-    if (!profile) return false;
+  const remainingWords = useMemo(() => {
+    if (!profile) return 0;
     const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
     const purchasedWords = profile.word_balance || 0;
-    const totalAvailable = planWordsAvailable + purchasedWords;
-    return wordCount <= totalAvailable;
-  }, [profile, wordCount]);
+    return planWordsAvailable + purchasedWords;
+  }, [profile]);
+
+  const hasEnoughWords = useMemo(() => {
+    return wordCount <= remainingWords;
+  }, [wordCount, remainingWords]);
+
+  // Block navigation to step 4 if insufficient words
+  useEffect(() => {
+    if (currentStep === 4 && !hasEnoughWords && wordCount > 0) {
+      toast({
+        title: "Insufficient Words",
+        description: `You need ${wordCount} words but only have ${remainingWords} available.`,
+        variant: "destructive",
+      });
+      setCurrentStep(3);
+    }
+  }, [currentStep, hasEnoughWords, wordCount, remainingWords, toast]);
 
   const getStepTitle = useCallback((step: number) => {
     const titles: Record<number, string> = {
@@ -284,13 +299,6 @@ const Tool = () => {
     [currentStep, totalSteps]
   );
 
-  const remainingWords = useMemo(() => {
-    if (!profile) return 0;
-    const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
-    const purchasedWords = profile.word_balance || 0;
-    return planWordsAvailable + purchasedWords;
-  }, [profile]);
-
   if (loading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -396,7 +404,18 @@ const Tool = () => {
               )}
               {currentStep === 3 && (
                 <ModernStepThree
-                  onNext={handleNext}
+                  onNext={() => {
+                    // Check words before proceeding
+                    if (!hasEnoughWords && wordCount > 0) {
+                      toast({
+                        title: "Insufficient Words",
+                        description: `You need ${wordCount} words but only have ${remainingWords} available. Please purchase more words.`,
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    handleNext();
+                  }}
                   onPrevious={handlePrevious}
                   onVoiceRecorded={handleVoiceRecorded}
                   onProcessingStart={handleProcessingStart}
@@ -404,7 +423,6 @@ const Tool = () => {
                   onVoiceSelect={handleVoiceSelect}
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
-                  voiceRecording={voiceRecording}
                 />
               )}
               {currentStep === 4 && (
