@@ -14,7 +14,7 @@ import ModernStepFive from "@/components/tool/ModernStepFive";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import Header from "@/components/layout/Header";
 
-const STORAGE_KEY = "tool_state_v1";
+const STORAGE_KEY = "tool_state_v2"; // Changed version to force reset
 
 interface ToolState {
   currentStep: number;
@@ -23,6 +23,7 @@ interface ToolState {
   wordCount: number;
   selectedLanguage: string;
   selectedVoiceId: string;
+  voiceType: 'record' | 'prebuilt' | 'history';
   processedAudioUrl: string;
 }
 
@@ -30,32 +31,42 @@ const Tool = () => {
   const { user, profile, loading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  // FIXED: Ref to scroll to top of page
   const containerRef = useRef<HTMLDivElement>(null);
 
   const totalSteps = 5;
+
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
 
   const getInitialState = (): ToolState => {
     try {
       const savedState = sessionStorage.getItem(STORAGE_KEY);
       if (savedState) {
-        return JSON.parse(savedState);
+        const parsed = JSON.parse(savedState);
+        // Don't restore if at step 5 (completed generation)
+        if (parsed.currentStep === 5) {
+          sessionStorage.removeItem(STORAGE_KEY);
+          return getDefaultState();
+        }
+        return parsed;
       }
     } catch (error) {
       console.error("Error loading saved state:", error);
     }
-
-    return {
-      currentStep: 1,
-      completedSteps: [],
-      extractedText: "",
-      wordCount: 0,
-      selectedLanguage: "en-US",
-      selectedVoiceId: "",
-      processedAudioUrl: "",
-    };
+    return getDefaultState();
   };
+
+  const getDefaultState = (): ToolState => ({
+    currentStep: 1,
+    completedSteps: [],
+    extractedText: "",
+    wordCount: 0,
+    selectedLanguage: "en-US",
+    selectedVoiceId: "",
+    voiceType: 'record',
+    processedAudioUrl: "",
+  });
 
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
@@ -63,11 +74,34 @@ const Tool = () => {
   const [wordCount, setWordCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [voiceType, setVoiceType] = useState<'record' | 'prebuilt' | 'history'>('record');
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // ============================================================================
+  // WORD COUNT CALCULATOR
+  // ============================================================================
+
+  const calculateWordCount = useCallback((text: string): number => {
+    if (!text || !text.trim()) return 0;
+    
+    const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+    let totalWordCount = 0;
+
+    words.forEach((word) => {
+      // Words longer than 45 chars count as multiple words
+      totalWordCount += word.length > 45 ? Math.ceil(word.length / 45) : 1;
+    });
+
+    return totalWordCount;
+  }, []);
+
+  // ============================================================================
+  // INITIALIZATION
+  // ============================================================================
 
   useEffect(() => {
     if (!loading && user && !isInitialized) {
@@ -78,13 +112,19 @@ const Tool = () => {
       setWordCount(initialState.wordCount);
       setSelectedLanguage(initialState.selectedLanguage);
       setSelectedVoiceId(initialState.selectedVoiceId);
+      setVoiceType(initialState.voiceType);
       setProcessedAudioUrl(initialState.processedAudioUrl);
       setIsInitialized(true);
     }
   }, [loading, user, isInitialized]);
 
+  // ============================================================================
+  // SESSION STORAGE SYNC (Skip at Step 5)
+  // ============================================================================
+
   useEffect(() => {
-  if (!isInitialized || currentStep === 5) return; // ⬅️ skip saving at step 5
+    // Don't save at step 5 (generation complete) or during initialization
+    if (!isInitialized || currentStep === 5) return;
 
     try {
       const state: ToolState = {
@@ -94,6 +134,7 @@ const Tool = () => {
         wordCount,
         selectedLanguage,
         selectedVoiceId,
+        voiceType,
         processedAudioUrl,
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -107,11 +148,15 @@ const Tool = () => {
     wordCount,
     selectedLanguage,
     selectedVoiceId,
+    voiceType,
     processedAudioUrl,
     isInitialized
   ]);
 
-  // FIXED: Scroll to top whenever currentStep changes
+  // ============================================================================
+  // SCROLL TO TOP ON STEP CHANGE
+  // ============================================================================
+
   useEffect(() => {
     if (isInitialized) {
       window.scrollTo({
@@ -121,33 +166,38 @@ const Tool = () => {
     }
   }, [currentStep, isInitialized]);
 
+  // ============================================================================
+  // AUTH CHECK
+  // ============================================================================
+
   useEffect(() => {
     if (!loading && !user) navigate("/");
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    if (!extractedText) {
-      setWordCount(0);
-      return;
-    }
-
-    const words = extractedText.trim().split(/\s+/).filter((w) => w.length > 0);
-    let totalWordCount = 0;
-
-    words.forEach((word) => {
-      totalWordCount += word.length > 45 ? Math.ceil(word.length / 45) : 1;
-    });
-
-    setWordCount(totalWordCount);
-  }, [extractedText]);
+  // ============================================================================
+  // WORD BALANCE CHECK
+  // ============================================================================
 
   const hasEnoughWords = useMemo(() => {
-    if (!profile) return false;
-    const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
+    if (!profile || wordCount === 0) return true;
+    
+    const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
     const purchasedWords = profile.word_balance || 0;
     const totalAvailable = planWordsAvailable + purchasedWords;
+    
     return wordCount <= totalAvailable;
   }, [profile, wordCount]);
+
+  const remainingWords = useMemo(() => {
+    if (!profile) return 0;
+    const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
+    const purchasedWords = profile.word_balance || 0;
+    return planWordsAvailable + purchasedWords;
+  }, [profile]);
+
+  // ============================================================================
+  // STEP METADATA
+  // ============================================================================
 
   const getStepTitle = useCallback((step: number) => {
     const titles: Record<number, string> = {
@@ -171,23 +221,81 @@ const Tool = () => {
     return descriptions[step] || "";
   }, []);
 
+  // ============================================================================
+  // NAVIGATION HANDLERS
+  // ============================================================================
+
   const handleNext = useCallback(() => {
+    // Validate before moving to next step
+    if (currentStep === 1 && !extractedText.trim()) {
+      toast({
+        title: "No Text Provided",
+        description: "Please enter or extract text before continuing.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (currentStep === 2 && !selectedLanguage) {
+      toast({
+        title: "No Language Selected",
+        description: "Please select a language before continuing.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // CRITICAL: Check word balance before Step 3 → Step 4
+    if (currentStep === 3) {
+      if (!selectedVoiceId && !voiceRecording) {
+        toast({
+          title: "No Voice Selected",
+          description: "Please record or select a voice before continuing.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Word balance check
+      if (!hasEnoughWords) {
+        toast({
+          title: "Insufficient Word Balance",
+          description: `You need ${wordCount.toLocaleString()} words but only have ${remainingWords.toLocaleString()} remaining. Please upgrade your plan or purchase more words.`,
+          variant: "destructive",
+          duration: 5000
+        });
+        return;
+      }
+    }
+
+    if (currentStep === 4 && !processedAudioUrl) {
+      toast({
+        title: "Audio Not Generated",
+        description: "Please generate audio before continuing.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Move to next step
     if (currentStep < totalSteps) {
       setCompletedSteps((prev) => Array.from(new Set([...prev, currentStep])));
       setCurrentStep(currentStep + 1);
     }
-  }, [currentStep, totalSteps]);
+  }, [currentStep, totalSteps, extractedText, selectedLanguage, selectedVoiceId, voiceRecording, processedAudioUrl, hasEnoughWords, wordCount, remainingWords, toast]);
 
   const handlePrevious = useCallback(() => {
     if (currentStep > 1) {
+      // Clear data for steps ahead when going back
       if (currentStep === 5) {
-        // Going back from step 5 to 4: Keep everything
+        // Going back from step 5 to 4: Keep everything (allow regeneration)
       } else if (currentStep === 4) {
-        // Going back from step 4 to 3: Reset audio generation data only
+        // Going back from step 4 to 3: Reset audio generation data
         setProcessedAudioUrl("");
       } else if (currentStep === 3) {
         // Going back from step 3 to 2: Reset voice selection data
         setSelectedVoiceId("");
+        setVoiceType('record');
         setVoiceRecording(null);
       } else if (currentStep === 2) {
         // Going back from step 2 to 1: Reset text and language data
@@ -196,10 +304,15 @@ const Tool = () => {
         setSelectedLanguage("en-US");
       }
 
+      // Remove current step from completed steps
       setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
       setCurrentStep(currentStep - 1);
     }
   }, [currentStep]);
+
+  // ============================================================================
+  // DATA HANDLERS
+  // ============================================================================
 
   const handleProcessingStart = (stepName: string) => {
     setIsProcessing(true);
@@ -213,58 +326,93 @@ const Tool = () => {
 
   const handleTextExtraction = (text: string) => {
     setExtractedText(text);
-    if (text.trim()) handleNext();
+    const count = calculateWordCount(text);
+    setWordCount(count);
   };
 
-  const handleVoiceRecorded = (blob: Blob) => {
-    setVoiceRecording(blob);
-    setSelectedVoiceId("");
-  };
+  const handleTextUpdated = (updatedText: string) => {
+    const previousText = extractedText;
+    setExtractedText(updatedText);
+    
+    // Recalculate word count
+    const newCount = calculateWordCount(updatedText);
+    setWordCount(newCount);
 
-  const handleVoiceSelect = (voiceId: string) => {
-    setSelectedVoiceId(voiceId);
-    setVoiceRecording(null);
-  };
-
-  const handleLanguageSelect = (language: string) => {
-    setSelectedLanguage(language);
+    // If text changed significantly (more than 10%), clear voice selection
+    const changePercentage = Math.abs(updatedText.length - previousText.length) / Math.max(previousText.length, 1);
+    if (changePercentage > 0.1 && (selectedVoiceId || voiceRecording)) {
+      setSelectedVoiceId("");
+      setVoiceType('record');
+      setVoiceRecording(null);
+      setProcessedAudioUrl("");
+      setCompletedSteps(prev => prev.filter(step => step <= 2));
+      
+      toast({
+        title: "Text Changed",
+        description: "Voice selection cleared due to significant text changes. Please reselect a voice.",
+        duration: 4000
+      });
+    }
   };
 
   const handleWordCountUpdate = (count: number) => {
     setWordCount(count);
   };
 
+  const handleLanguageSelect = (language: string) => {
+    setSelectedLanguage(language);
+  };
+
+  const handleVoiceRecorded = (blob: Blob) => {
+    setVoiceRecording(blob);
+    setSelectedVoiceId(""); // Clear any selected voice ID
+    setVoiceType('record');
+  };
+
+  const handleVoiceSelect = (voiceId: string, type: 'prebuilt' | 'history') => {
+    setSelectedVoiceId(voiceId);
+    setVoiceType(type);
+    setVoiceRecording(null); // Clear any recorded voice
+  };
+
   const handleAudioGenerated = async (audioUrl: string) => {
     setProcessedAudioUrl(audioUrl);
 
+    // Refresh profile to update word balance
     if (user && refreshProfile) {
       await refreshProfile();
     }
-  };
-
-  const handleTextUpdated = (updatedText: string) => {
-    setExtractedText(updatedText);
   };
 
   const handleReset = async () => {
     setIsProcessing(true);
     setProcessingStep("Preparing for new generation...");
 
+    // Refresh profile
     if (user && refreshProfile) {
       await refreshProfile();
     }
 
+    // Reset all state
     setExtractedText("");
     setWordCount(0);
     setSelectedLanguage("en-US");
     setSelectedVoiceId("");
+    setVoiceType('record');
     setVoiceRecording(null);
     setProcessedAudioUrl("");
     setCurrentStep(1);
     setCompletedSteps([]);
 
+    // Clear session storage
     try {
       sessionStorage.removeItem(STORAGE_KEY);
+      // Clear any cached durations
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('audioDuration_')) {
+          localStorage.removeItem(key);
+        }
+      });
     } catch (error) {
       console.error("Error clearing saved state:", error);
     }
@@ -279,17 +427,18 @@ const Tool = () => {
     });
   };
 
+  // ============================================================================
+  // PROGRESS CALCULATION
+  // ============================================================================
+
   const progressPercentage = useMemo(() =>
     ((currentStep - 1) / (totalSteps - 1)) * 100,
     [currentStep, totalSteps]
   );
 
-  const remainingWords = useMemo(() => {
-    if (!profile) return 0;
-    const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
-    const purchasedWords = profile.word_balance || 0;
-    return planWordsAvailable + purchasedWords;
-  }, [profile]);
+  // ============================================================================
+  // LOADING STATE
+  // ============================================================================
 
   if (loading || !isInitialized) {
     return (
@@ -301,6 +450,10 @@ const Tool = () => {
 
   if (!user || !profile) return null;
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
     <>
       <LoadingOverlay isVisible={isProcessing} message={processingStep || "Processing your request..."} />
@@ -311,6 +464,7 @@ const Tool = () => {
         </div>
 
         <div className="container mx-auto px-4 py-8 max-w-6xl">
+          {/* Step Indicators */}
           <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
             {Array.from({ length: totalSteps }, (_, i) => {
               const step = i + 1;
@@ -333,17 +487,17 @@ const Tool = () => {
             })}
           </div>
 
+          {/* Progress Bar */}
           <div className="mb-4 sm:mb-6">
             <div className="flex justify-between text-xs sm:text-sm text-muted-foreground mb-2">
-              <span>
-                Step {currentStep} of {totalSteps}
-              </span>
+              <span>Step {currentStep} of {totalSteps}</span>
               <span>{Math.round(progressPercentage)}% Complete</span>
             </div>
             <Progress value={progressPercentage} className="h-2 sm:h-2" />
           </div>
 
-          {!hasEnoughWords && wordCount > 0 && (
+          {/* Insufficient Words Warning */}
+          {!hasEnoughWords && wordCount > 0 && currentStep > 1 && (
             <Card className="mb-4 sm:mb-6 border-destructive/50 bg-destructive/5">
               <CardContent className="p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
@@ -351,14 +505,22 @@ const Tool = () => {
                   <div className="flex-1">
                     <p className="font-medium text-destructive text-sm">Insufficient Word Balance</p>
                     <p className="text-xs sm:text-sm text-destructive/80">
-                      Need {wordCount} words, have {remainingWords} remaining.
+                      Need {wordCount.toLocaleString()} words, have {remainingWords.toLocaleString()} remaining.
                     </p>
                   </div>
+                  <Button 
+                    size="sm" 
+                    variant="destructive"
+                    onClick={() => navigate('/payment')}
+                  >
+                    Get More Words
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
+          {/* Step Content */}
           <Card className="shadow-lg border-0 bg-card">
             <CardHeader className="border-b p-4 sm:p-6">
               <div className="flex items-center space-x-3">
@@ -394,6 +556,7 @@ const Tool = () => {
                   onLanguageSelect={handleLanguageSelect}
                 />
               )}
+              
               {currentStep === 3 && (
                 <ModernStepThree
                   onNext={handleNext}
@@ -404,15 +567,16 @@ const Tool = () => {
                   onVoiceSelect={handleVoiceSelect}
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
-                  voiceRecording={voiceRecording}
                 />
-              )}
+      )}
+              
               {currentStep === 4 && (
                 <ModernStepFour
                   extractedText={extractedText}
                   selectedLanguage={selectedLanguage}
                   voiceRecording={voiceRecording}
                   selectedVoiceId={selectedVoiceId}
+                  voiceType={voiceType}
                   wordCount={wordCount}
                   onNext={handleNext}
                   onPrevious={handlePrevious}
@@ -421,6 +585,7 @@ const Tool = () => {
                   onProcessingEnd={handleProcessingEnd}
                 />
               )}
+              
               {currentStep === 5 && (
                 <ModernStepFive
                   audioUrl={processedAudioUrl || ""}
