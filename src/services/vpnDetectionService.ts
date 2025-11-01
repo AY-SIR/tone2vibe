@@ -221,11 +221,28 @@ export class VPNDetectionService {
   }
 
   /**
-   * Save VPN detection result to database (disabled - table doesn't exist)
+   * Save VPN detection result to database
    */
   private static async saveVPNDetection(ip: string, result: VPNDetectionResult): Promise<void> {
-    // Table doesn't exist in database, skip saving
-    return;
+    try {
+      await supabase.from('vpn_detections').upsert({
+        ip_address: ip,
+        is_vpn: result.isVPN,
+        provider: result.provider,
+        detection_result: {
+          confidence: result.confidence,
+          country: result.country,
+          countryCode: result.countryCode,
+          city: result.city,
+          region: result.region
+        },
+        expires_at: new Date(Date.now() + this.CACHE_DURATION).toISOString()
+      }, {
+        onConflict: 'ip_address'
+      });
+    } catch (error) {
+      console.warn('Failed to save VPN detection:', error);
+    }
   }
 
   /**

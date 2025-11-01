@@ -90,10 +90,9 @@ const PaymentSuccess = () => {
          try {
   const session = await supabase.auth.getSession()
   const accessToken = session.data.session?.access_token
-  const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
   if (accessToken) {
-    await fetch(`${SUPABASE_URL}/functions/v1/purge-expired-history`, {
+    await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -101,7 +100,7 @@ const PaymentSuccess = () => {
       },
     })
 
-    await fetch(`${SUPABASE_URL}/functions/v1/purge-user-analytics`, {
+    await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,

@@ -64,56 +64,45 @@ const RealAnalytics = () => {
 
   // --- FIX: Properly extract performance insights ---
   const performanceInsights = premiumAnalytics?.performanceInsights;
-  const insightsData = useMemo(() => {
-    if (!performanceInsights) return [];
-    
-    const peakHours = performanceInsights.peakUsageHours 
-      ? Array.isArray(performanceInsights.peakUsageHours)
-        ? performanceInsights.peakUsageHours.slice(0, 3).join(', ')
-        : String(performanceInsights.peakUsageHours)
-      : 'N/A';
+  const insightsData = useMemo(() => [
+    {
+      label: "Peak Hours",
+      value: performanceInsights?.peakUsageHours?.length
+        ? performanceInsights.peakUsageHours.join(', ')
+        : 'N/A',
+    },
+    {
+      label: "Efficiency Score",
+      value: `${performanceInsights?.efficiencyScore ?? 0}%`,
+    },
+    {
+      label: "Processing Times",
+      value: `Avg: ${((performanceInsights?.avgProcessingTime ?? 0) / 1000).toFixed(1)}s, Max: ${((performanceInsights?.longestResponseTime ?? 0) / 1000).toFixed(1)}s`,
+    },
+    {
+      label: "Error Rate",
+      value: `${((performanceInsights?.errorRate ?? 0) * 100).toFixed(1)}%`,
+    },
+  ], [performanceInsights]);
 
-    return [
-      {
-        label: "Peak Hours",
-        value: peakHours,
-      },
-      {
-        label: "Efficiency Score",
-        value: `${performanceInsights?.efficiencyScore ?? 0}%`,
-      },
-      {
-        label: "Avg Processing",
-        value: `${((performanceInsights?.avgProcessingTime ?? 0) / 1000).toFixed(1)}s`,
-      },
-      {
-        label: "Error Rate",
-        value: `${((performanceInsights?.errorRate ?? 0) * 100).toFixed(1)}%`,
-      },
-    ];
-  }, [performanceInsights]);
+// Create hourly usage data for the last 24 hours (starting from current hour)
+const now = new Date();
+const currentHour = now.getHours();
 
-// Create hourly usage data for the last 24 hours
-const hourlyUsageIST = useMemo(() => {
-  if (!premiumAnalytics?.hourlyUsage) return [];
-  
-  const hoursArray = Array.isArray(premiumAnalytics.hourlyUsage) 
-    ? premiumAnalytics.hourlyUsage 
-    : [];
+const hourlyUsageIST = Array.from({ length: 24 }, (_, i) => {
+  const hourIndex = (currentHour - 23 + i + 24) % 24;
+  const hour = hourIndex.toString().padStart(2, '0');
+  return { hour: `${hour}:00`, words: 0, hourIndex };
+});
 
-  // Fill all 24 hours
-  return Array.from({ length: 24 }, (_, i) => {
-    const hour = i.toString().padStart(2, '0');
-    const hourData = hoursArray.find((h: any) => 
-      parseInt(h.hour?.split(':')[0] || '0') === i
-    );
-    return { 
-      hour: `${hour}:00`, 
-      words: hourData?.words || 0,
-      hourIndex: i 
-    };
-  });
-}, [premiumAnalytics]);
+// Map the analytics data to the hourly array
+premiumAnalytics?.hourlyUsage?.forEach(item => {
+  const itemHour = parseInt(item.hour.split(':')[0], 10);
+  const found = hourlyUsageIST.find(h => h.hourIndex === itemHour);
+  if (found) {
+    found.words += item.words || 0;
+  }
+});
 
 
 

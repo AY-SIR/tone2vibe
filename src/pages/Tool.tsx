@@ -23,7 +23,6 @@ interface ToolState {
   wordCount: number;
   selectedLanguage: string;
   selectedVoiceId: string;
-  selectedVoiceType: 'record' | 'history' | 'prebuilt' | '';
   processedAudioUrl: string;
 }
 
@@ -54,7 +53,6 @@ const Tool = () => {
       wordCount: 0,
       selectedLanguage: "en-US",
       selectedVoiceId: "",
-      selectedVoiceType: '',
       processedAudioUrl: "",
     };
   };
@@ -65,7 +63,6 @@ const Tool = () => {
   const [wordCount, setWordCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
-  const [selectedVoiceType, setSelectedVoiceType] = useState<'record' | 'history' | 'prebuilt' | ''>('');
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -81,7 +78,6 @@ const Tool = () => {
       setWordCount(initialState.wordCount);
       setSelectedLanguage(initialState.selectedLanguage);
       setSelectedVoiceId(initialState.selectedVoiceId);
-      setSelectedVoiceType(initialState.selectedVoiceType || '');
       setProcessedAudioUrl(initialState.processedAudioUrl);
       setIsInitialized(true);
     }
@@ -98,7 +94,6 @@ const Tool = () => {
         wordCount,
         selectedLanguage,
         selectedVoiceId,
-        selectedVoiceType,
         processedAudioUrl,
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -112,7 +107,6 @@ const Tool = () => {
     wordCount,
     selectedLanguage,
     selectedVoiceId,
-    selectedVoiceType,
     processedAudioUrl,
     isInitialized
   ]);
@@ -147,28 +141,13 @@ const Tool = () => {
     setWordCount(totalWordCount);
   }, [extractedText]);
 
-  const remainingWords = useMemo(() => {
-    if (!profile) return 0;
+  const hasEnoughWords = useMemo(() => {
+    if (!profile) return false;
     const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
     const purchasedWords = profile.word_balance || 0;
-    return planWordsAvailable + purchasedWords;
-  }, [profile]);
-
-  const hasEnoughWords = useMemo(() => {
-    return wordCount <= remainingWords;
-  }, [wordCount, remainingWords]);
-
-  // Block navigation to step 4 if insufficient words
-  useEffect(() => {
-    if (currentStep === 4 && !hasEnoughWords && wordCount > 0) {
-      toast({
-        title: "Insufficient Words",
-        description: `You need ${wordCount} words but only have ${remainingWords} available.`,
-        variant: "destructive",
-      });
-      setCurrentStep(3);
-    }
-  }, [currentStep, hasEnoughWords, wordCount, remainingWords, toast]);
+    const totalAvailable = planWordsAvailable + purchasedWords;
+    return wordCount <= totalAvailable;
+  }, [profile, wordCount]);
 
   const getStepTitle = useCallback((step: number) => {
     const titles: Record<number, string> = {
@@ -240,16 +219,11 @@ const Tool = () => {
   const handleVoiceRecorded = (blob: Blob) => {
     setVoiceRecording(blob);
     setSelectedVoiceId("");
-    setSelectedVoiceType('record');
   };
 
   const handleVoiceSelect = (voiceId: string) => {
     setSelectedVoiceId(voiceId);
     setVoiceRecording(null);
-  };
-
-  const handleVoiceTypeChange = (type: 'record' | 'history' | 'prebuilt' | '') => {
-    setSelectedVoiceType(type);
   };
 
   const handleLanguageSelect = (language: string) => {
@@ -309,6 +283,13 @@ const Tool = () => {
     ((currentStep - 1) / (totalSteps - 1)) * 100,
     [currentStep, totalSteps]
   );
+
+  const remainingWords = useMemo(() => {
+    if (!profile) return 0;
+    const planWordsAvailable = Math.max(0, profile.words_limit - (profile.plan_words_used || 0));
+    const purchasedWords = profile.word_balance || 0;
+    return planWordsAvailable + purchasedWords;
+  }, [profile]);
 
   if (loading || !isInitialized) {
     return (
@@ -415,26 +396,15 @@ const Tool = () => {
               )}
               {currentStep === 3 && (
                 <ModernStepThree
-                  onNext={() => {
-                    // Check words before proceeding
-                    if (!hasEnoughWords && wordCount > 0) {
-                      toast({
-                        title: "Insufficient Words",
-                        description: `You need ${wordCount} words but only have ${remainingWords} available. Please purchase more words.`,
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    handleNext();
-                  }}
+                  onNext={handleNext}
                   onPrevious={handlePrevious}
                   onVoiceRecorded={handleVoiceRecorded}
                   onProcessingStart={handleProcessingStart}
                   onProcessingEnd={handleProcessingEnd}
                   onVoiceSelect={handleVoiceSelect}
-                  onVoiceTypeChange={handleVoiceTypeChange}
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
+                  voiceRecording={voiceRecording}
                 />
               )}
               {currentStep === 4 && (
@@ -443,7 +413,6 @@ const Tool = () => {
                   selectedLanguage={selectedLanguage}
                   voiceRecording={voiceRecording}
                   selectedVoiceId={selectedVoiceId}
-                  selectedVoiceType={selectedVoiceType}
                   wordCount={wordCount}
                   onNext={handleNext}
                   onPrevious={handlePrevious}

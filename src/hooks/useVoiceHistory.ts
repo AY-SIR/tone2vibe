@@ -48,17 +48,20 @@ export const useVoiceHistory = () => {
     try {
       const nowIso = new Date().toISOString();
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('history')
         .select(`
           id, title, original_text, language, words_used, audio_url,
           created_at, voice_settings, processing_time_ms,
           generation_started_at, generation_completed_at,
-          duration_seconds
+          duration_seconds, retention_expires_at
         `)
         .eq('user_id', user.id)
         .not('audio_url', 'is', null)
+        .gt('retention_expires_at', nowIso)
         .order('created_at', { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) {
         setError('Failed to load voice history');
@@ -67,7 +70,7 @@ export const useVoiceHistory = () => {
 
       const mappedProjects = (data || [])
         .filter(item => {
-          const voiceSettings = item.voice_settings as any;
+          const voiceSettings = item.voice_settings;
           const isSample = voiceSettings &&
             typeof voiceSettings === 'object' &&
             voiceSettings !== null &&
@@ -83,11 +86,11 @@ export const useVoiceHistory = () => {
           word_count: item.words_used,
           audio_url: item.audio_url || '',
           created_at: item.created_at,
-          voice_settings: item.voice_settings as any,
-          processing_time_ms: item.processing_time_ms || 0,
-          generation_started_at: item.generation_started_at || item.created_at,
-          generation_completed_at: item.generation_completed_at || item.created_at,
-          duration_seconds: item.duration_seconds || 0
+          voice_settings: item.voice_settings,
+          processing_time_ms: item.processing_time_ms,
+          generation_started_at: item.generation_started_at,
+          generation_completed_at: item.generation_completed_at,
+          duration_seconds: item.duration_seconds || 0 // ensure it's never undefined
         }));
 
       // Remove duplicates based on ID

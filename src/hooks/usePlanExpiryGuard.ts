@@ -93,14 +93,13 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
         }
 
         // Trigger server-side purge of expired history/analytics with authentication
-        const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
         try {
           // Get the current session token
           const { data: { session } } = await supabase.auth.getSession();
 
           if (session?.access_token) {
             // Call purge-expired-history with auth header
-            await fetch(`${SUPABASE_URL}/functions/v1/purge-expired-history`, {
+            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${session.access_token}`,
@@ -109,7 +108,7 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
             });
 
             // Call purge-user-analytics with auth header and user_id
-            await fetch(`${SUPABASE_URL}/functions/v1/purge-user-analytics`, {
+            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${session.access_token}`,

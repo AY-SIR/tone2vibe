@@ -1,58 +1,16 @@
+
 class CacheService {
   private cache = new Map<string, any>();
   private timestamps = new Map<string, number>();
-  private readonly TTL = 3600000; // 1 hour cache
-
-  // Generate cache key from text + settings
-  generateCacheKey(text: string, settings: any): string {
-    const settingsStr = JSON.stringify(settings);
-    return `voice_${btoa(text).substring(0, 50)}_${btoa(settingsStr).substring(0, 50)}`;
-  }
+  private readonly TTL = 0; // Disabled caching - set to 0
 
   set(key: string, data: any): void {
-    this.cache.set(key, data);
-    this.timestamps.set(key, Date.now());
-    
-    // Persist to localStorage
-    try {
-      localStorage.setItem(`cache_${key}`, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      console.warn('Cache storage failed:', error);
-    }
+    // Caching disabled - do nothing
+    return;
   }
 
   get(key: string): any | null {
-    // Check memory cache first
-    if (this.cache.has(key)) {
-      const timestamp = this.timestamps.get(key)!;
-      if (Date.now() - timestamp < this.TTL) {
-        return this.cache.get(key);
-      } else {
-        this.cache.delete(key);
-        this.timestamps.delete(key);
-      }
-    }
-
-    // Check localStorage
-    try {
-      const stored = localStorage.getItem(`cache_${key}`);
-      if (stored) {
-        const { data, timestamp } = JSON.parse(stored);
-        if (Date.now() - timestamp < this.TTL) {
-          this.cache.set(key, data);
-          this.timestamps.set(key, timestamp);
-          return data;
-        } else {
-          localStorage.removeItem(`cache_${key}`);
-        }
-      }
-    } catch (error) {
-      console.warn('Cache retrieval failed:', error);
-    }
-
+    // Caching disabled - always return null
     return null;
   }
 
