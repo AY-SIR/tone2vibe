@@ -252,33 +252,25 @@ export const VoiceHistoryDropdown = ({
           ttlSeconds: 86400
         };
 
-        // ✅ FIX: Proper Authorization header
+        const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
         const issueResponse = await fetch(
-          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          `${SUPABASE_URL}/functions/v1/issue-audio-token`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-              'apikey': session.access_token // Some Supabase configs need this
+              'Authorization': `Bearer ${session.access_token}`
             },
-            body: JSON.stringify(tokenRequestBody),
+            body: JSON.stringify(tokenRequestBody)
           }
         );
 
-        if (!issueResponse.ok) {
-          const errorText = await issueResponse.text();
-          console.error('Token request failed:', errorText);
-          throw new Error(`Failed to create playback token: ${issueResponse.status}`);
-        }
-
         const tokenData = await issueResponse.json();
-
         if (!tokenData.ok || !tokenData.token) {
           throw new Error('Invalid token response');
         }
 
-        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
+        const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${tokenData.token}`;
 
         const audioResponse = await fetch(streamUrl, {
           headers: {

@@ -85,14 +85,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {  
         setProfile({  
           ...data,  
-          ip_address: data.ip_address ?? '',  
+          ip_address: (data.ip_address as string) ?? '',  
           word_balance: data.word_balance ?? Math.max(0, data.words_limit - data.words_used),  
         });  
-        setLocationData({ country: data.country || "India", currency: "INR" });  
+        setLocationData({ country: "India", currency: "INR" });  
       } else if (error?.code === "PGRST116") {  
         setProfile(null);  
         setLocationData({ country: "India", currency: "INR" });  
-      }  
+      }
     } catch (err) {  
       console.error("Error loading profile:", err);  
     }

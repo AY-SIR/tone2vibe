@@ -111,9 +111,9 @@ export class LocationService {
       }
 
       return {
-        country: data.country || 'Unknown',
-        countryCode: data.country_code || 'Unknown',
-        ip: data.ip || undefined,
+        country: 'India',
+        countryCode: 'IN',
+        ip: undefined,
       };
     } catch {
       return { country: 'Unknown', countryCode: 'Unknown' };
