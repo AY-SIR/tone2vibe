@@ -23,6 +23,7 @@ interface ToolState {
   wordCount: number;
   selectedLanguage: string;
   selectedVoiceId: string;
+  selectedVoiceType: 'record' | 'history' | 'prebuilt' | '';
   processedAudioUrl: string;
 }
 
@@ -53,6 +54,7 @@ const Tool = () => {
       wordCount: 0,
       selectedLanguage: "en-US",
       selectedVoiceId: "",
+      selectedVoiceType: '',
       processedAudioUrl: "",
     };
   };
@@ -63,6 +65,7 @@ const Tool = () => {
   const [wordCount, setWordCount] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [selectedVoiceType, setSelectedVoiceType] = useState<'record' | 'history' | 'prebuilt' | ''>('');
   const [voiceRecording, setVoiceRecording] = useState<Blob | null>(null);
   const [processedAudioUrl, setProcessedAudioUrl] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -78,6 +81,7 @@ const Tool = () => {
       setWordCount(initialState.wordCount);
       setSelectedLanguage(initialState.selectedLanguage);
       setSelectedVoiceId(initialState.selectedVoiceId);
+      setSelectedVoiceType(initialState.selectedVoiceType || '');
       setProcessedAudioUrl(initialState.processedAudioUrl);
       setIsInitialized(true);
     }
@@ -94,6 +98,7 @@ const Tool = () => {
         wordCount,
         selectedLanguage,
         selectedVoiceId,
+        selectedVoiceType,
         processedAudioUrl,
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -107,6 +112,7 @@ const Tool = () => {
     wordCount,
     selectedLanguage,
     selectedVoiceId,
+    selectedVoiceType,
     processedAudioUrl,
     isInitialized
   ]);
@@ -234,11 +240,16 @@ const Tool = () => {
   const handleVoiceRecorded = (blob: Blob) => {
     setVoiceRecording(blob);
     setSelectedVoiceId("");
+    setSelectedVoiceType('record');
   };
 
   const handleVoiceSelect = (voiceId: string) => {
     setSelectedVoiceId(voiceId);
     setVoiceRecording(null);
+  };
+
+  const handleVoiceTypeChange = (type: 'record' | 'history' | 'prebuilt' | '') => {
+    setSelectedVoiceType(type);
   };
 
   const handleLanguageSelect = (language: string) => {
@@ -421,6 +432,7 @@ const Tool = () => {
                   onProcessingStart={handleProcessingStart}
                   onProcessingEnd={handleProcessingEnd}
                   onVoiceSelect={handleVoiceSelect}
+                  onVoiceTypeChange={handleVoiceTypeChange}
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
                 />
@@ -431,6 +443,7 @@ const Tool = () => {
                   selectedLanguage={selectedLanguage}
                   voiceRecording={voiceRecording}
                   selectedVoiceId={selectedVoiceId}
+                  selectedVoiceType={selectedVoiceType}
                   wordCount={wordCount}
                   onNext={handleNext}
                   onPrevious={handlePrevious}

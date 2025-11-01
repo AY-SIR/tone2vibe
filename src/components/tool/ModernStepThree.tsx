@@ -87,6 +87,7 @@ interface ModernStepThreeProps {
   onProcessingStart: (step: string) => void;
   onProcessingEnd: () => void;
   onVoiceSelect: (voiceId: string) => void;
+  onVoiceTypeChange: (type: 'record' | 'history' | 'prebuilt' | '') => void;
   selectedVoiceId: string;
   selectedLanguage: string;
 }
@@ -102,6 +103,7 @@ export default function ModernStepThree({
   onPrevious,
   onVoiceRecorded,
   onVoiceSelect,
+  onVoiceTypeChange,
   selectedLanguage,
   selectedVoiceId,
 }: ModernStepThreeProps) {
@@ -132,6 +134,7 @@ export default function ModernStepThree({
     setSelectedVoice(null);
     onVoiceRecorded(new Blob()); // Clear any previous blob
     onVoiceSelect(''); // Clear any previous ID
+    onVoiceTypeChange('');
   };
 
   // Restore selection when user navigates back
@@ -280,7 +283,8 @@ const handleVoiceRecorded = (blob: Blob) => {
 
   // ✅ FIX: Call both callbacks to update parent state
   onVoiceRecorded(blob);
-  onVoiceSelect(tempVoiceId); // <-- ADD THIS LINE
+  onVoiceSelect(tempVoiceId);
+  onVoiceTypeChange('record');
 
   toast({
     title: "Voice Ready",
@@ -307,12 +311,13 @@ const handleVoiceRecorded = (blob: Blob) => {
       return;
     }
 
-    setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId);
-    toast({
-      title: "Voice Selected",
-      description: `${voice.name} is ready for generation`
-    });
+  setSelectedVoice({ type: 'history', id: voiceId, name: voice.name });
+  onVoiceSelect(voiceId);
+  onVoiceTypeChange('history');
+  toast({
+    title: "Voice Selected",
+    description: `${voice.name} is ready for generation`
+  });
   };
 
   // Check if user can access voice
@@ -354,6 +359,7 @@ const handleVoiceRecorded = (blob: Blob) => {
     clearSelection();
     setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
     onVoiceSelect(voiceId);
+    onVoiceTypeChange('prebuilt');
 
   };
 

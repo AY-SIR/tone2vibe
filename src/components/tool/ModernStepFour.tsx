@@ -18,6 +18,7 @@ interface ModernStepFourProps {
   selectedLanguage: string;
   voiceRecording: Blob | null;
   selectedVoiceId: string;
+  selectedVoiceType: 'record' | 'history' | 'prebuilt' | '';
   wordCount: number;
   onNext: () => void;
   onPrevious: () => void;
@@ -30,6 +31,7 @@ const ModernStepFour = ({
   extractedText,
   selectedLanguage,
   selectedVoiceId,
+  selectedVoiceType,
   wordCount,
   onNext,
   onPrevious,
@@ -45,7 +47,7 @@ const ModernStepFour = ({
   const [generationComplete, setGenerationComplete] = useState(false);
   const [showSuccessLoader, setShowSuccessLoader] = useState(false);
   
-  const isPrebuiltVoice = selectedVoiceId && !selectedVoiceId.startsWith('user_');
+  const isPrebuiltVoice = selectedVoiceType === 'prebuilt';
 
   // --- State for all settings ---
   const [speed, setSpeed] = useState([1.0]);
