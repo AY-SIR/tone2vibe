@@ -10,8 +10,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const STORAGE_BUCKET = "user-prebuilt"; // ✅ FIXED bucket name
+const STORAGE_BUCKET = "user-prebuilt";
 const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+interface TTSConfig {
+  sample_text: string;
+  stability?: number;
+  similarity_boost?: number;
+  style?: number;
+  use_speaker_boost?: boolean;
+  language?: string;
+}
 
 interface PrebuiltVoice {
   id: string;
@@ -23,6 +32,7 @@ interface PrebuiltVoice {
   accent: string | null;
   language: string;
   audio_preview_url: string | null;
+  tts_config: TTSConfig;
 }
 
 Deno.serve(async (req) => {
@@ -43,72 +53,7 @@ Deno.serve(async (req) => {
     });
 
     const body = await req.json();
-    const { voice_id, sample_text, language, batch_generate, generate_preview } = body;
-
-    // ===================================
-    // PREVIEW GENERATION MODE
-    // ===================================
-    if (generate_preview === true) {
-      if (!voice_id) {
-        throw new Error("voice_id is required for preview generation");
-      }
-
-      console.log(`🎧 Generating preview for voice_id: ${voice_id}`);
-
-      const { data: existingVoice } = await supabaseService
-        .from("prebuilt_voices")
-        .select("audio_preview_url")
-        .eq("voice_id", voice_id)
-        .single();
-
-      if (existingVoice?.audio_preview_url) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            audio_url: existingVoice.audio_preview_url,
-            cached: true,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-        );
-      }
-
-      const response = await fetch(SAMPLE_MP3_URL);
-      if (!response.ok) throw new Error("Failed to fetch sample audio");
-
-      const mp3Data = new Uint8Array(await response.arrayBuffer());
-      const filePath = `prebuilt-previews/${voice_id}.mp3`;
-
-      const { error: uploadError } = await supabaseService.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, mp3Data, {
-          contentType: "audio/mpeg",
-          upsert: true,
-          cacheControl: "3600",
-        });
-
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-
-      const { data: { publicUrl } } = supabaseService.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(filePath);
-
-      await supabaseService
-        .from("prebuilt_voices")
-        .update({
-          audio_preview_url: publicUrl,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("voice_id", voice_id);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          audio_url: publicUrl,
-          cached: false,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
-    }
+    const { voice_id, batch_generate } = body;
 
     // ===================================
     // BATCH GENERATION MODE
@@ -132,9 +77,7 @@ Deno.serve(async (req) => {
       }
 
       const results = [];
-      let processed = 0,
-        skipped = 0,
-        failed = 0;
+      let processed = 0, skipped = 0, failed = 0;
 
       for (const voice of allVoices) {
         try {
@@ -146,12 +89,23 @@ Deno.serve(async (req) => {
 
           console.log(`🎙️ Processing ${voice.voice_id} (${voice.name})`);
 
+          // Get tts_config from database (stored but not used for now)
+          const ttsConfig: TTSConfig = voice.tts_config || {
+            sample_text: "Hello, this is a sample voice preview.",
+            stability: 0.5,
+            similarity_boost: 0.75,
+          };
+
+          console.log(`📝 Voice config:`, ttsConfig);
+
+          // Fetch sample MP3
           const response = await fetch(SAMPLE_MP3_URL);
           if (!response.ok) throw new Error("Failed to fetch sample audio");
 
           const mp3Data = new Uint8Array(await response.arrayBuffer());
-          const filePath = `prebuilt-samples/${voice.voice_id}.mp3`;
 
+          // Upload to storage
+          const filePath = `prebuilt-previews/${voice.voice_id}.mp3`;
           const { error: uploadError } = await supabaseService.storage
             .from(STORAGE_BUCKET)
             .upload(filePath, mp3Data, {
@@ -166,6 +120,7 @@ Deno.serve(async (req) => {
             .from(STORAGE_BUCKET)
             .getPublicUrl(filePath);
 
+          // Update database with preview URL
           const { error: updateError } = await supabaseService
             .from("prebuilt_voices")
             .update({
@@ -176,7 +131,12 @@ Deno.serve(async (req) => {
 
           if (updateError) throw new Error(`Update failed: ${updateError.message}`);
 
-          results.push({ voice_id: voice.voice_id, success: true, audio_url: publicUrl });
+          results.push({
+            voice_id: voice.voice_id,
+            success: true,
+            audio_url: publicUrl,
+            config: ttsConfig
+          });
           processed++;
         } catch (error) {
           console.error(`❌ Failed to process ${voice.voice_id}:`, error.message);
@@ -203,36 +163,50 @@ Deno.serve(async (req) => {
     // SINGLE VOICE GENERATION MODE
     // ===================================
     if (!voice_id) {
-      throw new Error("voice_id is required (or use batch_generate: true or generate_preview: true)");
+      throw new Error("voice_id is required (or use batch_generate: true)");
     }
 
     console.log(`🎤 Generating prebuilt voice sample for voice_id: ${voice_id}`);
 
-    const { data: existingVoice, error: fetchError } = await supabaseService
+    // Fetch voice data with tts_config from database
+    const { data: voiceData, error: fetchError } = await supabaseService
       .from("prebuilt_voices")
-      .select("audio_preview_url, name")
+      .select("*")
       .eq("voice_id", voice_id)
       .single();
 
     if (fetchError) throw new Error(`Voice not found: ${fetchError.message}`);
 
-    if (existingVoice?.audio_preview_url) {
+    // Check if preview already exists
+    if (voiceData?.audio_preview_url) {
+      console.log(`✅ Using cached preview for ${voice_id}`);
       return new Response(
         JSON.stringify({
           success: true,
-          audio_url: existingVoice.audio_preview_url,
+          audio_url: voiceData.audio_preview_url,
           cached: true,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
+    // Get TTS config from database (stored for future use)
+    const ttsConfig: TTSConfig = voiceData.tts_config || {
+      sample_text: "Hello, this is a sample voice preview.",
+      stability: 0.5,
+      similarity_boost: 0.75,
+    };
+
+    console.log(`📝 Using TTS config:`, ttsConfig);
+
+    // Fetch sample MP3
     const response = await fetch(SAMPLE_MP3_URL);
     if (!response.ok) throw new Error("Failed to fetch sample audio");
 
     const mp3Data = new Uint8Array(await response.arrayBuffer());
-    const filePath = `prebuilt-samples/${voice_id}.mp3`;
 
+    // Upload to storage
+    const filePath = `prebuilt-previews/${voice_id}.mp3`;
     const { error: uploadError } = await supabaseService.storage
       .from(STORAGE_BUCKET)
       .upload(filePath, mp3Data, {
@@ -247,6 +221,7 @@ Deno.serve(async (req) => {
       .from(STORAGE_BUCKET)
       .getPublicUrl(filePath);
 
+    // Update database with preview URL
     const { error: updateError } = await supabaseService
       .from("prebuilt_voices")
       .update({
@@ -264,6 +239,7 @@ Deno.serve(async (req) => {
         success: true,
         audio_url: publicUrl,
         cached: false,
+        config: ttsConfig,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );

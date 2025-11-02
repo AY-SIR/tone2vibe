@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState ,useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -304,9 +304,7 @@ const shouldSkipSample = isPrebuiltVoice;
           description: "Redirecting to final step...",
         });
 
-        setTimeout(() => {
-          onNext();
-        }, 2000);
+
       } else {
         throw new Error("No audio content received");
       }
@@ -325,6 +323,17 @@ const shouldSkipSample = isPrebuiltVoice;
       onProcessingEnd();
     }
   };
+
+// ✅ Auto-redirect when generation completes
+useEffect(() => {
+  if (generationComplete) {
+    const timer = setTimeout(() => {
+      onNext?.(); // safely call onNext if provided
+    }, 2000); // wait 2 seconds before moving forward
+
+    return () => clearTimeout(timer); // cleanup in case of unmount
+  }
+}, [generationComplete]);
 
   return (
     <div className="space-y-6">
@@ -703,12 +712,11 @@ const shouldSkipSample = isPrebuiltVoice;
         <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50">
           <CardContent className="p-8">
             <div className="space-y-6 text-center">
-              {/* Animated spinner */}
-              <div className="relative w-24 h-24 mx-auto">
-                <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
-                <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
+              <div className="relative w-12 h-12 mx-auto">
+  <div className="absolute inset-0 rounded-full border-2 border-blue-200"></div>
+  <div className="absolute inset-0 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></div>
+</div>
 
-              </div>
 
               <div>
                 <h3 className="text-xl font-bold text-blue-900 mb-2">
@@ -747,7 +755,7 @@ const shouldSkipSample = isPrebuiltVoice;
 
               <div>
                 <h3 className="text-2xl font-bold text-green-900 mb-2 animate-fade-in">
-                  Generated Successfully! ✨
+                  Generated Successfully!
                 </h3>
                 <p className="text-sm text-green-700 animate-fade-in">
                   Redirecting to download page in 2 seconds...

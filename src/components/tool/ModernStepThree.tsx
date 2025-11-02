@@ -301,51 +301,137 @@ export default function ModernStepThree({
     );
   };
 
-  // ✅ Handle prebuilt voice selection
-  const handlePrebuiltSelect = (voiceId: string) => {
-    const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
-    if (!voice) {
-      toast({
-        title: "Voice Not Found",
-        description: "The selected voice is not available.",
-        variant: "destructive"
-      });
-      return;
+
+
+
+// ✅ FIXED: Handle prebuilt voice selection with auto-play
+const handlePrebuiltSelect = async (voiceId: string) => {
+  const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
+  if (!voice) {
+    toast({
+      title: "Voice Not Found",
+      description: "The selected voice is not available.",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
+
+  if (!canAccess) {
+    toast({
+      title: "Upgrade Required",
+      description: `This voice requires the ${voice.required_plan} plan.`,
+      variant: "destructive"
+    });
+    return;
+  }
+
+  PrebuiltVoiceService.trackVoiceUsage(voiceId);
+
+  // ✅ Stop any playing audio and reset ALL states
+  if (currentAudio) {
+    currentAudio.onended = null;
+    currentAudio.onerror = null;
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio.src = '';
+    currentAudio.load();
+    setCurrentAudio(null);
+  }
+
+  // ✅ Reset playing states
+  setIsPlaying(false);
+  setPlayingVoiceId(null);
+
+  clearSelection();
+  setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
+  onVoiceSelect(voiceId, 'prebuilt');
+
+  // ✅ Auto-play the preview
+  try {
+    let audioUrl: string | null = null;
+
+    // Check cache first
+    if (previewCache.has(voiceId)) {
+      audioUrl = previewCache.get(voiceId)!;
+    }
+    // Check if database has preview URL
+    else if (voice.audio_preview_url) {
+      audioUrl = voice.audio_preview_url;
+    }
+    // Generate new preview
+    else {
+      audioUrl = await generateAndPlayPreview(voiceId, voice);
+      if (!audioUrl) return;
     }
 
-    const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
+    // Create and configure audio element
+    const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
 
-    if (!canAccess) {
-      toast({
-        title: "Upgrade Required",
-        description: `This voice requires the ${voice.required_plan} plan.`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    PrebuiltVoiceService.trackVoiceUsage(voiceId);
-
-    if (currentAudio) {
-      currentAudio.pause();
+    // Set up event listeners
+    audio.onended = () => {
+      setIsPlaying(false);
+      setPlayingVoiceId(null);
       setCurrentAudio(null);
-    }
+    };
 
-    clearSelection();
-    setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
-    onVoiceSelect(voiceId, 'prebuilt');
-  };
+    audio.onerror = (e) => {
+      if (audio === currentAudio) {
+        setIsPlaying(false);
+        setPlayingVoiceId(null);
+        setCurrentAudio(null);
 
-// ✅ FIXED: Clean audio playback - click playing voice to STOP completely
+        // Remove failed URL from cache
+        if (voice.audio_preview_url === audioUrl) {
+          setPreviewCache(prev => {
+            const newCache = new Map(prev);
+            newCache.delete(voiceId);
+            return newCache;
+          });
+        }
+
+        toast({
+          title: "Playback Error",
+          description: "Unable to play voice preview",
+          variant: "destructive"
+        });
+      }
+    };
+
+    // Store reference and play
+    setCurrentAudio(audio);
+    setPlayingVoiceId(voiceId);
+    setIsPlaying(true);
+
+    await audio.play();
+
+  } catch (error) {
+    setIsPlaying(false);
+    setPlayingVoiceId(null);
+    setCurrentAudio(null);
+    // Don't show toast for auto-play errors (user might not want sound)
+    console.log("Auto-play prevented or failed:", error);
+  }
+};
+
+
+    // ✅ FIXED: Clean audio playback - no alerts when pausing
 const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
   event.stopPropagation();
 
   // If clicking the same voice that's playing - STOP it completely
   if (playingVoiceId === voiceId && currentAudio) {
+    // Remove event listeners before stopping to prevent error toast
+    currentAudio.onended = null;
+    currentAudio.onerror = null;
+
     currentAudio.pause();
     currentAudio.currentTime = 0;
     currentAudio.src = '';
     currentAudio.load();
+
     setCurrentAudio(null);
     setIsPlaying(false);
     setPlayingVoiceId(null);
@@ -354,6 +440,8 @@ const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
 
   // If a different voice is playing - stop it first
   if (currentAudio) {
+    currentAudio.onended = null;
+    currentAudio.onerror = null;
     currentAudio.pause();
     currentAudio.currentTime = 0;
     currentAudio.src = '';
@@ -396,25 +484,29 @@ const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
       setCurrentAudio(null);
     };
 
-    audio.onerror = () => {
-      setIsPlaying(false);
-      setPlayingVoiceId(null);
-      setCurrentAudio(null);
+    audio.onerror = (e) => {
+      // Only show error if audio is still the current one
+      // This prevents errors when we intentionally clear the audio
+      if (audio === currentAudio) {
+        setIsPlaying(false);
+        setPlayingVoiceId(null);
+        setCurrentAudio(null);
 
-      // Remove failed URL from cache
-      if (voice.audio_preview_url === audioUrl) {
-        setPreviewCache(prev => {
-          const newCache = new Map(prev);
-          newCache.delete(voiceId);
-          return newCache;
+        // Remove failed URL from cache
+        if (voice.audio_preview_url === audioUrl) {
+          setPreviewCache(prev => {
+            const newCache = new Map(prev);
+            newCache.delete(voiceId);
+            return newCache;
+          });
+        }
+
+        toast({
+          title: "Playback Error",
+          description: "Unable to play voice preview",
+          variant: "destructive"
         });
       }
-
-      toast({
-        title: "Playback Error",
-        description: "Unable to play voice preview",
-        variant: "destructive"
-      });
     };
 
     // Store reference and play
@@ -436,6 +528,25 @@ const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
   }
 };
 
+// Updated cleanup effect
+useEffect(() => {
+  return () => {
+    if (currentAudio) {
+      // Remove event listeners before cleanup
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.src = '';
+      currentAudio.load();
+    }
+    setIsPlaying(false);
+    setPlayingVoiceId(null);
+    setCurrentAudio(null);
+  };
+}, [voiceMethod]);
+
 // Generate preview - returns the URL
 const generateAndPlayPreview = async (voiceId: string, voice: PrebuiltVoice): Promise<string | null> => {
   setGeneratingPreview(voiceId);
@@ -449,9 +560,7 @@ const generateAndPlayPreview = async (voiceId: string, voice: PrebuiltVoice): Pr
     const { data, error } = await supabase.functions.invoke('generate-prebuilt-voice', {
       body: {
         voice_id: voiceId,
-        sample_text: sampleText.substring(0, 100),
-        language: voice.language,
-        generate_preview: true
+
       }
     });
 
@@ -754,25 +863,29 @@ useEffect(() => {
                                       {voice.gender}
                                     </Badge>
                                   )}
+                                 {/* ✅ Always show play button, right-aligned, no background */}
+<Button
+  variant="ghost"
+  size="icon"
+  className="ml-auto h-9 w-9 flex-shrink-0 hover:bg-transparent focus-visible:ring-0"
+  onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
+  disabled={isGenerating}
+>
+  {isGenerating ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : isCurrentlyPlaying ? (
+    <Pause className="h-4 w-4" />
+  ) : (
+    <Play className="h-4 w-4" />
+  )}
+</Button>
+
+
                                 </div>
+
                               </div>
 
-                              {/* ✅ Always show play button */}
-                              <Button
-                                variant={isCurrentlyPlaying ? "default" : "outline"}
-                                size="icon"
-                                className="h-9 w-9 flex-shrink-0"
-                                onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
-                                disabled={isGenerating}
-                              >
-                                {isGenerating ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : isCurrentlyPlaying ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
+
                             </div>
                           </div>
                         );
