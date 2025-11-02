@@ -209,6 +209,7 @@ export default function ModernStepOne({
     setExtractedText(trimmedText);
     onTextExtracted(trimmedText);
     onWordCountUpdate(wordCount);
+
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -221,6 +222,7 @@ export default function ModernStepOne({
     } else {
       setTextError(null);
     }
+
   };
 
   const canContinue = extractedText.trim().length > 0 && !isCodeDetected(extractedText);
