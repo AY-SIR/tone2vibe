@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
+const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
+
 interface ModernStepFiveProps {
   audioUrl: string;
   extractedText: string;
@@ -106,7 +108,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         const storagePath = cleanStoragePath(audioUrl, 'user-generates');
 
         const issueResponse = await fetch(
-          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          `${SUPABASE_URL}/functions/v1/issue-audio-token`,
           {
             method: 'POST',
             headers: {
@@ -126,7 +128,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         }
 
         const { token } = await issueResponse.json();
-        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+        const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
 
         const audioResponse = await fetch(streamUrl, {
           headers: {
@@ -268,7 +270,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         const storagePath = cleanStoragePath(audioUrl, 'user-generates');
 
         const issueResponse = await fetch(
-          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          `${SUPABASE_URL}/functions/v1/issue-audio-token`,
           {
             method: 'POST',
             headers: {
@@ -288,10 +290,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         }
 
         const { token } = await issueResponse.json();
-        downloadUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+        downloadUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
       }
 
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/convert-audio`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/convert-audio`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

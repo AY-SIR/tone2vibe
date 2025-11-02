@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client"
 import { toast } from "sonner"
 import confetti from "canvas-confetti"
 
+const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
+
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -92,7 +94,7 @@ const PaymentSuccess = () => {
   const accessToken = session.data.session?.access_token
 
   if (accessToken) {
-    await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, {
+    await fetch(`${SUPABASE_URL}/functions/v1/purge-expired-history`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -100,7 +102,7 @@ const PaymentSuccess = () => {
       },
     })
 
-    await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
+    await fetch(`${SUPABASE_URL}/functions/v1/purge-user-analytics`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,

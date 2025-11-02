@@ -57,6 +57,8 @@ import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
+const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
+
 // ============================================
 // UTILITY: Clean Storage Path
 // ============================================
@@ -214,10 +216,10 @@ const AudioDownloadDropdown = ({
         bucket,
         cleanPath,
         session.access_token,
-        supabase.supabaseUrl
+        SUPABASE_URL
       );
 
-      const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+      const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
 
       // Download the audio file
       const audioResponse = await fetch(streamUrl, {
@@ -736,10 +738,10 @@ const History = memo(() => {
           bucket,
           cleanPath,
           session.access_token,
-          supabase.supabaseUrl
+          SUPABASE_URL
         );
 
-        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${token}`;
+        const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
 
         const audioResponse = await fetch(streamUrl, {
           headers: {

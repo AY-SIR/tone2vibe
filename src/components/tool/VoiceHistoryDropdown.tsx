@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
+
 // ============================================
 // UTILITY: Clean Storage Path
 // ============================================
@@ -254,7 +256,7 @@ export const VoiceHistoryDropdown = ({
 
         // ✅ FIX: Proper Authorization header
         const issueResponse = await fetch(
-          `${supabase.supabaseUrl}/functions/v1/issue-audio-token`,
+          `${SUPABASE_URL}/functions/v1/issue-audio-token`,
           {
             method: 'POST',
             headers: {
@@ -278,7 +280,7 @@ export const VoiceHistoryDropdown = ({
           throw new Error('Invalid token response');
         }
 
-        const streamUrl = `${supabase.supabaseUrl}/functions/v1/stream-audio?token=${tokenData.token}`;
+        const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${tokenData.token}`;
 
         const audioResponse = await fetch(streamUrl, {
           headers: {

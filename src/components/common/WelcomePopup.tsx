@@ -10,14 +10,14 @@ interface WelcomePopupProps {
 }
 
 export function WelcomePopup({ onGetStarted, onClose }: WelcomePopupProps) {
-  const { user, authOpen } = useAuth(); // authOpen = true if AuthModal is open
+  const { user } = useAuth();
   const [visible, setVisible] = useState(false);
   const [show, setShow] = useState(false); // controls animation
 
   useEffect(() => {
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
 
-    if (!user && !hasSeenWelcome && !authOpen) {
+    if (!user && !hasSeenWelcome) {
       // Delay a tiny bit to prevent overlap with AuthModal opening
       const timeout = setTimeout(() => {
         setVisible(true);
@@ -29,7 +29,7 @@ export function WelcomePopup({ onGetStarted, onClose }: WelcomePopupProps) {
       setShow(false);
       setTimeout(() => setVisible(false), 300);
     }
-  }, [user, authOpen]);
+  }, [user]);
 
   const handleClose = () => {
     localStorage.setItem('hasSeenWelcome', 'true');

@@ -63,7 +63,7 @@ export function VoiceUpload({ onVoiceUploaded }: VoiceUploadProps) {
           name: file.name,
           audio_url: filePath,
           duration: null,
-          language: profile.language || null
+          language: profile.preferred_language || 'en-US'
         });
       if (insertError) console.error("DB insert error:", insertError);
 

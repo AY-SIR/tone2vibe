@@ -564,7 +564,7 @@ const Tool = () => {
                   onVoiceRecorded={handleVoiceRecorded}
                   onProcessingStart={handleProcessingStart}
                   onProcessingEnd={handleProcessingEnd}
-                  onVoiceSelect={handleVoiceSelect}
+                  onVoiceSelect={(voiceId, type) => handleVoiceSelect(voiceId, type)}
                   selectedVoiceId={selectedVoiceId}
                   selectedLanguage={selectedLanguage}
                 />

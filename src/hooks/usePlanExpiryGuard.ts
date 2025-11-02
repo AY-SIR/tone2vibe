@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
+const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
+
 interface PlanExpiryData {
   show_popup: boolean;
   days_until_expiry?: number;
@@ -99,7 +101,7 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
 
           if (session?.access_token) {
             // Call purge-expired-history with auth header
-            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-expired-history`, {
+            await fetch(`${SUPABASE_URL}/functions/v1/purge-expired-history`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${session.access_token}`,
@@ -108,7 +110,7 @@ export const usePlanExpiry = (user: User | null, profile: Profile | null) => {
             });
 
             // Call purge-user-analytics with auth header and user_id
-            await fetch(`${supabase.supabaseUrl}/functions/v1/purge-user-analytics`, {
+            await fetch(`${SUPABASE_URL}/functions/v1/purge-user-analytics`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${session.access_token}`,
