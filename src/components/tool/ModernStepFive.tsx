@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
@@ -66,7 +67,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ✅ LocalStorage Key
   const storageKey = `audioDuration_${audioUrl}`;
@@ -77,10 +80,13 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     if (savedDuration) {
       setActualDuration(parseFloat(savedDuration));
     }
-  }, [audioUrl]);
+  }, [storageKey]);
 
-  // Get secure audio URL on mount
+  // ✅ FIXED: Get secure audio URL on mount with proper cleanup
   useEffect(() => {
+    let blobUrl: string | null = null;
+    let isMounted = true;
+
     const getSecureUrl = async () => {
       if (!audioUrl) return;
 
@@ -100,10 +106,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           }
 
           const audioBlob = await audioResponse.blob();
-          const blobUrl = URL.createObjectURL(audioBlob);
+          blobUrl = URL.createObjectURL(audioBlob);
 
-          setSecureAudioUrl(blobUrl);
-          setAudioReady(true);
+          if (isMounted) {
+            setSecureAudioUrl(blobUrl);
+            setAudioReady(true);
+          }
           return;
         }
 
@@ -143,31 +151,36 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         }
 
         const audioBlob = await audioResponse.blob();
-        const blobUrl = URL.createObjectURL(audioBlob);
+        blobUrl = URL.createObjectURL(audioBlob);
 
-        setSecureAudioUrl(blobUrl);
-        setAudioReady(true);
+        if (isMounted) {
+          setSecureAudioUrl(blobUrl);
+          setAudioReady(true);
+        }
 
       } catch (error) {
         console.error('Failed to get secure audio URL:', error);
-        toast({
-          title: "Audio Loading Error",
-          description: "Could not load audio. Please try again.",
-          variant: "destructive"
-        });
+        if (isMounted) {
+          toast({
+            title: "Audio Loading Error",
+            description: "Could not load audio. Please try again.",
+            variant: "destructive"
+          });
+        }
       }
     };
 
     getSecureUrl();
 
     return () => {
-      if (secureAudioUrl && secureAudioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(secureAudioUrl);
+      isMounted = false;
+      if (blobUrl && blobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [audioUrl]);
+  }, [audioUrl, toast]);
 
-  // ✅ Setup audio event listeners
+  // ✅ FIXED: Setup audio event listeners with proper dependencies
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -175,7 +188,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleLoadedMetadata = () => {
       setActualDuration(audio.duration);
-      localStorage.setItem(storageKey, audio.duration.toString()); // ✅ Save duration
+      localStorage.setItem(storageKey, audio.duration.toString());
     };
     const handleEnded = () => setIsPlaying(false);
     const handlePlay = () => setIsPlaying(true);
@@ -194,7 +207,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
     };
-  }, [audioReady]);
+  }, [audioReady, storageKey]);
 
   const formatTime = (timeInSeconds: number = 0) => {
     if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return '0:00';
@@ -237,38 +250,60 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
   };
 
-  // ✅ Clear cached duration when Next Generation clicked
+  // ✅ FIXED: Clear cached duration and use proper navigation
   const handleNextGeneration = () => {
     setIsRefreshing(true);
-    localStorage.removeItem(storageKey); // ✅ Clear cache
+    localStorage.removeItem(storageKey);
+
     toast({
       title: "Preparing Next Generation",
       description: "Setting up your next voice generation...",
       duration: 2000
     });
+
     setTimeout(() => {
-      if (onNextGeneration) onNextGeneration();
-      else window.location.href = '/tool';
+      try {
+        if (onNextGeneration) {
+          onNextGeneration();
+        } else {
+          navigate('/tool');
+        }
+      } catch (error) {
+        console.error('Navigation error:', error);
+        toast({
+          title: "Navigation Error",
+          description: "Please try again.",
+          variant: "destructive"
+        });
+        setIsRefreshing(false);
+      }
     }, 1500);
   };
 
+  // ✅ FIXED: Race condition prevention with ref
   const handleConvertAndDownload = async (format: string) => {
     if (!user) {
       toast({ title: "Login Required", description: "Please login to download audio.", variant: "destructive" });
       return;
     }
 
+    // ✅ Prevent multiple simultaneous downloads
+    if (downloading) return;
+
+    // ✅ Clear any existing interval
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
     setDownloading(format);
     setConversionProgress(0);
 
-    // Show initial conversion message
-    toast({ 
-      title: "Converting Audio", 
-      description: `Converting to ${format.toUpperCase()}...` 
+    toast({
+      title: "Converting Audio",
+      description: `Converting to ${format.toUpperCase()}...`
     });
 
-    // Simulate progress for better UX
-    const progressInterval = setInterval(() => {
+    progressIntervalRef.current = setInterval(() => {
       setConversionProgress(prev => {
         if (prev >= 85) return prev;
         return prev + Math.random() * 15;
@@ -346,9 +381,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
       setConversionProgress(100);
 
-      toast({ 
-        title: "Download Complete", 
-        description: `Audio downloaded as ${format.toUpperCase()}.` 
+      toast({
+        title: "Download Complete",
+        description: `Audio downloaded as ${format.toUpperCase()}.`
       });
 
     } catch (error: any) {
@@ -359,7 +394,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         variant: "destructive"
       });
     } finally {
-      clearInterval(progressInterval);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setDownloading(null);
       setTimeout(() => setConversionProgress(0), 1000);
     }
@@ -442,8 +480,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             <>
               <audio ref={audioRef} src={secureAudioUrl} className="hidden" />
 
-
-
               {/* Progress Bar */}
               <div className="space-y-2">
                 <Slider
@@ -462,21 +498,20 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 
               {/* Volume Control */}
               <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center">
-  <Button
-    onClick={togglePlayPause}
-    size="sm"
-    className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
-    disabled={!audioReady}
-  >
-    {isPlaying ? (
-      <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
-    ) : (
-      <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
-    )}
-  </Button>
-</div>
-
+                <div className="flex items-center justify-center">
+                  <Button
+                    onClick={togglePlayPause}
+                    size="sm"
+                    className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
+                    disabled={!audioReady}
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
+                    ) : (
+                      <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
+                    )}
+                  </Button>
+                </div>
 
                 <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <Slider
@@ -489,7 +524,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                 <span className="text-xs text-muted-foreground w-10">
                   {Math.round(volume * 100)}%
                 </span>
-
               </div>
             </>
           )}
@@ -581,7 +615,6 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                   ) : (
                     <>
                       More Formats
-
                     </>
                   )}
                 </Button>
@@ -630,9 +663,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             size="lg"
             className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl w-full sm:w-auto"
           >
+            <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
             Next Generation
-                        <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-
           </Button>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Mic, Lock, Play, Pause, Search, CheckCircle,
-  Clock, Crown, Filter, X
+  Clock, Crown, Filter, X, Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +80,7 @@ const sampleParagraphs: { [key: string]: string } = {
   "zh-TW": "今天早上，城市的街道沐浴在溫暖的陽光下。孩子們在公園裡玩耍，笑聲不斷。街頭小販在擺攤，大人們匆忙去上班。空氣中瀰漫著新鮮花朵和剛出爐麵包的香氣。一些人坐在咖啡館裡享受早晨的時光。"
 };
 
+
 interface ModernStepThreeProps {
   onNext: () => void;
   onPrevious: () => void;
@@ -121,27 +122,28 @@ export default function ModernStepThree({
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [genderFilter, setGenderFilter] = useState<string>("all");
-  const [planFilter, setPlanFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"name" | "usage" | "plan">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [generatingPreview, setGeneratingPreview] = useState<string | null>(null);
+  const [previewCache, setPreviewCache] = useState<Map<string, string>>(new Map());
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const userPlan = profile?.plan || 'free';
 
-  // Clear selection helper
+  // ✅ Clear selection helper
   const clearSelection = () => {
     setSelectedVoice(null);
-    onVoiceRecorded(new Blob()); // Clear any previous blob
-    onVoiceSelect('', 'history'); // Clear any previous ID
+    onVoiceRecorded(new Blob());
+    onVoiceSelect('', 'history');
   };
 
-  // Restore selection when user navigates back
+  // ✅ Restore selection when user navigates back
   useEffect(() => {
     if (selectedVoiceId && !selectedVoice) {
       const restoreSelection = async () => {
-        // Attempt to find in prebuilt voices first
         let voice = prebuiltVoices.find(v => v.voice_id === selectedVoiceId);
         if (!voice) {
-           voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
+          voice = await PrebuiltVoiceService.getVoiceById(selectedVoiceId);
         }
 
         if (voice) {
@@ -150,7 +152,6 @@ export default function ModernStepThree({
           return;
         }
 
-        // If not found, check user's history voices
         const { data: historyVoice } = await supabase
           .from('user_voices')
           .select('id, name')
@@ -158,35 +159,28 @@ export default function ModernStepThree({
           .single();
 
         if (historyVoice) {
-           setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
-           setVoiceMethod('history');
-           return;
+          setSelectedVoice({ type: 'history', id: selectedVoiceId, name: historyVoice.name });
+          setVoiceMethod('history');
         }
-
-        // If it's a recorded voice that hasn't been saved, we can't restore it fully,
-        // but we can acknowledge a selection was made.
-        // This part needs a more robust implementation if you save recordings before generation.
       };
       restoreSelection();
     }
   }, [selectedVoiceId, selectedVoice, prebuiltVoices]);
 
-
-  // Load prebuilt voices when tab is active
+  // ✅ Load prebuilt voices
   useEffect(() => {
     const loadPrebuiltVoices = async () => {
-      // FIX: Don't reload if voices are already present
       if (voiceMethod !== 'prebuilt' || prebuiltVoices.length > 0) return;
 
       setLoadingVoices(true);
       try {
-        const voices = await PrebuiltVoiceService.getVoicesForPlan(userPlan);
+        const voices = await PrebuiltVoiceService.getAllActiveVoices();
         setPrebuiltVoices(voices);
 
         if (voices.length === 0) {
           toast({
             title: "No Voices Available",
-            description: "No prebuilt voices found for your plan.",
+            description: "No prebuilt voices found.",
             variant: "destructive"
           });
         }
@@ -194,7 +188,7 @@ export default function ModernStepThree({
         console.error("Error loading voices:", error);
         toast({
           title: "Error",
-          description: "Failed to load prebuilt voices. Please try again.",
+          description: "Failed to load prebuilt voices.",
           variant: "destructive"
         });
       } finally {
@@ -205,31 +199,22 @@ export default function ModernStepThree({
     loadPrebuiltVoices();
   }, [voiceMethod, userPlan, toast, prebuiltVoices.length]);
 
-  // Filter and sort voices based on search and filters
+  // ✅ Filter and sort voices
   useEffect(() => {
     let filtered = prebuiltVoices;
 
-    // Language filter (always applied if language is selected)
     if (selectedLanguage) {
       filtered = filtered.filter(voice => voice.language === selectedLanguage);
     }
 
-    // Category filter
     if (categoryFilter !== "all") {
       filtered = filtered.filter(v => v.category === categoryFilter);
     }
 
-    // Gender filter
     if (genderFilter !== "all") {
       filtered = filtered.filter(v => v.gender === genderFilter);
     }
 
-    // Plan filter
-    if (planFilter !== "all") {
-      filtered = filtered.filter(v => v.required_plan === planFilter);
-    }
-
-    // Search filter
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(v =>
@@ -241,7 +226,6 @@ export default function ModernStepThree({
       );
     }
 
-    // Sort voices
     filtered.sort((a, b) => {
       let comparison = 0;
 
@@ -260,35 +244,29 @@ export default function ModernStepThree({
     });
 
     setFilteredVoices(filtered);
-  }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, planFilter, sortBy, sortOrder]);
+  }, [selectedLanguage, searchTerm, prebuiltVoices, categoryFilter, genderFilter, sortBy, sortOrder]);
 
-  // In ModernStepThree.tsx
-// Update the handleVoiceRecorded function:
+  // ✅ Handle voice recording
+  const handleVoiceRecorded = (blob: Blob) => {
+    clearSelection();
 
-const handleVoiceRecorded = (blob: Blob) => {
-  clearSelection();
+    const tempVoiceId = `rec-${Date.now()}`;
+    setSelectedVoice({
+      type: 'record',
+      id: tempVoiceId,
+      name: 'New Recording'
+    });
 
-  // Create a temporary ID for the recorded voice
-  const tempVoiceId = `rec-${Date.now()}`;
+    onVoiceRecorded(blob);
+    onVoiceSelect(tempVoiceId, 'history');
 
-  // Set local selection state
-  setSelectedVoice({
-    type: 'record',
-    id: tempVoiceId,
-    name: 'New Recording'
-  });
+    toast({
+      title: "Voice Ready",
+      description: "Your recorded voice is ready for generation."
+    });
+  };
 
-  // ✅ FIX: Call both callbacks to update parent state
-  onVoiceRecorded(blob);
-  onVoiceSelect(tempVoiceId, 'history'); // <-- ADD THIS LINE
-
-  toast({
-    title: "Voice Ready",
-    description: "Your recorded voice is ready for generation."
-  });
-};
-
-  // Handle history voice selection
+  // ✅ Handle history voice selection
   const handleHistoryVoiceSelect = async (voiceId: string) => {
     clearSelection();
 
@@ -315,7 +293,7 @@ const handleVoiceRecorded = (blob: Blob) => {
     });
   };
 
-  // Check if user can access voice
+  // ✅ Check if user can access voice
   const canUserAccessVoice = (requiredPlan: string): boolean => {
     return PrebuiltVoiceService.canAccessVoice(
       { required_plan: requiredPlan } as PrebuiltVoice,
@@ -323,13 +301,18 @@ const handleVoiceRecorded = (blob: Blob) => {
     );
   };
 
-  // Handle prebuilt voice selection
-  const handlePrebuiltSelect = (voiceId: string) => { // <-- REMOVED ASYNC
+  // ✅ Handle prebuilt voice selection
+  const handlePrebuiltSelect = (voiceId: string) => {
     const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
-    if (!voice) return;
+    if (!voice) {
+      toast({
+        title: "Voice Not Found",
+        description: "The selected voice is not available.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // === PERFORMANCE FIX START ===
-    // Validate access using the local data. No need for an async call.
     const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
 
     if (!canAccess) {
@@ -340,12 +323,9 @@ const handleVoiceRecorded = (blob: Blob) => {
       });
       return;
     }
-    // === PERFORMANCE FIX END ===
 
-    // Track usage for sorting
     PrebuiltVoiceService.trackVoiceUsage(voiceId);
 
-    // Clear previous selection and set new one
     if (currentAudio) {
       currentAudio.pause();
       setCurrentAudio(null);
@@ -354,87 +334,173 @@ const handleVoiceRecorded = (blob: Blob) => {
     clearSelection();
     setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
     onVoiceSelect(voiceId, 'prebuilt');
-
   };
 
-  // Play prebuilt voice sample
-  const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
+// ✅ FIXED: Clean audio playback - click playing voice to STOP completely
+const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
+  event.stopPropagation();
 
-    // Stop current audio if playing
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
+  // If clicking the same voice that's playing - STOP it completely
+  if (playingVoiceId === voiceId && currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio.src = '';
+    currentAudio.load();
+    setCurrentAudio(null);
+    setIsPlaying(false);
+    setPlayingVoiceId(null);
+    return;
+  }
+
+  // If a different voice is playing - stop it first
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio.src = '';
+    currentAudio.load();
+    setCurrentAudio(null);
+  }
+
+  // Reset states
+  setIsPlaying(false);
+  setPlayingVoiceId(null);
+
+  const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
+  if (!voice) return;
+
+  try {
+    let audioUrl: string | null = null;
+
+    // Check cache first
+    if (previewCache.has(voiceId)) {
+      audioUrl = previewCache.get(voiceId)!;
+    }
+    // Check if database has preview URL
+    else if (voice.audio_preview_url) {
+      audioUrl = voice.audio_preview_url;
+    }
+    // Generate new preview
+    else {
+      audioUrl = await generateAndPlayPreview(voiceId, voice);
+      if (!audioUrl) return;
     }
 
-    // Toggle if same voice is clicked
-    if (playingVoiceId === voiceId && isPlaying) {
+    // Create and configure audio element
+    const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
+
+    // Set up event listeners
+    audio.onended = () => {
       setIsPlaying(false);
       setPlayingVoiceId(null);
       setCurrentAudio(null);
-      return;
-    }
+    };
 
-    const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
-    if (!voice?.audio_preview_url) {
-      toast({
-        title: "No Preview Available",
-        description: "This voice doesn't have a preview sample.",
-        variant: "destructive"
-      });
-      return;
-    }
+    audio.onerror = () => {
+      setIsPlaying(false);
+      setPlayingVoiceId(null);
+      setCurrentAudio(null);
 
-    try {
-      const audio = new Audio(voice.audio_preview_url);
-      setCurrentAudio(audio);
-      setPlayingVoiceId(voiceId);
-      setIsPlaying(true);
-
-      audio.onended = () => {
-        setIsPlaying(false);
-        setPlayingVoiceId(null);
-        setCurrentAudio(null);
-      };
-
-      audio.onerror = () => {
-        setIsPlaying(false);
-        setPlayingVoiceId(null);
-        setCurrentAudio(null);
-        toast({
-          title: "Playback Error",
-          description: "Unable to play voice preview",
-          variant: "destructive"
+      // Remove failed URL from cache
+      if (voice.audio_preview_url === audioUrl) {
+        setPreviewCache(prev => {
+          const newCache = new Map(prev);
+          newCache.delete(voiceId);
+          return newCache;
         });
-      };
+      }
 
-      await audio.play();
-    } catch (error) {
-      setIsPlaying(false);
-      setPlayingVoiceId(null);
-      setCurrentAudio(null);
       toast({
         title: "Playback Error",
         description: "Unable to play voice preview",
         variant: "destructive"
       });
+    };
+
+    // Store reference and play
+    setCurrentAudio(audio);
+    setPlayingVoiceId(voiceId);
+    setIsPlaying(true);
+
+    await audio.play();
+
+  } catch (error) {
+    setIsPlaying(false);
+    setPlayingVoiceId(null);
+    setCurrentAudio(null);
+    toast({
+      title: "Playback Error",
+      description: "Unable to play voice preview",
+      variant: "destructive"
+    });
+  }
+};
+
+// Generate preview - returns the URL
+const generateAndPlayPreview = async (voiceId: string, voice: PrebuiltVoice): Promise<string | null> => {
+  setGeneratingPreview(voiceId);
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
+
+    const sampleText = sampleParagraphs[voice.language] || sampleParagraphs["en-US"];
+
+    const { data, error } = await supabase.functions.invoke('generate-prebuilt-voice', {
+      body: {
+        voice_id: voiceId,
+        sample_text: sampleText.substring(0, 100),
+        language: voice.language,
+        generate_preview: true
+      }
+    });
+
+    if (error) throw error;
+    if (!data?.audio_url) throw new Error("No audio URL returned");
+
+    const audioUrl = data.audio_url;
+    setPreviewCache(prev => new Map(prev).set(voiceId, audioUrl));
+
+    return audioUrl;
+
+  } catch (error: any) {
+    toast({
+      title: "Preview Generation Failed",
+      description: error.message || "Could not generate voice preview",
+      variant: "destructive"
+    });
+    return null;
+  } finally {
+    setGeneratingPreview(null);
+  }
+};
+
+// Cleanup when component unmounts or tab changes
+useEffect(() => {
+  return () => {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.src = '';
+      currentAudio.load();
     }
+    setIsPlaying(false);
+    setPlayingVoiceId(null);
+    setCurrentAudio(null);
   };
+}, [voiceMethod]);
 
   // Clear all filters
   const clearAllFilters = () => {
     setSearchTerm("");
     setCategoryFilter("all");
     setGenderFilter("all");
-    setPlanFilter("all");
   };
 
-  // Get unique categories and genders for filters
   const categories = Array.from(new Set(prebuiltVoices.map(v => v.category).filter(Boolean)));
   const genders = Array.from(new Set(prebuiltVoices.map(v => v.gender).filter(Boolean)));
-
   const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
-  const hasActiveFilters = searchTerm || categoryFilter !== "all" || genderFilter !== "all" || planFilter !== "all";
+  const hasActiveFilters = searchTerm || categoryFilter !== "all" || genderFilter !== "all";
 
   return (
     <div className="space-y-6">
@@ -516,18 +582,18 @@ const handleVoiceRecorded = (blob: Blob) => {
         {/* PREBUILT TAB */}
         <TabsContent value="prebuilt" className="space-y-4">
           <Card>
-           <CardHeader className="space-y-3">
-  <div className="flex items-center justify-between gap-3">
-    <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
-      <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
-      <span>Prebuilt Voices</span>
-    </CardTitle>
-    <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
-      {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
-    </Badge>
-  </div>
-</CardHeader>
-<CardContent className="px-2 sm:px-3 md:px-4">
+            <CardHeader className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center space-x-2 text-sm sm:text-base md:text-lg">
+                  <Crown className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span>Prebuilt Voices</span>
+                </CardTitle>
+                <Badge variant={userPlan === 'free' ? 'secondary' : 'default'} className="w-fit text-xs sm:text-sm">
+                  {userPlan === 'free' ? 'Free Plan' : userPlan === 'pro' ? 'Pro Plan' : 'Premium Plan'}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="px-2 sm:px-3 md:px-4">
               {loadingVoices ? (
                 <div className="text-center p-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
@@ -535,7 +601,6 @@ const handleVoiceRecorded = (blob: Blob) => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Upgrade Alert for Free Users */}
                   {userPlan === 'free' && (
                     <Alert className="border-amber-200 bg-amber-50 text-amber-800">
                       <AlertDescription className="text-xs sm:text-sm">
@@ -604,8 +669,6 @@ const handleVoiceRecorded = (blob: Blob) => {
                       </SelectContent>
                     </Select>
 
-
-
                     {hasActiveFilters && (
                       <Button
                         variant="outline"
@@ -633,15 +696,14 @@ const handleVoiceRecorded = (blob: Blob) => {
                           <SelectItem value="plan">Plan</SelectItem>
                         </SelectContent>
                       </Select>
-                   <Button
-  variant="outline"
-  size="sm"
-  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-  className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
->
-  {sortOrder === "asc" ? "↑" : "↓"}
-</Button>
-
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                        className={`px-2 ${sortOrder === "asc" ? "text-green-500" : "text-red-500"}`}
+                      >
+                        {sortOrder === "asc" ? "↑" : "↓"}
+                      </Button>
                     </div>
                   </div>
 
@@ -652,6 +714,7 @@ const handleVoiceRecorded = (blob: Blob) => {
                         const canAccess = canUserAccessVoice(voice.required_plan);
                         const isSelected = selectedVoice?.id === voice.voice_id;
                         const isCurrentlyPlaying = playingVoiceId === voice.voice_id && isPlaying;
+                        const isGenerating = generatingPreview === voice.voice_id;
 
                         return (
                           <div
@@ -659,7 +722,7 @@ const handleVoiceRecorded = (blob: Blob) => {
                             onClick={() => handlePrebuiltSelect(voice.voice_id)}
                             className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${
                               !canAccess ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''
-                            } ${isSelected ? "border-primary bg-primary/5 shadow-md  ring-primary/20" : "hover:border-primary/50"}`}
+                            } ${isSelected ? "border-primary bg-primary/5 shadow-md ring-primary/20" : "hover:border-primary/50"}`}
                           >
                             <div className="flex items-start gap-3">
                               <div className="flex-1 min-w-0">
@@ -678,21 +741,9 @@ const handleVoiceRecorded = (blob: Blob) => {
                                   {voice.description}
                                 </p>
                                 <div className="flex gap-1 flex-wrap items-center">
-                                  {/* Display plan badge with access info */}
-                                  {(() => {
-                                    const planBadges = [];
-                                    if (voice.required_plan === 'free') planBadges.push('Free');
-                                    if (voice.required_plan === 'pro' || voice.required_plan === 'premium') {
-                                      if (voice.required_plan === 'pro') planBadges.push('Pro');
-                                      if (voice.required_plan === 'premium') planBadges.push('Premium');
-                                    }
-                                    return planBadges.map((label, i) => (
-                                      <Badge key={i} variant="secondary" className="text-xs">
-                                        {label}
-                                      </Badge>
-                                    ));
-                                  })()}
-
+                                  <Badge variant="secondary" className="text-xs">
+                                    {voice.required_plan}
+                                  </Badge>
                                   {voice.category && (
                                     <Badge variant="outline" className="text-xs capitalize">
                                       {voice.category}
@@ -703,35 +754,25 @@ const handleVoiceRecorded = (blob: Blob) => {
                                       {voice.gender}
                                     </Badge>
                                   )}
-                                  {voice.accent && (
-                                    <Badge variant="outline" className="text-xs capitalize">
-                                      {voice.accent}
-                                    </Badge>
-                                  )}
-                                  {sortBy === "usage" && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Used {PrebuiltVoiceService.getVoiceUsageCount(voice.voice_id)} times
-                                    </Badge>
-                                  )}
                                 </div>
                               </div>
-                              {/* FIX: Only show the play button if a preview URL exists */}
-                                  {voice.audio_preview_url && (
-                                    <Button
-                                      variant={isCurrentlyPlaying ? "default" : "outline"}
-                                      size="icon"
-                                      className="h-9 w-9 flex-shrink-0"
-                                      onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
-                                      // The 'disabled' prop is no longer needed for this check,
-                                      // because the button won't exist at all if there's no URL.
-                                    >
-                                      {isCurrentlyPlaying ? (
-                                        <Pause className="h-4 w-4" />
-                                      ) : (
-                                        <Play className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  )}
+
+                              {/* ✅ Always show play button */}
+                              <Button
+                                variant={isCurrentlyPlaying ? "default" : "outline"}
+                                size="icon"
+                                className="h-9 w-9 flex-shrink-0"
+                                onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
+                                disabled={isGenerating}
+                              >
+                                {isGenerating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : isCurrentlyPlaying ? (
+                                  <Pause className="h-4 w-4" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
                             </div>
                           </div>
                         );
@@ -767,14 +808,13 @@ const handleVoiceRecorded = (blob: Blob) => {
                   </div>
 
                   {/* Voice Count Info */}
-{filteredVoices.length > 0 && (
-  <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-    {selectedLanguage
-      ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
-      : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
-  </div>
-)}
-
+                  {filteredVoices.length > 0 && (
+                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+                      {selectedLanguage
+                        ? `Showing ${filteredVoices.length} of ${prebuiltVoices.filter(v => v.language === selectedLanguage).length} voices for ${selectedLanguage}`
+                        : `Showing ${filteredVoices.length} of ${prebuiltVoices.length} voices across all languages`}
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

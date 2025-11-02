@@ -13,61 +13,14 @@ export interface PrebuiltVoice {
   audio_preview_url?: string;
   is_active: boolean;
   sort_order: number;
-  usage_count?: number; // Track usage for sorting
+  usage_count?: number;
   created_at: string;
   updated_at: string;
 }
 
 export class PrebuiltVoiceService {
   /**
-   * Get voices available for user's plan with progressive loading
-   * This fetches from database, ensuring data security
-   */
-  static async getVoicesForPlan(
-    userPlan: string,
-    limit?: number,
-    offset?: number
-  ): Promise<PrebuiltVoice[]> {
-    try {
-      // Determine allowed plans based on user's current plan
-      let allowedPlans: string[] = ['free'];
-
-      if (userPlan === 'pro') {
-        allowedPlans = ['free', 'pro'];
-      } else if (userPlan === 'premium') {
-        allowedPlans = ['free', 'pro', 'premium'];
-      }
-
-      // Build query with filters
-      let query = supabase
-        .from('prebuilt_voices')
-        .select('*')
-        .eq('is_active', true)
-        .in('required_plan', allowedPlans)
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true });
-
-      // Add pagination for progressive loading (optional)
-      if (limit) {
-        query = query.range(offset || 0, (offset || 0) + limit - 1);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching prebuilt voices:', error);
-        throw new Error(`Failed to fetch voices: ${error.message}`);
-      }
-
-      return (data || []) as PrebuiltVoice[];
-    } catch (error) {
-      console.error('Error in getVoicesForPlan:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get all active voices (for admin purposes or browsing)
+   * ✅ Get ALL active voices (no plan restriction for browsing)
    */
   static async getAllActiveVoices(): Promise<PrebuiltVoice[]> {
     try {
@@ -91,7 +44,50 @@ export class PrebuiltVoiceService {
   }
 
   /**
-   * Get voices by category for a specific user plan
+   * Get voices available for user's plan (for filtering)
+   */
+  static async getVoicesForPlan(
+    userPlan: string,
+    limit?: number,
+    offset?: number
+  ): Promise<PrebuiltVoice[]> {
+    try {
+      let allowedPlans: string[] = ['free'];
+
+      if (userPlan === 'pro') {
+        allowedPlans = ['free', 'pro'];
+      } else if (userPlan === 'premium') {
+        allowedPlans = ['free', 'pro', 'premium'];
+      }
+
+      let query = supabase
+        .from('prebuilt_voices')
+        .select('*')
+        .eq('is_active', true)
+        .in('required_plan', allowedPlans)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (limit) {
+        query = query.range(offset || 0, (offset || 0) + limit - 1);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching prebuilt voices:', error);
+        throw new Error(`Failed to fetch voices: ${error.message}`);
+      }
+
+      return (data || []) as PrebuiltVoice[];
+    } catch (error) {
+      console.error('Error in getVoicesForPlan:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get voices by category
    */
   static async getVoicesByCategory(
     category: string,
@@ -123,7 +119,7 @@ export class PrebuiltVoiceService {
   }
 
   /**
-   * Get a single voice by voice_id
+   * ✅ FIXED: Get a single voice by voice_id (using maybeSingle)
    */
   static async getVoiceById(voiceId: string): Promise<PrebuiltVoice | null> {
     try {
@@ -132,7 +128,7 @@ export class PrebuiltVoiceService {
         .select('*')
         .eq('voice_id', voiceId)
         .eq('is_active', true)
-  .maybeSingle(); // ← safe
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching voice by ID:', error);
@@ -252,27 +248,22 @@ export class PrebuiltVoiceService {
     try {
       let voices = await this.getVoicesForPlan(userPlan);
 
-      // Apply language filter
       if (filters.language) {
         voices = voices.filter(v => v.language === filters.language);
       }
 
-      // Apply category filter
       if (filters.category) {
         voices = voices.filter(v => v.category === filters.category);
       }
 
-      // Apply gender filter
       if (filters.gender) {
         voices = voices.filter(v => v.gender === filters.gender);
       }
 
-      // Apply plan filter
       if (filters.plan) {
         voices = voices.filter(v => v.required_plan === filters.plan);
       }
 
-      // Apply search term
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
         voices = voices.filter(v =>
@@ -334,9 +325,8 @@ export class PrebuiltVoiceService {
   /**
    * Track voice usage for analytics and sorting
    */
-  static async trackVoiceUsage(voiceId: string): Promise<void> {
+  static trackVoiceUsage(voiceId: string): void {
     try {
-      // Increment usage count in localStorage for client-side tracking
       const usageKey = `voice_usage_${voiceId}`;
       const currentUsage = parseInt(localStorage.getItem(usageKey) || '0', 10);
       localStorage.setItem(usageKey, (currentUsage + 1).toString());
@@ -381,14 +371,12 @@ export class PrebuiltVoiceService {
         byLanguage: {} as Record<string, number>
       };
 
-      // Count by category
       voices.forEach(v => {
         if (v.category) {
           stats.byCategory[v.category] = (stats.byCategory[v.category] || 0) + 1;
         }
       });
 
-      // Count by language
       voices.forEach(v => {
         if (v.language) {
           stats.byLanguage[v.language] = (stats.byLanguage[v.language] || 0) + 1;
