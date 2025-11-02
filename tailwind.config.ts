@@ -3,7 +3,7 @@ import animatePlugin from "tailwindcss-animate";
 
 const config: Config = {
   // 🚫 Force-disable dark mode across all components & variants
-  darkMode: media,
+  darkMode: "media",
 
   // 📁 Paths where Tailwind scans for class names
   content: [
