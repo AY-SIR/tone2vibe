@@ -19,7 +19,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.verify-instamojo-payment]
-verify_jwt = false
+verify_jwt = true
 
 [functions.purge-expired-history]
 verify_jwt = false

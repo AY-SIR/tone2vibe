@@ -28,18 +28,18 @@ serve(async (req) => {
     const testMode = Deno.env.get("INSTAMOJO_TEST_MODE") === "true";
     if (!apiKey || !authToken) return fail("Payment gateway not configured");
 
-    // Auth check
+    // Get authenticated user from JWT (validated by Supabase)
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return fail("Missing authorization header", 401);
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
     );
 
-    const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !userData.user) return fail("User not authenticated");
-
-    const user = userData.user;
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) return fail("User not authenticated", 401);
 
     // Verify payment with Instamojo
     const baseUrl = testMode

@@ -47,6 +47,42 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_access_tokens: {
+        Row: {
+          bucket: string
+          created_at: string
+          expires_at: string
+          id: string
+          signed_url: string | null
+          signed_url_expires_at: string | null
+          storage_path: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          bucket: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          signed_url?: string | null
+          signed_url_expires_at?: string | null
+          storage_path: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          signed_url?: string | null
+          signed_url_expires_at?: string | null
+          storage_path?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       banned_emails: {
         Row: {
           created_at: string
@@ -204,7 +240,9 @@ export type Database = {
           id: string
           language: string
           original_text: string
+          plan_at_creation: string | null
           processing_time_ms: number | null
+          retention_expires_at: string | null
           title: string
           updated_at: string
           user_id: string
@@ -220,7 +258,9 @@ export type Database = {
           id?: string
           language?: string
           original_text: string
+          plan_at_creation?: string | null
           processing_time_ms?: number | null
+          retention_expires_at?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -236,7 +276,9 @@ export type Database = {
           id?: string
           language?: string
           original_text?: string
+          plan_at_creation?: string | null
           processing_time_ms?: number | null
+          retention_expires_at?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -296,6 +338,27 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           subscribed_at?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          coupon_code: string | null
+          created_at: string | null
+          id: string
+          payment_request_id: string | null
+        }
+        Insert: {
+          coupon_code?: string | null
+          created_at?: string | null
+          id?: string
+          payment_request_id?: string | null
+        }
+        Update: {
+          coupon_code?: string | null
+          created_at?: string | null
+          id?: string
+          payment_request_id?: string | null
         }
         Relationships: []
       }
@@ -493,12 +556,15 @@ export type Database = {
           avatar_url: string | null
           company: string | null
           country: string | null
+          country_code: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
+          ip: string | null
           ip_address: unknown
           is_vpn_user: boolean | null
+          language: string | null
           last_ip_check: string | null
           last_login_at: string | null
           last_payment_amount: number | null
@@ -529,12 +595,15 @@ export type Database = {
           avatar_url?: string | null
           company?: string | null
           country?: string | null
+          country_code?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          ip?: string | null
           ip_address?: unknown
           is_vpn_user?: boolean | null
+          language?: string | null
           last_ip_check?: string | null
           last_login_at?: string | null
           last_payment_amount?: number | null
@@ -565,12 +634,15 @@ export type Database = {
           avatar_url?: string | null
           company?: string | null
           country?: string | null
+          country_code?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          ip?: string | null
           ip_address?: unknown
           is_vpn_user?: boolean | null
+          language?: string | null
           last_ip_check?: string | null
           last_login_at?: string | null
           last_payment_amount?: number | null
@@ -716,57 +788,6 @@ export type Database = {
         }
         Relationships: []
       }
-      voice_recordings: {
-        Row: {
-          audio_url: string | null
-          created_at: string
-          duration_seconds: number | null
-          file_size_bytes: number | null
-          id: string
-          language: string
-          original_text: string
-          s3_key: string | null
-          status: string
-          title: string
-          updated_at: string
-          user_id: string
-          voice_settings: Json | null
-          words_used: number
-        }
-        Insert: {
-          audio_url?: string | null
-          created_at?: string
-          duration_seconds?: number | null
-          file_size_bytes?: number | null
-          id?: string
-          language?: string
-          original_text: string
-          s3_key?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-          user_id: string
-          voice_settings?: Json | null
-          words_used?: number
-        }
-        Update: {
-          audio_url?: string | null
-          created_at?: string
-          duration_seconds?: number | null
-          file_size_bytes?: number | null
-          id?: string
-          language?: string
-          original_text?: string
-          s3_key?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-          voice_settings?: Json | null
-          words_used?: number
-        }
-        Relationships: []
-      }
       word_purchases: {
         Row: {
           amount_paid: number
@@ -820,6 +841,8 @@ export type Database = {
         Returns: boolean
       }
       check_plan_expiry: { Args: { user_id_param: string }; Returns: Json }
+      cleanup_expired_audio_tokens: { Args: never; Returns: undefined }
+      cleanup_expired_tokens: { Args: never; Returns: undefined }
       deduct_words_and_log_history: {
         Args: {
           p_audio_url: string
@@ -838,7 +861,7 @@ export type Database = {
       }
       generate_verification_token: { Args: never; Returns: string }
       get_user_analytics_summary: {
-        Args: { p_retention_days: number; p_user_id: string }
+        Args: { p_retention_days?: number; p_user_id: string }
         Returns: Json
       }
       reset_plan_words: { Args: { user_id_param: string }; Returns: undefined }
