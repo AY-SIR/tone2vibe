@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Volume2, FileAudio, Copy, Check, Download, Loader2, Sparkles, Play, Pause, SkipForward } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,6 +53,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [conversionProgress, setConversionProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actualDuration, setActualDuration] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
@@ -257,12 +259,25 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
 
     setDownloading(format);
+    setConversionProgress(0);
+
+    // Show initial conversion message
+    toast({ 
+      title: "Converting Audio", 
+      description: `Converting to ${format.toUpperCase()}...` 
+    });
+
+    // Simulate progress for better UX
+    const progressInterval = setInterval(() => {
+      setConversionProgress(prev => {
+        if (prev >= 85) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 400);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Authentication required");
-
-      toast({ title: "Converting Audio", description: `Converting to ${format.toUpperCase()}...` });
 
       let downloadUrl = audioUrl;
 
@@ -293,6 +308,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         downloadUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
       }
 
+      setConversionProgress(50);
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/convert-audio`, {
         method: "POST",
         headers: {
@@ -315,6 +332,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         throw new Error(errorMsg);
       }
 
+      setConversionProgress(90);
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -325,7 +344,12 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast({ title: "Download Complete", description: `Audio downloaded as ${format.toUpperCase()}.` });
+      setConversionProgress(100);
+
+      toast({ 
+        title: "Download Complete", 
+        description: `Audio downloaded as ${format.toUpperCase()}.` 
+      });
 
     } catch (error: any) {
       console.error("Download error:", error);
@@ -335,7 +359,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         variant: "destructive"
       });
     } finally {
+      clearInterval(progressInterval);
       setDownloading(null);
+      setTimeout(() => setConversionProgress(0), 1000);
     }
   };
 
@@ -497,6 +523,21 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 sm:space-y-4">
+          {/* Show conversion progress when downloading */}
+          {downloading && conversionProgress > 0 && (
+            <Card className="border-blue-200 bg-blue-50/50 mb-4">
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-900 font-medium">Converting to {downloading.toUpperCase()}...</span>
+                    <span className="text-blue-700 font-semibold">{Math.round(conversionProgress)}%</span>
+                  </div>
+                  <Progress value={conversionProgress} className="h-2" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             {formats.slice(0, 3).map((format) => (
               <Button

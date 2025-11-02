@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
+import { cacheService } from "@/services/cacheService";
 
 interface ModernStepFourProps {
   extractedText: string;
@@ -149,12 +150,38 @@ const ModernStepFour = ({
 
     try {
       const sampleText = getSampleText();
+      const settings = getAllVoiceSettings();
+
+      // Check cache first
+      const cacheKey = cacheService.generateCacheKey(sampleText, {
+        voice_id: selectedVoiceId,
+        language: selectedLanguage,
+        speed: speed[0],
+        pitch: pitch[0]
+      });
+      
+      const cached = cacheService.get(cacheKey);
+      if (cached?.audio_url) {
+        console.log("Using cached sample audio");
+        setSampleAudio(cached.audio_url);
+        setProgress(100);
+        toast({
+          title: "Sample Ready (Cached)",
+          description: "Preview your audio sample below.",
+        });
+        clearInterval(progressInterval);
+        setIsGenerating(false);
+        setIsSampleGeneration(false);
+        onProcessingEnd();
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-sample-voice', {
         body: {
           text: sampleText,
           language: selectedLanguage,
           is_sample: true,
-          voice_settings: getAllVoiceSettings()
+          voice_settings: settings
         }
       });
 
@@ -163,6 +190,14 @@ const ModernStepFour = ({
       setProgress(100);
       if (data?.audio_url) {
         setSampleAudio(data.audio_url);
+        
+        // Cache the sample and embedding for reuse
+        cacheService.set(cacheKey, { 
+          audio_url: data.audio_url,
+          embedding: data.embedding,
+          settings: settings
+        });
+        
         toast({
           title: "Sample Ready!",
           description: "Listen and adjust settings if needed.",
@@ -235,12 +270,31 @@ const ModernStepFour = ({
 
     try {
       const title = `Audio Generation - ${new Date().toLocaleDateString()}`;
+      const settings = getAllVoiceSettings();
+
+      // Check if we can reuse cached sample embedding
+      const sampleText = getSampleText();
+      const cacheKey = cacheService.generateCacheKey(sampleText, {
+        voice_id: selectedVoiceId,
+        language: selectedLanguage,
+        speed: speed[0],
+        pitch: pitch[0]
+      });
+      
+      const cached = cacheService.get(cacheKey);
+      const cachedEmbedding = cached?.embedding || null;
+      
+      if (cachedEmbedding) {
+        console.log("Reusing cached embedding from sample generation");
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-voice', {
         body: {
           text: extractedText,
           title: title,
-          voice_settings: getAllVoiceSettings(),
-          language: selectedLanguage
+          voice_settings: settings,
+          language: selectedLanguage,
+          cached_embedding: cachedEmbedding
         }
       });
 
@@ -251,10 +305,16 @@ const ModernStepFour = ({
         onAudioGenerated(data.audio_url);
         setProgress(100);
         setGenerationComplete(true);
-        // Immediate redirect with loader
+        
+        toast({
+          title: "Audio Generated!",
+          description: "Redirecting to final step...",
+        });
+
+        // Auto-redirect after 2 seconds
         setTimeout(() => {
           onNext();
-        }, 1500);
+        }, 2000);
       } else {
         throw new Error("No audio content received");
       }
@@ -338,10 +398,10 @@ const ModernStepFour = ({
               <Settings className="h-4 w-4 sm:h-5 sm:w-5 mr-2" /> Advanced Settings
               {isPremiumUser && <Crown className="h-3 w-3 sm:h-4 sm:w-4 ml-2 text-yellow-500" />}
             </CardTitle>
-            {profile?.plan === 'free' ? (
+            {profile?.plan === 'free' || voiceType === 'prebuilt' ? (
               <Badge variant="outline" className="text-xs sm:text-sm whitespace-nowrap">
                 <Lock className="h-3 w-3 mr-1" />
-                Upgrade
+                {voiceType === 'prebuilt' ? 'Not Available' : 'Upgrade'}
               </Badge>
             ) : (
               <Button variant="ghost" size="sm" onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs sm:text-sm">
@@ -675,30 +735,35 @@ const ModernStepFour = ({
       )}
 
       {isGenerating && (
-        <Card className="border-blue-200 bg-blue-50/50">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-blue-900">
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50">
+          <CardContent className="p-8">
+            <div className="space-y-6 text-center">
+              {/* Animated spinner */}
+              <div className="relative w-24 h-24 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Volume2 className="h-10 w-10 text-blue-600" />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xl font-bold text-blue-900 mb-2">
                   {isSampleGeneration ? "Generating Sample..." : "Generating Your Audio..."}
                 </h3>
-                <Badge className="bg-blue-100 text-blue-800">
-                  {Math.round(progress)}%
-                </Badge>
-              </div>
-              <Progress value={progress} className="h-3" />
-              <div className="text-center space-y-2">
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                  <span className="text-xs sm:text-sm text-blue-700">
-                    {isSampleGeneration ? `Processing 50-word sample...` : `Processing ${wordCount} words...`}
-                  </span>
-                </div>
+                <p className="text-sm text-blue-700">
+                  {isSampleGeneration ? `Processing 50-word sample...` : `Processing ${wordCount} words...`}
+                </p>
                 {!isSampleGeneration && (
-                  <p className="text-xs text-blue-600">
-                    This may take up to {estimatedTime} seconds
+                  <p className="text-xs text-blue-600 mt-2">
+                    Estimated time: {estimatedTime} seconds
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Progress value={progress} className="h-2" />
+                <p className="text-xs text-blue-600 font-medium">{Math.round(progress)}% Complete</p>
               </div>
             </div>
           </CardContent>
@@ -706,19 +771,29 @@ const ModernStepFour = ({
       )}
 
       {generationComplete && (
-        <Card className="border-green-200 bg-green-50/50">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="p-6 bg-green-100 rounded-full w-20 h-20 mx-auto flex items-center justify-center animate-pulse">
-                <CheckCircle className="h-10 w-10 text-green-600" />
+        <Card className="border-green-200 bg-gradient-to-br from-green-50 to-green-100/50">
+          <CardContent className="p-8">
+            <div className="text-center space-y-6">
+              {/* Success animation */}
+              <div className="relative w-24 h-24 mx-auto">
+                <div className="absolute inset-0 rounded-full bg-green-100 animate-pulse"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <CheckCircle className="h-16 w-16 text-green-600 animate-scale-in" />
+                </div>
               </div>
+
               <div>
-                <h3 className="text-xl font-bold text-green-900 mb-2">
-                  Generation Complete!
+                <h3 className="text-2xl font-bold text-green-900 mb-2 animate-fade-in">
+                  Generated Successfully! ✨
                 </h3>
-                <p className="text-sm text-green-700">
-                  Redirecting to download page...
+                <p className="text-sm text-green-700 animate-fade-in">
+                  Redirecting to download page in 2 seconds...
                 </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 text-xs text-green-600">
+                <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                <span>Auto-redirecting...</span>
               </div>
             </div>
           </CardContent>

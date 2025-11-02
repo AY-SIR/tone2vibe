@@ -284,7 +284,7 @@ export default function ModernStepOne({
                 disabled={!manualText.trim() || isProcessing || !!textError}
                 className="w-full"
               >
-                Use This Text
+                Prepare This Text
               </Button>
             </CardContent>
           </Card>

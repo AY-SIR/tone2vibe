@@ -18,6 +18,9 @@ verify_jwt = true
 [functions.generate-voice]
 verify_jwt = true
 
+[functions.generate-prebuilt-voice]
+verify_jwt = false
+
 [functions.verify-instamojo-payment]
 verify_jwt = true
 
@@ -45,4 +48,14 @@ verify_jwt = false
 [functions.update-password]
 verify_jwt = false
 
+[functions.convert-audio]
+verify_jwt = true
 
+[functions.issue-audio-token]
+verify_jwt = true
+
+[functions.stream-audio]
+verify_jwt = true
+
+[functions.signup]
+verify_jwt = false

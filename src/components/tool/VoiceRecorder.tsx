@@ -93,7 +93,16 @@ export const VoiceRecorder = ({
       setStatus('recording');
       recordedChunksRef.current = [];
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 48000,
+          sampleSize: 24
+        }
+      });
       streamRef.current = stream;
 
       const audioContext = new AudioContext();
