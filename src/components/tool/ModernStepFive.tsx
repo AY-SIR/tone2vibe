@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Volume2, FileAudio, Copy, Check, Download, Loader2, Sparkles, Play, Pause, SkipForward } from 'lucide-react';
+import { Volume2, FileAudio, Copy, Check, Download, Loader2, Sparkles, Play, Pause, RefreshCcw } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
@@ -475,19 +475,23 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!audioReady ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <div className="relative">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <div className="absolute inset-0 h-8 w-8 rounded-full border-2 border-primary/20 animate-pulse"></div>
-              </div>
-              <div className="text-center space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Preparing your audio...</p>
-                <p className="text-xs text-muted-foreground">This may take a moment</p>
-              </div>
-              <Progress value={undefined} className="w-48 h-1" />
-            </div>
-          ) : (
+        {!audioReady ? (
+  <div className="flex flex-col items-center justify-center gap-3 py-12 bg-white text-black dark:bg-black dark:text-white transition-colors">
+    {/* Progress line */}
+    <div className="w-48 h-[2px] bg-black/10 dark:bg-white/10 overflow-hidden mt-2">
+      <div className="h-full w-1/3 bg-black dark:bg-white animate-[progress_1.5s_linear_infinite]"></div>
+    </div>
+
+    {/* Text info */}
+    <div className="text-center space-y-1">
+      <p className="text-sm font-medium opacity-80">Preparing your audio...</p>
+      <p className="text-xs opacity-60">This may take a moment</p>
+    </div>
+
+
+  </div>
+)
+ : (
             <>
               <audio ref={audioRef} src={secureAudioUrl} className="hidden" />
 
@@ -577,7 +581,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
                     <span className="text-blue-900 font-medium">Converting to {downloading.toUpperCase()}...</span>
                     <span className="text-blue-700 font-semibold">{Math.round(conversionProgress)}%</span>
                   </div>
-                  <Progress value={conversionProgress} className="h-2" />
+                  <Progress value={conversionProgress} className="h-1 text-gray-900" />
                 </div>
               </CardContent>
             </Card>
@@ -674,10 +678,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             size="lg"
             className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl w-full sm:w-auto"
           >
-          <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2 " />
 
             Next Generation
-<SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2 rotate-180" />
+<RefreshCcw className="w-4 h-4 sm:w-5 sm:h-5 mr-2 rotate-180" />
 
           </Button>
         )}

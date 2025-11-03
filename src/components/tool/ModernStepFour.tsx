@@ -678,7 +678,7 @@ useEffect(() => {
                 </Button>
               </div>
               {canGenerateSample && (
-                <p className="text-xs text-gray-500">💡 Sample generation is free</p>
+                <p className="text-xs text-gray-500">💡 Sample generation is free No Words Deduct</p>
               )}
             </div>
           </CardContent>

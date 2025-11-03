@@ -54,4 +54,4 @@ export function MicrophonePermissionDialog({
       </AlertDialogContent>
     </AlertDialog>
   );
-} // ✅ <-- added missing closing brace
+}

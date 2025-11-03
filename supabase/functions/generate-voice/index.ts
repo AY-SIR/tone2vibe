@@ -9,6 +9,33 @@ const corsHeaders = {
 
 const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
+/** 🧩 Helper — Generate unique + readable file name in format: Generated_A3b9_311224_1430_Voice */
+function generateUniqueVoiceName() {
+  const istDate = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  const d = new Date(istDate);
+
+  // Random 4-character alphanumeric (A–Z, a–z, 0–9)
+  const randomCode = Array.from({ length: 4 }, () =>
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
+      Math.floor(Math.random() * 62)
+    ]
+  ).join("");
+
+  // Date: DDMMYY
+  const dateStr = `${d.getDate().toString().padStart(2, "0")}${(d.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}${d.getFullYear().toString().slice(-2)}`;
+
+  // Time: HHMM
+  const timeStr = `${d.getHours().toString().padStart(2, "0")}${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+
+  // Format: Generated_A3b9_311224_1430_Voice
+  return `Generated_${randomCode}_${dateStr}_${timeStr}_Voice`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -42,15 +69,9 @@ Deno.serve(async (req) => {
       throw new Error("Request body must include text, title, voice_settings, and language.");
     }
 
-    console.log("Voice settings received:", JSON.stringify(voice_settings, null, 2));
-    console.log("Voice ID from settings:", voice_settings.voice_id);
-
-    if (!voice_settings.voice_id) {
-      throw new Error("Voice ID is required in voice_settings");
-    }
-
     const actualWordCount = text.split(/\s+/).filter(Boolean).length;
 
+    // Check user's word balance
     const { data: profile, error: profileError } = await supabaseService
       .from("profiles")
       .select("plan, words_limit, plan_words_used, word_balance")
@@ -64,115 +85,100 @@ Deno.serve(async (req) => {
       throw new Error(`Insufficient word balance. Need ${actualWordCount}, but have ${totalWordsAvailable}.`);
     }
 
-    // Compute item-level retention based on plan at creation
+    // Calculate retention based on plan
     const planAtCreation = (profile as any)?.plan || 'free';
     const retentionDays = planAtCreation === 'premium' ? 90 : planAtCreation === 'pro' ? 30 : 7;
     const retentionExpiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
 
+    // Create history record
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
         user_id: user.id,
         title,
         original_text: text,
-        voice_settings: voice_settings,
+        voice_settings,
         words_used: actualWordCount,
         generation_started_at: new Date().toISOString(),
-        language: language,
+        language,
         plan_at_creation: planAtCreation,
-        retention_expires_at: retentionExpiresAt
+        retention_expires_at: retentionExpiresAt,
       })
       .select("id, generation_started_at")
       .single();
 
     if (historyError) throw new Error(`Failed to create history record: ${historyError.message}`);
 
+    // 🔊 Fetch sample audio (replace with actual TTS API call in production)
     const response = await fetch(SAMPLE_MP3_URL);
     if (!response.ok) throw new Error("Failed to fetch sample MP3.");
     const mp3Data = new Uint8Array(await response.arrayBuffer());
 
-    const filePath = `${user.id}/${historyRecord.id}.mp3`;
+    // 🧾 Generate unique readable name: Generated_A3b9_311224_1430_Voice
+    const voiceName = generateUniqueVoiceName();
+    const filePath = `${user.id}/${voiceName}.mp3`;
+
+    // Upload to Supabase storage
     const { error: uploadError } = await supabaseService.storage
       .from("user-generates")
       .upload(filePath, mp3Data, { contentType: "audio/mpeg", upsert: true });
 
     if (uploadError) throw new Error(`Failed to upload MP3: ${uploadError.message}`);
 
-    // Store storage path (not public URL) for security. We'll return a tokenized streaming URL to the client.
     const storagePath = filePath;
 
+    // Update history record with completion info
     const generationCompletedAt = new Date();
     const { error: updateError } = await supabaseService
       .from("history")
       .update({
         audio_url: storagePath,
         generation_completed_at: generationCompletedAt.toISOString(),
-        processing_time_ms: generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime(),
-        language: language,
-        // Estimate duration in seconds based on text length and WPM if provided
-        duration_seconds: (() => {
-          try {
-            const wpm = Number(voice_settings?.wpm) || 150; // default 150 WPM
-            const baseSeconds = Math.max(1, Math.round((actualWordCount / wpm) * 60));
-            const pauseMult = Number(voice_settings?.overall_pause_multiplier) || 1.0;
-            return Math.max(1, Math.round(baseSeconds * pauseMult));
-          } catch {
-            return Math.max(1, Math.round((actualWordCount / 150) * 60));
-          }
-        })()
+        processing_time_ms:
+          generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime(),
+        duration_seconds: Math.max(1, Math.round((actualWordCount / 150) * 60)),
+        name: voiceName, // Store unique readable name
       })
       .eq("id", historyRecord.id);
 
-    if (updateError) {
-      console.error(`Failed to update history record ${historyRecord.id}:`, updateError.message);
-    }
+    if (updateError) console.error(`Failed to update history record:`, updateError.message);
 
+    // Deduct words from user's balance
     const { error: deductError } = await supabaseService.rpc("deduct_words_smartly", {
       user_id_param: user.id,
       words_to_deduct: actualWordCount,
     });
+    if (deductError) console.error(`Word deduction failed:`, deductError.message);
 
-    if (deductError) {
-      console.error(`Failed to deduct words for user ${user.id}:`, deductError.message);
-    }
-
-    // Issue a 24h token for streaming the file
+    // Create temporary access token for streaming
     const token = crypto.randomUUID().replace(/-/g, "");
     const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-    const { error: tokenError } = await supabaseService
-      .from("audio_access_tokens")
-      .insert({
-        user_id: user.id,
-        bucket: "user-generates",
-        storage_path: storagePath,
-        token,
-        expires_at: expiresAt,
-      });
-    if (tokenError) {
-      console.error("Failed to insert audio token:", tokenError.message);
-    }
+    await supabaseService.from("audio_access_tokens").insert({
+      user_id: user.id,
+      bucket: "user-generates",
+      storage_path: storagePath,
+      token,
+      expires_at: expiresAt,
+    });
 
     const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
 
-    return new Response(JSON.stringify({
-      success: true,
-      audio_url: streamUrl,
-      storage_path: storagePath,
-      history_id: historyRecord.id,
-      voice_id_used: voice_settings.voice_id
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        audio_url: streamUrl,
+        storage_path: storagePath,
+        history_id: historyRecord.id,
+        name: voiceName, // Return the unique name
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+    );
 
   } catch (error) {
     console.error("Generation function error:", error.message);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 },
+    );
   }
 });

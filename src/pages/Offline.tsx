@@ -1,72 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { WifiOff, RefreshCw } from 'lucide-react';
+import React from 'react';
+import { WifiOff, RefreshCw, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 
 const Offline = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [checking, setChecking] = useState(false);
-  const [showRestored, setShowRestored] = useState(false);
+  const {
+    isOffline,
+    isCheckingConnection,
+    connectionRestored,
+    checkConnection
+  } = useOfflineDetection();
 
-  const handleRetry = async () => {
-    setChecking(true);
-    try {
-      const response = await fetch('/api/health', {
-        method: 'HEAD',
-        cache: 'no-store',
-      });
-
-      if (response.ok) {
-        setIsOnline(true);
-      } else {
-        setIsOnline(false);
-      }
-    } catch {
-      // Network request failed — likely offline
-      setIsOnline(false);
-    } finally {
-      setChecking(false);
-    }
+  const handleRetry = () => {
+    checkConnection(true);
   };
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setChecking(false);
-      setIsOnline(true);
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      setShowRestored(false);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // ✅ Check network immediately on mount (important for reloads while offline)
-    handleRetry();
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isOnline) {
-      // Show "Connection Restored" briefly before returning to the app
-      setShowRestored(true);
-      const timer = setTimeout(() => setShowRestored(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isOnline]);
-
-  // Show connection restored message temporarily
-  if (showRestored) {
+  // Show connection restored message
+  if (connectionRestored && !isOffline) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4 animate-fadeIn">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-            <RefreshCw className="h-10 w-10 text-green-600 animate-spin" />
+            <Wifi className="h-10 w-10 text-green-600" />
           </div>
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold">Connection Restored</h1>
@@ -80,9 +35,9 @@ const Offline = () => {
   }
 
   // Show offline screen
-  if (!isOnline) {
+  if (isOffline) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4 animate-fadeIn">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-8">
           <div className="space-y-6">
             <div className="w-24 h-24 mx-auto rounded-full bg-muted flex items-center justify-center">
@@ -100,10 +55,10 @@ const Offline = () => {
           <div className="space-y-3">
             <Button
               onClick={handleRetry}
-              disabled={checking}
+              disabled={isCheckingConnection}
               className="w-full"
             >
-              {checking ? (
+              {isCheckingConnection ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   Checking Connection...
@@ -125,7 +80,6 @@ const Offline = () => {
     );
   }
 
-  // If online and not showing restored message, render nothing (main app continues)
   return null;
 };
 

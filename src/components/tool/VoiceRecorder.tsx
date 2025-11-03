@@ -335,7 +335,7 @@ const confirmRecording = async () => {
         .toString()
         .padStart(2, "0")}`;
 
-      return `RecordedVoice_${randomCode}_${dateStr}_${timeStr}`;
+      return `Recorded_${randomCode}_${dateStr}_${timeStr}_Voice`;
     };
 
     const voiceName = generateVoiceName();
