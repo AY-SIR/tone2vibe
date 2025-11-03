@@ -9,10 +9,7 @@ const Offline = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      // Auto-redirect when back online
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      setChecking(false);
     };
 
     const handleOffline = () => {
@@ -38,7 +35,7 @@ const Offline = () => {
       });
       
       if (response.ok) {
-        window.location.reload();
+        setIsOnline(true);
       }
     } catch (error) {
       // Still offline
@@ -48,21 +45,7 @@ const Offline = () => {
   };
 
   if (isOnline) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-            <RefreshCw className="h-10 w-10 text-green-600 animate-spin" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">Connection Restored</h1>
-            <p className="text-muted-foreground">
-              Reconnecting to the application...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -101,7 +84,7 @@ const Offline = () => {
           </Button>
           
           <p className="text-xs text-muted-foreground">
-            The page will automatically refresh when your connection is restored.
+            The app will automatically reconnect when your connection is restored.
           </p>
         </div>
       </div>

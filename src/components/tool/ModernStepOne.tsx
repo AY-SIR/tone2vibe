@@ -190,17 +190,17 @@ export default function ModernStepOne({
         description: "Please enter some text to continue.",
         variant: "destructive"
       });
-      return;
+      return false;
     }
 
     if (trimmedText.length < 20) {
       setTextError("Please enter at least 20 characters to process.");
-      return;
+      return false;
     }
 
     if (isCodeDetected(trimmedText)) {
       setTextError("Code detected. Please enter regular prose, not programming code.");
-      return;
+      return false;
     }
 
     setTextError(null);
@@ -209,7 +209,8 @@ export default function ModernStepOne({
     setExtractedText(trimmedText);
     onTextExtracted(trimmedText);
     onWordCountUpdate(wordCount);
-
+    
+    return true;
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -284,9 +285,11 @@ export default function ModernStepOne({
 
              <Button
   onClick={() => {
-    handleManualTextSubmit();
-    // Auto-navigate to Step 2 after setting text
-    setTimeout(() => onNext(), 100);
+    const success = handleManualTextSubmit();
+    // Only navigate if validation passed
+    if (success) {
+      setTimeout(() => onNext(), 100);
+    }
   }}
   disabled={!manualText.trim() || isProcessing || !!textError}
   className="w-38 justify-start group gap-2 bg-gray-900 text-white hover:opacity-90"

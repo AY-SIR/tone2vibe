@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mic, Square, Play, Pause, Trash2, Loader as Loader2, CircleCheck as CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { MicrophonePermissionDialog } from "@/components/common/MicrophonePermissionDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,7 @@ export const VoiceRecorder = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -158,7 +160,19 @@ export const VoiceRecorder = ({
       toast({ title: "Recording started..." });
     } catch (err) {
       console.error("Error starting recording:", err);
-      toast({ title: "Microphone access denied", description: "Allow microphone access.", variant: "destructive" });
+      
+      // Show custom permission dialog
+      const errorMessage = err instanceof Error ? err.message : '';
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError') || errorMessage.includes('NotFoundError')) {
+        setShowPermissionDialog(true);
+      } else {
+        toast({ 
+          title: "Recording Error", 
+          description: "Unable to start recording. Please check your microphone settings.",
+          variant: "destructive" 
+        });
+      }
+      
       setStatus('idle');
       cleanup();
     }
@@ -353,6 +367,11 @@ const confirmRecording = async () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <MicrophonePermissionDialog 
+        open={showPermissionDialog}
+        onOpenChange={setShowPermissionDialog}
+      />
     </>
   );
 };

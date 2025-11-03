@@ -82,7 +82,7 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     }
   }, [storageKey]);
 
-  // ✅ FIXED: Get secure audio URL on mount with proper cleanup
+  // ✅ FIXED: Get secure audio URL on mount with proper cleanup and faster loading
   useEffect(() => {
     let blobUrl: string | null = null;
     let isMounted = true;
@@ -91,6 +91,9 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       if (!audioUrl) return;
 
       try {
+        // Show immediate loading feedback
+        setAudioReady(false);
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Not authenticated");
 
@@ -161,9 +164,10 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       } catch (error) {
         console.error('Failed to get secure audio URL:', error);
         if (isMounted) {
+          setAudioReady(false);
           toast({
             title: "Audio Loading Error",
-            description: "Could not load audio. Please try again.",
+            description: "Could not load audio. Please refresh the page.",
             variant: "destructive"
           });
         }
@@ -472,9 +476,16 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {!audioReady ? (
-            <div className="flex items-center justify-center gap-2 py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <span className="text-sm text-muted-foreground">Loading audio...</span>
+            <div className="flex flex-col items-center justify-center gap-3 py-12">
+              <div className="relative">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="absolute inset-0 h-8 w-8 rounded-full border-2 border-primary/20 animate-pulse"></div>
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Preparing your audio...</p>
+                <p className="text-xs text-muted-foreground">This may take a moment</p>
+              </div>
+              <Progress value={undefined} className="w-48 h-1" />
             </div>
           ) : (
             <>
