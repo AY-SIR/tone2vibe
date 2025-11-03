@@ -20,7 +20,8 @@ export function MicrophonePermissionDialog({
 }: MicrophonePermissionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
+          
         <AlertDialogHeader>
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
