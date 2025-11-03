@@ -3,8 +3,8 @@ import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, AlertCircle, CheckCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import { Upload, FileText, AlertCircle, CheckCircle , Zap} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { UploadLimitService } from "@/services/uploadLimitService";
@@ -281,13 +281,19 @@ export default function ModernStepOne({
                 <span>{manualText.replace(/\s/g, '').length} characters</span>
                 <span>{calculateWordCount(manualText)} words</span>
               </div>
-              <Button
-                onClick={handleManualTextSubmit}
-                disabled={!manualText.trim() || isProcessing || !!textError}
-                className="w-full"
-              >
-                Prepare This Text
-              </Button>
+
+             <Button
+  onClick={handleManualTextSubmit}
+  disabled={!manualText.trim() || isProcessing || !!textError}
+  className="w-38 justify-start group gap-2 bg-gray-900 text-white hover:opacity-90"
+>
+  All Set to Text
+    <Zap className="w-4 h-4 transition-transform duration-300 group-hover:scale-125" />
+
+</Button>
+
+
+
             </CardContent>
           </Card>
         </TabsContent>

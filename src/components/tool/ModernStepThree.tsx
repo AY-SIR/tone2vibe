@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/select";
 
 
-
 const sampleParagraphs: { [key: string]: string } = {
   "ar-SA": "في الصباح، تنتشر أشعة الشمس الذهبية على المدينة. الأطفال يلعبون في الحدائق ويلتقطون الكرة معًا. الباعة ينظمون أكشاكهم بينما يمر الناس في شوارع المدينة. الطيور تغرد فوق الأشجار، والهواء مليء برائحة الزهور الطازجة. بعض الناس يجلسون على المقاهي يراقبون حركة المدينة.",
   "as-IN": "আজিৰ পুৱা, সূৰ্যৰ ৰশ্মিয়ে নগৰখনক ৰঙীন কৰি তুলিছে। শিশুৱে উদ্যানত খেলিছে আৰু বন্ধু-বান্ধৱীৰ সৈতে ৰঙীন খেল খেলিছে। মানুহে কামত ব্যস্ত, আৰু দোকানী সকলে সামগ্ৰী সাজি আছে। বতৰ মনোমোহা, আৰু পাৰ্কত ফুলৰ সুবাস আছে। কিছুমান মানুহ বেঞ্চত বহি বিশ্ৰাম লৈছে।",
@@ -130,12 +129,41 @@ export default function ModernStepThree({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const userPlan = profile?.plan || 'free';
 
+  // ✅ CRITICAL: Stop all audio helper function
+  const stopAllAudio = () => {
+    if (currentAudio) {
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.src = '';
+      currentAudio.load();
+      setCurrentAudio(null);
+    }
+    setIsPlaying(false);
+    setPlayingVoiceId(null);
+  };
+
   // ✅ Clear selection helper
   const clearSelection = () => {
     setSelectedVoice(null);
     onVoiceRecorded(new Blob());
     onVoiceSelect('', 'history');
   };
+
+  // ✅ FIXED: Stop audio when tab changes
+  useEffect(() => {
+    return () => {
+      stopAllAudio();
+    };
+  }, [voiceMethod]);
+
+  // ✅ FIXED: Stop audio on component unmount (covers navigation away)
+  useEffect(() => {
+    return () => {
+      stopAllAudio();
+    };
+  }, []);
 
   // ✅ Restore selection when user navigates back
   useEffect(() => {
@@ -248,6 +276,7 @@ export default function ModernStepThree({
 
   // ✅ Handle voice recording
   const handleVoiceRecorded = (blob: Blob) => {
+    stopAllAudio(); // Stop audio when recording
     clearSelection();
 
     const tempVoiceId = `rec-${Date.now()}`;
@@ -268,6 +297,7 @@ export default function ModernStepThree({
 
   // ✅ Handle history voice selection
   const handleHistoryVoiceSelect = async (voiceId: string) => {
+    stopAllAudio(); // Stop audio when selecting history voice
     clearSelection();
 
     const { data: voice, error } = await supabase
@@ -301,303 +331,212 @@ export default function ModernStepThree({
     );
   };
 
-
-
-
-// ✅ FIXED: Handle prebuilt voice selection with auto-play
-const handlePrebuiltSelect = async (voiceId: string) => {
-  const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
-  if (!voice) {
-    toast({
-      title: "Voice Not Found",
-      description: "The selected voice is not available.",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
-
-  if (!canAccess) {
-    toast({
-      title: "Upgrade Required",
-      description: `This voice requires the ${voice.required_plan} plan.`,
-      variant: "destructive"
-    });
-    return;
-  }
-
-  PrebuiltVoiceService.trackVoiceUsage(voiceId);
-
-  // ✅ Stop any playing audio and reset ALL states
-  if (currentAudio) {
-    currentAudio.onended = null;
-    currentAudio.onerror = null;
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    currentAudio.src = '';
-    currentAudio.load();
-    setCurrentAudio(null);
-  }
-
-  // ✅ Reset playing states
-  setIsPlaying(false);
-  setPlayingVoiceId(null);
-
-  clearSelection();
-  setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
-  onVoiceSelect(voiceId, 'prebuilt');
-
-  // ✅ Auto-play the preview
-  try {
-    let audioUrl: string | null = null;
-
-    // Check cache first
-    if (previewCache.has(voiceId)) {
-      audioUrl = previewCache.get(voiceId)!;
-    }
-    // Check if database has preview URL
-    else if (voice.audio_preview_url) {
-      audioUrl = voice.audio_preview_url;
-    }
-    // Generate new preview
-    else {
-      audioUrl = await generateAndPlayPreview(voiceId, voice);
-      if (!audioUrl) return;
+  // ✅ Handle prebuilt voice selection with auto-play
+  const handlePrebuiltSelect = async (voiceId: string) => {
+    const voice = prebuiltVoices.find((v) => v.voice_id === voiceId);
+    if (!voice) {
+      toast({
+        title: "Voice Not Found",
+        description: "The selected voice is not available.",
+        variant: "destructive"
+      });
+      return;
     }
 
-    // Create and configure audio element
-    const audio = new Audio(audioUrl);
-    audio.preload = 'auto';
+    const canAccess = PrebuiltVoiceService.canAccessVoice(voice, userPlan);
 
-    // Set up event listeners
-    audio.onended = () => {
+    if (!canAccess) {
+      toast({
+        title: "Upgrade Required",
+        description: `This voice requires the ${voice.required_plan} plan.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    PrebuiltVoiceService.trackVoiceUsage(voiceId);
+
+    // Stop any playing audio
+    stopAllAudio();
+    clearSelection();
+
+    setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
+    onVoiceSelect(voiceId, 'prebuilt');
+
+    // Auto-play the preview
+    try {
+      let audioUrl: string | null = null;
+
+      if (previewCache.has(voiceId)) {
+        audioUrl = previewCache.get(voiceId)!;
+      } else if (voice.audio_preview_url) {
+        audioUrl = voice.audio_preview_url;
+      } else {
+        audioUrl = await generateAndPlayPreview(voiceId, voice);
+        if (!audioUrl) return;
+      }
+
+      const audio = new Audio(audioUrl);
+      audio.preload = 'auto';
+
+      audio.onended = () => {
+        if (audio === currentAudio) {
+          setIsPlaying(false);
+          setPlayingVoiceId(null);
+          setCurrentAudio(null);
+        }
+      };
+
+      audio.onerror = () => {
+        if (audio === currentAudio) {
+          setIsPlaying(false);
+          setPlayingVoiceId(null);
+          setCurrentAudio(null);
+
+          if (voice.audio_preview_url === audioUrl) {
+            setPreviewCache(prev => {
+              const newCache = new Map(prev);
+              newCache.delete(voiceId);
+              return newCache;
+            });
+          }
+
+          toast({
+            title: "Playback Error",
+            description: "Unable to play voice preview",
+            variant: "destructive"
+          });
+        }
+      };
+
+      setCurrentAudio(audio);
+      setPlayingVoiceId(voiceId);
+      setIsPlaying(true);
+
+      await audio.play();
+
+    } catch (error) {
       setIsPlaying(false);
       setPlayingVoiceId(null);
       setCurrentAudio(null);
-    };
+      console.log("Auto-play prevented or failed:", error);
+    }
+  };
 
-    audio.onerror = (e) => {
-      if (audio === currentAudio) {
-        setIsPlaying(false);
-        setPlayingVoiceId(null);
-        setCurrentAudio(null);
+  // ✅ Play prebuilt sample
+  const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
 
-        // Remove failed URL from cache
-        if (voice.audio_preview_url === audioUrl) {
-          setPreviewCache(prev => {
-            const newCache = new Map(prev);
-            newCache.delete(voiceId);
-            return newCache;
+    // If clicking the same voice that's playing - STOP it
+    if (playingVoiceId === voiceId && currentAudio) {
+      stopAllAudio();
+      return;
+    }
+
+    // Stop any other playing audio
+    stopAllAudio();
+
+    const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
+    if (!voice) return;
+
+    try {
+      let audioUrl: string | null = null;
+
+      if (previewCache.has(voiceId)) {
+        audioUrl = previewCache.get(voiceId)!;
+      } else if (voice.audio_preview_url) {
+        audioUrl = voice.audio_preview_url;
+      } else {
+        audioUrl = await generateAndPlayPreview(voiceId, voice);
+        if (!audioUrl) return;
+      }
+
+      const audio = new Audio(audioUrl);
+      audio.preload = 'auto';
+
+      audio.onended = () => {
+        if (audio === currentAudio) {
+          setIsPlaying(false);
+          setPlayingVoiceId(null);
+          setCurrentAudio(null);
+        }
+      };
+
+      audio.onerror = () => {
+        if (audio === currentAudio) {
+          setIsPlaying(false);
+          setPlayingVoiceId(null);
+          setCurrentAudio(null);
+
+          if (voice.audio_preview_url === audioUrl) {
+            setPreviewCache(prev => {
+              const newCache = new Map(prev);
+              newCache.delete(voiceId);
+              return newCache;
+            });
+          }
+
+          toast({
+            title: "Playback Error",
+            description: "Unable to play voice preview",
+            variant: "destructive"
           });
         }
+      };
 
-        toast({
-          title: "Playback Error",
-          description: "Unable to play voice preview",
-          variant: "destructive"
-        });
-      }
-    };
+      setCurrentAudio(audio);
+      setPlayingVoiceId(voiceId);
+      setIsPlaying(true);
 
-    // Store reference and play
-    setCurrentAudio(audio);
-    setPlayingVoiceId(voiceId);
-    setIsPlaying(true);
+      await audio.play();
 
-    await audio.play();
-
-  } catch (error) {
-    setIsPlaying(false);
-    setPlayingVoiceId(null);
-    setCurrentAudio(null);
-    // Don't show toast for auto-play errors (user might not want sound)
-    console.log("Auto-play prevented or failed:", error);
-  }
-};
-
-
-    // ✅ FIXED: Clean audio playback - no alerts when pausing
-const playPrebuiltSample = async (voiceId: string, event: React.MouseEvent) => {
-  event.stopPropagation();
-
-  // If clicking the same voice that's playing - STOP it completely
-  if (playingVoiceId === voiceId && currentAudio) {
-    // Remove event listeners before stopping to prevent error toast
-    currentAudio.onended = null;
-    currentAudio.onerror = null;
-
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    currentAudio.src = '';
-    currentAudio.load();
-
-    setCurrentAudio(null);
-    setIsPlaying(false);
-    setPlayingVoiceId(null);
-    return;
-  }
-
-  // If a different voice is playing - stop it first
-  if (currentAudio) {
-    currentAudio.onended = null;
-    currentAudio.onerror = null;
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    currentAudio.src = '';
-    currentAudio.load();
-    setCurrentAudio(null);
-  }
-
-  // Reset states
-  setIsPlaying(false);
-  setPlayingVoiceId(null);
-
-  const voice = prebuiltVoices.find(v => v.voice_id === voiceId);
-  if (!voice) return;
-
-  try {
-    let audioUrl: string | null = null;
-
-    // Check cache first
-    if (previewCache.has(voiceId)) {
-      audioUrl = previewCache.get(voiceId)!;
-    }
-    // Check if database has preview URL
-    else if (voice.audio_preview_url) {
-      audioUrl = voice.audio_preview_url;
-    }
-    // Generate new preview
-    else {
-      audioUrl = await generateAndPlayPreview(voiceId, voice);
-      if (!audioUrl) return;
-    }
-
-    // Create and configure audio element
-    const audio = new Audio(audioUrl);
-    audio.preload = 'auto';
-
-    // Set up event listeners
-    audio.onended = () => {
+    } catch (error) {
       setIsPlaying(false);
       setPlayingVoiceId(null);
       setCurrentAudio(null);
-    };
+      toast({
+        title: "Playback Error",
+        description: "Unable to play voice preview",
+        variant: "destructive"
+      });
+    }
+  };
 
-    audio.onerror = (e) => {
-      // Only show error if audio is still the current one
-      // This prevents errors when we intentionally clear the audio
-      if (audio === currentAudio) {
-        setIsPlaying(false);
-        setPlayingVoiceId(null);
-        setCurrentAudio(null);
+  // Generate preview - returns the URL
+  const generateAndPlayPreview = async (voiceId: string, voice: PrebuiltVoice): Promise<string | null> => {
+    setGeneratingPreview(voiceId);
 
-        // Remove failed URL from cache
-        if (voice.audio_preview_url === audioUrl) {
-          setPreviewCache(prev => {
-            const newCache = new Map(prev);
-            newCache.delete(voiceId);
-            return newCache;
-          });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const sampleText = sampleParagraphs[voice.language] || sampleParagraphs["en-US"];
+
+      const { data, error } = await supabase.functions.invoke('generate-prebuilt-voice', {
+        body: {
+          voice_id: voiceId,
         }
+      });
 
-        toast({
-          title: "Playback Error",
-          description: "Unable to play voice preview",
-          variant: "destructive"
-        });
-      }
-    };
+      if (error) throw error;
+      if (!data?.audio_url) throw new Error("No audio URL returned");
 
-    // Store reference and play
-    setCurrentAudio(audio);
-    setPlayingVoiceId(voiceId);
-    setIsPlaying(true);
+      const audioUrl = data.audio_url;
+      setPreviewCache(prev => new Map(prev).set(voiceId, audioUrl));
 
-    await audio.play();
+      return audioUrl;
 
-  } catch (error) {
-    setIsPlaying(false);
-    setPlayingVoiceId(null);
-    setCurrentAudio(null);
-    toast({
-      title: "Playback Error",
-      description: "Unable to play voice preview",
-      variant: "destructive"
-    });
-  }
-};
-
-// Updated cleanup effect
-useEffect(() => {
-  return () => {
-    if (currentAudio) {
-      // Remove event listeners before cleanup
-      currentAudio.onended = null;
-      currentAudio.onerror = null;
-
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      currentAudio.src = '';
-      currentAudio.load();
+    } catch (error: any) {
+      toast({
+        title: "Preview Generation Failed",
+        description: error.message || "Could not generate voice preview",
+        variant: "destructive"
+      });
+      return null;
+    } finally {
+      setGeneratingPreview(null);
     }
-    setIsPlaying(false);
-    setPlayingVoiceId(null);
-    setCurrentAudio(null);
   };
-}, [voiceMethod]);
-
-// Generate preview - returns the URL
-const generateAndPlayPreview = async (voiceId: string, voice: PrebuiltVoice): Promise<string | null> => {
-  setGeneratingPreview(voiceId);
-
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("Not authenticated");
-
-    const sampleText = sampleParagraphs[voice.language] || sampleParagraphs["en-US"];
-
-    const { data, error } = await supabase.functions.invoke('generate-prebuilt-voice', {
-      body: {
-        voice_id: voiceId,
-
-      }
-    });
-
-    if (error) throw error;
-    if (!data?.audio_url) throw new Error("No audio URL returned");
-
-    const audioUrl = data.audio_url;
-    setPreviewCache(prev => new Map(prev).set(voiceId, audioUrl));
-
-    return audioUrl;
-
-  } catch (error: any) {
-    toast({
-      title: "Preview Generation Failed",
-      description: error.message || "Could not generate voice preview",
-      variant: "destructive"
-    });
-    return null;
-  } finally {
-    setGeneratingPreview(null);
-  }
-};
-
-// Cleanup when component unmounts or tab changes
-useEffect(() => {
-  return () => {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      currentAudio.src = '';
-      currentAudio.load();
-    }
-    setIsPlaying(false);
-    setPlayingVoiceId(null);
-    setCurrentAudio(null);
-  };
-}, [voiceMethod]);
 
   // Clear all filters
   const clearAllFilters = () => {
@@ -606,14 +545,32 @@ useEffect(() => {
     setGenderFilter("all");
   };
 
+  // ✅ FIXED: Wrap onNext to stop audio before proceeding
+  const handleNext = () => {
+    stopAllAudio();
+    onNext();
+  };
+
+  // ✅ FIXED: Wrap onPrevious to stop audio before going back
+  const handlePrevious = () => {
+    stopAllAudio();
+    onPrevious();
+  };
+
+  // ✅ FIXED: Update voice method change to stop audio
+  const handleVoiceMethodChange = (method: "record" | "prebuilt" | "history") => {
+    stopAllAudio();
+    setVoiceMethod(method);
+  };
+
   const categories = Array.from(new Set(prebuiltVoices.map(v => v.category).filter(Boolean)));
   const genders = Array.from(new Set(prebuiltVoices.map(v => v.gender).filter(Boolean)));
-  const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["en-US"];
+  const currentParagraph = sampleParagraphs[selectedLanguage] || sampleParagraphs["hi-IN"];
   const hasActiveFilters = searchTerm || categoryFilter !== "all" || genderFilter !== "all";
 
   return (
     <div className="space-y-6">
-      <Tabs value={voiceMethod} onValueChange={(value) => setVoiceMethod(value as any)}>
+      <Tabs value={voiceMethod} onValueChange={handleVoiceMethodChange}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="record">
             <Mic className="h-4 w-4 mr-2" />
@@ -863,29 +820,23 @@ useEffect(() => {
                                       {voice.gender}
                                     </Badge>
                                   )}
-                                 {/* ✅ Always show play button, right-aligned, no background */}
-<Button
-  variant="ghost"
-  size="icon"
-  className="ml-auto h-9 w-9 flex-shrink-0 hover:bg-transparent focus-visible:ring-0"
-  onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
-  disabled={isGenerating}
->
-  {isGenerating ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
-  ) : isCurrentlyPlaying ? (
-    <Pause className="h-4 w-4" />
-  ) : (
-    <Play className="h-4 w-4" />
-  )}
-</Button>
-
-
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="ml-auto h-9 w-9 flex-shrink-0 hover:bg-transparent focus-visible:ring-0"
+                                    onClick={(e) => playPrebuiltSample(voice.voice_id, e)}
+                                    disabled={isGenerating}
+                                  >
+                                    {isGenerating ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : isCurrentlyPlaying ? (
+                                      <Pause className="h-4 w-4" />
+                                    ) : (
+                                      <Play className="h-4 w-4" />
+                                    )}
+                                  </Button>
                                 </div>
-
                               </div>
-
-
                             </div>
                           </div>
                         );
@@ -945,17 +896,17 @@ useEffect(() => {
         </Alert>
       )}
 
-      {/* Navigation Buttons */}
+      {/* Navigation Buttons - USING WRAPPED FUNCTIONS */}
       <div className="flex justify-between pt-4 gap-4">
         <Button
           variant="outline"
-          onClick={onPrevious}
+          onClick={handlePrevious}
           className="px-6"
         >
           Previous
         </Button>
         <Button
-          onClick={onNext}
+          onClick={handleNext}
           disabled={!selectedVoice}
           size="lg"
           className="px-6 sm:px-8"

@@ -23,7 +23,7 @@ interface ModernStepFourProps {
   onNext: () => void;
   onPrevious: () => void;
   onAudioGenerated: (audioUrl: string) => void;
-  onProcessingStart: (step: string) => void;
+onProcessingStart: (step: string, isSuccess?: boolean) => void;
   onProcessingEnd: () => void;
 }
 
@@ -294,15 +294,13 @@ const shouldSkipSample = isPrebuiltVoice;
 
       if (error) throw error;
 
-      if (data && data.audio_url) {
-        onAudioGenerated(data.audio_url);
-        setProgress(100);
-        setGenerationComplete(true);
+    if (data && data.audio_url) {
+  onAudioGenerated(data.audio_url);
+  setProgress(100);
 
-        toast({
-          title: "Audio Generated!",
-          description: "Redirecting to final step...",
-        });
+  // ✅ Show success overlay with green tick
+  onProcessingStart("Audio Generated Successfully!", true);
+  setGenerationComplete(true);
 
 
       } else {
@@ -318,22 +316,22 @@ const shouldSkipSample = isPrebuiltVoice;
       });
       onAudioGenerated("");
     } finally {
-      clearInterval(progressInterval);
-      setIsGenerating(false);
-      onProcessingEnd();
-    }
+  clearInterval(progressInterval);
+  setIsGenerating(false);
+  // ✅ Don't call onProcessingEnd here - let useEffect handle it
+}
   };
 
-// ✅ Auto-redirect when generation completes
 useEffect(() => {
   if (generationComplete) {
     const timer = setTimeout(() => {
-      onNext?.(); // safely call onNext if provided
-    }, 2000); // wait 2 seconds before moving forward
+      onProcessingEnd(); // ✅ Close overlay
+      onNext?.(); // Move to next step
+    }, 2000);
 
-    return () => clearTimeout(timer); // cleanup in case of unmount
+    return () => clearTimeout(timer);
   }
-}, [generationComplete]);
+}, [generationComplete, onNext, onProcessingEnd]);
 
   return (
     <div className="space-y-6">
@@ -633,7 +631,8 @@ useEffect(() => {
               </audio>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button onClick={handleApproveSample} className="flex-1">
-                  ✓ Approve & Continue
+                   Approve & Continue <CheckCircle className="w-5 h-5 text-white" />
+
                 </Button>
                 <Button onClick={handleGenerateSample} variant="outline" className="flex-1" disabled={isSampleGeneration}>
                   {isSampleGeneration ? 'Generating...' : 'Regenerate Sample'}
@@ -670,7 +669,7 @@ useEffect(() => {
                 {canGenerateSample && (
                   <Button onClick={handleGenerateSample} disabled={isGenerating} variant="outline" size="lg">
                     <Volume2 className="h-5 w-5 mr-2" />
-                    Generate Sample
+                    Generate Sample Audio
                   </Button>
                 )}
                 <Button onClick={handleGenerateFullAudio} disabled={isGenerating} size="lg">
@@ -698,10 +697,17 @@ useEffect(() => {
                 <h3 className="text-xl font-semibold text-green-900 mb-2">Ready for Full Generation</h3>
                 <p className="text-sm text-green-700">Sample approved! Generate the complete audio.</p>
               </div>
-              <Button onClick={handleGenerateFullAudio} disabled={isGenerating} size="lg">
-                <Wand2 className="h-5 w-5 mr-2" />
-                Generate Complete Audio ({wordCount} words)
-              </Button>
+             <Button
+  onClick={handleGenerateFullAudio}
+  disabled={isGenerating}
+  size="lg"
+  className="w-full sm:w-auto"
+>
+  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+  <span className="truncate">
+    Generate Complete Audio ({wordCount} words)
+  </span>
+</Button>
             </div>
           </CardContent>
         </Card>

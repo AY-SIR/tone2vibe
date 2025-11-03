@@ -663,8 +663,11 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
             size="lg"
             className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg font-semibold bg-gradient-to-r from-gray-700 to-black hover:from-gray-900 hover:to-black text-white rounded-lg transition-all shadow-lg hover:shadow-xl w-full sm:w-auto"
           >
-            <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+          <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2 " />
+
             Next Generation
+<SkipForward className="w-4 h-4 sm:w-5 sm:h-5 mr-2 rotate-180" />
+
           </Button>
         )}
       </div>
