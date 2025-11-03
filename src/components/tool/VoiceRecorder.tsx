@@ -19,7 +19,7 @@ import {
 /**
  * 🎙️ Modern, Denoised, Supabase-Ready Voice Recorder
  * - Aggressive noise suppression (custom WebAudio chain)
- * - Spotify-style live bar visualizer
+ * - Orange bar visualizer (recording + playback)
  * - Auto silence detection
  * - WebM/WAV auto fallback
  * - Supabase upload integration
@@ -68,7 +68,7 @@ export const VoiceRecorder = ({
   const cleanup = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     if (audioContextRef.current) audioContextRef.current.close();
     streamRef.current = null;
     mediaRecorderRef.current = null;
@@ -132,6 +132,58 @@ export const VoiceRecorder = ({
     return compressor;
   };
 
+  /** 🎨 Live bar visualizer (shared for record + playback) */
+  const startVisualizer = (analyser: AnalyserNode, color1 = "#f97316", color2 = "#fdba74") => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const draw = () => {
+      analyser.getByteFrequencyData(dataArray);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const { width, height } = canvas;
+      const barWidth = (width / bufferLength) * 2.5;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = (dataArray[i] / 255) * height * 1.2;
+        const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
+        gradient.addColorStop(0, color1);
+        gradient.addColorStop(1, color2);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+        x += barWidth + 1;
+      }
+      animationRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+  };
+
+  /** 🎨 Playback visualizer */
+  const visualizePlayback = (audioElement: HTMLAudioElement) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const src = audioCtx.createMediaElementSource(audioElement);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    src.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    startVisualizer(analyser, "#f97316", "#fdba74");
+
+    audioElement.onended = () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+  };
+
   /** 🎙️ Start Recording */
   const startRecording = async () => {
     onRecordingStart?.();
@@ -164,38 +216,9 @@ export const VoiceRecorder = ({
       denoisedOutput.connect(analyser);
       analyser.connect(dest);
 
-      /** 🎨 Modern bar visualizer */
-      const canvas = canvasRef.current;
-      if (!canvas) throw new Error("Canvas not found");
-      const ctx = canvas.getContext("2d");
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+      // start live visualizer
+      startVisualizer(analyser, "#f97316", "#fdba74");
 
-      const draw = () => {
-        if (!analyserRef.current || !ctx || !canvasRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-
-        const { width, height } = canvas;
-        ctx.clearRect(0, 0, width, height);
-
-        const barWidth = (width / bufferLength) * 2.5;
-        let x = 0;
-
-        for (let i = 0; i < bufferLength; i++) {
-          const barHeight = (dataArray[i] / 255) * height * 1.2;
-          const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
-          gradient.addColorStop(0, "#ef4444");
-          gradient.addColorStop(1, "#f87171");
-          ctx.fillStyle = gradient;
-          ctx.fillRect(x, height - barHeight, barWidth, barHeight);
-          x += barWidth + 1;
-        }
-
-        animationRef.current = requestAnimationFrame(draw);
-      };
-      draw();
-
-      /** 🔊 Smart Recorder setup */
       const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/wav";
@@ -205,7 +228,7 @@ export const VoiceRecorder = ({
       });
       mediaRecorderRef.current = recorder;
 
-      recorder.ondataavailable = e => {
+      recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
 
@@ -269,13 +292,17 @@ export const VoiceRecorder = ({
       audioUrlRef.current = url;
       const audio = new Audio(url);
       audioRef.current = audio;
+      visualizePlayback(audio); // Attach visualizer to playback
       audio.onended = () => setIsPlaying(false);
     }
     if (isPlaying) {
       audioRef.current?.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current?.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      audioRef.current
+        ?.play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
     }
   };
 
@@ -337,7 +364,7 @@ export const VoiceRecorder = ({
                 onClick={startRecording}
                 disabled={disabled || status === "stopping" || status === "saved"}
                 size="lg"
-                className="bg-red-600 hover:bg-red-700 text-white rounded-full w-20 h-20 animate-pulse"
+                className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-20 h-20 animate-pulse"
               >
                 <Mic className="h-8 w-8" />
               </Button>
@@ -355,10 +382,13 @@ export const VoiceRecorder = ({
           <div className="flex flex-col items-center">
             <p className="text-2xl font-mono font-bold">{formatTime(duration)}</p>
             <p className="text-sm text-muted-foreground">
-              {status === "recording" ? "Recording..." :
-               status === "stopping" ? "Finalizing..." :
-               status === "completed" ? "Ready to review" :
-               "Tap mic to start recording"}
+              {status === "recording"
+                ? "Recording..."
+                : status === "stopping"
+                ? "Finalizing..."
+                : status === "completed"
+                ? "Ready to review"
+                : "Tap mic to start recording"}
             </p>
 
             <canvas
@@ -402,7 +432,9 @@ export const VoiceRecorder = ({
                 {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                 {isPlaying ? "Pause" : "Play"}
               </Button>
-              <Button onClick={startRecording} variant="outline">Record another</Button>
+              <Button onClick={startRecording} variant="outline">
+                Record another
+              </Button>
             </div>
           )}
         </CardContent>
@@ -413,11 +445,16 @@ export const VoiceRecorder = ({
         <AlertDialogContent className="rounded-lg w-[95vw] max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Recording?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete your current voice sample.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This will permanently delete your current voice sample.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-white hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
