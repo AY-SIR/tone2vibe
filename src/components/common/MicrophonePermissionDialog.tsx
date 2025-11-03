@@ -1,6 +1,7 @@
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAction, // This is still here, but we aren't using it
+  AlertDialogCancel, // <-- 1. ADD THIS
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -33,7 +34,10 @@ export function MicrophonePermissionDialog({
       // Permission granted
       stream.getTracks().forEach((track) => track.stop());
       setLoading(false);
-      onOpenChange(false);
+      
+      // This is your "popup autoclose" - it's already correct!
+      onOpenChange(false); 
+      
       if (onGranted) onGranted();
     } catch (err) {
       console.error("Microphone permission error:", err);
@@ -73,6 +77,8 @@ export function MicrophonePermissionDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row">
+          {/* This is a <Button>, so it gets the default "primary" style.
+              This is now correctly the main action button. */}
           <Button
             onClick={handleEnableMic}
             disabled={loading}
@@ -91,9 +97,13 @@ export function MicrophonePermissionDialog({
             )}
           </Button>
 
-          <AlertDialogAction onClick={() => onOpenChange(false)}>
+          {/* 2. USE THIS INSTEAD OF AlertDialogAction
+              This will be styled as a secondary button and 
+              closes the dialog on click. */}
+          <AlertDialogCancel onClick={() => onOpenChange(false)}>
             Got it
-          </AlertDialogAction>
+          </AlertDialogCancel>
+          
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
