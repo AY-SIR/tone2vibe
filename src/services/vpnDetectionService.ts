@@ -78,8 +78,9 @@ export class VPNDetectionService {
           const fallback = await fetch('https://api.ipify.org?format=json');
           const data = await fallback.json();
           detectedIP = data.ip;
-        } catch (e) {
-          throw new Error('Unable to detect IP address');
+      } catch (e) {
+          // Return a default IP instead of throwing
+          detectedIP = '0.0.0.0';
         }
       }
     }
@@ -130,9 +131,9 @@ export class VPNDetectionService {
         ipAddress: ip
       };
     } catch (error) {
-      console.error('VPN detection failed:', error);
+      console.warn('VPN detection failed, returning success with unknown location:', error);
       
-      // Fallback detection
+      // Always return success - never fail or throw
       return {
         isVPN: false,
         confidence: 50,

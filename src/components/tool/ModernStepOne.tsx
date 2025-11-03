@@ -283,7 +283,11 @@ export default function ModernStepOne({
               </div>
 
              <Button
-  onClick={handleManualTextSubmit}
+  onClick={() => {
+    handleManualTextSubmit();
+    // Auto-navigate to Step 2 after setting text
+    setTimeout(() => onNext(), 100);
+  }}
   disabled={!manualText.trim() || isProcessing || !!textError}
   className="w-38 justify-start group gap-2 bg-gray-900 text-white hover:opacity-90"
 >

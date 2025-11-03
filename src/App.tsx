@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { WordLimitPopup } from "./components/common/WordLimitPopup";
+import { useOfflineDetection } from "@/hooks/useOfflineDetection";
 
 // --- Normal imports (no lazy) ---
 import Index from "./pages/Index";
@@ -24,6 +25,7 @@ import Contact from "./pages/Contact";
 import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
+import Offline from "./pages/Offline";
 import {EmailConfirmation} from "./pages/EmailConfirmation";
 import {ResetPassword }from "./pages/ResetPassword";
 
@@ -40,6 +42,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { planExpiryActive, user } = useAuth();
+  const { isOffline, statusChecked } = useOfflineDetection();
 
   // Disable right-click
   useEffect(() => {
@@ -49,6 +52,11 @@ function AppContent() {
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, []);
+
+  // Show offline page if disconnected
+  if (statusChecked && isOffline) {
+    return <Offline />;
+  }
 
   return (
     <>
@@ -67,6 +75,7 @@ function AppContent() {
         <Route path="/cookies" element={<Cookies />} />
         <Route path="/email-confirmation" element={<EmailConfirmation />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/offline" element={<Offline />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 

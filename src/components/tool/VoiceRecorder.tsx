@@ -96,9 +96,9 @@ export const VoiceRecorder = ({
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
           sampleRate: 48000,
           sampleSize: 24
         }
@@ -282,17 +282,23 @@ const confirmRecording = async () => {
             )}
           </div>
 
-          <div className="h-12 flex flex-col items-center justify-center">
+          <div className="h-16 flex flex-col items-center justify-center space-y-1">
             {status !== 'saved' && (
               <>
                 <p className="text-2xl font-mono font-bold">{formatTime(duration)}</p>
-                <p className="text-sm text-muted-foreground h-5">
+                <p className="text-sm text-muted-foreground">
                   {status === 'recording' ? `Recording... (min: ${minimumDuration}s)` :
                    status === 'stopping' ? "Finalizing..." :
                    status === 'completed' ? "Recording ready for review" :
                    "Record a voice sample"}
                 </p>
                 {status === 'stopping' && <Loader2 className="h-4 w-4 animate-spin mx-auto mt-1" />}
+                {status === 'recording' && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    High Quality • 48kHz • 24-bit
+                  </div>
+                )}
               </>
             )}
           </div>

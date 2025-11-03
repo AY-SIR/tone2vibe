@@ -400,8 +400,8 @@ useEffect(() => {
         </CardContent>
       </Card>
 
-      {/* Advanced Settings - Only for Custom Voices (NOT Prebuilt) */}
-      {canShowSettings && (
+      {/* Advanced Settings - Only for Custom Voices (NOT Prebuilt) and hide when complete */}
+      {canShowSettings && !generationComplete && !isGenerating && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
@@ -612,8 +612,8 @@ useEffect(() => {
         </Card>
       )}
 
-      {/* Sample Audio Player (Pro users only) */}
-      {sampleAudio && !sampleApproved && (
+      {/* Sample Audio Player (Pro users only) - hide when generating full audio */}
+      {sampleAudio && !sampleApproved && !generationComplete && (
         <Card className="border-gray-300 bg-white">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
