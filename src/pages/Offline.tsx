@@ -45,7 +45,21 @@ const Offline = () => {
   };
 
   if (isOnline) {
-    return null;
+   return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+            <RefreshCw className="h-10 w-10 text-green-600 animate-spin" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold">Connection Restored</h1>
+            <p className="text-muted-foreground">
+              Reconnecting to the application...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
