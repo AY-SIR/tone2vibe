@@ -258,7 +258,7 @@ export const VoiceRecorder = ({
         durationRef.current = elapsed;
       }, 500);
 
-      toast({ title: "Recording started 🎙️" });
+      toast({ title: "Recording started " });
     } catch (err: any) {
       console.error(err);
       if (err.name === "NotAllowedError") setShowPermissionDialog(true);
@@ -353,7 +353,7 @@ export const VoiceRecorder = ({
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
-  /** 🧠 UI */
+  
   return (
     <>
       <Card>
@@ -364,7 +364,7 @@ export const VoiceRecorder = ({
                 onClick={startRecording}
                 disabled={disabled || status === "stopping" || status === "saved"}
                 size="lg"
-                className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-20 h-20 animate-pulse"
+                className="bg-red-500 hover:bg-red-600 text-white rounded-full w-20 h-20 animate-pulse"
               >
                 <Mic className="h-8 w-8" />
               </Button>
