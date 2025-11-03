@@ -384,7 +384,8 @@ export const VoiceRecorder = ({
 
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
+       
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Recording?</AlertDialogTitle>
             <AlertDialogDescription>Are you sure you want to delete this voice recording?</AlertDialogDescription>
