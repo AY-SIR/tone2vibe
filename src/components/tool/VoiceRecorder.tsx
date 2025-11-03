@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 /**
- * 🎙️ Modern, Denoised, Supabase-Ready Voice Recorder
+ *  Modern, Denoised, Supabase-Ready Voice Recorder
  * - Aggressive noise suppression (custom WebAudio chain)
  * - Orange bar visualizer (recording + playback)
  * - Auto silence detection
@@ -132,7 +132,7 @@ export const VoiceRecorder = ({
     return compressor;
   };
 
-  /** 🎨 Live bar visualizer (shared for record + playback) */
+  /**  Live bar visualizer (shared for record + playback) */
   const startVisualizer = (analyser: AnalyserNode, color1 = "#f97316", color2 = "#fdba74") => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -163,7 +163,7 @@ export const VoiceRecorder = ({
     draw();
   };
 
-  /** 🎨 Playback visualizer */
+  /**  Playback visualizer */
   const visualizePlayback = (audioElement: HTMLAudioElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -184,7 +184,7 @@ export const VoiceRecorder = ({
     };
   };
 
-  /** 🎙️ Start Recording */
+  /**  Start Recording */
   const startRecording = async () => {
     onRecordingStart?.();
     reset();
@@ -273,7 +273,7 @@ export const VoiceRecorder = ({
     }
   };
 
-  /** ⏹️ Stop recording */
+  /**  Stop recording */
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       durationRef.current = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -284,7 +284,7 @@ export const VoiceRecorder = ({
     }
   };
 
-  /** ▶️ Playback */
+  /**  Playback */
   const playRecording = () => {
     if (!audioBlob) return;
     if (!audioRef.current) {
@@ -306,43 +306,74 @@ export const VoiceRecorder = ({
     }
   };
 
-  /** 💾 Save to Supabase */
-  const confirmRecording = async () => {
-    if (!audioBlob || isSaving) return;
-    setIsSaving(true);
+  /** Save to Supabase */
+const confirmRecording = async () => {
+  if (!audioBlob || isSaving) return;
+  setIsSaving(true);
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
 
-      const fileName = `voice-${user.id}-${Date.now()}.webm`;
-      const path = `${user.id}/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from("user-voices").upload(path, audioBlob);
-      if (uploadError) throw uploadError;
+    /**  Generate unique + readable voice name */
+    const generateVoiceName = () => {
+      const istDate = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      const d = new Date(istDate);
 
-      await supabase.from("user_voices").update({ is_selected: false }).eq("user_id", user.id);
-      const voiceName = `Voice ${new Date().toLocaleDateString("en-CA")}`;
+      // Random 4-character code (A–Z, a–z, 0–9)
+      const randomCode = Array.from({ length: 4 }, () =>
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
+          Math.floor(Math.random() * 62)
+        ]
+      ).join("");
 
-      const { error: insertError } = await supabase.from("user_voices").insert([
-        {
-          user_id: user.id,
-          name: voiceName,
-          audio_url: path,
-          duration: recordedDuration.toString(),
-          language: selectedLanguage,
-          is_selected: true,
-        },
-      ]);
-      if (insertError) throw insertError;
+      const dateStr = `${d.getDate().toString().padStart(2, "0")}${(d.getMonth() + 1)
+        .toString()
+        .padStart(2, "0")}${d.getFullYear().toString().slice(-2)}`;
+      const timeStr = `${d.getHours().toString().padStart(2, "0")}${d
+        .getMinutes()
+        .toString()
+        .padStart(2, "0")}`;
 
-      onRecordingComplete(audioBlob);
-      toast({ title: "Voice saved!", description: `${recordedDuration}s recorded.` });
-      setStatus("saved");
-    } catch (err: any) {
-      toast({ title: "Failed to save", description: err.message, variant: "destructive" });
-      setIsSaving(false);
-    }
-  };
+      return `RecordedVoice_${randomCode}_${dateStr}_${timeStr}`;
+    };
+
+    const voiceName = generateVoiceName();
+
+    /** Create unique file path */
+    const fileName = `${voiceName}.webm`;
+    const path = `${user.id}/${fileName}`;
+
+    /**  Upload to Supabase Storage */
+    const { error: uploadError } = await supabase.storage
+      .from("user-voices")
+      .upload(path, audioBlob);
+    if (uploadError) throw uploadError;
+
+    /**  Update and Insert into DB */
+    await supabase.from("user_voices").update({ is_selected: false }).eq("user_id", user.id);
+
+    const { error: insertError } = await supabase.from("user_voices").insert([
+      {
+        user_id: user.id,
+        name: voiceName,
+        audio_url: path,
+        duration: recordedDuration.toString(),
+        language: selectedLanguage,
+        is_selected: true,
+      },
+    ]);
+    if (insertError) throw insertError;
+
+    /**  Success */
+    onRecordingComplete(audioBlob);
+    toast({ title: "Voice saved!", description: `${recordedDuration}s recorded.` });
+    setStatus("saved");
+  } catch (err: any) {
+    toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+    setIsSaving(false);
+  }
+};
 
   const confirmDelete = () => {
     reset();
