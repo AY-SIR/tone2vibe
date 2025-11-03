@@ -7,13 +7,31 @@ const Offline = () => {
   const [checking, setChecking] = useState(false);
   const [showRestored, setShowRestored] = useState(false);
 
+  const handleRetry = async () => {
+    setChecking(true);
+    try {
+      const response = await fetch('/api/health', {
+        method: 'HEAD',
+        cache: 'no-store',
+      });
+
+      if (response.ok) {
+        setIsOnline(true);
+      } else {
+        setIsOnline(false);
+      }
+    } catch {
+      // Network request failed — likely offline
+      setIsOnline(false);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   useEffect(() => {
     const handleOnline = () => {
       setChecking(false);
-      setIsOnline(prev => {
-        if (!prev) return true; // only update if previously offline
-        return prev;
-      });
+      setIsOnline(true);
     };
 
     const handleOffline = () => {
@@ -23,6 +41,9 @@ const Offline = () => {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // ✅ Check network immediately on mount (important for reloads while offline)
+    handleRetry();
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -38,28 +59,6 @@ const Offline = () => {
       return () => clearTimeout(timer);
     }
   }, [isOnline]);
-
-  const handleRetry = async () => {
-    setChecking(true);
-
-    try {
-      const response = await fetch('/api/health', {
-        method: 'HEAD',
-        cache: 'no-store',
-      });
-
-      if (response.ok) {
-        setIsOnline(prev => {
-          if (!prev) return true;
-          return prev;
-        });
-      }
-    } catch (error) {
-      // Still offline
-    } finally {
-      setChecking(false);
-    }
-  };
 
   // Show connection restored message temporarily
   if (showRestored) {
