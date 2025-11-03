@@ -9,30 +9,22 @@ const corsHeaders = {
 
 const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
-/** 🧩 Helper — Generate unique + readable file name in format: Generated_A3b9_311224_1430_Voice */
+/** 🧩 Helper — Generate unique + readable file name */
 function generateUniqueVoiceName() {
   const istDate = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
   const d = new Date(istDate);
-
-  // Random 4-character alphanumeric (A–Z, a–z, 0–9)
   const randomCode = Array.from({ length: 4 }, () =>
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
       Math.floor(Math.random() * 62)
     ]
   ).join("");
-
-  // Date: DDMMYY
   const dateStr = `${d.getDate().toString().padStart(2, "0")}${(d.getMonth() + 1)
     .toString()
     .padStart(2, "0")}${d.getFullYear().toString().slice(-2)}`;
-
-  // Time: HHMM
   const timeStr = `${d.getHours().toString().padStart(2, "0")}${d
     .getMinutes()
     .toString()
     .padStart(2, "0")}`;
-
-  // Format: Generated_A3b9_311224_1430_Voice
   return `Generated_${randomCode}_${dateStr}_${timeStr}_Voice`;
 }
 
@@ -44,18 +36,22 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
       throw new Error("Missing Supabase environment variables.");
     }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header.");
 
-    const supabaseClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    const {
+      data: { user },
+    } = await supabaseClient.auth.getUser();
     if (!user) throw new Error("User not authenticated.");
 
     const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -63,11 +59,25 @@ Deno.serve(async (req) => {
     });
 
     const body = await req.json();
-    const { text, title, voice_settings, language } = body;
+    const { text, voice_settings, language } = body;
 
-    if (!text || !title || !voice_settings || !language) {
-      throw new Error("Request body must include text, title, voice_settings, and language.");
+    if (!text || !voice_settings || !language) {
+      throw new Error("Request body must include text, voice_settings, and language.");
     }
+
+    // 🧾 Generate unique readable name
+    const voiceName = generateUniqueVoiceName();
+
+    // 🧮 Get user's previous generation count
+    const { count, error: countError } = await supabaseService
+      .from("history")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (countError) throw new Error("Failed to count previous generations.");
+
+    const nextNumber = (count || 0) + 1;
+    const title = `Audio Generation ${nextNumber}`; // 👈 Title with auto increment
 
     const actualWordCount = text.split(/\s+/).filter(Boolean).length;
 
@@ -80,17 +90,25 @@ Deno.serve(async (req) => {
 
     if (profileError) throw new Error("User profile not found.");
 
-    const totalWordsAvailable = (profile.words_limit || 0) - (profile.plan_words_used || 0) + (profile.word_balance || 0);
+    const totalWordsAvailable =
+      (profile.words_limit || 0) -
+      (profile.plan_words_used || 0) +
+      (profile.word_balance || 0);
+
     if (actualWordCount > totalWordsAvailable) {
-      throw new Error(`Insufficient word balance. Need ${actualWordCount}, but have ${totalWordsAvailable}.`);
+      throw new Error(
+        `Insufficient word balance. Need ${actualWordCount}, but have ${totalWordsAvailable}.`
+      );
     }
 
-    // Calculate retention based on plan
-    const planAtCreation = (profile as any)?.plan || 'free';
-    const retentionDays = planAtCreation === 'premium' ? 90 : planAtCreation === 'pro' ? 30 : 7;
-    const retentionExpiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    const planAtCreation = profile?.plan || "free";
+    const retentionDays =
+      planAtCreation === "premium" ? 90 : planAtCreation === "pro" ? 30 : 7;
+    const retentionExpiresAt = new Date(
+      Date.now() + retentionDays * 24 * 60 * 60 * 1000
+    ).toISOString();
 
-    // Create history record
+    // Insert history record
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
@@ -107,56 +125,60 @@ Deno.serve(async (req) => {
       .select("id, generation_started_at")
       .single();
 
-    if (historyError) throw new Error(`Failed to create history record: ${historyError.message}`);
+    if (historyError)
+      throw new Error(`Failed to create history record: ${historyError.message}`);
 
-    // 🔊 Fetch sample audio (replace with actual TTS API call in production)
+    // 🔊 Fetch sample audio
     const response = await fetch(SAMPLE_MP3_URL);
     if (!response.ok) throw new Error("Failed to fetch sample MP3.");
     const mp3Data = new Uint8Array(await response.arrayBuffer());
 
-    // 🧾 Generate unique readable name: Generated_A3b9_311224_1430_Voice
-    const voiceName = generateUniqueVoiceName();
-    const filePath = `${user.id}/${voiceName}.mp3`;
+    // 📁 File path → user_id/language/Generated_xxx_Voice.mp3
+    const filePath = `${user.id}/${language}/${voiceName}.mp3`;
 
-    // Upload to Supabase storage
     const { error: uploadError } = await supabaseService.storage
       .from("user-generates")
-      .upload(filePath, mp3Data, { contentType: "audio/mpeg", upsert: true });
+      .upload(filePath, mp3Data, {
+        contentType: "audio/mpeg",
+        upsert: true,
+      });
 
     if (uploadError) throw new Error(`Failed to upload MP3: ${uploadError.message}`);
 
-    const storagePath = filePath;
-
-    // Update history record with completion info
     const generationCompletedAt = new Date();
+    const processingTime =
+      generationCompletedAt.getTime() -
+      new Date(historyRecord.generation_started_at).getTime();
+
+    // Update history record
     const { error: updateError } = await supabaseService
       .from("history")
       .update({
-        audio_url: storagePath,
+        audio_url: filePath,
         generation_completed_at: generationCompletedAt.toISOString(),
-        processing_time_ms:
-          generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime(),
+        processing_time_ms: processingTime,
         duration_seconds: Math.max(1, Math.round((actualWordCount / 150) * 60)),
-        name: voiceName, // Store unique readable name
+        name: voiceName,
       })
       .eq("id", historyRecord.id);
 
-    if (updateError) console.error(`Failed to update history record:`, updateError.message);
+    if (updateError)
+      console.error(`Failed to update history record:`, updateError.message);
 
-    // Deduct words from user's balance
+    // Deduct words
     const { error: deductError } = await supabaseService.rpc("deduct_words_smartly", {
       user_id_param: user.id,
       words_to_deduct: actualWordCount,
     });
     if (deductError) console.error(`Word deduction failed:`, deductError.message);
 
-    // Create temporary access token for streaming
+    // Temporary access token
     const token = crypto.randomUUID().replace(/-/g, "");
     const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
     await supabaseService.from("audio_access_tokens").insert({
       user_id: user.id,
       bucket: "user-generates",
-      storage_path: storagePath,
+      storage_path: filePath,
       token,
       expires_at: expiresAt,
     });
@@ -167,18 +189,24 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         audio_url: streamUrl,
-        storage_path: storagePath,
+        storage_path: filePath,
         history_id: historyRecord.id,
-        name: voiceName, // Return the unique name
+        title, // 👈 shows "Audio Generation N"
+        name: voiceName,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
     );
-
   } catch (error) {
     console.error("Generation function error:", error.message);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 },
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      }
     );
   }
 });
