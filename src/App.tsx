@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { WordLimitPopup } from "./components/common/WordLimitPopup";
 import { useOfflineDetection } from "@/hooks/useOfflineDetection";
+import { RefreshCw } from "lucide-react"; // <-- Import the loader icon
 
 // --- Normal imports (no lazy) ---
 import Index from "./pages/Index";
@@ -53,11 +55,33 @@ function AppContent() {
     };
   }, []);
 
-  // Show offline page if disconnected
-  if (statusChecked && isOffline) {
+  // --- 1. RENDER LOADER ---
+  // Wait for the hook to perform its *first* check.
+  // This prevents the main app from flashing on-screen if offline.
+  if (!statusChecked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center">
+            <RefreshCw className="h-10 w-10 text-muted-foreground animate-spin" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold">Checking Connection</h1>
+            <p className="text-muted-foreground">Please wait a moment...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 2. RENDER OFFLINE PAGE ---
+  // The first check is done, and we are confirmed to be offline.
+  if (isOffline) {
     return <Offline />;
   }
 
+  // --- 3. RENDER APP ---
+  // The first check is done, and we are confirmed to be online.
   return (
     <>
       <Routes>
