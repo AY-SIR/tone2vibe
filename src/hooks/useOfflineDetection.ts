@@ -41,6 +41,7 @@ export const useOfflineDetection = () => {
   const checkConnection = useCallback(async (isManualRetry = false) => {
     if (!mountedRef.current) return;
 
+    // Allow manual retry to bypass the checking guard
     if (isCheckingConnection && !isManualRetry) return;
 
     if (!navigator.onLine) {
@@ -51,6 +52,7 @@ export const useOfflineDetection = () => {
       setRetryCount(retryRef.current);
       setStatusChecked(true);
       setConnectionRestored(false);
+      setIsCheckingConnection(false);
       scheduleNextCheck(true);
       return;
     }

@@ -11,8 +11,8 @@ const Offline = () => {
     checkConnection
   } = useOfflineDetection();
 
-  const handleRetry = () => {
-    checkConnection(true);
+  const handleRetry = async () => {
+    await checkConnection(true);
   };
 
   // Show connection restored message briefly as full screen overlay
