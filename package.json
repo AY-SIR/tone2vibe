@@ -81,6 +81,7 @@
     "tesseract.js": "^6.0.1",
     "uuid": "^13.0.0",
     "vaul": "^0.9.3",
+    "vite-plugin-pwa": "^1.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
