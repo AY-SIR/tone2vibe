@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export const useOfflineDetection = () => {
-  const [isOffline, setIsOffline] = useState(false); // Start as online
+  // Start with navigator.onLine to avoid white screen
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>('good');
+  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>(!navigator.onLine ? 'offline' : 'good');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [statusChecked, setStatusChecked] = useState(false);
+  const [statusChecked, setStatusChecked] = useState(!navigator.onLine); // If offline, we already know the status
   const [retryCount, setRetryCount] = useState(0);
   const [connectionRestored, setConnectionRestored] = useState(false);
 
   const mountedRef = useRef(true);
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasOfflineRef = useRef(false);
+  const wasOfflineRef = useRef(!navigator.onLine);
   const initialCheckDone = useRef(false);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRestoringRef = useRef(false);
@@ -36,10 +37,6 @@ export const useOfflineDetection = () => {
     if (!navigator.onLine) {
       return false;
     }
-
-    // If navigator says we're online, trust it initially for faster load
-    // but still verify in background
-    const quickCheck = navigator.onLine;
 
     // Strategy 1: Try health endpoint (for localhost/custom backends)
     try {
@@ -171,7 +168,6 @@ export const useOfflineDetection = () => {
       setIsOffline(false);
       setConnectionQuality('good');
       setRetryCount(0);
-      setConnectionRestored(false);
       setStatusChecked(true);
       setLastChecked(new Date());
 
@@ -201,23 +197,23 @@ export const useOfflineDetection = () => {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Quick initial check - trust navigator.onLine for fast load
+    // Immediate initial check based on navigator.onLine
     if (!initialCheckDone.current) {
       initialCheckDone.current = true;
 
-      // If browser says offline, mark as offline immediately
       if (!navigator.onLine) {
+        // Offline: Show offline screen immediately
         wasOfflineRef.current = true;
         setIsOffline(true);
         setConnectionQuality('offline');
         setStatusChecked(true);
       } else {
-        // If online, mark as ready immediately for fast load
+        // Online: Trust navigator and show app immediately
         setIsOffline(false);
         setStatusChecked(true);
         setConnectionQuality('good');
 
-        // Verify connection in background
+        // Verify in background without blocking UI
         checkConnection();
       }
     }
