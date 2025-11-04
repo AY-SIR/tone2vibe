@@ -2,10 +2,10 @@ import type { Config } from "tailwindcss";
 import animatePlugin from "tailwindcss-animate";
 
 const config: Config = {
-  // 🚫 Force-disable dark mode across all components & variants
+  //  Force-disable dark mode across all components & variants
   darkMode: "media",
 
-  // 📁 Paths where Tailwind scans for class names
+  //  Paths where Tailwind scans for class names
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -23,14 +23,14 @@ const config: Config = {
     },
 
     extend: {
-      // 🖋 Font families (Inter + Poppins combo)
+      //  Font families (Inter + Poppins combo)
       fontFamily: {
         sans: ["Inter", "Poppins", "system-ui", "-apple-system", "sans-serif"],
         modern: ["Inter", "Poppins", "system-ui", "-apple-system", "sans-serif"],
         heading: ["Poppins", "Inter", "system-ui", "-apple-system", "sans-serif"],
       },
 
-      // 🎨 Color system linked with your :root variables
+      //  Color system linked with your :root variables
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -84,7 +84,7 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
 
-      // 🌀 Animations & keyframes
+      //  Animations & keyframes
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -108,7 +108,7 @@ const config: Config = {
         },
       },
 
-      // 🎬 Predefined animation utilities
+      //  Predefined animation utilities
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
@@ -119,7 +119,7 @@ const config: Config = {
     },
   },
 
-  // 🧩 Plugins
+  //  Plugins
   plugins: [animatePlugin],
 };
 
