@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export const useOfflineDetection = () => {
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isOffline, setIsOffline] = useState(false); // Start as online
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>(!navigator.onLine ? 'offline' : 'good');
+  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>('good');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [statusChecked, setStatusChecked] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -11,18 +11,24 @@ export const useOfflineDetection = () => {
 
   const mountedRef = useRef(true);
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasOfflineRef = useRef(!navigator.onLine);
+  const wasOfflineRef = useRef(false);
   const initialCheckDone = useRef(false);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isRestoringRef = useRef(false);
 
   const handleRestored = useCallback(() => {
+    if (isRestoringRef.current) return;
     if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
+
+    isRestoringRef.current = true;
     setConnectionRestored(true);
+
     restoredTimerRef.current = setTimeout(() => {
       if (mountedRef.current) {
         setConnectionRestored(false);
+        isRestoringRef.current = false;
       }
-    }, 4500);
+    }, 5000);
   }, []);
 
   const verifyConnection = async (): Promise<boolean> => {
@@ -31,10 +37,14 @@ export const useOfflineDetection = () => {
       return false;
     }
 
+    // If navigator says we're online, trust it initially for faster load
+    // but still verify in background
+    const quickCheck = navigator.onLine;
+
     // Strategy 1: Try health endpoint (for localhost/custom backends)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch('/api/health', {
         method: 'GET',
@@ -57,7 +67,7 @@ export const useOfflineDetection = () => {
     // Strategy 2: Try static health file (for production/static hosting)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch('/health.txt', {
         method: 'GET',
@@ -76,7 +86,7 @@ export const useOfflineDetection = () => {
     // Strategy 3: Check if we can fetch from our own domain
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch(window.location.origin, {
         method: 'HEAD',
@@ -85,18 +95,16 @@ export const useOfflineDetection = () => {
       });
 
       clearTimeout(timeoutId);
-      // Any response (even 404) means server is reachable
       return response.status < 500;
     } catch (error) {
-      // Own domain failed, try external check
+      // Own domain failed
     }
 
-    // Strategy 3: External connectivity check (last resort)
+    // Strategy 4: External connectivity check (last resort)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-      // Use a reliable CDN that supports CORS
       await fetch('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', {
         method: 'HEAD',
         mode: 'no-cors',
@@ -105,7 +113,6 @@ export const useOfflineDetection = () => {
       });
 
       clearTimeout(timeoutId);
-      // If we got here without error, we have internet
       return true;
     } catch (error) {
       return false;
@@ -148,7 +155,14 @@ export const useOfflineDetection = () => {
   }, [isCheckingConnection, handleRestored]);
 
   const handleOnline = useCallback(async () => {
-    // Double-check with server before marking as online
+    // Quick optimistic update
+    if (mountedRef.current) {
+      setIsOffline(false);
+      setConnectionQuality('good');
+      setStatusChecked(true);
+    }
+
+    // Verify in background
     const online = await verifyConnection();
 
     if (online && mountedRef.current) {
@@ -178,7 +192,6 @@ export const useOfflineDetection = () => {
     setLastChecked(new Date());
   }, []);
 
-  // Visibility change handler - check connection when tab becomes visible
   const handleVisibilityChange = useCallback(() => {
     if (document.visibilityState === 'visible' && wasOfflineRef.current) {
       checkConnection();
@@ -188,10 +201,25 @@ export const useOfflineDetection = () => {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Immediate initial check
+    // Quick initial check - trust navigator.onLine for fast load
     if (!initialCheckDone.current) {
       initialCheckDone.current = true;
-      checkConnection();
+
+      // If browser says offline, mark as offline immediately
+      if (!navigator.onLine) {
+        wasOfflineRef.current = true;
+        setIsOffline(true);
+        setConnectionQuality('offline');
+        setStatusChecked(true);
+      } else {
+        // If online, mark as ready immediately for fast load
+        setIsOffline(false);
+        setStatusChecked(true);
+        setConnectionQuality('good');
+
+        // Verify connection in background
+        checkConnection();
+      }
     }
 
     // Listen to browser events

@@ -8,6 +8,7 @@ const Offline = () => {
     isOffline,
     isCheckingConnection,
     connectionRestored,
+    statusChecked,
     checkConnection
   } = useOfflineDetection();
 
@@ -20,7 +21,6 @@ const Offline = () => {
       setShowRestored(true);
       setCountdown(4);
 
-      // Countdown timer
       const countdownInterval = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -31,12 +31,10 @@ const Offline = () => {
         });
       }, 1000);
 
-      // Start fade out animation after 4 seconds
       const fadeOutTimer = setTimeout(() => {
         setIsAnimatingOut(true);
       }, 4000);
 
-      // Remove component after animation completes
       const removeTimer = setTimeout(() => {
         setShowRestored(false);
         setIsAnimatingOut(false);
@@ -54,6 +52,18 @@ const Offline = () => {
   const handleRetry = async () => {
     await checkConnection(true);
   };
+
+  // Show loading while checking initial status
+  if (!statusChecked) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+          <p className="mt-4 text-sm text-muted-foreground">Checking connection...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show connection restored message
   if (showRestored) {
@@ -80,54 +90,54 @@ const Offline = () => {
     );
   }
 
-  // Don't show anything if online
-  if (!isOffline) {
-    return null;
-  }
-
   // Show offline screen
-  return (
-    <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center p-4">
-      <div className="max-w-md w-full text-center space-y-8">
-        <div className="space-y-6">
-          <div className="w-24 h-24 mx-auto rounded-full bg-muted flex items-center justify-center">
-            <WifiOff className="h-12 w-12 text-muted-foreground" />
+  if (isOffline) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-8">
+          <div className="space-y-6">
+            <div className="w-24 h-24 mx-auto rounded-full bg-muted flex items-center justify-center">
+              <WifiOff className="h-12 w-12 text-muted-foreground" />
+            </div>
+
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold">You're Offline</h1>
+              <p className="text-muted-foreground">
+                No internet connection detected. Please check your network.
+              </p>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">You're Offline</h1>
-            <p className="text-muted-foreground">
-              No internet connection detected. Please check your network.
+          <div className="space-y-3">
+            <Button
+              onClick={handleRetry}
+              disabled={isCheckingConnection}
+              className="w-full"
+            >
+              {isCheckingConnection ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Checking Connection...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </>
+              )}
+            </Button>
+
+            <p className="text-xs text-muted-foreground">
+              The app will automatically reconnect when your connection is restored.
             </p>
           </div>
         </div>
-
-        <div className="space-y-3">
-          <Button
-            onClick={handleRetry}
-            disabled={isCheckingConnection}
-            className="w-full"
-          >
-            {isCheckingConnection ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Checking Connection...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Try Again
-              </>
-            )}
-          </Button>
-
-          <p className="text-xs text-muted-foreground">
-            The app will automatically reconnect when your connection is restored.
-          </p>
-        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Don't show anything if online (App.tsx will handle routing)
+  return null;
 };
 
 export default Offline;
