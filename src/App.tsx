@@ -42,7 +42,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { planExpiryActive, user } = useAuth();
-  const { isOffline, statusChecked } = useOfflineDetection();
+  const { isOffline, statusChecked, connectionRestored } = useOfflineDetection();
 
   // Disable right-click
   useEffect(() => {
@@ -53,8 +53,8 @@ function AppContent() {
     };
   }, []);
 
-  // Show offline page if disconnected
-  if (statusChecked && isOffline) {
+  // Show offline page if disconnected OR during restoration
+  if (statusChecked && (isOffline || connectionRestored)) {
     return <Offline />;
   }
 

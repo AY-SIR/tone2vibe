@@ -15,17 +15,17 @@ const Offline = () => {
     checkConnection(true);
   };
 
-  // Show connection restored message briefly, then hide
+  // Show connection restored message briefly as full screen overlay
   if (connectionRestored && !isOffline) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center animate-pulse">
-            <Wifi className="h-10 w-10 text-green-600" />
+      <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center">
+        <div className="max-w-md w-full text-center space-y-6 p-4">
+          <div className="w-24 h-24 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+            <Wifi className="h-12 w-12 text-green-600 animate-pulse" />
           </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">Connection Restored!</h1>
-            <p className="text-muted-foreground">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-bold">Connection Restored!</h1>
+            <p className="text-lg text-muted-foreground">
               Resuming application...
             </p>
           </div>
