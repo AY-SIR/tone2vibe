@@ -13,6 +13,7 @@ export const useOfflineDetection = () => {
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasOfflineRef = useRef(!navigator.onLine);
   const initialCheckDone = useRef(false);
+  const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleRestored = useCallback(() => {
     if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
@@ -24,6 +25,35 @@ export const useOfflineDetection = () => {
     }, 4500);
   }, []);
 
+  const verifyConnection = async (): Promise<boolean> => {
+    // First check navigator.onLine for quick detection
+    if (!navigator.onLine) {
+      return false;
+    }
+
+    // Verify actual server connectivity
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch('/api/health', {
+        method: 'GET',
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      return response.ok && response.status === 200;
+    } catch (error) {
+      console.log('Connection check failed:', error);
+      return false;
+    }
+  };
+
   const checkConnection = useCallback(async (isManualRetry = false) => {
     if (!mountedRef.current) return;
     if (isCheckingConnection && !isManualRetry) return;
@@ -31,8 +61,7 @@ export const useOfflineDetection = () => {
     setIsCheckingConnection(true);
     setLastChecked(new Date());
 
-    // Use navigator.onLine for immediate feedback
-    const online = navigator.onLine;
+    const online = await verifyConnection();
 
     if (mountedRef.current) {
       if (online) {
@@ -60,19 +89,24 @@ export const useOfflineDetection = () => {
     }
   }, [isCheckingConnection, handleRestored]);
 
-  const handleOnline = useCallback(() => {
-    const shouldShowRestored = wasOfflineRef.current;
+  const handleOnline = useCallback(async () => {
+    // Double-check with server before marking as online
+    const online = await verifyConnection();
 
-    setIsOffline(false);
-    setConnectionQuality('good');
-    setRetryCount(0);
-    setConnectionRestored(false);
-    setStatusChecked(true);
-    setLastChecked(new Date());
+    if (online && mountedRef.current) {
+      const shouldShowRestored = wasOfflineRef.current;
 
-    if (shouldShowRestored) {
-      handleRestored();
-      wasOfflineRef.current = false;
+      setIsOffline(false);
+      setConnectionQuality('good');
+      setRetryCount(0);
+      setConnectionRestored(false);
+      setStatusChecked(true);
+      setLastChecked(new Date());
+
+      if (shouldShowRestored) {
+        handleRestored();
+        wasOfflineRef.current = false;
+      }
     }
   }, [handleRestored]);
 
@@ -91,24 +125,29 @@ export const useOfflineDetection = () => {
 
     // Immediate initial check
     if (!initialCheckDone.current) {
-      const isCurrentlyOnline = navigator.onLine;
-      setIsOffline(!isCurrentlyOnline);
-      setStatusChecked(true);
-      wasOfflineRef.current = !isCurrentlyOnline;
       initialCheckDone.current = true;
+      checkConnection();
     }
 
     // Listen to browser events
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Periodic connectivity check every 30 seconds when offline
+    checkIntervalRef.current = setInterval(() => {
+      if (wasOfflineRef.current && mountedRef.current) {
+        checkConnection();
+      }
+    }, 30000);
+
     return () => {
       mountedRef.current = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
+      if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
     };
-  }, [handleOnline, handleOffline]);
+  }, [handleOnline, handleOffline, checkConnection]);
 
   return {
     isOffline,
