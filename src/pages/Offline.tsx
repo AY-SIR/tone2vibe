@@ -41,7 +41,7 @@ const Offline = () => {
         setShowRestored(false);
         setIsAnimatingOut(false);
         setCountdown(4);
-      }, 4500); // 4000ms display + 500ms fade out
+      }, 4500);
 
       return () => {
         clearInterval(countdownInterval);
@@ -55,7 +55,7 @@ const Offline = () => {
     await checkConnection(true);
   };
 
-  // Show connection restored message with smooth transition
+  // Show connection restored message
   if (showRestored) {
     return (
       <div
@@ -80,15 +80,15 @@ const Offline = () => {
     );
   }
 
-  // Don't show anything if online and not showing restored message
+  // Don't show anything if online
   if (!isOffline) {
     return null;
   }
 
-  // Show offline screen with fade-in animation
+  // Show offline screen
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="max-w-md w-full text-center space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+    <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center p-4">
+      <div className="max-w-md w-full text-center space-y-8">
         <div className="space-y-6">
           <div className="w-24 h-24 mx-auto rounded-full bg-muted flex items-center justify-center">
             <WifiOff className="h-12 w-12 text-muted-foreground" />

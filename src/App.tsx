@@ -11,7 +11,7 @@ import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { WordLimitPopup } from "./components/common/WordLimitPopup";
 import { useOfflineDetection } from "@/hooks/useOfflineDetection";
 
-// --- Normal imports (no lazy) ---
+// Normal imports
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -26,8 +26,8 @@ import Cookies from "./pages/Cookies";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import Offline from "./pages/Offline";
-import {EmailConfirmation} from "./pages/EmailConfirmation";
-import {ResetPassword }from "./pages/ResetPassword";
+import { EmailConfirmation } from "./pages/EmailConfirmation";
+import { ResetPassword } from "./pages/ResetPassword";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,9 +41,8 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive, user } = useAuth();
+  const { planExpiryActive } = useAuth();
   const { isOffline, statusChecked, connectionRestored } = useOfflineDetection();
-  const [showContent, setShowContent] = useState(false);
 
   // Disable right-click
   useEffect(() => {
@@ -54,49 +53,38 @@ function AppContent() {
     };
   }, []);
 
-  // Show content only after status is checked
-  useEffect(() => {
-    if (statusChecked && !isOffline && !connectionRestored) {
-      setShowContent(true);
-    } else {
-      setShowContent(false);
-    }
-  }, [statusChecked, isOffline, connectionRestored]);
-
-  // Show offline page immediately if disconnected OR during restoration
-  if (isOffline || connectionRestored) {
-    return <Offline />;
-  }
-
-  // Don't render content until we've checked status
-  if (!showContent) {
-    return null;
-  }
+  // Show offline overlay when disconnected OR during restoration
+  const showOfflineOverlay = isOffline || connectionRestored;
 
   return (
     <>
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-        <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-        <Route path="/payment-failed" element={<ProtectedRoute><PaymentFailed /></ProtectedRoute>} />
-        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/cookies" element={<Cookies />} />
-        <Route path="/email-confirmation" element={<EmailConfirmation />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/offline" element={<Offline />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      {showOfflineOverlay && <Offline />}
 
-      <WordLimitPopup planExpiryActive={planExpiryActive} />
-      <Toaster />
-      <Sonner />
+      {statusChecked && !showOfflineOverlay && (
+        <>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+            <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+            <Route path="/payment-failed" element={<ProtectedRoute><PaymentFailed /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/cookies" element={<Cookies />} />
+            <Route path="/email-confirmation" element={<EmailConfirmation />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+
+          <WordLimitPopup planExpiryActive={planExpiryActive} />
+          <Toaster />
+          <Sonner />
+        </>
+      )}
     </>
   );
 }

@@ -5,13 +5,14 @@ export const useOfflineDetection = () => {
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>(!navigator.onLine ? 'offline' : 'good');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [statusChecked, setStatusChecked] = useState(true);
+  const [statusChecked, setStatusChecked] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [connectionRestored, setConnectionRestored] = useState(false);
 
   const mountedRef = useRef(true);
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasOfflineRef = useRef(!navigator.onLine);
+  const initialCheckDone = useRef(false);
 
   const handleRestored = useCallback(() => {
     if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
@@ -30,31 +31,33 @@ export const useOfflineDetection = () => {
     setIsCheckingConnection(true);
     setLastChecked(new Date());
 
-    // Just use navigator.onLine - no fetch requests
+    // Use navigator.onLine for immediate feedback
     const online = navigator.onLine;
 
-    if (online) {
-      const shouldShowRestored = wasOfflineRef.current;
+    if (mountedRef.current) {
+      if (online) {
+        const shouldShowRestored = wasOfflineRef.current;
 
-      setIsOffline(false);
-      setRetryCount(0);
-      setConnectionQuality('good');
-      setStatusChecked(true);
+        setIsOffline(false);
+        setRetryCount(0);
+        setConnectionQuality('good');
+        setStatusChecked(true);
 
-      if (shouldShowRestored) {
-        handleRestored();
-        wasOfflineRef.current = false;
+        if (shouldShowRestored) {
+          handleRestored();
+          wasOfflineRef.current = false;
+        }
+      } else {
+        wasOfflineRef.current = true;
+        setIsOffline(true);
+        setConnectionQuality('offline');
+        setRetryCount(prev => prev + 1);
+        setConnectionRestored(false);
+        setStatusChecked(true);
       }
-    } else {
-      wasOfflineRef.current = true;
-      setIsOffline(true);
-      setConnectionQuality('offline');
-      setRetryCount(prev => prev + 1);
-      setConnectionRestored(false);
-      setStatusChecked(true);
-    }
 
-    setIsCheckingConnection(false);
+      setIsCheckingConnection(false);
+    }
   }, [isCheckingConnection, handleRestored]);
 
   const handleOnline = useCallback(() => {
@@ -86,11 +89,13 @@ export const useOfflineDetection = () => {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Set initial state based on navigator.onLine
-    if (!navigator.onLine) {
-      wasOfflineRef.current = true;
-      setIsOffline(true);
+    // Immediate initial check
+    if (!initialCheckDone.current) {
+      const isCurrentlyOnline = navigator.onLine;
+      setIsOffline(!isCurrentlyOnline);
       setStatusChecked(true);
+      wasOfflineRef.current = !isCurrentlyOnline;
+      initialCheckDone.current = true;
     }
 
     // Listen to browser events

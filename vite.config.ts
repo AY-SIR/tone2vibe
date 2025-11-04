@@ -7,7 +7,7 @@ export default defineConfig({
     host: "::",
     port: 8080,
 
-    // 👇 Custom health check endpoint (keep this)
+
     setupMiddlewares(middlewares) {
       middlewares.use("/api/health", (req, res) => {
         res.statusCode = 200;
