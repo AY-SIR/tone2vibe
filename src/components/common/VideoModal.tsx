@@ -1,5 +1,5 @@
-
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { useState } from 'react';
@@ -15,8 +15,18 @@ export function VideoModal({ open, onOpenChange }: VideoModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 bg-black">
+        {/* ✅ Hidden accessibility elements */}
+        <DialogHeader>
+          <VisuallyHidden>
+            <DialogTitle>Tone2Vibe Demo Video</DialogTitle>
+            <DialogDescription>
+              A demonstration video showcasing the features and performance of Tone2Vibe.
+            </DialogDescription>
+          </VisuallyHidden>
+        </DialogHeader>
+
         <div className="relative">
-          {/* Close button in top right */}
+          {/* Close button */}
           <Button
             variant="ghost"
             size="sm"
@@ -25,7 +35,8 @@ export function VideoModal({ open, onOpenChange }: VideoModalProps) {
           >
             <X className="h-4 w-4" />
           </Button>
-          
+
+          {/* Video container */}
           <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">

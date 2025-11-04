@@ -36,7 +36,7 @@ import {
   History,
   CreditCard,
   LogOut,
-  Settings
+  Settings, Loader2
 } from 'lucide-react';
 import { useRealTimeWordCount } from '@/hooks/useRealTimeWordCount';
 
@@ -165,41 +165,57 @@ export function ProfileDropdown() {
             disabled={isLoading}
             onSelect={(e) => e.preventDefault()} // Prevents dropdown from closing when dialog opens
           >
-            <LogOut className="mr-2 h-4 w-4" />
             <span>{isLoading ? 'Signing out...' : 'Sign Out'}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-        <DialogContent
-          className="sm:max-w-md w-[95%] rounded-2xl p-6"
-        >
-          <DialogHeader>
-            <DialogTitle  className="mt-2 mb-4">Are you sure you want to sign out?</DialogTitle>
-            <DialogDescription >
-              This will end your current session and you will be logged out.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setShowConfirmModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleSignOut}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Signing out...' : 'Sign Out'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+     <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+  <DialogContent
+    className="sm:max-w-md w-[95%] rounded-2xl p-6 [&>button]:hidden"
+  >
+    <DialogHeader>
+      <DialogTitle className="mt-2 mb-4 flex items-center gap-2">
+        <LogOut className="h-5 w-5" />
+        Are you sure you want to sign out?
+      </DialogTitle>
+      <div className="border-t border-gray-200 dark:border-gray-800 my-4" />
+      <DialogDescription>
+        This will end your current session and you will be logged out.
+      </DialogDescription>
+    </DialogHeader>
+    <DialogFooter className="flex-row gap-2 sm:gap-2">
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => setShowConfirmModal(false)}
+        className="flex-1"
+      >
+        Cancel
+      </Button>
+      <Button
+        type="button"
+        variant="destructive"
+        onClick={handleSignOut}
+        disabled={isLoading}
+        className="flex-1"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Signing out...
+          </>
+        ) : (
+          <>
+
+            Sign Out
+              <LogOut className="h-4 w-4 mr-2" />
+          </>
+        )}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
     </>
   );
 }

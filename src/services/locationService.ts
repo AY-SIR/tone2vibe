@@ -26,7 +26,7 @@ export class LocationService {
       }),
     },
     {
-      url: 'https://ipwho.is/json/',
+      url: 'https://ipwho.is/',
       map: (data: any) => ({
         country: data.country || 'Unknown',
         countryCode: data.country_code || 'Unknown',
@@ -41,24 +41,51 @@ export class LocationService {
         ip: data.IPv4,
       }),
     },
+    {
+      url: 'https://api.country.is/',
+      map: (data: any) => ({
+        country: data.country || 'Unknown',
+        countryCode: data.country || 'Unknown',
+        ip: data.ip,
+      }),
+    },
   ];
 
-  /** Detects user location using multiple APIs — always succeeds silently */
+  /** Detects user location using multiple APIs with silent fallback */
   static async getUserLocation(): Promise<LocationData> {
+    // Try each API silently
     for (const api of this.apis) {
       try {
-        const res = await fetch(api.url, { headers: { Accept: 'application/json' } });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+        const res = await fetch(api.url, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
         if (!res.ok) continue;
+
         const data = await res.json();
-        return api.map(data);
-      } catch {
+        const location = api.map(data);
+
+        // Validate we got useful data
+        if (location.countryCode && location.countryCode !== 'Unknown') {
+          return location;
+        }
+      } catch (error) {
+        // Silently continue to next API
         continue;
       }
     }
+
+    // All APIs failed - return default without logging
     return { country: 'Unknown', countryCode: 'Unknown' };
   }
 
-  /** Detects user location — always returns something */
+  /** Detects user location - guaranteed to return something */
   static async detectUserLocation(): Promise<LocationData> {
     try {
       return await this.getUserLocation();
@@ -77,11 +104,14 @@ export class LocationService {
     return {
       currency: 'INR',
       symbol: '₹',
-      plans: { pro: { price: 99, originalPrice: 99 }, premium: { price: 299, originalPrice: 299 } },
+      plans: {
+        pro: { price: 99, originalPrice: 99 },
+        premium: { price: 299, originalPrice: 299 },
+      },
     };
   }
 
-  /** Saves user location to Supabase — never fails or throws */
+  /** Saves user location to Supabase - silent operation */
   static async saveUserLocation(userId: string, locationData: LocationData): Promise<void> {
     try {
       await supabase
@@ -93,20 +123,20 @@ export class LocationService {
         })
         .eq('user_id', userId);
     } catch {
-      // silently ignore errors
+      // Silently ignore all errors
     }
   }
 
-  /** Gets user location from Supabase — always succeeds silently */
+  /** Gets user location from Supabase - silent fallback */
   static async getUserLocationFromDb(userId: string): Promise<LocationData> {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('country, country_code, ip')
         .eq('user_id', userId)
         .single();
 
-      if (!data) {
+      if (error || !data) {
         return { country: 'Unknown', countryCode: 'Unknown' };
       }
 

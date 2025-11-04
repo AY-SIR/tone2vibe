@@ -405,8 +405,8 @@ export function WordPurchase() {
       </Card>
 
       {/* Payment Dialog */}
-      <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
-        <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6">
+      <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway} >
+        <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6 rounded-lg" aria-describedby={undefined}>
           <DialogHeader className="pb-4">
             <DialogTitle className="text-center text-base sm:text-lg font-semibold">
               Choose Payment Method

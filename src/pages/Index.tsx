@@ -249,11 +249,7 @@ const Index = () => {
     const authParam = searchParams.get('auth');
     const fromProtected = searchParams.get('from_protected');
     
-    // Don't show welcome popup if:
-    // 1. User is logged in
-    // 2. User has already seen welcome
-    // 3. Auth modal is being opened (from protected route redirect)
-    // 4. Coming from protected route
+
     if (!hasSeenWelcome && !user && authParam !== 'open' && fromProtected !== 'true') {
       setTimeout(() => setShowWelcome(true), 1000);
     }

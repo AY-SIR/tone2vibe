@@ -1,21 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export const useOfflineDetection = () => {
-  // Initialize immediately based on navigator.onLine
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>(!navigator.onLine ? 'offline' : 'good');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [statusChecked, setStatusChecked] = useState(!navigator.onLine); // Set true immediately if offline
+  const [statusChecked, setStatusChecked] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
   const [connectionRestored, setConnectionRestored] = useState(false);
 
-  const retryRef = useRef(0);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const restoredTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasOfflineRef = useRef(false);
-  const checkConnectionRef = useRef<() => Promise<void>>();
+  const wasOfflineRef = useRef(!navigator.onLine);
 
   const handleRestored = useCallback(() => {
     if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
@@ -23,120 +19,81 @@ export const useOfflineDetection = () => {
     restoredTimerRef.current = setTimeout(() => {
       if (mountedRef.current) {
         setConnectionRestored(false);
-        // After showing restoration message, component will return null and app continues normally
       }
-    }, 2000);
-  }, []);
-
-  const scheduleNextCheck = useCallback((offline: boolean) => {
-    if (!mountedRef.current) return;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    const nextCheck = offline ? 5000 : 30000; // Check every 5s if offline, 30s if online
-    timeoutRef.current = setTimeout(() => {
-      checkConnectionRef.current?.();
-    }, nextCheck);
+    }, 4500);
   }, []);
 
   const checkConnection = useCallback(async (isManualRetry = false) => {
     if (!mountedRef.current) return;
-
-    // Allow manual retry to bypass the checking guard
     if (isCheckingConnection && !isManualRetry) return;
-
-    if (!navigator.onLine) {
-      wasOfflineRef.current = true;
-      setIsOffline(true);
-      setConnectionQuality('offline');
-      retryRef.current += 1;
-      setRetryCount(retryRef.current);
-      setStatusChecked(true);
-      setConnectionRestored(false);
-      setIsCheckingConnection(false);
-      scheduleNextCheck(true);
-      return;
-    }
 
     setIsCheckingConnection(true);
     setLastChecked(new Date());
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout for weak networks
-      const start = Date.now();
+    // Just use navigator.onLine - no fetch requests
+    const online = navigator.onLine;
 
-      const response = await fetch(`/api/health?ts=${Date.now()}`, {
-        method: 'HEAD',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
+    if (online) {
+      const shouldShowRestored = wasOfflineRef.current;
 
-      clearTimeout(timeoutId);
-      const duration = Date.now() - start;
+      setIsOffline(false);
+      setRetryCount(0);
+      setConnectionQuality('good');
+      setStatusChecked(true);
 
-      if (response.ok) {
-        const shouldShowRestored = wasOfflineRef.current && statusChecked;
-
-        setIsOffline(false);
-        retryRef.current = 0;
-        setRetryCount(0);
-        setConnectionQuality(duration < 2000 ? 'good' : 'poor');
-
-        if (shouldShowRestored) {
-          handleRestored();
-          wasOfflineRef.current = false;
-        }
-
-        scheduleNextCheck(false);
-      } else {
-        throw new Error('Response not ok');
+      if (shouldShowRestored) {
+        handleRestored();
+        wasOfflineRef.current = false;
       }
-    } catch (error) {
+    } else {
       wasOfflineRef.current = true;
-      retryRef.current += 1;
-      setRetryCount(retryRef.current);
       setIsOffline(true);
       setConnectionQuality('offline');
+      setRetryCount(prev => prev + 1);
       setConnectionRestored(false);
-      scheduleNextCheck(true);
-    } finally {
-      setIsCheckingConnection(false);
       setStatusChecked(true);
     }
-  }, [isCheckingConnection, scheduleNextCheck, handleRestored, statusChecked]);
 
-  useEffect(() => {
-    checkConnectionRef.current = checkConnection;
-  }, [checkConnection]);
+    setIsCheckingConnection(false);
+  }, [isCheckingConnection, handleRestored]);
 
   const handleOnline = useCallback(() => {
-    checkConnection(true);
-  }, [checkConnection]);
+    const shouldShowRestored = wasOfflineRef.current;
+
+    setIsOffline(false);
+    setConnectionQuality('good');
+    setRetryCount(0);
+    setConnectionRestored(false);
+    setStatusChecked(true);
+    setLastChecked(new Date());
+
+    if (shouldShowRestored) {
+      handleRestored();
+      wasOfflineRef.current = false;
+    }
+  }, [handleRestored]);
 
   const handleOffline = useCallback(() => {
     wasOfflineRef.current = true;
     setIsOffline(true);
     setConnectionQuality('offline');
-    retryRef.current += 1;
-    setRetryCount(retryRef.current);
+    setRetryCount(prev => prev + 1);
     setConnectionRestored(false);
     setStatusChecked(true);
-    scheduleNextCheck(true);
-  }, [scheduleNextCheck]);
+    setLastChecked(new Date());
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
 
-    // Set initial offline state immediately
+    // Set initial state based on navigator.onLine
     if (!navigator.onLine) {
       wasOfflineRef.current = true;
       setIsOffline(true);
       setStatusChecked(true);
     }
 
-    // Then do the full check
-    checkConnectionRef.current?.();
-
+    // Listen to browser events
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
@@ -144,7 +101,6 @@ export const useOfflineDetection = () => {
       mountedRef.current = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
     };
   }, [handleOnline, handleOffline]);
