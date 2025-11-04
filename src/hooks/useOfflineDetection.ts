@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export const useOfflineDetection = () => {
+  // Initialize immediately based on navigator.onLine
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>('good');
+  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>(!navigator.onLine ? 'offline' : 'good');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [statusChecked, setStatusChecked] = useState(false);
+  const [statusChecked, setStatusChecked] = useState(!navigator.onLine); // Set true immediately if offline
   const [retryCount, setRetryCount] = useState(0);
   const [connectionRestored, setConnectionRestored] = useState(false);
 
@@ -22,6 +23,7 @@ export const useOfflineDetection = () => {
     restoredTimerRef.current = setTimeout(() => {
       if (mountedRef.current) {
         setConnectionRestored(false);
+        // After showing restoration message, component will return null and app continues normally
       }
     }, 2000);
   }, []);

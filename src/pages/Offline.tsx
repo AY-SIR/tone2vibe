@@ -15,23 +15,28 @@ const Offline = () => {
     checkConnection(true);
   };
 
-  // Show connection restored message
+  // Show connection restored message briefly, then hide
   if (connectionRestored && !isOffline) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-6">
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center animate-pulse">
             <Wifi className="h-10 w-10 text-green-600" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">Connection Restored</h1>
+            <h1 className="text-2xl font-semibold">Connection Restored!</h1>
             <p className="text-muted-foreground">
-              Reconnecting to the application...
+              Resuming application...
             </p>
           </div>
         </div>
       </div>
     );
+  }
+
+  // Don't show anything if online and not in restoration phase
+  if (!isOffline && !connectionRestored) {
+    return null;
   }
 
   // Show offline screen
@@ -47,7 +52,7 @@ const Offline = () => {
             <div className="space-y-2">
               <h1 className="text-2xl font-semibold">You're Offline</h1>
               <p className="text-muted-foreground">
-                It looks like you've lost your internet connection. Please check your network and try again.
+                No internet connection detected. Please check your network.
               </p>
             </div>
           </div>
