@@ -176,7 +176,7 @@ export function ProfileDropdown() {
   >
     <DialogHeader>
       <DialogTitle className="mt-2 mb-4 flex items-center gap-2">
-        <LogOut className="h-5 w-5" />
+        
         Are you sure you want to sign out?
       </DialogTitle>
       <div className="border-t border-gray-200 dark:border-gray-800 my-4" />
