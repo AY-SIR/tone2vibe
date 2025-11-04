@@ -31,10 +31,10 @@ export const useOfflineDetection = () => {
       return false;
     }
 
-    // Verify actual server connectivity
+    // Strategy 1: Try health endpoint (for localhost/custom backends)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       const response = await fetch('/api/health', {
         method: 'GET',
@@ -47,9 +47,67 @@ export const useOfflineDetection = () => {
       });
 
       clearTimeout(timeoutId);
-      return response.ok && response.status === 200;
+      if (response.ok && response.status === 200) {
+        return true;
+      }
     } catch (error) {
-      console.log('Connection check failed:', error);
+      // Health endpoint failed, try fallback
+    }
+
+    // Strategy 2: Try static health file (for production/static hosting)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch('/health.txt', {
+        method: 'GET',
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        return true;
+      }
+    } catch (error) {
+      // Static file failed, try main domain
+    }
+
+    // Strategy 3: Check if we can fetch from our own domain
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(window.location.origin, {
+        method: 'HEAD',
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      // Any response (even 404) means server is reachable
+      return response.status < 500;
+    } catch (error) {
+      // Own domain failed, try external check
+    }
+
+    // Strategy 3: External connectivity check (last resort)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      // Use a reliable CDN that supports CORS
+      await fetch('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      // If we got here without error, we have internet
+      return true;
+    } catch (error) {
       return false;
     }
   };
@@ -120,6 +178,13 @@ export const useOfflineDetection = () => {
     setLastChecked(new Date());
   }, []);
 
+  // Visibility change handler - check connection when tab becomes visible
+  const handleVisibilityChange = useCallback(() => {
+    if (document.visibilityState === 'visible' && wasOfflineRef.current) {
+      checkConnection();
+    }
+  }, [checkConnection]);
+
   useEffect(() => {
     mountedRef.current = true;
 
@@ -132,6 +197,7 @@ export const useOfflineDetection = () => {
     // Listen to browser events
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Periodic connectivity check every 30 seconds when offline
     checkIntervalRef.current = setInterval(() => {
@@ -144,10 +210,11 @@ export const useOfflineDetection = () => {
       mountedRef.current = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
       if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
     };
-  }, [handleOnline, handleOffline, checkConnection]);
+  }, [handleOnline, handleOffline, handleVisibilityChange, checkConnection]);
 
   return {
     isOffline,
