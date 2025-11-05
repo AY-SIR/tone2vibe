@@ -42,26 +42,13 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive, loading } = useAuth();
-  const { isOffline, connectionRestored, statusChecked } = useOfflineDetection();
+  const { planExpiryActive } = useAuth();
+  const { isOffline, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState(false);
-
-  // Track a smooth restore overlay until app is ready
-  useEffect(() => {
-    if (connectionRestored) setRestoring(true);
-  }, [connectionRestored]);
-
-  useEffect(() => {
-    if (restoring && !loading && !isOffline && !connectionRestored) {
-      const t = setTimeout(() => setRestoring(false), 300);
-      return () => clearTimeout(t);
-    }
-  }, [restoring, loading, isOffline, connectionRestored]);
 
   // Check cookie consent on mount
   useEffect(() => {
-    const consent = localStorage.getItem('cookie-consent');
+    const consent = localStorage.getItem("cookie-consent");
     setCookieConsent(consent);
   }, []);
 
@@ -75,15 +62,16 @@ function AppContent() {
   }, []);
 
   const handleCookieAccept = () => {
-    setCookieConsent('accepted');
+    setCookieConsent("accepted");
   };
 
   const handleCookieDecline = () => {
-    setCookieConsent('declined');
+    setCookieConsent("declined");
   };
 
-  // Show offline screen when offline or during restoration
-  if (statusChecked && (isOffline || restoring || (connectionRestored && loading))) {
+
+  // Show offline screen when offline
+  if (isOffline) {
     return <Offline />;
   }
 
@@ -109,12 +97,12 @@ function AppContent() {
       </Routes>
 
       {!cookieConsent && (
-        <CookieConsent 
+        <CookieConsent
           onAccept={handleCookieAccept}
           onDecline={handleCookieDecline}
         />
       )}
-      
+
       <WordLimitPopup planExpiryActive={planExpiryActive} />
       <Toaster />
       <Sonner />
