@@ -5,6 +5,12 @@ import App from './App';
 import './index.css';
 import { EmailConfirmation } from './pages/EmailConfirmation';
 
+// Minimal Service Worker registration (no Vite PWA)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 
 // Mount React App
 createRoot(document.getElementById('root')).render(
