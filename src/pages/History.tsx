@@ -319,6 +319,22 @@ const AudioDownloadDropdown = ({
   );
 };
 
+const wrapTextAtLimit = (text, limit = 66) => {
+  if (!text) return '';
+  const words = text.split(' ');
+  let line = '';
+  const lines = [];
+  for (const word of words) {
+    if ((line + word).length > limit) {
+      lines.push(line.trim());
+      line = '';
+    }
+    line += word + ' ';
+  }
+  if (line) lines.push(line.trim());
+  return lines.join('\n');
+};
+
 // ============================================
 // SHOW MORE TEXT COMPONENT
 // ============================================
@@ -408,7 +424,7 @@ const ProjectCard = memo(({
       </CardHeader>
       <CardContent className="pt-0 p-3 sm:p-6">
         {type === 'generated' && project.original_text && (
-          <ShowMoreText text={project.original_text} />
+          <ShowMoreText text={wrapTextAtLimit(project.original_text, 66)} />
         )}
 
         <div className="flex items-center justify-between">
