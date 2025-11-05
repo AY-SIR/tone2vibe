@@ -7,9 +7,8 @@ import { EmailConfirmation } from './pages/EmailConfirmation';
 
 // Minimal Service Worker registration (no Vite PWA)
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
+  // Register ASAP for better coverage
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 // Mount React App

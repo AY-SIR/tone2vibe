@@ -42,9 +42,22 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive } = useAuth();
+  const { planExpiryActive, loading } = useAuth();
   const { isOffline, connectionRestored, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  // Track a smooth restore overlay until app is ready
+  useEffect(() => {
+    if (connectionRestored) setRestoring(true);
+  }, [connectionRestored]);
+
+  useEffect(() => {
+    if (restoring && !loading && !isOffline && !connectionRestored) {
+      const t = setTimeout(() => setRestoring(false), 300);
+      return () => clearTimeout(t);
+    }
+  }, [restoring, loading, isOffline, connectionRestored]);
 
   // Check cookie consent on mount
   useEffect(() => {
@@ -70,7 +83,7 @@ function AppContent() {
   };
 
   // Show offline screen when offline or during restoration
-  if (statusChecked && (isOffline || connectionRestored)) {
+  if (statusChecked && (isOffline || restoring || (connectionRestored && loading))) {
     return <Offline />;
   }
 
