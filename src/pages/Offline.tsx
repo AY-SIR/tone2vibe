@@ -73,7 +73,7 @@ const Offline = () => {
           isAnimatingOut ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
         }`}
       >
-        <div className="max-w-md w-full text-center space-y-6 p-6 animate-in fade-in zoom-in duration-500">
+        <div className="max-w-md w-full text-center space-y-6 p-6 animate-fade-in animate-scale-in">
           <div className="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 flex items-center justify-center shadow-2xl shadow-green-500/50">
             <Wifi className="h-14 w-14 text-white animate-pulse" />
           </div>
