@@ -33,13 +33,13 @@ const Offline = () => {
 
       const fadeOutTimer = setTimeout(() => {
         setIsAnimatingOut(true);
-      }, 4000);
+      }, 3800);
 
       const removeTimer = setTimeout(() => {
         setShowRestored(false);
         setIsAnimatingOut(false);
         setCountdown(4);
-      }, 4500);
+      }, 4300);
 
       return () => {
         clearInterval(countdownInterval);
@@ -69,20 +69,20 @@ const Offline = () => {
   if (showRestored) {
     return (
       <div
-        className={`fixed inset-0 z-[9999] bg-background flex items-center justify-center transition-opacity duration-500 ${
-          isAnimatingOut ? 'opacity-0' : 'opacity-100'
+        className={`fixed inset-0 z-[9999] bg-background/95 backdrop-blur-sm flex items-center justify-center transition-all duration-700 ${
+          isAnimatingOut ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
         }`}
       >
-        <div className={`max-w-md w-full text-center space-y-6 p-4 transition-transform duration-500 ${
-          isAnimatingOut ? 'scale-95' : 'scale-100'
-        }`}>
-          <div className="w-24 h-24 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-            <Wifi className="h-12 w-12 text-green-600 animate-pulse" />
+        <div className="max-w-md w-full text-center space-y-6 p-6 animate-in fade-in zoom-in duration-500">
+          <div className="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 flex items-center justify-center shadow-2xl shadow-green-500/50">
+            <Wifi className="h-14 w-14 text-white animate-pulse" />
           </div>
-          <div className="space-y-3">
-            <h1 className="text-3xl font-bold">Connection Restored!</h1>
-            <p className="text-lg text-muted-foreground">
-              Resuming in <span className="font-semibold text-foreground">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+          <div className="space-y-4">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-green-800 dark:from-green-400 dark:to-green-600 bg-clip-text text-transparent">
+              Back Online!
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              Resuming in <span className="font-bold text-2xl text-foreground tabular-nums">{countdown}</span>s
             </p>
           </div>
         </div>

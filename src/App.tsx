@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { WordLimitPopup } from "./components/common/WordLimitPopup";
+import { CookieConsent } from "./components/common/CookieConsent";
 import { useOfflineDetection } from "@/hooks/useOfflineDetection";
 
 // Normal imports
@@ -42,7 +43,14 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { planExpiryActive } = useAuth();
-  const { isOffline, connectionRestored } = useOfflineDetection();
+  const { isOffline, connectionRestored, statusChecked } = useOfflineDetection();
+  const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+
+  // Check cookie consent on mount
+  useEffect(() => {
+    const consent = localStorage.getItem('cookie-consent');
+    setCookieConsent(consent);
+  }, []);
 
   // Disable right-click
   useEffect(() => {
@@ -53,8 +61,16 @@ function AppContent() {
     };
   }, []);
 
-  // Only show offline screen when actually offline or showing restored message
-  if (isOffline || connectionRestored) {
+  const handleCookieAccept = () => {
+    setCookieConsent('accepted');
+  };
+
+  const handleCookieDecline = () => {
+    setCookieConsent('declined');
+  };
+
+  // Show offline screen when offline or during restoration
+  if (statusChecked && (isOffline || connectionRestored)) {
     return <Offline />;
   }
 
@@ -79,6 +95,13 @@ function AppContent() {
         <Route path="*" element={<NotFound />} />
       </Routes>
 
+      {!cookieConsent && (
+        <CookieConsent 
+          onAccept={handleCookieAccept}
+          onDecline={handleCookieDecline}
+        />
+      )}
+      
       <WordLimitPopup planExpiryActive={planExpiryActive} />
       <Toaster />
       <Sonner />

@@ -118,8 +118,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });  
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {  
-      handleSession(session);  
-    });  
+      handleSession(session);
+      
+      // Manage session cookie on auth state changes
+      if (session?.access_token) {
+        document.cookie = `auth_session=${session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+      } else {
+        document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
+      }
+    });
 
     return () => {  
       mounted = false;  
@@ -190,6 +197,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error && error.message.includes("Email not confirmed")) {
         return { data, error: new Error("Please confirm your email before signing in.") };
       }
+      
+      // Create session cookie on successful login
+      if (data?.session) {
+        document.cookie = `auth_session=${data.session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+      }
+      
       return { data, error };
     } catch (err) {
       console.error("SignIn error:", err);
@@ -213,6 +226,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      // Delete session cookie on logout
+      document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
+      
       const { error } = await supabase.auth.signOut();
       setUser(null);
       setSession(null);

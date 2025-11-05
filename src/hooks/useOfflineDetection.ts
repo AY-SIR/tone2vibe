@@ -29,7 +29,7 @@ export const useOfflineDetection = () => {
         setConnectionRestored(false);
         isRestoringRef.current = false;
       }
-    }, 5000);
+    }, 4500);
   }, []);
 
   const verifyConnection = async (): Promise<boolean> => {
