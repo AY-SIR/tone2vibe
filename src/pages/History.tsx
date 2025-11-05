@@ -345,9 +345,9 @@ const ShowMoreText = ({ text }: { text: string }) => {
 
   return (
     <div className="mb-3">
-      <p className={`text-xs sm:text-sm text-muted-foreground ${!expanded ? 'line-clamp-2' : ''}`}>
-        {text}
-      </p>
+      <p className={`text-xs sm:text-sm text-muted-foreground whitespace-pre-line ${!expanded ? 'line-clamp-2' : ''}`}>
+  {text}
+</p>
       {text.length > 100 && (
         <button
           onClick={() => setExpanded(!expanded)}
