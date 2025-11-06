@@ -14,6 +14,7 @@ export const useOfflineDetection = () => {
   const wasOfflineRef = useRef(!navigator.onLine);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const checkInProgressRef = useRef(false);
+  const failureStreakRef = useRef(0);
 
   const verifyConnection = async (): Promise<boolean> => {
     // First check navigator.onLine for quick detection
@@ -24,10 +25,10 @@ export const useOfflineDetection = () => {
     // Strategy 1: Try API health endpoint
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const response = await fetch('/api/health', {
-        method: 'GET',
+        method: 'HEAD',
         cache: 'no-cache',
         headers: {
           'Cache-Control': 'no-cache',
@@ -47,10 +48,10 @@ export const useOfflineDetection = () => {
     // Strategy 2: Try static health file
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const response = await fetch('/health', {
-        method: 'GET',
+      const response = await fetch('/health.txt', {
+        method: 'HEAD',
         cache: 'no-cache',
         signal: controller.signal
       });
@@ -63,23 +64,8 @@ export const useOfflineDetection = () => {
       // Static health failed, try CDN
     }
 
-    // Strategy 3: Try a reliable CDN resource (last resort)
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      await fetch('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', {
-        method: 'HEAD',
-        mode: 'no-cors',
-        cache: 'no-cache',
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      return true;
-    } catch (error) {
-      return false;
-    }
+    // Final: give up
+    return false;
   };
 
   const checkConnection = useCallback(async (isManualRetry = false) => {
@@ -98,36 +84,36 @@ export const useOfflineDetection = () => {
       const wasOffline = wasOfflineRef.current;
 
       if (online) {
+        failureStreakRef.current = 0;
         setIsOffline(false);
         setRetryCount(0);
         setConnectionQuality('good');
         setStatusChecked(true);
 
-        // If we were offline and now online, reload the page to restore app state
         if (wasOffline) {
           wasOfflineRef.current = false;
 
-          // Clear any existing timer
           if (restoredTimerRef.current) {
             clearTimeout(restoredTimerRef.current);
           }
 
-          // Show brief "restoring" message then reload
           setConnectionRestored(true);
-
-         restoredTimerRef.current = setTimeout(() => {
-      if (mountedRef.current) {
-        setConnectionRestored(false);
-      }
-    }, 1500);
+          restoredTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) {
+              setConnectionRestored(false);
+            }
+          }, 1200);
         }
       } else {
-        wasOfflineRef.current = true;
-        setIsOffline(true);
-        setConnectionQuality('offline');
-        setRetryCount(prev => prev + 1);
-        setConnectionRestored(false);
+        failureStreakRef.current += 1;
         setStatusChecked(true);
+        if (failureStreakRef.current >= 2) {
+          wasOfflineRef.current = true;
+          setIsOffline(true);
+          setConnectionQuality('offline');
+          setRetryCount(prev => prev + 1);
+          setConnectionRestored(false);
+        }
       }
 
       setIsCheckingConnection(false);

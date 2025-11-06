@@ -1,66 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useOfflineDetection } from '@/hooks/useOfflineDetection';
 
 const Offline = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [checking, setChecking] = useState(false);
+  const { isCheckingConnection, checkConnection } = useOfflineDetection();
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   const handleRetry = async () => {
-    setChecking(true);
-
-    try {
-      const response = await fetch('/api/health', {
-        method: 'HEAD',
-        cache: 'no-store'
-      });
-
-      if (response.ok) {
-        window.location.reload();
-      }
-    } catch (error) {
-      // Still offline
-    } finally {
-      setChecking(false);
-    }
+    await checkConnection(true);
   };
 
-  if (isOnline) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-            <RefreshCw className="h-10 w-10 text-green-600 animate-spin" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">Connection Restored</h1>
-            <p className="text-muted-foreground">
-              Reconnecting to the application...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -81,10 +31,10 @@ const Offline = () => {
         <div className="space-y-3">
           <Button
             onClick={handleRetry}
-            disabled={checking}
+            disabled={isCheckingConnection}
             className="w-full"
           >
-            {checking ? (
+            {isCheckingConnection ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Checking Connection...

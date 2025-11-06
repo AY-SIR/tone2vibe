@@ -69,9 +69,8 @@ function AppContent() {
     setCookieConsent("declined");
   };
 
-
-  // Show offline screen when offline
-  if (isOffline) {
+  // Show offline screen when offline (only after initial status check)
+  if (statusChecked && isOffline) {
     return <Offline />;
   }
 
