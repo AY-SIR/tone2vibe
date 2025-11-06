@@ -4,7 +4,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type"
 };
 
 // Sanitize input text (sample - limited length)
@@ -17,19 +18,41 @@ const sanitizeText = (text: string): string => {
 const validateVoiceSettings = (settings: any): boolean => {
   if (!settings || typeof settings !== "object") return false;
   if (!settings.voice_id || typeof settings.voice_id !== "string") return false;
-  if (!settings.voice_type || typeof settings.voice_type !== "string") return false;
+  if (!settings.voice_type || typeof settings.voice_type !== "string")
+    return false;
   if (!settings.language || typeof settings.language !== "string") return false;
 
   // Optional numeric checks (if present)
-  if (typeof settings.speed === "number" && (settings.speed < 0.5 || settings.speed > 2.0)) return false;
-  if (typeof settings.volume === "number" && (settings.volume < 0.1 || settings.volume > 1.5)) return false;
-  if (typeof settings.pitch === "number" && (settings.pitch < 0.5 || settings.pitch > 2.0)) return false;
-  if (typeof settings.stability === "number" && (settings.stability < 0.0 || settings.stability > 1.0)) return false;
-  if (typeof settings.similarity_boost === "number" && (settings.similarity_boost < 0.0 || settings.similarity_boost > 1.0)) return false;
+  if (
+    typeof settings.speed === "number" &&
+    (settings.speed < 0.5 || settings.speed > 2.0)
+  )
+    return false;
+  if (
+    typeof settings.volume === "number" &&
+    (settings.volume < 0.1 || settings.volume > 1.5)
+  )
+    return false;
+  if (
+    typeof settings.pitch === "number" &&
+    (settings.pitch < 0.5 || settings.pitch > 2.0)
+  )
+    return false;
+  if (
+    typeof settings.stability === "number" &&
+    (settings.stability < 0.0 || settings.stability > 1.0)
+  )
+    return false;
+  if (
+    typeof settings.similarity_boost === "number" &&
+    (settings.similarity_boost < 0.0 || settings.similarity_boost > 1.0)
+  )
+    return false;
 
   return true;
 };
 
+// Common error response helper
 const createErrorResponse = (message: string, status = 400) => {
   console.error(`Error [${status}]:`, message);
   return new Response(
@@ -43,51 +66,6 @@ const createErrorResponse = (message: string, status = 400) => {
     }
   );
 };
-
-/**
- * countWordsSafe
- * - Normalizes whitespace
- * - Splits on whitespace
- * - Applies 45-character chunk rule: a very long token counts as Math.ceil(len/45)
- * - Has fallbacks to regex and simple splitting in case of unusual input
- */
-function countWordsSafe(text: string): number {
-  if (!text || typeof text !== "string") return 0;
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (clean.length === 0) return 0;
-
-  try {
-    const tokens = clean.split(/\s+/).filter(Boolean);
-    let total = 0;
-    for (const t of tokens) {
-      total += t.length > 45 ? Math.ceil(t.length / 45) : 1;
-    }
-
-    // Fallback: regex word extraction if total is unexpectedly zero
-    if (total === 0) {
-      const matches = clean.match(/\p{L}[\p{L}\p{M}\p{N}_'-]*/gu); // better Unicode-aware word-ish matches
-      if (matches && matches.length) {
-        total = matches.reduce((acc, w) => acc + (w.length > 45 ? Math.ceil(w.length / 45) : 1), 0);
-      }
-    }
-
-    // Final fallback: split by space only
-    if (total === 0) {
-      const approx = clean.split(" ").filter(Boolean);
-      total = approx.length;
-    }
-
-    return Math.max(0, total);
-  } catch (err) {
-    console.error("countWordsSafe fallback triggered:", err);
-    const approx = clean.split(" ").filter(Boolean);
-    let total = 0;
-    for (const t of approx) {
-      total += t.length > 45 ? Math.ceil(t.length / 45) : 1;
-    }
-    return total;
-  }
-}
 
 Deno.serve(async (req) => {
   // CORS preflight
@@ -120,7 +98,7 @@ Deno.serve(async (req) => {
       return createErrorResponse("User not authenticated", 401);
     }
 
-    // Parse body
+    // Parse JSON body
     let body: any;
     try {
       body = await req.json();
@@ -150,16 +128,17 @@ Deno.serve(async (req) => {
       return createErrorResponse("Text content is empty after sanitization", 400);
     }
 
-    // Word counting (45-char chunk rule)
-    const actualWordCount = countWordsSafe(sanitizedText);
-    const providedWordCount = typeof body.word_count === "number" ? body.word_count : undefined;
+    // ✅ Only use provided word count
+    const providedWordCount =
+      typeof body.word_count === "number"
+        ? Math.max(0, Math.floor(body.word_count))
+        : 0;
 
-    if (providedWordCount !== undefined && Math.abs(actualWordCount - providedWordCount) > 5) {
-      console.warn(`Word count mismatch: provided=${providedWordCount}, actual=${actualWordCount}`);
+    if (providedWordCount === 0) {
+      return createErrorResponse("Missing or invalid 'word_count' value", 400);
     }
 
-    // Sample constraints
-    if (actualWordCount > 100) {
+    if (providedWordCount > 100) {
       return createErrorResponse("Sample text exceeds 100 word limit", 400);
     }
 
@@ -172,7 +151,7 @@ Deno.serve(async (req) => {
     // Logging for debugging / monitoring
     console.log("Sample generation request:", {
       user_id: user.id,
-      word_count: actualWordCount,
+      provided_word_count: providedWordCount,
       voice_type: body.voice_settings.voice_type,
       voice_id: body.voice_settings.voice_id,
       language: body.language,
@@ -181,11 +160,14 @@ Deno.serve(async (req) => {
 
     console.log("Voice settings:", JSON.stringify(body.voice_settings, null, 2));
 
-    // TODO: Replace this with an actual TTS call when ready
-    const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    // Mock sample audio (replace with real TTS when ready)
+    const SAMPLE_MP3_URL =
+      "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
     // No deduction for samples
-    console.log(`Sample generation completed for user ${user.id} - No words deducted`);
+    console.log(
+      `Sample generation completed for user ${user.id} - ${providedWordCount} words (No deduction)`
+    );
 
     return new Response(
       JSON.stringify({
@@ -193,7 +175,7 @@ Deno.serve(async (req) => {
         audio_url: SAMPLE_MP3_URL,
         voice_id_used: body.voice_settings.voice_id,
         voice_type: body.voice_settings.voice_type,
-        word_count: actualWordCount,
+        word_count: providedWordCount,
         is_sample: true,
         message: "Sample generated successfully - No words deducted"
       }),

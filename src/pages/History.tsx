@@ -1179,13 +1179,13 @@ const History = memo(() => {
           </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mb-2">Voice History</h1>
           <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
-            Your voice projects • {retentionInfo("all")} retention (from plan start) • 2GB file limit
+            Your voice projects • {retentionInfo("all")} retention (from plan start)
           </p>
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
             <div className="text-xs sm:text-sm flex items-center gap-2">
               <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
               <span>
-                Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown • Max file size: 2GB
+                Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown
               </span>
             </div>
           </div>

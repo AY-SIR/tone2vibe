@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const STORAGE_KEY = "tool_state_v2";
-const MAX_TEXT_LENGTH = 100000; // 100k characters max
+const MAX_TEXT_LENGTH = 500000; //
 const MAX_WORD_COUNT = 50000; // 50k words max
 const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB max for sessionStorage
 const MAX_BLOB_SIZE = 50 * 1024 * 1024; // 50MB max for voice recordings
@@ -690,16 +690,10 @@ const Tool = () => {
                   <div className="flex-1">
                     <p className="font-medium text-destructive text-sm">Insufficient Word Balance</p>
                     <p className="text-xs sm:text-sm text-destructive/80">
-                      Need {wordCount.toLocaleString()} words, have {remainingWords.toLocaleString()} remaining.
+Need <strong>{wordCount.toLocaleString()}</strong> words · Remaining: <strong>{remainingWords.toLocaleString()}</strong>
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => navigate('/payment')}
-                  >
-                    Get More Words
-                  </Button>
+
                 </div>
               </CardContent>
             </Card>
