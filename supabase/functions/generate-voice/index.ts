@@ -9,70 +9,106 @@ const corsHeaders = {
 
 const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
-// Security: Input sanitization
-const sanitizeText = (text: string): string => {
-  if (typeof text !== 'string') return '';
-  return text
-    .replace(/[<>]/g, '') // Remove potential HTML
-    .trim()
-    .slice(0, 500000); // Max 500k characters
+/* -------------------- UTILITIES -------------------- */
+
+// Sanitize input text
+const sanitizeText = (text) => {
+  if (typeof text !== "string") return "";
+  return text.replace(/[<>]/g, "").trim().slice(0, 500000); // max 500k chars
 };
 
-const sanitizeTitle = (title: string): string => {
-  if (typeof title !== 'string') return 'Untitled';
-  return title
-    .replace(/[<>\"']/g, '')
-    .trim()
-    .slice(0, 200);
+// Sanitize title safely
+const sanitizeTitle = (title) => {
+  if (typeof title !== "string") return "Untitled";
+  return title.replace(/[<>\"']/g, "").trim().slice(0, 200);
 };
 
-// Security: Validate voice settings
-const validateVoiceSettings = (settings: any): boolean => {
-  if (!settings || typeof settings !== 'object') return false;
+// Validate voice settings
+const validateVoiceSettings = (settings) => {
+  if (!settings || typeof settings !== "object") return false;
+  if (!settings.voice_id || !settings.voice_type || !settings.language) return false;
+  if (!["record", "prebuilt", "history"].includes(settings.voice_type)) return false;
 
-  // Required fields
-  if (!settings.voice_id || typeof settings.voice_id !== 'string') return false;
-  if (!settings.voice_type || typeof settings.voice_type !== 'string') return false;
-  if (!settings.language || typeof settings.language !== 'string') return false;
+  const numericChecks = [
+    ["speed", 0.5, 2.0],
+    ["volume", 0.1, 1.5],
+    ["pitch", 0.5, 2.0],
+    ["stability", 0.0, 1.0],
+    ["similarity_boost", 0.0, 1.0]
+  ];
 
-  // Validate voice_type enum
-  if (!['record', 'prebuilt', 'history'].includes(settings.voice_type)) return false;
-
-  // Validate numeric ranges
-  if (typeof settings.speed === 'number' && (settings.speed < 0.5 || settings.speed > 2.0)) return false;
-  if (typeof settings.volume === 'number' && (settings.volume < 0.1 || settings.volume > 1.5)) return false;
-  if (typeof settings.pitch === 'number' && (settings.pitch < 0.5 || settings.pitch > 2.0)) return false;
-  if (typeof settings.stability === 'number' && (settings.stability < 0.0 || settings.stability > 1.0)) return false;
-  if (typeof settings.similarity_boost === 'number' && (settings.similarity_boost < 0.0 || settings.similarity_boost > 1.0)) return false;
-
+  for (const [key, min, max] of numericChecks) {
+    if (typeof settings[key] === "number" && (settings[key] < min || settings[key] > max)) {
+      return false;
+    }
+  }
   return true;
 };
 
-// Generate unique + readable file name
-function generateUniqueVoiceName(): string {
+// Generate unique readable name (IST-based)
+function generateUniqueVoiceName() {
   const istDate = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
   const d = new Date(istDate);
-
-  // Random 4-character alphanumeric
   const randomCode = Array.from({ length: 4 }, () =>
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
       Math.floor(Math.random() * 62)
     ]
   ).join("");
-
-  // Date: DDMMYY
   const dateStr = `${d.getDate().toString().padStart(2, "0")}${(d.getMonth() + 1)
     .toString()
     .padStart(2, "0")}${d.getFullYear().toString().slice(-2)}`;
-
-  // Time: HHMM
   const timeStr = `${d.getHours().toString().padStart(2, "0")}${d
     .getMinutes()
     .toString()
     .padStart(2, "0")}`;
-
   return `Generated_${randomCode}_${dateStr}_${timeStr}_Voice`;
 }
+
+/* -------------------- WORD COUNT FUNCTION -------------------- */
+
+function countWordsSafe(text) {
+  if (!text || typeof text !== "string") return 0;
+
+  const cleanText = text.replace(/\s+/g, " ").trim();
+
+  try {
+    // Main method
+    const words = cleanText.split(/\s+/).filter(Boolean);
+    let totalWordCount = 0;
+    words.forEach((word) => {
+      totalWordCount += word.length > 45 ? Math.ceil(word.length / 45) : 1;
+    });
+
+    // Fallback 1: Regex-based count
+    if (totalWordCount === 0 && cleanText.length > 0) {
+      const matches = cleanText.match(/\b\w+\b/g);
+      totalWordCount = matches
+        ? matches.reduce(
+            (acc, w) => acc + (w.length > 45 ? Math.ceil(w.length / 45) : 1),
+            0
+          )
+        : 0;
+    }
+
+    // Fallback 2: Space-based approximate count
+    if (totalWordCount === 0 && cleanText.length > 0) {
+      const approx = cleanText.split(" ").filter(Boolean);
+      totalWordCount = approx.length;
+    }
+
+    return Math.max(0, totalWordCount);
+  } catch (err) {
+    console.error("Word count failed, using manual fallback:", err);
+    const manualWords = cleanText.split(" ").filter(Boolean);
+    let totalWordCount = 0;
+    manualWords.forEach((word) => {
+      totalWordCount += word.length > 45 ? Math.ceil(word.length / 45) : 1;
+    });
+    return totalWordCount;
+  }
+}
+
+/* -------------------- MAIN FUNCTION -------------------- */
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -80,149 +116,107 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Security: Validate environment variables
+    // Env validation
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
       throw new Error("Missing Supabase environment variables");
     }
 
-    // Authenticate user
+    // Auth
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      throw new Error("Missing authorization header");
-    }
+    if (!authHeader) throw new Error("Missing authorization header");
 
-    const supabaseClient = createClient(
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY,
-      {
-        global: {
-          headers: { Authorization: authHeader }
-        }
-      }
-    );
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      throw new Error("User not authenticated");
-    }
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseClient.auth.getUser();
+    if (authError || !user) throw new Error("User not authenticated");
 
-    // Use service role for database operations
-    const supabaseService = createClient(
-      SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: { persistSession: false }
-      }
-    );
+    const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
 
-    // Parse and validate request body
+    // Parse JSON
     let body;
     try {
       body = await req.json();
-    } catch (e) {
+    } catch {
       throw new Error("Invalid JSON in request body");
     }
 
-    // Security: Validate required fields
-    if (!body.text || typeof body.text !== 'string') {
-      throw new Error("Invalid or missing 'text' field");
-    }
+    // Field validation
+    if (!body.text || !body.title || !body.voice_settings || !body.language)
+      throw new Error("Missing required fields");
 
-    if (!body.title || typeof body.title !== 'string') {
-      throw new Error("Invalid or missing 'title' field");
-    }
-
-    if (!body.voice_settings || typeof body.voice_settings !== 'object') {
-      throw new Error("Invalid or missing 'voice_settings' field");
-    }
-
-    if (!body.language || typeof body.language !== 'string') {
-      throw new Error("Invalid or missing 'language' field");
-    }
-
-    // Security: Validate voice settings
-    if (!validateVoiceSettings(body.voice_settings)) {
+    if (!validateVoiceSettings(body.voice_settings))
       throw new Error("Invalid voice settings format");
-    }
 
-    // Security: Sanitize inputs
     const sanitizedText = sanitizeText(body.text);
     const sanitizedTitle = sanitizeTitle(body.title);
+    if (!sanitizedText) throw new Error("Text content is empty after sanitization");
 
-    if (!sanitizedText) {
-      throw new Error("Text content is empty after sanitization");
-    }
-
-    // Security: Calculate actual word count from sanitized text
-    const actualWordCount = sanitizedText.split(/\s+/).filter(Boolean).length;
+    // Word count
+    const actualWordCount = countWordsSafe(sanitizedText);
     const providedWordCount = body.word_count;
 
-    // Verify word count matches (allow small variance)
     if (providedWordCount && Math.abs(actualWordCount - providedWordCount) > 10) {
-      console.warn(`Word count mismatch: provided=${providedWordCount}, actual=${actualWordCount}`);
+      console.warn(
+        `⚠️ Word count mismatch: provided=${providedWordCount}, actual=${actualWordCount}`
+      );
     }
 
-    // Security: Validate word count limits
-    if (actualWordCount === 0) {
-      throw new Error("Text contains no words");
-    }
-
-    if (actualWordCount > 100000) {
+    if (actualWordCount === 0) throw new Error("Text contains no words");
+    if (actualWordCount > 100000)
       throw new Error("Text exceeds maximum limit of 100,000 words");
-    }
 
-    // Use actual word count for all operations
     const wordsToUse = actualWordCount;
 
-    // Log generation request
-    console.log(`Voice generation request:`, {
+    // Log request
+    console.log("Voice generation request:", {
       user_id: user.id,
-      word_count: wordsToUse,
+      words: wordsToUse,
       voice_type: body.voice_settings.voice_type,
       voice_id: body.voice_settings.voice_id,
-      language: body.language
+      language: body.language,
     });
 
-    // Check user's word balance
+    // Fetch profile
     const { data: profile, error: profileError } = await supabaseService
       .from("profiles")
       .select("plan, words_limit, plan_words_used, word_balance")
       .eq("user_id", user.id)
       .single();
 
-    if (profileError) {
-      throw new Error("User profile not found");
-    }
+    if (profileError) throw new Error("User profile not found");
 
-    // Calculate available words
-    const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
+    const planWordsAvailable = Math.max(
+      0,
+      (profile.words_limit || 0) - (profile.plan_words_used || 0)
+    );
     const purchasedWords = profile.word_balance || 0;
     const totalWordsAvailable = planWordsAvailable + purchasedWords;
 
-    // Security: Check word balance
-    if (wordsToUse > totalWordsAvailable) {
+    if (wordsToUse > totalWordsAvailable)
       throw new Error(
-        `Insufficient word balance. Need ${wordsToUse}, but have ${totalWordsAvailable}`
+        `Insufficient word balance. Need ${wordsToUse}, have ${totalWordsAvailable}`
       );
-    }
 
-    // Calculate retention period based on plan
+    // Plan retention
     const planAtCreation = profile?.plan || "free";
     const retentionDays =
-      planAtCreation === "premium" ? 90 :
-      planAtCreation === "pro" ? 30 : 7;
-
+      planAtCreation === "premium" ? 90 : planAtCreation === "pro" ? 30 : 7;
     const retentionExpiresAt = new Date(
-      Date.now() + retentionDays * 24 * 60 * 60 * 1000
+      Date.now() + retentionDays * 86400000
     ).toISOString();
 
     // Create history record
     const generationStartedAt = new Date().toISOString();
-
     const { data: historyRecord, error: historyError } = await supabaseService
       .from("history")
       .insert({
@@ -234,124 +228,96 @@ Deno.serve(async (req) => {
         generation_started_at: generationStartedAt,
         language: body.language,
         plan_at_creation: planAtCreation,
-        retention_expires_at: retentionExpiresAt
+        retention_expires_at: retentionExpiresAt,
       })
       .select("id, generation_started_at")
       .single();
 
-    if (historyError) {
+    if (historyError)
       throw new Error(`Failed to create history record: ${historyError.message}`);
-    }
 
-    // TODO: Replace with actual TTS API call
-    // Fetch sample audio (temporary)
+    // Fetch sample audio (TEMP)
     const response = await fetch(SAMPLE_MP3_URL);
-    if (!response.ok) {
-      throw new Error("Failed to fetch sample MP3");
-    }
-
+    if (!response.ok) throw new Error("Failed to fetch sample MP3");
     const mp3Data = new Uint8Array(await response.arrayBuffer());
 
-    // Security: Validate file size (max 100MB for safety)
-    if (mp3Data.length > 100 * 1024 * 1024) {
+    if (mp3Data.length > 100 * 1024 * 1024)
       throw new Error("Generated audio file too large");
-    }
-
-    // Generate unique readable name
-    const voiceName = generateUniqueVoiceName();
-    const filePath = `${user.id}/${voiceName}.mp3`;
 
     // Upload to Supabase Storage
+    const voiceName = generateUniqueVoiceName();
+    const filePath = `${user.id}/${voiceName}.mp3`;
     const { error: uploadError } = await supabaseService.storage
       .from("user-generates")
       .upload(filePath, mp3Data, {
         contentType: "audio/mpeg",
-        upsert: true
+        upsert: true,
       });
 
-    if (uploadError) {
-      throw new Error(`Failed to upload MP3: ${uploadError.message}`);
-    }
+    if (uploadError) throw new Error(`Failed to upload MP3: ${uploadError.message}`);
 
-    const storagePath = filePath;
-
-    // Update history record with completion info
+    // Update history record
     const generationCompletedAt = new Date();
     const processingTimeMs =
-      generationCompletedAt.getTime() - new Date(historyRecord.generation_started_at).getTime();
-
-    // Calculate duration (estimated: 150 words per minute)
+      generationCompletedAt.getTime() -
+      new Date(historyRecord.generation_started_at).getTime();
     const durationSeconds = Math.max(1, Math.round((wordsToUse / 150) * 60));
 
-    const { error: updateError } = await supabaseService
+    await supabaseService
       .from("history")
       .update({
-        audio_url: storagePath,
+        audio_url: filePath,
         generation_completed_at: generationCompletedAt.toISOString(),
         processing_time_ms: processingTimeMs,
-        duration_seconds: durationSeconds
+        duration_seconds: durationSeconds,
       })
       .eq("id", historyRecord.id);
 
-    if (updateError) {
-      console.error(`Failed to update history record:`, updateError.message);
-    }
-
-    // Deduct words using smart deduction
+    // Deduct words smartly
     const { error: deductError } = await supabaseService.rpc("deduct_words_smartly", {
       user_id_param: user.id,
-      words_to_deduct: wordsToUse
+      words_to_deduct: wordsToUse,
     });
+    if (deductError)
+      console.error(`Word deduction failed: ${deductError.message}`);
 
-    if (deductError) {
-      console.error(`Word deduction failed:`, deductError.message);
-      // Don't throw - audio is already generated
-    }
-
-    // Create temp token for stream access
+    // Generate temp stream token
     const token = crypto.randomUUID().replace(/-/g, "");
-    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-
+    const expiresAt = new Date(Date.now() + 86400000).toISOString();
     await supabaseService.from("audio_access_tokens").insert({
       user_id: user.id,
       bucket: "user-generates",
-      storage_path: storagePath,
+      storage_path: filePath,
       token,
-      expires_at: expiresAt
+      expires_at: expiresAt,
     });
 
     const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
-
-    console.log(`Voice generation completed for user ${user.id} - ${wordsToUse} words deducted`);
+    console.log(
+      `✅ Voice generation completed for user ${user.id} (${wordsToUse} words)`
+    );
 
     return new Response(
       JSON.stringify({
         success: true,
         audio_url: streamUrl,
-        storage_path: storagePath,
+        storage_path: filePath,
         history_id: historyRecord.id,
         title: sanitizedTitle,
         words_used: wordsToUse,
         duration_seconds: durationSeconds,
-        processing_time_ms: processingTimeMs
+        processing_time_ms: processingTimeMs,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
-
-  } catch (error: any) {
+  } catch (error) {
     console.error("Generation function error:", error.message);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "An internal server error occurred"
+        error: error.message || "Internal server error",
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
