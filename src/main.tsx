@@ -19,10 +19,3 @@ if (root) {
     </BrowserRouter>
   );
 }
-
-// Register Service Worker for reliable offline fallback
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}

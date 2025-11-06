@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const STORAGE_KEY = "tool_state_v2";
+const MAX_TEXT_LENGTH = 100000; // 100k characters max
+const MAX_WORD_COUNT = 50000; // 50k words max
+const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB max for sessionStorage
+const MAX_BLOB_SIZE = 50 * 1024 * 1024; // 50MB max for voice recordings
 
 interface ToolState {
   currentStep: number;
@@ -38,28 +42,130 @@ interface ToolState {
   processedAudioUrl: string;
 }
 
+// Security: Validate and sanitize tool state
+const validateToolState = (state: any): state is ToolState => {
+  if (!state || typeof state !== 'object') return false;
+
+  return (
+    typeof state.currentStep === 'number' &&
+    state.currentStep >= 1 &&
+    state.currentStep <= 5 &&
+    Array.isArray(state.completedSteps) &&
+    state.completedSteps.every((s: any) => typeof s === 'number' && s >= 1 && s <= 5) &&
+    typeof state.extractedText === 'string' &&
+    state.extractedText.length <= MAX_TEXT_LENGTH &&
+    typeof state.wordCount === 'number' &&
+    state.wordCount >= 0 &&
+    state.wordCount <= MAX_WORD_COUNT &&
+    typeof state.selectedLanguage === 'string' &&
+    /^[a-z]{2}-[A-Z]{2}$/.test(state.selectedLanguage) &&
+    typeof state.selectedVoiceId === 'string' &&
+    typeof state.voiceType === 'string' &&
+    ['record', 'prebuilt', 'history'].includes(state.voiceType) &&
+    typeof state.processedAudioUrl === 'string'
+  );
+};
+
+// Security: Sanitize text input to prevent XSS
+const sanitizeText = (text: string): string => {
+  if (typeof text !== 'string') return '';
+
+  // Limit length
+  const truncated = text.slice(0, MAX_TEXT_LENGTH);
+
+  // Remove potentially dangerous patterns
+  return truncated
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+\s*=/gi, ''); // Remove event handlers
+};
+
+// Security: Safe storage operations with error handling
+const safeStorageGet = (key: string): string | null => {
+  try {
+    const item = sessionStorage.getItem(key);
+    if (!item) return null;
+
+    // Check size before parsing
+    if (item.length > MAX_STORAGE_SIZE) {
+      console.warn('Storage item too large, removing');
+      sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return item;
+  } catch (error) {
+    console.error('Storage read error:', error);
+    return null;
+  }
+};
+
+const safeStorageSet = (key: string, value: string): boolean => {
+  try {
+    // Check size before setting
+    if (value.length > MAX_STORAGE_SIZE) {
+      console.error('Value too large for storage');
+      return false;
+    }
+
+    sessionStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.error('Storage write error:', error);
+    // Try to free up space
+    try {
+      sessionStorage.clear();
+    } catch (clearError) {
+      console.error('Failed to clear storage:', clearError);
+    }
+    return false;
+  }
+};
+
+const safeStorageRemove = (key: string): void => {
+  try {
+    sessionStorage.removeItem(key);
+  } catch (error) {
+    console.error('Storage remove error:', error);
+  }
+};
+
 const Tool = () => {
   const { user, profile, loading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
+  const isMountedRef = useRef(true);
 
   const totalSteps = 5;
 
   const getInitialState = (): ToolState => {
     try {
-      const savedState = sessionStorage.getItem(STORAGE_KEY);
+      const savedState = safeStorageGet(STORAGE_KEY);
       if (savedState) {
         const parsed = JSON.parse(savedState);
-        // ✅ FIX: If on step 5, reset to step 1 on reload
-        if (parsed.currentStep === 5) {
-          sessionStorage.removeItem(STORAGE_KEY);
+
+        // Security: Validate parsed state
+        if (!validateToolState(parsed)) {
+          console.warn('Invalid saved state, resetting');
+          safeStorageRemove(STORAGE_KEY);
           return getDefaultState();
         }
+
+        // Reset if on step 5
+        if (parsed.currentStep === 5) {
+          safeStorageRemove(STORAGE_KEY);
+          return getDefaultState();
+        }
+
+        // Sanitize text content
+        parsed.extractedText = sanitizeText(parsed.extractedText);
+
         return parsed;
       }
     } catch (error) {
       console.error("Error loading saved state:", error);
+      safeStorageRemove(STORAGE_KEY);
     }
     return getDefaultState();
   };
@@ -89,21 +195,55 @@ const Tool = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isProcessingSuccess, setIsProcessingSuccess] = useState(false);
 
+  // Security: Safe word count calculation with limits
   const calculateWordCount = useCallback((text: string): number => {
     if (!text || !text.trim()) return 0;
 
-    const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+    // Sanitize input
+    const sanitized = sanitizeText(text);
+
+    const words = sanitized.trim().split(/\s+/).filter(w => w.length > 0);
     let totalWordCount = 0;
 
     words.forEach((word) => {
-      totalWordCount += word.length > 45 ? Math.ceil(word.length / 45) : 1;
+      // Limit individual word processing
+      const wordLength = Math.min(word.length, 1000);
+      totalWordCount += wordLength > 45 ? Math.ceil(wordLength / 45) : 1;
     });
 
-    return totalWordCount;
+    // Enforce maximum word count
+    return Math.min(totalWordCount, MAX_WORD_COUNT);
+  }, []);
+
+  // Security: Component cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      // Stop all media on unmount
+      try {
+        const audioElements = document.querySelectorAll('audio');
+        audioElements.forEach(audio => {
+          audio.pause();
+          audio.src = '';
+          audio.load();
+        });
+
+        const videoElements = document.querySelectorAll('video');
+        videoElements.forEach(video => {
+          video.pause();
+          video.src = '';
+          video.load();
+        });
+      } catch (error) {
+        console.error('Cleanup error:', error);
+      }
+    };
   }, []);
 
   useEffect(() => {
-    if (!loading && user && !isInitialized) {
+    if (!loading && user && !isInitialized && isMountedRef.current) {
       const initialState = getInitialState();
       setCurrentStep(initialState.currentStep);
       setCompletedSteps(initialState.completedSteps);
@@ -117,24 +257,33 @@ const Tool = () => {
     }
   }, [loading, user, isInitialized]);
 
+  // Security: Throttled state persistence
   useEffect(() => {
-    if (!isInitialized || currentStep === 5) return;
+    if (!isInitialized || currentStep === 5 || !isMountedRef.current) return;
 
-    try {
-      const state: ToolState = {
-        currentStep,
-        completedSteps,
-        extractedText,
-        wordCount,
-        selectedLanguage,
-        selectedVoiceId,
-        voiceType,
-        processedAudioUrl,
-      };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (error) {
-      console.error("Error saving state:", error);
-    }
+    const timeoutId = setTimeout(() => {
+      try {
+        const state: ToolState = {
+          currentStep,
+          completedSteps,
+          extractedText: sanitizeText(extractedText),
+          wordCount: Math.min(wordCount, MAX_WORD_COUNT),
+          selectedLanguage,
+          selectedVoiceId,
+          voiceType,
+          processedAudioUrl,
+        };
+
+        // Validate before saving
+        if (validateToolState(state)) {
+          safeStorageSet(STORAGE_KEY, JSON.stringify(state));
+        }
+      } catch (error) {
+        console.error("Error saving state:", error);
+      }
+    }, 500); // Debounce saves
+
+    return () => clearTimeout(timeoutId);
   }, [
     currentStep,
     completedSteps,
@@ -148,7 +297,7 @@ const Tool = () => {
   ]);
 
   useEffect(() => {
-    if (isInitialized) {
+    if (isInitialized && isMountedRef.current) {
       window.scrollTo({
         top: 0,
         behavior: 'smooth'
@@ -157,24 +306,34 @@ const Tool = () => {
   }, [currentStep, isInitialized]);
 
   useEffect(() => {
-    if (!loading && !user) navigate("/");
+    if (!loading && !user) {
+      navigate("/", { replace: true }); // Security: Use replace to prevent back navigation
+    }
   }, [user, loading, navigate]);
 
+  // Security: Safe calculation with null checks
   const hasEnoughWords = useMemo(() => {
     if (!profile || wordCount === 0) return true;
 
-    const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
-    const purchasedWords = profile.word_balance || 0;
-    const totalAvailable = planWordsAvailable + purchasedWords;
+    const wordsLimit = Math.max(0, profile.words_limit || 0);
+    const planWordsUsed = Math.max(0, profile.plan_words_used || 0);
+    const wordBalance = Math.max(0, profile.word_balance || 0);
+
+    const planWordsAvailable = Math.max(0, wordsLimit - planWordsUsed);
+    const totalAvailable = planWordsAvailable + wordBalance;
 
     return wordCount <= totalAvailable;
   }, [profile, wordCount]);
 
   const remainingWords = useMemo(() => {
     if (!profile) return 0;
-    const planWordsAvailable = Math.max(0, (profile.words_limit || 0) - (profile.plan_words_used || 0));
-    const purchasedWords = profile.word_balance || 0;
-    return planWordsAvailable + purchasedWords;
+
+    const wordsLimit = Math.max(0, profile.words_limit || 0);
+    const planWordsUsed = Math.max(0, profile.plan_words_used || 0);
+    const wordBalance = Math.max(0, profile.word_balance || 0);
+
+    const planWordsAvailable = Math.max(0, wordsLimit - planWordsUsed);
+    return planWordsAvailable + wordBalance;
   }, [profile]);
 
   const getStepTitle = useCallback((step: number) => {
@@ -200,36 +359,48 @@ const Tool = () => {
   }, []);
 
   const stopAllAudio = useCallback(() => {
-    const audioElements = document.querySelectorAll('audio');
-    audioElements.forEach(audio => {
-      audio.pause();
-      audio.currentTime = 0;
-    });
+    try {
+      const audioElements = document.querySelectorAll('audio');
+      audioElements.forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+      });
 
-    const videoElements = document.querySelectorAll('video');
-    videoElements.forEach(video => {
-      video.pause();
-      video.currentTime = 0;
-    });
+      const videoElements = document.querySelectorAll('video');
+      videoElements.forEach(video => {
+        video.pause();
+        video.currentTime = 0;
+      });
+    } catch (error) {
+      console.error('Error stopping audio:', error);
+    }
   }, []);
 
   const handleNext = useCallback(() => {
-    if (currentStep === 1 && !extractedText.trim()) {
-      toast({
-        title: "No Text Provided",
-        description: "Please enter or extract text before continuing.",
-        variant: "destructive"
-      });
-      return;
+    if (!isMountedRef.current) return;
+
+    // Security: Validate inputs at each step
+    if (currentStep === 1) {
+      const sanitized = sanitizeText(extractedText);
+      if (!sanitized.trim()) {
+        toast({
+          title: "No Text Provided",
+          description: "Please enter or extract text before continuing.",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
-    if (currentStep === 2 && !selectedLanguage) {
-      toast({
-        title: "No Language Selected",
-        description: "Please select a language before continuing.",
-        variant: "destructive"
-      });
-      return;
+    if (currentStep === 2) {
+      if (!selectedLanguage || !/^[a-z]{2}-[A-Z]{2}$/.test(selectedLanguage)) {
+        toast({
+          title: "Invalid Language",
+          description: "Please select a valid language before continuing.",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     if (currentStep === 3) {
@@ -271,54 +442,62 @@ const Tool = () => {
   }, [currentStep, totalSteps, extractedText, selectedLanguage, selectedVoiceId, voiceRecording, processedAudioUrl, hasEnoughWords, wordCount, remainingWords, toast, stopAllAudio]);
 
   const handlePrevious = useCallback(() => {
-    if (currentStep > 1) {
-      stopAllAudio();
+    if (!isMountedRef.current || currentStep <= 1) return;
 
-      if (currentStep === 5) {
-        // Keep everything
-      } else if (currentStep === 4) {
-        setProcessedAudioUrl("");
-      } else if (currentStep === 3) {
-        setSelectedVoiceId("");
-        setVoiceType('record');
-        setVoiceRecording(null);
-      } else if (currentStep === 2) {
-        setExtractedText("");
-        setWordCount(0);
-        setSelectedLanguage("en-US");
-      }
+    stopAllAudio();
 
-      setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
-      setCurrentStep(currentStep - 1);
+    if (currentStep === 4) {
+      setProcessedAudioUrl("");
+    } else if (currentStep === 3) {
+      setSelectedVoiceId("");
+      setVoiceType('record');
+      setVoiceRecording(null);
+    } else if (currentStep === 2) {
+      setExtractedText("");
+      setWordCount(0);
+      setSelectedLanguage("en-US");
     }
+
+    setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
+    setCurrentStep(currentStep - 1);
   }, [currentStep, stopAllAudio]);
 
   const handleProcessingStart = (stepName: string, isSuccess: boolean = false) => {
+    if (!isMountedRef.current) return;
     setIsProcessing(true);
     setProcessingStep(stepName);
     setIsProcessingSuccess(isSuccess);
   };
 
   const handleProcessingEnd = () => {
+    if (!isMountedRef.current) return;
     setIsProcessing(false);
     setProcessingStep("");
     setIsProcessingSuccess(false);
   };
 
   const handleTextExtraction = (text: string) => {
-    setExtractedText(text);
-    const count = calculateWordCount(text);
+    if (!isMountedRef.current) return;
+
+    const sanitized = sanitizeText(text);
+    setExtractedText(sanitized);
+    const count = calculateWordCount(sanitized);
     setWordCount(count);
   };
 
   const handleTextUpdated = (updatedText: string) => {
-    const previousText = extractedText;
-    setExtractedText(updatedText);
+    if (!isMountedRef.current) return;
 
-    const newCount = calculateWordCount(updatedText);
+    const previousText = extractedText;
+    const sanitized = sanitizeText(updatedText);
+    setExtractedText(sanitized);
+
+    const newCount = calculateWordCount(sanitized);
     setWordCount(newCount);
 
-    const changePercentage = Math.abs(updatedText.length - previousText.length) / Math.max(previousText.length, 1);
+    const prevLength = Math.max(previousText.length, 1);
+    const changePercentage = Math.abs(sanitized.length - previousText.length) / prevLength;
+
     if (changePercentage > 0.1 && (selectedVoiceId || voiceRecording)) {
       setSelectedVoiceId("");
       setVoiceType('record');
@@ -335,42 +514,71 @@ const Tool = () => {
   };
 
   const handleWordCountUpdate = (count: number) => {
-    setWordCount(count);
+    if (!isMountedRef.current) return;
+    // Security: Enforce maximum
+    setWordCount(Math.min(Math.max(0, count), MAX_WORD_COUNT));
   };
 
   const handleLanguageSelect = (language: string) => {
-    setSelectedLanguage(language);
-  };
-
-  const handleVoiceRecorded = (blob: Blob) => {
-    setVoiceRecording(blob);
-    setSelectedVoiceId("");
-    setVoiceType('record');
-  };
-
-  const handleVoiceSelect = (voiceId: string, type: 'prebuilt' | 'history') => {
-    setSelectedVoiceId(voiceId);
-    setVoiceType(type);
-    setVoiceRecording(null);
-  };
-
-  const handleAudioGenerated = async (audioUrl: string) => {
-    setProcessedAudioUrl(audioUrl);
-
-    if (user && refreshProfile) {
-      await refreshProfile();
+    if (!isMountedRef.current) return;
+    // Security: Validate language format
+    if (/^[a-z]{2}-[A-Z]{2}$/.test(language)) {
+      setSelectedLanguage(language);
     }
   };
 
-  // ✅ NEW: Complete reset function with confirmation
+  const handleVoiceRecorded = (blob: Blob) => {
+    if (!isMountedRef.current) return;
+
+    // Security: Validate blob
+    if (blob instanceof Blob && blob.size > 0 && blob.size < MAX_BLOB_SIZE) {
+      setVoiceRecording(blob);
+      setSelectedVoiceId("");
+      setVoiceType('record');
+    } else {
+
+    }
+  };
+
+  const handleVoiceSelect = (voiceId: string, type: 'prebuilt' | 'history') => {
+    if (!isMountedRef.current) return;
+
+    // Security: Validate voice type
+    if (['prebuilt', 'history'].includes(type)) {
+      setSelectedVoiceId(voiceId);
+      setVoiceType(type);
+      setVoiceRecording(null);
+    }
+  };
+
+  const handleAudioGenerated = async (audioUrl: string) => {
+    if (!isMountedRef.current) return;
+
+    setProcessedAudioUrl(audioUrl);
+
+    if (user && refreshProfile) {
+      try {
+        await refreshProfile();
+      } catch (error) {
+        console.error('Error refreshing profile:', error);
+      }
+    }
+  };
+
   const handleCompleteReset = async () => {
+    if (!isMountedRef.current) return;
+
     setIsProcessing(true);
     setProcessingStep("Resetting to start...");
 
     stopAllAudio();
 
     if (user && refreshProfile) {
-      await refreshProfile();
+      try {
+        await refreshProfile();
+      } catch (error) {
+        console.error('Error refreshing profile:', error);
+      }
     }
 
     setExtractedText("");
@@ -383,11 +591,18 @@ const Tool = () => {
     setCurrentStep(1);
     setCompletedSteps([]);
 
+    // Security: Safe cleanup
     try {
-      sessionStorage.removeItem(STORAGE_KEY);
-      Object.keys(localStorage).forEach(key => {
+      safeStorageRemove(STORAGE_KEY);
+
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
         if (key.startsWith('audioDuration_')) {
-          localStorage.removeItem(key);
+          try {
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error('Error removing key:', key, error);
+          }
         }
       });
     } catch (error) {
@@ -397,15 +612,17 @@ const Tool = () => {
     setIsProcessing(false);
     setProcessingStep("");
 
-    toast({
-      title: "Reset Complete",
-      description: "Ready for a new voice generation!",
-      duration: 3000,
-    });
+    if (isMountedRef.current) {
+      toast({
+        title: "Reset Complete",
+        description: "Ready for a new voice generation!",
+        duration: 3000,
+      });
+    }
   };
 
   const progressPercentage = useMemo(() =>
-    ((currentStep - 1) / (totalSteps - 1)) * 100,
+    Math.min(100, Math.max(0, ((currentStep - 1) / (totalSteps - 1)) * 100)),
     [currentStep, totalSteps]
   );
 
@@ -432,39 +649,8 @@ const Tool = () => {
           <Header />
         </div>
 
-  <div className="container mx-auto px-4 py-8 max-w-6xl">
-          {/* ✅ NEW: Reset Button - Visible on all steps */}
-          <div className="flex justify-end mb-4">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 text-xs sm:text-sm"
-                  disabled={isProcessing}
-                >
-                  <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Reset All</span>
-                  <span className="sm:hidden">Reset</span>
-                </Button>
-              </AlertDialogTrigger>
-        <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Reset Everything?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will clear all your progress and return you to Step 1. Your current work will be lost.
-                    {currentStep === 5 && " Your generated audio will remain in history."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleCompleteReset}>
-                    Yes, Reset
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+
 
           <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
             {Array.from({ length: totalSteps }, (_, i) => {
@@ -519,18 +705,62 @@ const Tool = () => {
             </Card>
           )}
 
-          <Card className="shadow-lg border-0 bg-card">
+<Card className="bg-white/50 dark:bg-zinc-800/50 backdrop-blur-md border border-gray-300/30 dark:border-gray-700/30 shadow-xl transition-all duration-300">
             <CardHeader className="border-b p-4 sm:p-6">
-              <div className="flex items-center space-x-3">
-                <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm">
-                  {currentStep}
-                </span>
-                <div>
-                  <CardTitle className="text-base sm:text-lg lg:text-xl">{getStepTitle(currentStep)}</CardTitle>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-1">{getStepDescription(currentStep)}</p>
-                </div>
+  <div className="flex items-center justify-between">
+    {/* Left side: Step number + title */}
+    <div className="flex items-center space-x-3">
+      <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm">
+        {currentStep}
+      </span>
+      <div>
+        <CardTitle className="text-base sm:text-lg lg:text-xl">
+          {getStepTitle(currentStep)}
+        </CardTitle>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+          {getStepDescription(currentStep)}
+        </p>
+      </div>
+    </div>
+
+    {/* Right side: Reset button */}
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 text-xs sm:text-sm"
+          disabled={isProcessing}
+        >
+          <RotateCcw className="h-4 w-4" />
+          {/* Show text only on desktop */}
+          <span className="hidden sm:inline">Reset All</span>
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reset Everything?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-gray-600 dark:text-gray-400">
+              <p>This will securely clear all your progress and return you to Step 1.</p>
+              <div className="text-xs space-y-1 bg-gray-50 dark:bg-zinc-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <p>• All text and settings will be cleared</p>
+                <p>• Voice recordings will be removed</p>
+                {currentStep === 5 && <p>• Generated audio will remain in history</p>}
               </div>
-            </CardHeader>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleCompleteReset}>
+            Yes, Reset
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
+</CardHeader>
 
             <CardContent className="p-4 sm:p-6">
               {currentStep === 1 && (

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, Square, Play, Pause, Trash2, Loader2, CheckCircle } from "lucide-react";
+import { Mic, Square, Play, Pause, Trash2, Loader2, CheckCircle,Mic2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrophonePermissionDialog } from "@/components/common/MicrophonePermissionDialog";
@@ -454,19 +454,37 @@ const confirmRecording = async () => {
           )}
 
           {status === "saved" && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-center gap-2 text-green-600">
-                <CheckCircle className="h-5 w-5" />
-                <p className="font-medium">Voice Saved Successfully!</p>
-              </div>
-              <Button onClick={playRecording} variant="outline" size="sm" className="w-48">
-                {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                {isPlaying ? "Pause" : "Play"}
-              </Button>
-              <Button onClick={startRecording} variant="outline">
-                Record another
-              </Button>
-            </div>
+           <div className="flex flex-col items-center justify-center gap-4 text-center">
+  {/* Success Message */}
+  <div className="flex items-center justify-center gap-2 text-green-600">
+    <CheckCircle className="h-5 w-5" />
+    <p className="font-medium">Voice Saved Successfully!</p>
+  </div>
+
+  {/* Buttons Row */}
+  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-2">
+    <Button
+      onClick={playRecording}
+      variant="outline"
+      size="sm"
+      className="w-full sm:w-40 md:w-48 flex items-center justify-center"
+    >
+      {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+      {isPlaying ? "Pause" : "Play"}
+    </Button>
+
+    <Button
+      onClick={startRecording}
+      variant="secondary"
+      size="sm"
+      className="w-full sm:w-40 md:w-48 flex items-center justify-center"
+    >
+      <Mic2 className="h-4 w-4 mr-2" />
+      Record Another
+    </Button>
+  </div>
+</div>
+
           )}
         </CardContent>
       </Card>

@@ -15,8 +15,9 @@ export const useOfflineDetection = () => {
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const checkInProgressRef = useRef(false);
   const failureStreakRef = useRef(0);
+  const backgroundCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const verifyConnection = async (): Promise<boolean> => {
+  const verifyConnection = useCallback(async (): Promise<boolean> => {
     // First check navigator.onLine for quick detection
     if (!navigator.onLine) {
       return false;
@@ -43,6 +44,7 @@ export const useOfflineDetection = () => {
       }
     } catch (error) {
       // API health failed, try static file
+      console.debug('API health check failed, trying static file');
     }
 
     // Strategy 2: Try static health file
@@ -53,6 +55,10 @@ export const useOfflineDetection = () => {
       const response = await fetch('/health.txt', {
         method: 'HEAD',
         cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
         signal: controller.signal
       });
 
@@ -61,12 +67,13 @@ export const useOfflineDetection = () => {
         return true;
       }
     } catch (error) {
-      // Static health failed, try CDN
+      // Static health failed
+      console.debug('Static health check failed');
     }
 
-    // Final: give up
+    // Both checks failed
     return false;
-  };
+  }, []);
 
   const checkConnection = useCallback(async (isManualRetry = false) => {
     if (!mountedRef.current) return;
@@ -102,12 +109,17 @@ export const useOfflineDetection = () => {
             if (mountedRef.current) {
               setConnectionRestored(false);
             }
-          }, 1200);
+          }, 3000);
         }
       } else {
         failureStreakRef.current += 1;
         setStatusChecked(true);
-        if (failureStreakRef.current >= 2) {
+
+        // Show offline immediately on first failure when navigator says offline
+        // Otherwise wait for 2 failures to avoid false positives
+        const shouldShowOffline = !navigator.onLine || failureStreakRef.current >= 2;
+
+        if (shouldShowOffline) {
           wasOfflineRef.current = true;
           setIsOffline(true);
           setConnectionQuality('offline');
@@ -119,13 +131,14 @@ export const useOfflineDetection = () => {
       setIsCheckingConnection(false);
       checkInProgressRef.current = false;
     }
-  }, []);
+  }, [verifyConnection]);
 
   const handleOnline = useCallback(async () => {
     if (!mountedRef.current) return;
 
     // Quick optimistic update
     setConnectionQuality('good');
+    failureStreakRef.current = 0;
 
     // Verify connection
     await checkConnection();
@@ -141,6 +154,7 @@ export const useOfflineDetection = () => {
     setConnectionRestored(false);
     setStatusChecked(true);
     setLastChecked(new Date());
+    failureStreakRef.current = 0; // Reset streak
   }, []);
 
   const handleVisibilityChange = useCallback(() => {
@@ -169,7 +183,7 @@ export const useOfflineDetection = () => {
       setStatusChecked(true);
 
       // Verify connection in background (non-blocking)
-      setTimeout(() => {
+      backgroundCheckTimeoutRef.current = setTimeout(() => {
         if (mountedRef.current) {
           verifyConnection().then(online => {
             if (mountedRef.current && !online) {
@@ -178,9 +192,11 @@ export const useOfflineDetection = () => {
               setIsOffline(true);
               setConnectionQuality('offline');
             }
+          }).catch(err => {
+            console.debug('Background verification error:', err);
           });
         }
-      }, 500);
+      }, 1000);
     }
 
     // Listen to browser events
@@ -202,8 +218,9 @@ export const useOfflineDetection = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
       if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
+      if (backgroundCheckTimeoutRef.current) clearTimeout(backgroundCheckTimeoutRef.current);
     };
-  }, [handleOnline, handleOffline, handleVisibilityChange, checkConnection]);
+  }, [handleOnline, handleOffline, handleVisibilityChange, checkConnection, verifyConnection]);
 
   return {
     isOffline,

@@ -59,13 +59,74 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
+// Security: File size limit (2GB)
+const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+
+// Security: Allowed audio MIME types
+const ALLOWED_AUDIO_TYPES = [
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/ogg',
+  'audio/webm',
+  'audio/flac',
+  'audio/aac',
+  'audio/m4a',
+  'audio/x-m4a'
+];
+
 // ============================================
-// UTILITY: Clean Storage Path
+// SECURITY: Input Sanitization
+// ============================================
+const sanitizeInput = (input: string): string => {
+  if (typeof input !== 'string') return '';
+
+  // Remove potentially dangerous characters
+  return input
+    .replace(/[<>\"']/g, '') // Remove HTML/script injection chars
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .trim()
+    .slice(0, 1000); // Limit length
+};
+
+// ============================================
+// SECURITY: URL Validation
+// ============================================
+const isValidUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    // Only allow https and specific domain
+    return parsed.protocol === 'https:' &&
+           parsed.hostname.endsWith('.supabase.co');
+  } catch {
+    return false;
+  }
+};
+
+// ============================================
+// UTILITY: Clean Storage Path (Enhanced Security)
 // ============================================
 const cleanStoragePath = (rawPath: string, bucket: string): string => {
-  if (!rawPath) return '';
+  if (!rawPath || typeof rawPath !== 'string') return '';
 
   let path = rawPath.trim();
+
+  // Security: Validate bucket name
+  const validBuckets = ['user-voices', 'user-generates'];
+  if (!validBuckets.includes(bucket)) {
+    console.error('Invalid bucket name');
+    return '';
+  }
+
+  // Security: Prevent path traversal attacks
+  if (path.includes('..') || path.includes('~')) {
+    console.error('Path traversal attempt detected');
+    return '';
+  }
+
+  // Security: Remove any null bytes
+  path = path.replace(/\0/g, '');
 
   if (!path.includes('http') &&
       !path.includes('/storage/') &&
@@ -81,14 +142,30 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
   path = path.replace(/\?.*$/, '');
   path = path.replace(/^\/+/, '');
 
+  // Security: Final validation - must be user_id/filename format
+  const pathParts = path.split('/');
+  if (pathParts.length !== 2 || pathParts.some(p => !p)) {
+    console.error('Invalid path format');
+    return '';
+  }
+
+  // Security: Validate filename (no special chars except dash, underscore, dot)
+  const filename = pathParts[1];
+  if (!/^[\w\-\.]+$/.test(filename)) {
+    console.error('Invalid filename format');
+    return '';
+  }
+
   return path;
 };
 
 // ============================================
-// TOKEN CACHE MANAGER
+// SECURITY: Token Cache with Enhanced Protection
 // ============================================
 class TokenCache {
   private cache: Map<string, { token: string; expiresAt: Date }> = new Map();
+  private readonly maxCacheSize = 100; // Prevent memory exhaustion
+  private readonly minTTL = 5 * 60 * 1000; // 5 minutes minimum TTL
 
   async getOrFetchToken(
     bucket: string,
@@ -96,48 +173,93 @@ class TokenCache {
     sessionToken: string,
     supabaseUrl: string
   ): Promise<string> {
+    // Security: Validate inputs
+    if (!bucket || !storagePath || !sessionToken || !supabaseUrl) {
+      throw new Error('Invalid token request parameters');
+    }
+
+    // Security: Validate URL
+    if (!isValidUrl(supabaseUrl)) {
+      throw new Error('Invalid Supabase URL');
+    }
+
     const key = `${bucket}:${storagePath}`;
     const cached = this.cache.get(key);
 
     // Return cached token if valid for at least 5 more minutes
-    if (cached && cached.expiresAt.getTime() - Date.now() > 5 * 60 * 1000) {
+    if (cached && cached.expiresAt.getTime() - Date.now() > this.minTTL) {
       return cached.token;
     }
 
-    // Fetch new token
-    const tokenResponse = await fetch(
-      `${supabaseUrl}/functions/v1/issue-audio-token`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`
-        },
-        body: JSON.stringify({
-          bucket,
-          storagePath,
-          ttlSeconds: 86400
-        })
+    // Security: Prevent cache overflow
+    if (this.cache.size >= this.maxCacheSize) {
+      this.clearExpired();
+      if (this.cache.size >= this.maxCacheSize) {
+        // Clear oldest entries
+        const entries = Array.from(this.cache.entries());
+        entries.sort((a, b) => a[1].expiresAt.getTime() - b[1].expiresAt.getTime());
+        for (let i = 0; i < 20; i++) {
+          this.cache.delete(entries[i][0]);
+        }
       }
-    );
-
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json();
-      throw new Error(errorData.error || 'Failed to get token');
     }
 
-    const tokenData = await tokenResponse.json();
-    if (!tokenData.ok || !tokenData.token) {
-      throw new Error('Invalid token response');
+    // Fetch new token with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    try {
+      const tokenResponse = await fetch(
+        `${supabaseUrl}/functions/v1/issue-audio-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken}`
+          },
+          body: JSON.stringify({
+            bucket,
+            storagePath,
+            ttlSeconds: 86400
+          }),
+          signal: controller.signal
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to get token');
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      // Security: Validate token response
+      if (!tokenData.ok || !tokenData.token || typeof tokenData.token !== 'string') {
+        throw new Error('Invalid token response');
+      }
+
+      // Security: Validate expiration
+      const expiresAt = new Date(tokenData.expires_at);
+      if (isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+        throw new Error('Invalid token expiration');
+      }
+
+      // Cache the token
+      this.cache.set(key, {
+        token: tokenData.token,
+        expiresAt
+      });
+
+      return tokenData.token;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Token request timeout');
+      }
+      throw error;
     }
-
-    // Cache the token
-    this.cache.set(key, {
-      token: tokenData.token,
-      expiresAt: new Date(tokenData.expires_at)
-    });
-
-    return tokenData.token;
   }
 
   clearExpired() {
@@ -185,7 +307,30 @@ type UserVoice = {
 };
 
 // ============================================
-// AUDIO DOWNLOAD DROPDOWN COMPONENT
+// SECURITY: File Size Validator
+// ============================================
+const validateFileSize = async (url: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    const contentLength = response.headers.get('content-length');
+
+    if (contentLength) {
+      const size = parseInt(contentLength, 10);
+      if (size > MAX_FILE_SIZE) {
+        console.error(`File size ${size} exceeds limit ${MAX_FILE_SIZE}`);
+        return false;
+      }
+    }
+
+    return true;
+  } catch {
+    // If we can't check, allow it but be cautious
+    return true;
+  }
+};
+
+// ============================================
+// AUDIO DOWNLOAD DROPDOWN COMPONENT (Secured)
 // ============================================
 const AudioDownloadDropdown = ({
   audioUrl,
@@ -211,6 +356,11 @@ const AudioDownloadDropdown = ({
       const bucket = sourceType === "recorded" ? "user-voices" : "user-generates";
       const cleanPath = cleanStoragePath(audioUrl, bucket);
 
+      // Security: Validate cleaned path
+      if (!cleanPath) {
+        throw new Error("Invalid file path");
+      }
+
       // Get or reuse cached token
       const token = await tokenCache.getOrFetchToken(
         bucket,
@@ -219,30 +369,63 @@ const AudioDownloadDropdown = ({
         SUPABASE_URL
       );
 
-      const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
+      const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${encodeURIComponent(token)}`;
 
-      // Download the audio file
+      // Security: Validate URL before fetch
+      if (!isValidUrl(streamUrl.split('?')[0])) {
+        throw new Error("Invalid stream URL");
+      }
+
+      // Download with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
       const audioResponse = await fetch(streamUrl, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
-        }
+        },
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!audioResponse.ok) {
         throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
       }
 
+      // Security: Check content type
+      const contentType = audioResponse.headers.get('content-type');
+      if (!contentType || !ALLOWED_AUDIO_TYPES.some(type => contentType.includes(type))) {
+        throw new Error("Invalid audio file type");
+      }
+
+      // Security: Check file size
+      const contentLength = audioResponse.headers.get('content-length');
+      if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
+        throw new Error("File size exceeds 2GB limit");
+      }
+
       const audioBlob = await audioResponse.blob();
+
+      // Security: Validate blob size
+      if (audioBlob.size > MAX_FILE_SIZE) {
+        throw new Error("File size exceeds 2GB limit");
+      }
+
+      // Security: Sanitize filename
+      const sanitizedFileName = sanitizeInput(fileName).replace(/[^\w\-]/g, '_');
 
       // Create download link
       const url = window.URL.createObjectURL(audioBlob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${fileName}.${format}`;
+      link.download = `${sanitizedFileName}.${format}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+
+      // Cleanup
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
 
       // Inform user about format
       if (format !== 'mp3') {
@@ -253,14 +436,22 @@ const AudioDownloadDropdown = ({
       } else {
         toast({
           title: "Download Complete",
-          description: `${fileName}.mp3 has been downloaded successfully.`,
+          description: `${sanitizedFileName}.mp3 has been downloaded successfully.`,
         });
       }
     } catch (error: any) {
       console.error("Download error:", error);
+
+      let errorMessage = "Failed to download audio file.";
+      if (error.name === 'AbortError') {
+        errorMessage = "Download timeout. File may be too large.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Download Failed",
-        description: error.message || "Failed to download audio file.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -300,7 +491,7 @@ const AudioDownloadDropdown = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom" sideOffset={5} className="w-56">
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-          Download Format
+          Download Format (Max 2GB)
         </div>
         {formats.map((format) => (
           <DropdownMenuItem
@@ -319,11 +510,15 @@ const AudioDownloadDropdown = ({
   );
 };
 
-const wrapTextAtLimit = (text, limit = 66) => {
-  if (!text) return '';
-  const words = text.split(' ');
+const wrapTextAtLimit = (text: string, limit = 66): string => {
+  if (!text || typeof text !== 'string') return '';
+
+  // Security: Sanitize text
+  const sanitized = sanitizeInput(text);
+  const words = sanitized.split(' ');
   let line = '';
-  const lines = [];
+  const lines: string[] = [];
+
   for (const word of words) {
     if ((line + word).length > limit) {
       lines.push(line.trim());
@@ -331,6 +526,7 @@ const wrapTextAtLimit = (text, limit = 66) => {
     }
     line += word + ' ';
   }
+
   if (line) lines.push(line.trim());
   return lines.join('\n');
 };
@@ -345,9 +541,9 @@ const ShowMoreText = ({ text }: { text: string }) => {
 
   return (
     <div className="mb-3">
-      <p className={`text-xs sm:text-sm text-muted-foreground whitespace-pre-line ${!expanded ? 'line-clamp-2' : ''}`}>
-  {text}
-</p>
+      <p className={`text-xs sm:text-sm text-muted-foreground whitespace-pre-line break-words ${!expanded ? 'line-clamp-2' : ''}`}>
+        {text}
+      </p>
       {text.length > 100 && (
         <button
           onClick={() => setExpanded(!expanded)}
@@ -422,7 +618,9 @@ const ProjectCard = memo(({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0 p-3 sm:p-6">
+            <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
+
+      <CardContent className="">
         {type === 'generated' && project.original_text && (
           <ShowMoreText text={wrapTextAtLimit(project.original_text, 66)} />
         )}
@@ -532,7 +730,7 @@ const History = memo(() => {
   useEffect(() => {
     const interval = setInterval(() => {
       tokenCache.clearExpired();
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
@@ -630,8 +828,11 @@ const History = memo(() => {
         try {
           const bucket = isRecorded ? 'user-voices' : 'user-generates';
           const cleanPath = cleanStoragePath(itemToDelete.audio_url, bucket);
-          const { error: storageError } = await supabase.storage.from(bucket).remove([cleanPath]);
-          if (storageError) console.error('Storage Error:', storageError.message);
+
+          if (cleanPath) {
+            const { error: storageError } = await supabase.storage.from(bucket).remove([cleanPath]);
+            if (storageError) console.error('Storage Error:', storageError.message);
+          }
         } catch (e) {
           console.warn('Could not process storage deletion:', e);
         }
@@ -651,7 +852,7 @@ const History = memo(() => {
     }
   };
 
-  const formatDuration = (duration: string | number | null, durationSeconds?: number | null) => {
+  const formatDuration = (duration: string | number | null, durationSeconds?: number | null): string => {
     if (durationSeconds !== null && durationSeconds !== undefined) {
       const totalSeconds = durationSeconds;
       if (isNaN(totalSeconds) || totalSeconds < 0) return "--:--";
@@ -720,11 +921,10 @@ const History = memo(() => {
       if (audioBlobCacheRef.current.has(project.id)) {
         blobUrl = audioBlobCacheRef.current.get(project.id)!;
 
-        // Verify the blob URL is still valid by testing it
+        // Verify the blob URL is still valid
         try {
           const testAudio = new Audio();
           testAudio.src = blobUrl;
-          // If we get here without error, the blob is valid
         } catch (e) {
           console.log("Cached blob invalid, fetching new one");
           URL.revokeObjectURL(blobUrl);
@@ -738,6 +938,11 @@ const History = memo(() => {
       if (needsNewFetch) {
         const bucket = project.source_type === "recorded" ? "user-voices" : "user-generates";
         const cleanPath = cleanStoragePath(project.audio_url, bucket);
+
+        // Security: Validate cleaned path
+        if (!cleanPath) {
+          throw new Error("Invalid audio file path");
+        }
 
         const pathParts = cleanPath.split('/');
         if (pathParts.length !== 2) {
@@ -757,28 +962,66 @@ const History = memo(() => {
           SUPABASE_URL
         );
 
-        const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${token}`;
+        const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${encodeURIComponent(token)}`;
+
+        // Security: Validate URL
+        if (!isValidUrl(streamUrl.split('?')[0])) {
+          throw new Error("Invalid stream URL");
+        }
+
+        // Fetch with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
         const audioResponse = await fetch(streamUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
-          }
+          },
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (!audioResponse.ok) {
           throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
         }
 
+        // Security: Validate content type
+        const contentType = audioResponse.headers.get('content-type');
+        if (!contentType || !ALLOWED_AUDIO_TYPES.some(type => contentType.includes(type))) {
+          throw new Error("Invalid audio file type");
+        }
+
+        // Security: Check file size before downloading
+        const contentLength = audioResponse.headers.get('content-length');
+        if (contentLength) {
+          const size = parseInt(contentLength, 10);
+          if (size > MAX_FILE_SIZE) {
+            throw new Error("Audio file exceeds 2GB limit");
+          }
+        }
+
         const audioBlob = await audioResponse.blob();
 
-        // Verify it's a valid audio blob
+        // Security: Verify blob is audio and within size limit
         if (!audioBlob.type.startsWith('audio/')) {
           throw new Error("Invalid audio file format");
         }
 
+        if (audioBlob.size > MAX_FILE_SIZE) {
+          throw new Error("Audio file exceeds 2GB limit");
+        }
+
         blobUrl = URL.createObjectURL(audioBlob);
 
-        // Cache the blob URL
+        // Cache the blob URL (limit cache size)
+        if (audioBlobCacheRef.current.size >= 50) {
+          // Remove oldest cache entry
+          const firstKey = audioBlobCacheRef.current.keys().next().value;
+          const oldUrl = audioBlobCacheRef.current.get(firstKey);
+          if (oldUrl) URL.revokeObjectURL(oldUrl);
+          audioBlobCacheRef.current.delete(firstKey);
+        }
         audioBlobCacheRef.current.set(project.id, blobUrl);
       }
 
@@ -789,13 +1032,11 @@ const History = memo(() => {
       audio.onended = () => {
         setPlayingAudio(null);
         setLoadingAudio(null);
-        // Don't stop or clear audioRef here to keep cache
       };
 
       audio.onerror = (e) => {
         console.error('Audio playback error:', e);
 
-        // Get more detailed error info
         const mediaError = audio.error;
         let errorMessage = "The audio file could not be loaded.";
 
@@ -858,6 +1099,13 @@ const History = memo(() => {
 
         audio.addEventListener('loadeddata', loadedHandler);
         audio.addEventListener('error', errorHandler);
+
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          audio.removeEventListener('loadeddata', loadedHandler);
+          audio.removeEventListener('error', errorHandler);
+          reject(new Error('Audio load timeout'));
+        }, 10000);
       });
 
       await audio.play();
@@ -866,9 +1114,17 @@ const History = memo(() => {
 
     } catch (err: any) {
       console.error("Playback failed:", err.message);
+
+      let errorMessage = "Could not play the audio file.";
+      if (err.name === 'AbortError') {
+        errorMessage = "Audio loading timeout. File may be too large.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
       toast({
         title: "Playback Failed",
-        description: err.message || "Could not play the audio file.",
+        description: errorMessage,
         variant: "destructive"
       });
       stopCurrentAudio();
@@ -889,9 +1145,12 @@ const History = memo(() => {
       </div>
     );
 
+  // Security: Sanitize search term
+  const sanitizedSearchTerm = sanitizeInput(searchTerm);
+
   const filteredItems = allItems.filter((item) => {
     const searchHaystack = `${item.title} ${item.original_text}`.toLowerCase();
-    const matchesSearch = searchHaystack.includes(searchTerm.toLowerCase());
+    const matchesSearch = searchHaystack.includes(sanitizedSearchTerm.toLowerCase());
     const matchesLanguage = languageFilter === "all" || item.language === languageFilter;
     return matchesSearch && matchesLanguage;
   });
@@ -920,13 +1179,13 @@ const History = memo(() => {
           </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mb-2">Voice History</h1>
           <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
-            Your voice projects • {retentionInfo("all")} retention (from plan start)
+            Your voice projects • {retentionInfo("all")} retention (from plan start) • 2GB file limit
           </p>
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
             <div className="text-xs sm:text-sm flex items-center gap-2">
               <Badge variant="outline" className="text-xs">{profile?.plan}</Badge>
               <span>
-                Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown
+                Retention: {retentionInfo("all")} • {generatedVoices.length} of {projects.length} generated items shown • Max file size: 2GB
               </span>
             </div>
           </div>
@@ -942,6 +1201,7 @@ const History = memo(() => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 text-xs sm:text-sm"
+                  maxLength={1000}
                 />
               </div>
               <Select value={languageFilter} onValueChange={setLanguageFilter}>
@@ -957,6 +1217,8 @@ const History = memo(() => {
                 </SelectContent>
               </Select>
             </div>
+
+
 
             <Tabs defaultValue="generated" className="w-full mt-6">
               <TabsList className="grid w-full grid-cols-2">

@@ -45,7 +45,7 @@ export function LoadingOverlay({
             {message}
           </p>
           <p className={`text-xs sm:text-sm mt-1 ${
-            isSuccess ? 'text-green-700' : 'text-gray-500'
+            isSuccess ? 'text-gray-500' : 'text-gray-500'
           }`}>
             {isSuccess
               ? 'Redirecting to download page...'
