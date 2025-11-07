@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,6 +11,7 @@ import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { WordLimitPopup } from "./components/common/WordLimitPopup";
 import { CookieConsent } from "./components/common/CookieConsent";
 import { useOfflineDetection } from "@/hooks/useOfflineDetection";
+import { supabase } from "@/integrations/supabase/client";
 
 // Normal imports
 import Index from "./pages/Index";
@@ -43,9 +44,11 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive } = useAuth();
+  const { planExpiryActive, user, session } = useAuth();
   const { isOffline, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Check cookie consent on mount
   useEffect(() => {
@@ -69,6 +72,27 @@ function AppContent() {
   const handleCookieDecline = () => {
     setCookieConsent("declined");
   };
+
+  // Proactive client 2FA redirect on public routes (smooth, no flash)
+  useEffect(() => {
+    if (!user) return;
+    const tokenPart = session?.access_token ? session.access_token.slice(0, 16) : 'no-token';
+    const verifiedKey = `2fa_verified:${user.id}:${tokenPart}`;
+    const isVerified = typeof window !== 'undefined' && sessionStorage.getItem(verifiedKey) === 'true';
+    if (isVerified) return;
+
+    const check = async () => {
+      const { data } = await supabase
+        .from('user_2fa_settings')
+        .select('enabled')
+        .eq('user_id', user.id)
+        .single();
+      if (data?.enabled && location.pathname !== '/verify-2fa') {
+        navigate(`/verify-2fa?redirect=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
+      }
+    };
+    check();
+  }, [user?.id, session?.access_token, location.pathname, location.search, navigate]);
 
   // Show offline screen when offline (only after initial status check)
   if (statusChecked && isOffline) {

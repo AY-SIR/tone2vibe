@@ -27,6 +27,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
         return;
       }
 
+      // Fast path: if session already verified, skip DB call
+      const tokenPart = session?.access_token ? session.access_token.slice(0, 16) : 'no-token';
+      const verifiedKey = `2fa_verified:${user.id}:${tokenPart}`;
+      const isVerified = typeof window !== 'undefined' && sessionStorage.getItem(verifiedKey) === 'true';
+      if (isVerified) {
+        setNeeds2FA(false);
+        setChecking2FA(false);
+        return;
+      }
+
       try {
         const { data: settings } = await supabase
           .from('user_2fa_settings')
@@ -34,11 +44,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
           .eq('user_id', user.id)
           .single();
 
-        const tokenPart = session?.access_token ? session.access_token.slice(0, 16) : 'no-token';
-        const verifiedKey = `2fa_verified:${user.id}:${tokenPart}`;
-        const isVerified = sessionStorage.getItem(verifiedKey) === 'true';
-
-        setNeeds2FA(!!settings?.enabled && !isVerified);
+        setNeeds2FA(!!settings?.enabled);
       } finally {
         if (!cancelled) setChecking2FA(false);
       }
@@ -54,8 +60,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
 
   if (loading || checking2FA) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="rounded-lg border bg-card text-card-foreground shadow p-6 text-center space-y-3">
+          <LoadingSpinner size="lg" text="Securing your session..." />
+        </div>
       </div>
     );
   }
@@ -68,7 +76,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
 
   // 2FA gating BEFORE rendering any protected content (prevents page flash)
   if (needs2FA && location.pathname !== '/verify-2fa') {
-    return <Navigate to="/verify-2fa" replace />;
+    return <Navigate to={`/verify-2fa?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
 
   return <>{children}</>;
