@@ -15,20 +15,12 @@ const Header = () => {
 const navigate = useNavigate();
 const [params] = useSearchParams();
 
-// Open Auth modal when query says so or when an event is fired
+// Open Auth modal when query params indicate
 useEffect(() => {
   if (params.get('auth') === 'open') {
     setShowAuthModal(true);
   }
 }, [params]);
-
-useEffect(() => {
-  const handler = (e: any) => {
-    setShowAuthModal(true);
-  };
-  window.addEventListener('auth:open', handler);
-  return () => window.removeEventListener('auth:open', handler);
-}, []);
 
   return (
     <>

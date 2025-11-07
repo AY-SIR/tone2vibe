@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -19,7 +18,7 @@ interface AuthModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password' | 'verify-2fa';
+type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password';
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const navigate = useNavigate();
@@ -43,18 +42,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [isIndianUser, setIsIndianUser] = useState<boolean>(true);
   const [currentView, setCurrentView] = useState<ViewType>('choice');
   const [resetEmail, setResetEmail] = useState('');
-const { signUp, signIn, signInWithGoogle, user, session } = useAuth();
+const { signUp, signIn, signInWithGoogle } = useAuth();
 
 // Loading States
 const [isEmailLoading, setIsEmailLoading] = useState(false);
 const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 const [isResetLoading, setIsResetLoading] = useState(false);
 const isAuthLoading = isEmailLoading || isGoogleLoading;
-
-// 2FA States
-const [twoFACode, setTwoFACode] = useState("");
-const [useBackupCode, setUseBackupCode] = useState(false);
-const [isVerifying2FA, setIsVerifying2FA] = useState(false);
 
   // Field Clearing Functions
   const clearSignInFields = () => {
@@ -82,26 +76,16 @@ const [isVerifying2FA, setIsVerifying2FA] = useState(false);
 useEffect(() => {
   const shouldOpen = searchParams.get('auth') === 'open';
   const view = searchParams.get('view');
-  const redirect = searchParams.get('redirect');
-
-  if (redirect) {
-    try {
-      setRedirectPath(decodeURIComponent(redirect));
-    } catch {
-      setRedirectPath(redirect);
-    }
-  }
 
   if (shouldOpen) {
     onOpenChange(true);
-    if (view === 'forgot-password' || view === 'signin' || view === 'signup' || view === 'verify-2fa') {
-      setCurrentView(view as ViewType);
+    if (view === 'forgot-password') {
+      setCurrentView('forgot-password');
     }
 
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.delete('auth');
     newSearchParams.delete('view');
-    newSearchParams.delete('redirect');
     setSearchParams(newSearchParams, { replace: true });
   }
 }, [searchParams, onOpenChange, setSearchParams]);
@@ -109,14 +93,13 @@ useEffect(() => {
 // Initialize form when modal opens
 useEffect(() => {
   if (open) {
-    const currentPath = window.location.pathname + window.location.search;
-    if (!redirectPath && currentPath !== '/' && currentPath !== '/tool') {
+    const currentPath = window.location.pathname;
+    if (currentPath !== '/' && currentPath !== '/tool') {
       setRedirectPath(currentPath);
     }
 
     clearAllFields();
-    // Keep current view if set via URL; default to choice otherwise
-    setCurrentView((prev) => prev || 'choice');
+    setCurrentView('choice');
 
     LocationCacheService.getLocation()
       .then(location => setIsIndianUser(location.isIndian))
@@ -202,17 +185,20 @@ useEffect(() => {
           .eq('user_id', data.user.id)
           .single();
 
+        // Close modal first
+        onOpenChange(false);
+        clearSignInFields();
+        setIsEmailLoading(false);
+
         if (twoFAData?.enabled) {
-          // Stay in modal and switch to 2FA verification view
-          setCurrentView('verify-2fa');
-          setIsEmailLoading(false);
+          // Redirect to 2FA verification page
+          setTimeout(() => {
+            navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
+          }, 100);
           return;
         }
 
         // No 2FA required - proceed normally
-        onOpenChange(false);
-        clearSignInFields();
-        setIsEmailLoading(false);
         toast.success('Welcome back!');
         navigate(redirectPath, { replace: true });
       }
@@ -363,50 +349,6 @@ useEffect(() => {
     }
   };
 
-  const handleVerify2FA = async () => {
-    if (!twoFACode) {
-      toast.error('Please enter the code');
-      return;
-    }
-    setIsVerifying2FA(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-2fa', {
-        body: { code: twoFACode, isBackupCode: useBackupCode }
-      });
-
-      if (error) {
-        toast.error('Verification failed. Try again.');
-        setIsVerifying2FA(false);
-        return;
-      }
-
-      let result = typeof data === 'string' ? JSON.parse(data) : data;
-      if (!result?.success) {
-        toast.error(result?.error || 'Invalid code');
-        setIsVerifying2FA(false);
-        return;
-      }
-
-      // Mark session as 2FA-verified
-      const access = session?.access_token;
-      const uid = user?.id;
-      if (uid && access) {
-        const key = `2fa_verified:${uid}:${access.slice(0, 16)}`;
-        try { sessionStorage.setItem(key, 'true'); } catch {}
-      }
-
-      toast.success('2FA verified');
-      onOpenChange(false);
-      setTwoFACode('');
-      setUseBackupCode(false);
-      setIsVerifying2FA(false);
-      navigate(redirectPath, { replace: true });
-    } catch (err) {
-      toast.error('Network error. Please try again.');
-      setIsVerifying2FA(false);
-    }
-  };
-
   const goBack = () => {
     clearAllFields();
     setCurrentView('choice');
@@ -438,7 +380,6 @@ useEffect(() => {
             {currentView === 'signin' && 'Welcome back! Sign in to your account.'}
             {currentView === 'signup' && 'Create your account to get started.'}
             {currentView === 'forgot-password' && 'Reset your password'}
-            {currentView === 'verify-2fa' && 'Enter your two-factor authentication code'}
           </DialogDescription>
         </DialogHeader>
 
@@ -580,43 +521,6 @@ useEffect(() => {
                     </Button>
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* 2FA VERIFY VIEW */}
-            {currentView === 'verify-2fa' && (
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2 text-center">
-                  <Label>{useBackupCode ? 'Enter backup code' : 'Enter 6-digit authentication code'}</Label>
-                  {!useBackupCode ? (
-                    <InputOTP maxLength={6} value={twoFACode} onChange={setTwoFACode}>
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  ) : (
-                    <Input
-                      type="text"
-                      placeholder="Backup code"
-                      value={twoFACode}
-                      onChange={(e) => setTwoFACode(e.target.value.trim())}
-                      className="text-center"
-                    />
-                  )}
-                  <Button variant="link" className="h-auto p-0" onClick={() => { setUseBackupCode(!useBackupCode); setTwoFACode(''); }}>
-                    {useBackupCode ? 'Use authenticator code instead' : 'Use a backup code'}
-                  </Button>
-                </div>
-
-                <Button onClick={handleVerify2FA} className="w-full" disabled={isVerifying2FA || twoFACode.length < (useBackupCode ? 8 : 6)}>
-                  {isVerifying2FA && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Verify and Continue
-                </Button>
               </div>
             )}
 
