@@ -46,7 +46,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [isIndianUser, setIsIndianUser] = useState<boolean>(true);
   const [currentView, setCurrentView] = useState<ViewType>('choice');
   const [resetEmail, setResetEmail] = useState('');
-  const { signUp, signIn } = useAuth();
+  const { signUp, signIn, signInWithGoogle } = useAuth();
 
   // --- Loading States ---
   const [isEmailLoading, setIsEmailLoading] = useState(false);
@@ -162,8 +162,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           .single();
 
         if (twoFAData?.enabled) {
-          setPendingUser(data.user);
-          setCurrentView('2fa-verify');
+          // Navigate to dedicated /verify-2fa route without hard refresh
+          onOpenChange(false);
+          navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
           setIsEmailLoading(false);
           return;
         }
@@ -281,15 +282,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}${redirectPath}`,
-          queryParams: { access_type: 'offline', prompt: 'consent' }
-        }
-      });
-      if (error) throw new Error(error.message);
-      if (data.url) window.location.href = data.url;
+      await signInWithGoogle();
+      // Redirect will occur; keep modal open until navigation
     } catch (error) {
       toast.error("Failed to sign in with Google. Please check your connection and try again.");
       setIsGoogleLoading(false);

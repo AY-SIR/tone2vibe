@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
@@ -14,6 +14,7 @@ export default function Verify2FA() {
   const [useBackup, setUseBackup] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user, session, signOut } = useAuth();
 
@@ -29,6 +30,8 @@ export default function Verify2FA() {
 
     return () => clearTimeout(timer);
   }, [user, navigate]);
+
+  const redirectTarget = searchParams.get('redirect') || '/tool';
 
   const handleVerify = async () => {
     if (code.length !== 6) {
@@ -61,7 +64,7 @@ export default function Verify2FA() {
           title: "Success",
           description: "2FA verification successful",
         });
-        navigate("/tool", { replace: true });
+        navigate(redirectTarget, { replace: true });
       } else {
         toast({
           variant: "destructive",
