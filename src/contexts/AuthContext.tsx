@@ -108,21 +108,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(currentSession);  
       setUser(currentUser);  
       
-      // Check 2FA status for OAuth users
+      // Check 2FA status for OAuth or email users
       if (currentUser) {
         await loadUserProfile(currentUser);
         
-        // Check if this is a Google OAuth login and 2FA is enabled
         const { data: twoFASettings } = await supabase
           .from('user_2fa_settings')
           .select('enabled')
           .eq('user_id', currentUser.id)
           .single();
+
+        // Build a per-session verification key (prevents redirect loop after successful verify)
+        const accessToken = currentSession?.access_token ?? null;
+        const tokenPart = accessToken ? accessToken.slice(0, 16) : 'no-token';
+        const verifiedKey = `2fa_verified:${currentUser.id}:${tokenPart}`;
+        const is2FAVerified = typeof window !== 'undefined' && sessionStorage.getItem(verifiedKey) === 'true';
         
         if (twoFASettings?.enabled) {
-          if (window.location.pathname !== '/verify-2fa') {
-            window.location.href = '/verify-2fa';
-            return;
+          if (!is2FAVerified) {
+            if (window.location.pathname !== '/verify-2fa') {
+              window.location.href = '/verify-2fa';
+              return;
+            }
+          } else if (window.location.pathname === '/verify-2fa') {
+            // Already verified for this session, go to app
+            window.location.href = '/tool';
           }
         } else if (window.location.pathname === '/verify-2fa') {
           // 2FA not required, redirect to app

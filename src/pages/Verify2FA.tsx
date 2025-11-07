@@ -14,7 +14,7 @@ export default function Verify2FA() {
   const [useBackup, setUseBackup] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
 
   useEffect(() => {
     // If no user, redirect to home
@@ -42,6 +42,14 @@ export default function Verify2FA() {
       if (error) throw error;
 
       if (data?.success) {
+        // Mark this session as 2FA-verified to prevent redirect loop
+        try {
+          if (user && session?.access_token) {
+            const tokenPart = session.access_token.slice(0, 16);
+            const verifiedKey = `2fa_verified:${user.id}:${tokenPart}`;
+            sessionStorage.setItem(verifiedKey, 'true');
+          }
+        } catch {}
         toast({
           title: "Success",
           description: "2FA verification successful",

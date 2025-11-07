@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface TwoFactorManageProps {
   lastUsed?: string;
@@ -20,6 +21,7 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
   const [disableCode, setDisableCode] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleDisable = async () => {
     if (!password || disableCode.length !== 6) {
@@ -43,6 +45,19 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
         title: "2FA Disabled",
         description: "Two-factor authentication has been disabled",
       });
+      
+      // Clear any 2FA verification flags for this session
+      try {
+        if (user?.id) {
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key && key.startsWith(`2fa_verified:${user.id}:`)) {
+              sessionStorage.removeItem(key);
+              i--; // adjust index after removal
+            }
+          }
+        }
+      } catch {}
       
       setShowDisableDialog(false);
       setPassword("");
