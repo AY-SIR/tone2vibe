@@ -58,7 +58,7 @@ export function NewsletterSection() {
         });
       }
     } catch (error) {
-      console.error('Newsletter subscription error:', error);
+      // Silent error handling
       toast({
         title: "Subscription Failed",
         description: "Unable to subscribe. Please try again later.",

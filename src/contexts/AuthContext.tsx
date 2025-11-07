@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLocationData({ country: "India", currency: "INR" });  
       }  
     } catch (err) {  
-      console.error("Error loading profile:", err);  
+      // Silent error handling in production  
     }
   }, []);
 
@@ -107,8 +107,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentUser = currentSession?.user ?? null;  
       setSession(currentSession);  
       setUser(currentUser);  
-      if (currentUser) await loadUserProfile(currentUser);  
-    };  
+      
+      // Check 2FA status for OAuth users
+      if (currentUser) {
+        await loadUserProfile(currentUser);
+        
+        // Check if this is a Google OAuth login and 2FA is enabled
+        const { data: twoFASettings } = await supabase
+          .from('user_2fa_settings')
+          .select('enabled')
+          .eq('user_id', currentUser.id)
+          .single();
+        
+        if (twoFASettings?.enabled && window.location.pathname === '/verify-2fa') {
+          // User needs 2FA verification, stay on verify-2fa page
+          return;
+        } else if (window.location.pathname === '/verify-2fa') {
+          // No 2FA required, redirect to tool
+          window.location.href = '/tool';
+        }
+      }  
+    };
 
     supabase.auth.getSession().then(({ data: { session } }) => {  
       handleSession(session).finally(() => {  
@@ -186,7 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { data: parsedData, error: null };
     } catch (err) {
-      console.error("Signup exception:", err);
+      // Silent error handling
       return { data: null, error: new Error("Network error. Please check your connection and try again.") };
     }
   };
@@ -205,22 +224,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       return { data, error };
     } catch (err) {
-      console.error("SignIn error:", err);
+      // Silent error handling
       return { data: null, error: err as Error };
     }
   };
 
   const signInWithGoogle = async () => {
     try {
+      // Set redirect to check 2FA status after Google OAuth
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin + "/tool",
+          redirectTo: window.location.origin + "/verify-2fa",
           queryParams: { access_type: "offline", prompt: "consent" }
         },
       });
     } catch (err) {
-      console.error("Google sign in failed:", err);
+      // Silent error handling in production
+      if (window.location.hostname === 'localhost') {
+        throw err;
+      }
     }
   };
 
@@ -236,7 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLocationData(null);
       return { error };
     } catch (err) {
-      console.error("SignOut error:", err);
+      // Silent error handling
       return { error: err as Error };
     }
   };
@@ -252,9 +275,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
       const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (error) console.error("Profile update error:", error);
+      // Silent error handling
     } catch (err) {
-      console.error("Profile update exception:", err);
+      // Silent error handling
     }
   };
 

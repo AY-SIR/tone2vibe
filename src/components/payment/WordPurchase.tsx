@@ -231,7 +231,7 @@ export function WordPurchase() {
         { replace: true }
       );
     } catch (error) {
-      console.error(error);
+      // Silent error handling
       toast({
         title: "Error Processing Free Purchase",
         description: error instanceof Error ? error.message : "Something went wrong.",

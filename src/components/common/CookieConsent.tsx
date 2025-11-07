@@ -58,7 +58,7 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
   }, []);
 
   const handleAccept = () => {
-    console.log('Accept clicked from popup');
+    // Silent error handling
     localStorage.setItem('cookie-consent', 'accepted');
     setIsVisible(false);
     onAccept();
@@ -70,7 +70,7 @@ export function CookieConsent({ onAccept, onDecline }: CookieConsentProps) {
   };
 
   const handleDecline = () => {
-    console.log('Decline clicked from popup');
+    // Silent tracking
     localStorage.setItem('cookie-consent', 'declined');
     setIsVisible(false);
     onDecline();

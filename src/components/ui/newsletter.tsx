@@ -31,7 +31,7 @@ export function Newsletter() {
       });
       setEmail("");
     } catch (error) {
-      console.error("Newsletter subscription error:", error);
+      // Silent error handling
       toast({
         title: "Subscription failed",
         description: "Please try again later.",

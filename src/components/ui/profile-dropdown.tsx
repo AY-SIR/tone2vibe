@@ -56,7 +56,7 @@ export function ProfileDropdown() {
       await signOut();
       navigate('/');
     } catch (error) {
-      console.error('Error signing out:', error);
+      // Silent error handling
     } finally {
       setIsLoading(false);
     }

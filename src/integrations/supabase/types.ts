@@ -954,8 +954,8 @@ export type Database = {
           }
       call_cleanup_old_data: { Args: never; Returns: undefined }
       check_plan_expiry:
-        | { Args: never; Returns: undefined }
         | { Args: { user_id_param: string }; Returns: Json }
+        | { Args: never; Returns: undefined }
       cleanup_expired_audio_tokens: { Args: never; Returns: undefined }
       cleanup_expired_sessions: { Args: never; Returns: undefined }
       cleanup_expired_tokens: { Args: never; Returns: undefined }

@@ -137,13 +137,16 @@ export function PaymentGateway({
         await handleFreeActivation();
       } else {
         // Paid activation - call parent handler
-        console.log("Payment/Activation initiated for plan:", selectedPlan, "Final Amount:", finalAmount);
+    toast({
+      title: "Payment initiated",
+      description: "Redirecting to payment gateway...",
+    });
         onPayment(selectedPlan);
       }
     } catch (error) {
       // FIXED: Redirect to payment-failed page with error details
       const errorMessage = error instanceof Error ? error.message : "Failed to activate plan";
-      console.error("Payment error:", error);
+      // Silent error handling
 
       navigate(
         `/payment-failed?type=subscription&reason=${encodeURIComponent(errorMessage)}`,

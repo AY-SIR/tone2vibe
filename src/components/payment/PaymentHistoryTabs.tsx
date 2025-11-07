@@ -62,7 +62,7 @@ export function PaymentHistoryTabs() {
       setPayments(paymentsData || []);
       setWordPurchases(wordPurchasesData || []);
     } catch (error) {
-      console.error('Error fetching payment history:', error);
+      // Silent error handling
     } finally {
       setLoading(false);
     }
