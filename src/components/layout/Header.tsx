@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileWordCounter } from "./MobileWordCounter";
 import { ProfileDropdown } from "@/components/ui/profile-dropdown";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -12,7 +12,23 @@ const Header = () => {
   const { user, profile } = useAuth();
   const isLoggedIn = user && user.id !== "guest";
 
-  const navigate = useNavigate();
+const navigate = useNavigate();
+const [params] = useSearchParams();
+
+// Open Auth modal when query says so or when an event is fired
+useEffect(() => {
+  if (params.get('auth') === 'open') {
+    setShowAuthModal(true);
+  }
+}, [params]);
+
+useEffect(() => {
+  const handler = (e: any) => {
+    setShowAuthModal(true);
+  };
+  window.addEventListener('auth:open', handler);
+  return () => window.removeEventListener('auth:open', handler);
+}, []);
 
   return (
     <>
