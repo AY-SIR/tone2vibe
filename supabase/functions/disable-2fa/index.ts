@@ -34,7 +34,7 @@ serve(async (req) => {
       );
     }
 
-    const { code, password } = await req.json();
+    const { code, password, isBackupCode } = await req.json();
 
     if (!code || !password) {
       return new Response(
@@ -59,7 +59,7 @@ serve(async (req) => {
     // Get user's 2FA settings
     const { data: settings } = await supabaseClient
       .from('user_2fa_settings')
-      .select('secret, enabled')
+      .select('secret, enabled, backup_codes')
       .eq('user_id', user.id)
       .single();
 
@@ -70,19 +70,29 @@ serve(async (req) => {
       );
     }
 
-    // Verify 2FA code
-    const totp = new TOTP({
-      secret: Secret.fromBase32(settings.secret),
-      algorithm: 'SHA1',
-      digits: 6,
-      period: 30,
-    });
+    let isValid = false;
 
-    const delta = totp.validate({ token: code, window: 1 });
+    if (isBackupCode) {
+      // Check backup code
+      if (settings.backup_codes && settings.backup_codes.includes(code)) {
+        isValid = true;
+      }
+    } else {
+      // Verify TOTP code
+      const totp = new TOTP({
+        secret: Secret.fromBase32(settings.secret),
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+      });
 
-    if (delta === null) {
+      const delta = totp.validate({ token: code, window: 1 });
+      isValid = delta !== null;
+    }
+
+    if (!isValid) {
       return new Response(
-        JSON.stringify({ error: 'Invalid 2FA code' }),
+        JSON.stringify({ error: isBackupCode ? 'Invalid backup code' : 'Invalid 2FA code' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

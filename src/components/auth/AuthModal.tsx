@@ -311,35 +311,39 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       });
 
       if (error) {
-        toast.error('Failed to send reset email. Please check your connection and try again.');
-        setIsResetLoading(false);
-        return;
-      }
-
-      let result = data;
-      if (typeof data === 'string') {
-        try {
-          result = JSON.parse(data);
-        } catch {
-          // Parse error - continue
-        }
-      }
-
-      if (result?.error) {
+        console.error('Reset password error:', error);
         toast.error('Failed to send reset email. Please try again.');
         setIsResetLoading(false);
         return;
       }
 
+      // Handle response
+      let result = data;
+      if (typeof data === 'string') {
+        try {
+          result = JSON.parse(data);
+        } catch (parseError) {
+          console.error('Failed to parse response:', parseError);
+        }
+      }
+
+      if (result?.error) {
+        console.error('Reset error from server:', result.error);
+        toast.error(result.error || 'Failed to send reset email. Please try again.');
+        setIsResetLoading(false);
+        return;
+      }
+
       toast.success(
-        'If an account exists with this email, a password reset link has been sent. Please check your inbox.',
+        'Password reset link sent! Please check your email inbox.',
         { duration: 8000 }
       );
 
-      setCurrentView('choice');
+      setCurrentView('signin');
       setResetEmail('');
       setIsResetLoading(false);
     } catch (err) {
+      console.error('Network error during password reset:', err);
       toast.error('Network error. Please check your connection and try again.');
       setIsResetLoading(false);
     }

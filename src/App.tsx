@@ -87,35 +87,7 @@ function AppContent() {
     }
   };
 
-  // Handle 2FA redirect - centralized logic
-  useEffect(() => {
-    // Don't redirect if:
-    // - No user logged in
-    // - Still checking 2FA status
-    // - Already on verify-2fa page
-    // - On public pages
-    if (!user || checking2FA) return;
-
-    const publicPaths = [
-      '/',
-      '/privacy',
-      '/terms',
-      '/contact',
-      '/cookies',
-      '/email-confirmation',
-      '/reset-password'
-    ];
-
-    if (publicPaths.includes(location.pathname)) return;
-    if (location.pathname === '/verify-2fa') return;
-
-    // If 2FA is needed and not on verification page, redirect
-    if (needs2FA) {
-      const currentPath = location.pathname + location.search;
-      const redirectUrl = `/verify-2fa?redirect=${encodeURIComponent(currentPath)}`;
-      navigate(redirectUrl, { replace: true });
-    }
-  }, [user, needs2FA, checking2FA, location.pathname, location.search, navigate]);
+  // Handle 2FA redirect - ProtectedRoute handles this now, removed duplicate logic
 
   // Show offline screen when offline (only after initial status check)
   if (statusChecked && isOffline) {

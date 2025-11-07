@@ -19,16 +19,19 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
   const [showDisableDialog, setShowDisableDialog] = useState(false);
   const [password, setPassword] = useState("");
   const [disableCode, setDisableCode] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
   const handleDisable = async () => {
-    if (!password || disableCode.length !== 6) {
+    const codeLength = useBackupCode ? 8 : 6;
+    
+    if (!password || disableCode.length !== codeLength) {
       toast({
         variant: "destructive",
         title: "Missing Information",
-        description: "Please enter both your password and 2FA code",
+        description: `Please enter your password and ${useBackupCode ? '8-character backup code' : '6-digit 2FA code'}`,
       });
       return;
     }
@@ -36,7 +39,11 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
     setLoading(true);
     try {
       const { error } = await supabase.functions.invoke('disable-2fa', {
-        body: { code: disableCode, password },
+        body: { 
+          code: disableCode, 
+          password,
+          isBackupCode: useBackupCode 
+        },
       });
       
       if (error) throw error;
@@ -57,11 +64,14 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
             }
           }
         }
-      } catch {}
+      } catch {
+        // Silent fail - sessionStorage may not be available
+      }
       
       setShowDisableDialog(false);
       setPassword("");
       setDisableCode("");
+      setUseBackupCode(false);
       onDisabled();
     } catch (error: any) {
       toast({
@@ -125,12 +135,18 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
-              <Label>Authentication Code</Label>
+              <Label>{useBackupCode ? 'Backup Code' : 'Authentication Code'}</Label>
               <div className="flex justify-center">
-                <InputOTP maxLength={6} value={disableCode} onChange={setDisableCode}>
+                <InputOTP 
+                  maxLength={useBackupCode ? 8 : 6} 
+                  value={disableCode} 
+                  onChange={setDisableCode}
+                  disabled={loading}
+                >
                   <InputOTPGroup>
                     <InputOTPSlot index={0} />
                     <InputOTPSlot index={1} />
@@ -142,20 +158,43 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
                     <InputOTPSlot index={4} />
                     <InputOTPSlot index={5} />
                   </InputOTPGroup>
+                  {useBackupCode && (
+                    <>
+                      <InputOTPSeparator />
+                      <InputOTPGroup>
+                        <InputOTPSlot index={6} />
+                        <InputOTPSlot index={7} />
+                      </InputOTPGroup>
+                    </>
+                  )}
                 </InputOTP>
               </div>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  setUseBackupCode(!useBackupCode);
+                  setDisableCode("");
+                }}
+                disabled={loading}
+                className="text-xs mx-auto block"
+              >
+                {useBackupCode ? 'Use authenticator code instead' : 'Use backup code instead'}
+              </Button>
             </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
               setPassword("");
               setDisableCode("");
-            }}>
+              setUseBackupCode(false);
+            }} disabled={loading}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={(e) => { e.preventDefault(); handleDisable(); }} 
-              disabled={loading || !password || disableCode.length !== 6}
+              disabled={loading || !password || disableCode.length !== (useBackupCode ? 8 : 6)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {loading ? "Disabling..." : "Disable 2FA"}

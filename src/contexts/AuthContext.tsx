@@ -108,7 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
 
   // Only show popup if 2FA check is complete, not required, and user is verified
-  const shouldShowPopup = !checking2FA && !needs2FA && (expiryData?.show_popup || false);
+  // CRITICAL: Prevent popups during auth transitions to avoid showing on wrong pages
+  const shouldShowPopup = !checking2FA && !needs2FA && !loading && !!user && (expiryData?.show_popup || false);
 
   // Load or create user profile
   const loadUserProfile = useCallback(async (user: User): Promise<void> => {
