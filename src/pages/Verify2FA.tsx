@@ -12,15 +12,22 @@ export default function Verify2FA() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [useBackup, setUseBackup] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, session, signOut } = useAuth();
 
   useEffect(() => {
-    // If no user, redirect to home
-    if (!user) {
-      navigate("/", { replace: true });
-    }
+    // Wait a moment for auth state to settle
+    const timer = setTimeout(() => {
+      if (!user) {
+        navigate("/", { replace: true });
+      } else {
+        setIsCheckingAuth(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [user, navigate]);
 
   const handleVerify = async () => {
@@ -77,6 +84,18 @@ export default function Verify2FA() {
     await signOut();
     navigate("/", { replace: true });
   };
+
+  // Show loading while checking auth state
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Verifying authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

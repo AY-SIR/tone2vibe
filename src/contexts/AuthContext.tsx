@@ -104,9 +104,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const handleSession = async (currentSession: Session | null) => {  
       if (!mounted) return;  
-      const currentUser = currentSession?.user ?? null;  
+      const currentUser = currentSession?.user ?? null;
+      
+      // CRITICAL: Set user/session state FIRST before any redirects
       setSession(currentSession);  
-      setUser(currentUser);  
+      setUser(currentUser);
       
       // Check 2FA status for OAuth or email users
       if (currentUser) {
@@ -126,8 +128,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (twoFASettings?.enabled) {
           if (!is2FAVerified) {
+            // 2FA required but not verified yet - redirect to verify page
             if (window.location.pathname !== '/verify-2fa') {
-              window.location.href = '/verify-2fa';
+              // Use setTimeout to ensure state updates complete before redirect
+              setTimeout(() => {
+                window.location.href = '/verify-2fa';
+              }, 100);
               return;
             }
           } else if (window.location.pathname === '/verify-2fa') {
@@ -243,11 +249,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      // Set redirect to check 2FA status after Google OAuth
+      // Let AuthContext handle 2FA redirect after successful OAuth
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin + "/verify-2fa",
+          redirectTo: window.location.origin,
           queryParams: { access_type: "offline", prompt: "consent" }
         },
       });
