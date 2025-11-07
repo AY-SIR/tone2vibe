@@ -119,11 +119,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('user_id', currentUser.id)
           .single();
         
-        if (twoFASettings?.enabled && window.location.pathname === '/verify-2fa') {
-          // User needs 2FA verification, stay on verify-2fa page
-          return;
+        if (twoFASettings?.enabled) {
+          if (window.location.pathname !== '/verify-2fa') {
+            window.location.href = '/verify-2fa';
+            return;
+          }
         } else if (window.location.pathname === '/verify-2fa') {
-          // No 2FA required, redirect to tool
+          // 2FA not required, redirect to app
           window.location.href = '/tool';
         }
       }  

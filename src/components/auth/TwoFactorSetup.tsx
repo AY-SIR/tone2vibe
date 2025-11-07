@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
@@ -22,22 +22,36 @@ export const TwoFactorSetup = ({ open, onOpenChange, onSuccess }: TwoFactorSetup
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // Prefetch QR/secret in background to reduce Step 1 → 2 delay (avoid blocking UI)
+  useEffect(() => {
+    if (open && step === 1 && !qrCode) {
+      (async () => {
+        try {
+          const { data } = await supabase.functions.invoke('generate-2fa-secret');
+          if (data) {
+            setQrCode(data.qrCode);
+            setSecret(data.secret);
+          }
+        } catch { /* silent */ }
+      })();
+    }
+  }, [open, step, qrCode]);
+
+
   const handleGenerateQR = async () => {
+    if (qrCode && secret) {
+      setStep(2);
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-2fa-secret');
-      
       if (error) throw error;
-      
       setQrCode(data.qrCode);
       setSecret(data.secret);
       setStep(2);
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to generate QR code",
-      });
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to generate QR code" });
     } finally {
       setLoading(false);
     }
@@ -145,7 +159,15 @@ export const TwoFactorSetup = ({ open, onOpenChange, onSuccess }: TwoFactorSetup
                 Or enter this key manually:
               </p>
               <div className="flex items-center gap-2 justify-center">
-                <code className="bg-muted px-3 py-2 rounded text-sm font-mono">{secret}</code>
+                <code onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(secret);
+                    toast({ title: "Copied!", description: "Secret key copied to clipboard" });
+                  } catch {
+                    toast({ variant: "destructive", title: "Copy failed", description: "Please copy manually" });
+                  }
+                }}
+                className="cursor-pointer bg-muted px-3 py-2 rounded text-sm font-mono">{secret}</code>
                 <Button
                   variant="outline"
                   size="sm"

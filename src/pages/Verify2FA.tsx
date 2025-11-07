@@ -36,12 +36,12 @@ export default function Verify2FA() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('verify-2fa', {
-        body: { code, useBackupCode: useBackup },
+        body: { code, isBackupCode: useBackup },
       });
 
       if (error) throw error;
 
-      if (data.verified) {
+      if (data?.success) {
         toast({
           title: "Success",
           description: "2FA verification successful",

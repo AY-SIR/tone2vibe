@@ -139,7 +139,7 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleDisable} 
+              onClick={(e) => { e.preventDefault(); handleDisable(); }} 
               disabled={loading || !password || disableCode.length !== 6}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
