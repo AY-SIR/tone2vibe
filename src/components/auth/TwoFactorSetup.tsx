@@ -149,12 +149,26 @@ export const TwoFactorSetup = ({ open, onOpenChange, onSuccess }: TwoFactorSetup
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(secret);
-                    toast({
-                      title: "Copied!",
-                      description: "Secret key copied to clipboard",
-                    });
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(secret);
+                      toast({
+                        title: "Copied!",
+                        description: "Secret key copied to clipboard",
+                      });
+                    } catch {
+                      try {
+                        const ta = document.createElement('textarea');
+                        ta.value = secret;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        toast({ title: "Copied!", description: "Secret key copied" });
+                      } catch {
+                        toast({ variant: "destructive", title: "Copy failed", description: "Please copy manually" });
+                      }
+                    }
                   }}
                 >
                   <Copy className="h-4 w-4" />
@@ -209,8 +223,18 @@ export const TwoFactorSetup = ({ open, onOpenChange, onSuccess }: TwoFactorSetup
             <Card className="p-4">
               <div className="grid grid-cols-2 gap-2 text-sm font-mono">
                 {backupCodes.map((code, i) => (
-                  <div key={i} className="text-center p-2 bg-muted rounded">
-                    {code}
+                  <div key={i} className="flex items-center justify-between p-2 bg-muted rounded">
+                    <span className="truncate">{code}</span>
+                    <Button variant="ghost" size="icon" onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(code);
+                        toast({ title: "Copied!", description: `Code ${i + 1} copied` });
+                      } catch {
+                        toast({ variant: "destructive", title: "Copy failed", description: "Please copy manually" });
+                      }
+                    }}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
                   </div>
                 ))}
               </div>

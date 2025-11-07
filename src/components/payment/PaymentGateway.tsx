@@ -165,31 +165,28 @@ export function PaymentGateway({
 
       const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Step 1: Verify coupon validity
-      const { data: couponCheck, error: couponError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponValidation.code)
-        .in('type', ['subscription', 'both'])
-        .single();
+      // Step 1: Verify coupon validity (secure RPC)
+      const { data: couponValidateData, error: couponValidateError } = await supabase.rpc('validate_coupon_secure', {
+        p_coupon_code: couponValidation.code
+      });
 
-      if (couponError) {
+      if (couponValidateError) {
         throw new Error('Failed to verify coupon. Please try again.');
       }
 
-      if (!couponCheck) {
-        throw new Error('Coupon is no longer valid for subscription.');
+      const result = Array.isArray(couponValidateData) ? couponValidateData[0] : couponValidateData;
+      if (!result || !result.is_valid) {
+        throw new Error(result?.error_message || 'Coupon is not valid for subscription.');
       }
-
-      if (couponCheck.max_uses && couponCheck.used_count >= couponCheck.max_uses) {
-        throw new Error('Coupon usage limit has been exceeded.');
+      if (result.type && !(result.type === 'subscription' || result.type === 'both')) {
+        throw new Error('Coupon not applicable for subscription plans.');
       }
 
       // Step 2: Get plan limits
       const planLimits = {
         pro: { words_limit: 10000, upload_limit_mb: 25, plan_words_used: 0 },
         premium: { words_limit: 50000, upload_limit_mb: 100, plan_words_used: 0 }
-      };
+      } as const;
 
       const limits = planLimits[selectedPlan];
       if (!limits) {
@@ -244,15 +241,10 @@ export function PaymentGateway({
         throw new Error(`Failed to record activation: ${paymentError.message}`);
       }
 
-      // Step 5: Update coupon usage count
-      const { error: couponUpdateError } = await supabase
-        .from('coupons')
-        .update({
-          used_count: (couponCheck.used_count || 0) + 1,
-          last_used_at: now.toISOString()
-        })
-        .eq('id', couponCheck.id);
-
+      // Step 5: Increment coupon usage securely
+      const { error: couponUpdateError } = await supabase.rpc('increment_coupon_usage_secure', {
+        p_coupon_id: result.id
+      });
       if (couponUpdateError) {
         throw new Error(`Failed to update coupon usage: ${couponUpdateError.message}`);
       }

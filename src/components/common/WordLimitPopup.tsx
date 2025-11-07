@@ -19,10 +19,11 @@ interface WordLimitPopupProps {
 export const WordLimitPopup = ({ planExpiryActive = false }: WordLimitPopupProps) => {
   const { profile } = useAuth();
   const [showPopup, setShowPopup] = useState(false);
+  const [hasShown, setHasShown] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!profile || planExpiryActive) return;
+    if (!profile || planExpiryActive || hasShown) return;
 
     // Check if popup was already shown in this session
     const popupShownKey = `word_limit_popup_shown_${profile.user_id}`;
@@ -36,9 +37,10 @@ export const WordLimitPopup = ({ planExpiryActive = false }: WordLimitPopupProps
     // Show popup when total words remaining is less than 100 or out of words
     if (totalAvailable < 100) {
       setShowPopup(true);
+      setHasShown(true);
       sessionStorage.setItem(popupShownKey, Date.now().toString());
     }
-  }, [profile, planExpiryActive]);
+  }, [profile, planExpiryActive, hasShown]);
 
   if (!profile || !showPopup) return null;
 

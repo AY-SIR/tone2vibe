@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { TOTP } from "https://esm.sh/otpauth@9.2.3";
+import { TOTP, Secret } from "https://esm.sh/otpauth@9.2.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -72,7 +72,7 @@ serve(async (req) => {
 
     // Verify 2FA code
     const totp = new TOTP({
-      secret: TOTP.Secret.fromBase32(settings.secret),
+      secret: Secret.fromBase32(settings.secret),
       algorithm: 'SHA1',
       digits: 6,
       period: 30,
@@ -94,7 +94,7 @@ serve(async (req) => {
       .eq('user_id', user.id);
 
     if (deleteError) {
-      console.error('Error disabling 2FA:', deleteError);
+      // Log suppressed to avoid sensitive data leakage
       return new Response(
         JSON.stringify({ error: 'Failed to disable 2FA' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

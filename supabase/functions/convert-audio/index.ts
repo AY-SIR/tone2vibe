@@ -40,7 +40,6 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    console.log("convert-audio request body:", body);
 
     const { audioUrl, format } = body;
 

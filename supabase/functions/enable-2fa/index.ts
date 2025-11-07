@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { TOTP } from "https://esm.sh/otpauth@9.2.3";
+import { TOTP, Secret } from "https://esm.sh/otpauth@9.2.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -79,7 +79,7 @@ serve(async (req) => {
 
     // Verify the code
     const totp = new TOTP({
-      secret: TOTP.Secret.fromBase32(settings.secret),
+      secret: Secret.fromBase32(settings.secret),
       algorithm: 'SHA1',
       digits: 6,
       period: 30,
@@ -116,7 +116,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('enable-2fa: Successfully enabled 2FA for user', user.id);
+    
     return new Response(
       JSON.stringify({
         success: true,
