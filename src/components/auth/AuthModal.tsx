@@ -6,19 +6,20 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft, Shield } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { FcGoogle } from "react-icons/fc";
+import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
 
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password';
+type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password' | '2fa-verify';
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const navigate = useNavigate();
@@ -28,6 +29,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   // --- States for Sign In ---
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
+  const [pendingUser, setPendingUser] = useState<any>(null);
+  const [twoFACode, setTwoFACode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
 
   // --- States for Sign Up ---
   const [signUpFullName, setSignUpFullName] = useState('');
@@ -150,6 +154,20 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         return;
       }
       if (data.user) {
+        // Check if 2FA is enabled
+        const { data: twoFAData } = await supabase
+          .from('user_2fa_settings')
+          .select('enabled')
+          .eq('user_id', data.user.id)
+          .single();
+
+        if (twoFAData?.enabled) {
+          setPendingUser(data.user);
+          setCurrentView('2fa-verify');
+          setIsEmailLoading(false);
+          return;
+        }
+
         toast.success('Welcome back!');
         onOpenChange(false);
         navigate(redirectPath, { replace: true });
@@ -159,6 +177,34 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     } finally {
       setIsEmailLoading(false);
       clearSignInFields();
+    }
+  };
+
+  const handleVerify2FA = async () => {
+    if (!twoFACode || (!useBackupCode && twoFACode.length !== 6)) {
+      return toast.error('Please enter a valid code');
+    }
+
+    setIsEmailLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-2fa', {
+        body: { code: twoFACode, isBackupCode: useBackupCode },
+      });
+
+      if (error || !data?.success) {
+        toast.error(error?.message || 'Invalid code. Please try again.');
+        return;
+      }
+
+      toast.success('Welcome back!');
+      setPendingUser(null);
+      setTwoFACode('');
+      onOpenChange(false);
+      navigate(redirectPath, { replace: true });
+    } catch (err) {
+      toast.error('Verification failed. Please try again.');
+    } finally {
+      setIsEmailLoading(false);
     }
   };
 
@@ -649,6 +695,89 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           </>
         )}
       </DialogContent>
+
+      {/* 2FA Verification View */}
+      {currentView === '2fa-verify' && (
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription>
+              Enter the code from your authenticator app
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {!useBackupCode ? (
+              <>
+                <Label>Authentication Code</Label>
+                <div className="flex justify-center">
+                  <InputOTP maxLength={6} value={twoFACode} onChange={setTwoFACode}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                    </InputOTPGroup>
+                    <InputOTPSeparator />
+                    <InputOTPGroup>
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </>
+            ) : (
+              <>
+                <Label htmlFor="backup-code">Backup Code</Label>
+                <Input
+                  id="backup-code"
+                  value={twoFACode}
+                  onChange={(e) => setTwoFACode(e.target.value.toUpperCase())}
+                  placeholder="Enter backup code"
+                  className="font-mono"
+                />
+              </>
+            )}
+
+            <Button
+              onClick={handleVerify2FA}
+              disabled={isEmailLoading || !twoFACode}
+              className="w-full"
+            >
+              {isEmailLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Verify & Sign In
+            </Button>
+
+            <Button
+              variant="link"
+              onClick={() => {
+                setUseBackupCode(!useBackupCode);
+                setTwoFACode('');
+              }}
+              className="w-full"
+            >
+              {useBackupCode ? 'Use authenticator code' : 'Use backup code instead'}
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setCurrentView('choice');
+                setPendingUser(null);
+                setTwoFACode('');
+                setUseBackupCode(false);
+              }}
+              className="w-full"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Sign In
+            </Button>
+          </div>
+        </DialogContent>
+      )}
     </Dialog>
   );
 }

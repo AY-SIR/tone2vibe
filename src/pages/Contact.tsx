@@ -10,6 +10,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { supabase } from "@/integrations/supabase/client";
+import { z } from "zod";
+
+const contactSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  email: z.string().trim().email("Invalid email address").max(255, "Email must be less than 255 characters"),
+  subject: z.string().trim().min(1, "Subject is required").max(200, "Subject must be less than 200 characters"),
+  message: z.string().trim().min(10, "Message must be at least 10 characters").max(2000, "Message must be less than 2000 characters"),
+});
 
 const Contact = () => {
   const navigate = useNavigate();
@@ -33,18 +41,31 @@ const Contact = () => {
       return;
     }
 
+    // Validate form data
+    try {
+      contactSchema.parse(formData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Save contact message to Supabase using raw query to bypass type checking
       const { error } = await supabase
         .from('contact_messages' as any)
         .insert([
           {
-            name: formData.name,
-            email: formData.email,
-            subject: formData.subject,
-            message: formData.message
+            name: formData.name.trim(),
+            email: formData.email.trim().toLowerCase(),
+            subject: formData.subject.trim(),
+            message: formData.message.trim()
           }
         ] as any);
 
@@ -59,11 +80,10 @@ const Contact = () => {
       });
       
       setFormData({ name: "", email: "", subject: "", message: "" });
-    } catch (error) {
-      console.error('Contact form error:', error);
+    } catch (error: any) {
       toast({
         title: "Failed to send message",
-        description: "Please try again later.",
+        description: error.message || "Please try again later.",
         variant: "destructive",
       });
     } finally {

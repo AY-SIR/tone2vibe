@@ -152,6 +152,33 @@ export type Database = {
         }
         Relationships: []
       }
+      coupon_validation_attempts: {
+        Row: {
+          attempted_at: string | null
+          coupon_code: string
+          id: string
+          ip_address: string | null
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string | null
+          coupon_code: string
+          id?: string
+          ip_address?: string | null
+          success: boolean
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string | null
+          coupon_code?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       coupons: {
         Row: {
           active: boolean
@@ -341,27 +368,6 @@ export type Database = {
         }
         Relationships: []
       }
-      orders: {
-        Row: {
-          coupon_code: string | null
-          created_at: string | null
-          id: string
-          payment_request_id: string | null
-        }
-        Insert: {
-          coupon_code?: string | null
-          created_at?: string | null
-          id?: string
-          payment_request_id?: string | null
-        }
-        Update: {
-          coupon_code?: string | null
-          created_at?: string | null
-          id?: string
-          payment_request_id?: string | null
-        }
-        Relationships: []
-      }
       password_reset_tokens: {
         Row: {
           created_at: string | null
@@ -511,6 +517,7 @@ export type Database = {
           name: string
           required_plan: string
           sort_order: number
+          tts_config: Json | null
           updated_at: string
           usage_count: number
           voice_id: string
@@ -528,6 +535,7 @@ export type Database = {
           name: string
           required_plan?: string
           sort_order?: number
+          tts_config?: Json | null
           updated_at?: string
           usage_count?: number
           voice_id: string
@@ -545,6 +553,7 @@ export type Database = {
           name?: string
           required_plan?: string
           sort_order?: number
+          tts_config?: Json | null
           updated_at?: string
           usage_count?: number
           voice_id?: string
@@ -704,6 +713,63 @@ export type Database = {
         }
         Relationships: []
       }
+      user_2fa_attempts: {
+        Row: {
+          attempted_at: string | null
+          id: string
+          ip_address: string | null
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string | null
+          id?: string
+          ip_address?: string | null
+          success: boolean
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string | null
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_2fa_settings: {
+        Row: {
+          backup_codes: string[] | null
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          last_used_at: string | null
+          secret: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          backup_codes?: string[] | null
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          last_used_at?: string | null
+          secret: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          backup_codes?: string[] | null
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          last_used_at?: string | null
+          secret?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_locations: {
         Row: {
           city: string | null
@@ -829,20 +895,85 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      coupon_usage_stats: {
+        Row: {
+          active: boolean | null
+          code: string | null
+          created_at: string | null
+          discount_amount: number | null
+          discount_percentage: number | null
+          expires_at: string | null
+          last_used_at: string | null
+          max_uses: number | null
+          status: string | null
+          type: string | null
+          used_count: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          code?: string | null
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          expires_at?: string | null
+          last_used_at?: string | null
+          max_uses?: number | null
+          status?: never
+          type?: string | null
+          used_count?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          code?: string | null
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          expires_at?: string | null
+          last_used_at?: string | null
+          max_uses?: number | null
+          status?: never
+          type?: string | null
+          used_count?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      add_purchased_words: {
+      add_purchased_words:
+        | {
+            Args: { p_user_id: string; p_word_count: number }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              payment_id_param: string
+              user_id_param: string
+              words_to_add: number
+            }
+            Returns: boolean
+          }
+      call_cleanup_old_data: { Args: never; Returns: undefined }
+      check_plan_expiry:
+        | { Args: never; Returns: undefined }
+        | { Args: { user_id_param: string }; Returns: Json }
+      cleanup_expired_audio_tokens: { Args: never; Returns: undefined }
+      cleanup_expired_sessions: { Args: never; Returns: undefined }
+      cleanup_expired_tokens: { Args: never; Returns: undefined }
+      create_subscription: {
         Args: {
-          payment_id_param: string
-          user_id_param: string
-          words_to_add: number
+          p_amount: number
+          p_duration_days: number
+          p_payment_id: string
+          p_plan_name: string
+          p_user_id: string
+          p_word_limit: number
         }
+        Returns: string
+      }
+      deduct_subscription_words: {
+        Args: { p_user_id: string; p_words_used: number }
         Returns: boolean
       }
-      check_plan_expiry: { Args: { user_id_param: string }; Returns: Json }
-      cleanup_expired_audio_tokens: { Args: never; Returns: undefined }
-      cleanup_expired_tokens: { Args: never; Returns: undefined }
       deduct_words_and_log_history: {
         Args: {
           p_audio_url: string
@@ -860,9 +991,42 @@ export type Database = {
         Returns: Json
       }
       generate_verification_token: { Args: never; Returns: string }
+      get_active_subscription: {
+        Args: { p_user_id: string }
+        Returns: {
+          expires_at: string
+          plan_name: string
+          word_limit: number
+          words_remaining: number
+          words_used: number
+        }[]
+      }
       get_user_analytics_summary: {
         Args: { p_retention_days?: number; p_user_id: string }
         Returns: Json
+      }
+      get_user_word_balance: { Args: { p_user_id: string }; Returns: number }
+      increment_coupon_usage: {
+        Args: { p_coupon_id: string }
+        Returns: undefined
+      }
+      increment_coupon_usage_secure: {
+        Args: { p_coupon_id: string }
+        Returns: undefined
+      }
+      log_tool_usage: {
+        Args: { p_tool_name: string; p_user_id: string; p_words_used: number }
+        Returns: undefined
+      }
+      log_word_purchase: {
+        Args: {
+          p_amount: number
+          p_payment_id: string
+          p_payment_method: string
+          p_user_id: string
+          p_word_count: number
+        }
+        Returns: undefined
       }
       reset_plan_words: { Args: { user_id_param: string }; Returns: undefined }
       safe_update_profile_for_subscription: {
@@ -882,8 +1046,31 @@ export type Database = {
         Returns: Json
       }
       update_word_count: {
-        Args: { new_word_count: number; user_id: string }
-        Returns: undefined
+        Args: { p_user_id: string; p_words_used: number }
+        Returns: boolean
+      }
+      validate_coupon: {
+        Args: { p_coupon_code: string }
+        Returns: {
+          coupon_id: string
+          discount_percent: number
+          is_valid: boolean
+        }[]
+      }
+      validate_coupon_secure: {
+        Args: { p_coupon_code: string }
+        Returns: {
+          code: string
+          discount_amount: number
+          discount_percentage: number
+          error_message: string
+          expires_at: string
+          id: string
+          is_valid: boolean
+          max_uses: number
+          type: string
+          used_count: number
+        }[]
       }
     }
     Enums: {
