@@ -115,11 +115,11 @@ export const TwoFactorSetup = ({ open, onOpenChange, onSuccess }: TwoFactorSetup
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className=" w-[95vw] max-w-lg rounded-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 mb-2">
             <Shield className="w-5 h-5" />
-            Set Up Two-Factor Authentication
+           Setup 2FA
           </DialogTitle>
           <DialogDescription>
             Step {step} of 4: Secure your account with 2FA

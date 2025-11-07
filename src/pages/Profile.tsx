@@ -562,9 +562,9 @@ const Profile: React.FC = () => {
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 mb-2">
                     <Shield className="w-5 h-5" />
-                    Two-Factor Authentication
+                    2FA Setup
                   </CardTitle>
                   <CardDescription>
                     Add an extra layer of security to your account
@@ -600,7 +600,7 @@ const Profile: React.FC = () => {
 >
   <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
   <span className="break-words max-w-full text-center">
-    Delete My Account Forever
+    Delete My Account
   </span>
 </Button>
 

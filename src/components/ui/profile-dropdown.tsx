@@ -13,30 +13,20 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   BarChart3,
   History,
   CreditCard,
   LogOut,
-  Settings, Loader2
+  Settings,
+  Loader2
 } from 'lucide-react';
 import { useRealTimeWordCount } from '@/hooks/useRealTimeWordCount';
 
@@ -50,19 +40,20 @@ export function ProfileDropdown() {
   if (!user || !profile) return null;
 
   const handleSignOut = async () => {
-    setShowConfirmModal(false); // hide modal
+    setShowConfirmModal(false);
     setIsLoading(true);
+
     try {
       await signOut();
       navigate('/');
     } catch (error) {
-      // Silent error handling
+      // Error handling - silent in production
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string): string => {
     return name
       .split(' ')
       .map(n => n[0])
@@ -137,22 +128,34 @@ export function ProfileDropdown() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+          <DropdownMenuItem
+            onClick={() => navigate('/profile')}
+            className="cursor-pointer"
+          >
             <Settings className="mr-2 h-4 w-4" />
             <span>Profile Settings</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => navigate('/payment')} className="cursor-pointer">
+          <DropdownMenuItem
+            onClick={() => navigate('/payment')}
+            className="cursor-pointer"
+          >
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Subscription Plans</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => navigate('/history')} className="cursor-pointer">
+          <DropdownMenuItem
+            onClick={() => navigate('/history')}
+            className="cursor-pointer"
+          >
             <History className="mr-2 h-4 w-4" />
             <span>Voice History</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => navigate('/analytics')} className="cursor-pointer">
+          <DropdownMenuItem
+            onClick={() => navigate('/analytics')}
+            className="cursor-pointer"
+          >
             <BarChart3 className="mr-2 h-4 w-4" />
             <span>Analytics</span>
           </DropdownMenuItem>
@@ -163,59 +166,58 @@ export function ProfileDropdown() {
             onClick={() => setShowConfirmModal(true)}
             className="cursor-pointer text-red-600 focus:text-red-600"
             disabled={isLoading}
-            onSelect={(e) => e.preventDefault()} // Prevents dropdown from closing when dialog opens
+            onSelect={(e) => e.preventDefault()}
           >
+            <LogOut className="mr-2 h-4 w-4" />
             <span>{isLoading ? 'Signing out...' : 'Sign Out'}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-     <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-  <DialogContent
-    className="sm:max-w-md w-[95%] rounded-2xl p-6 [&>button]:hidden"
-  >
-    <DialogHeader>
-      <DialogTitle className="mt-2 mb-4 flex items-center gap-2">
-        
-        Are you sure you want to sign out?
-      </DialogTitle>
-      <div className="border-t border-gray-200 dark:border-gray-800 my-4" />
-      <DialogDescription>
-        This will end your current session and you will be logged out.
-      </DialogDescription>
-    </DialogHeader>
-    <DialogFooter className="flex-row gap-2 sm:gap-2">
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => setShowConfirmModal(false)}
-        className="flex-1"
-      >
-        Cancel
-      </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        onClick={handleSignOut}
-        disabled={isLoading}
-        className="flex-1"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Signing out...
-          </>
-        ) : (
-          <>
-
-            Sign Out
-              <LogOut className="h-4 w-4 mr-2" />
-          </>
-        )}
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent
+          className="sm:max-w-md w-[95%] rounded-2xl p-6 [&>button]:hidden"
+        >
+          <DialogHeader>
+            <DialogTitle className="mt-2 mb-4 flex items-center gap-2">
+              Are you sure you want to sign out?
+            </DialogTitle>
+            <div className="border-t border-gray-200 dark:border-gray-800 my-4" />
+            <DialogDescription>
+              This will end your current session and you will be logged out.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowConfirmModal(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleSignOut}
+              disabled={isLoading}
+              className="flex-1"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Signing out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

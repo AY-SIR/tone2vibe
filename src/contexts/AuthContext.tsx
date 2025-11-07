@@ -45,6 +45,8 @@ interface AuthContextType {
   loading: boolean;
   locationData: LocationData | null;
   planExpiryActive: boolean;
+  needs2FA: boolean;
+  checking2FA: boolean;
   signUp: (email: string, password: string, options?: { fullName?: string }) => Promise<{ data: any; error: any | null }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any | null }>;
   signInWithGoogle: () => Promise<void>;
@@ -61,6 +63,37 @@ export const useAuth = () => {
   return context;
 };
 
+// Utility to get verification key
+const getVerificationKey = (userId: string, accessToken?: string): string => {
+  const tokenPart = accessToken ? accessToken.slice(0, 16) : 'no-token';
+  return `2fa_verified:${userId}:${tokenPart}`;
+};
+
+// Utility to clear all 2FA verification keys for a user
+const clearAllVerificationKeys = (userId: string): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith(`2fa_verified:${userId}:`)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+  } catch {
+    // Silent fail - session storage may not be available
+  }
+};
+
+// Safe error logger (only in development)
+const logError = (context: string, error: any): void => {
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[Auth Error - ${context}]:`, error);
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -68,13 +101,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
-  const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
+  const [needs2FA, setNeeds2FA] = useState(false);
+  const [checking2FA, setChecking2FA] = useState(false);
   const profileChannelRef = useRef<any>(null);
 
-  const shouldShowPopup = expiryData?.show_popup || false;
+  const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
+
+  // Only show popup if 2FA check is complete, not required, and user is verified
+  const shouldShowPopup = !checking2FA && !needs2FA && (expiryData?.show_popup || false);
 
   // Load or create user profile
-  const loadUserProfile = useCallback(async (user: User) => {
+  const loadUserProfile = useCallback(async (user: User): Promise<void> => {
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -82,19 +119,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq("user_id", user.id)
         .single();
 
-      if (data) {  
-        setProfile({  
-          ...data,  
-          ip_address: (data.ip_address as string | null) ?? '',  
-          word_balance: data.word_balance ?? Math.max(0, data.words_limit - data.words_used),  
+      if (data) {
+        setProfile({
+          ...data,
+          ip_address: (data.ip_address as string | null) ?? '',
+          word_balance: data.word_balance ?? Math.max(0, data.words_limit - data.words_used),
         });
-        setLocationData({ country: data.country || "India", currency: "INR" });  
-      } else if (error?.code === "PGRST116") {  
-        setProfile(null);  
-        setLocationData({ country: "India", currency: "INR" });  
-      }  
-    } catch (err) {  
-      // Silent error handling in production  
+        setLocationData({ country: data.country || "India", currency: "INR" });
+      } else if (error?.code === "PGRST116") {
+        setProfile(null);
+        setLocationData({ country: "India", currency: "INR" });
+      } else if (error) {
+        logError('loadUserProfile', error);
+      }
+    } catch (err) {
+      logError('loadUserProfile', err);
+    }
+  }, []);
+
+  // Check 2FA status
+  const check2FAStatus = useCallback(async (userId: string, accessToken?: string): Promise<boolean> => {
+    setChecking2FA(true);
+
+    try {
+      // Check if already verified in this session
+      const verifiedKey = getVerificationKey(userId, accessToken);
+      const isVerified = typeof window !== 'undefined' && sessionStorage.getItem(verifiedKey) === 'true';
+
+      if (isVerified) {
+        setNeeds2FA(false);
+        setChecking2FA(false);
+        return false;
+      }
+
+      // Check if 2FA is enabled in database
+      const { data: settings, error } = await supabase
+        .from('user_2fa_settings')
+        .select('enabled')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        logError('check2FAStatus', error);
+      }
+
+      const requires2FA = !!settings?.enabled;
+      setNeeds2FA(requires2FA);
+      setChecking2FA(false);
+      return requires2FA;
+    } catch (err) {
+      logError('check2FAStatus', err);
+      setNeeds2FA(false);
+      setChecking2FA(false);
+      return false;
     }
   }, []);
 
@@ -102,117 +179,132 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    const handleSession = async (currentSession: Session | null) => {  
-      if (!mounted) return;  
-      const currentUser = currentSession?.user ?? null;
-      
-      // CRITICAL: Set user/session state FIRST before any redirects
-      setSession(currentSession);  
-      setUser(currentUser);
-      
-      // Check 2FA status for OAuth or email users
-      if (currentUser) {
-        await loadUserProfile(currentUser);
-        
-        const { data: twoFASettings } = await supabase
-          .from('user_2fa_settings')
-          .select('enabled')
-          .eq('user_id', currentUser.id)
-          .single();
+    const handleSession = async (currentSession: Session | null): Promise<void> => {
+      if (!mounted) return;
 
-        // Build a per-session verification key (prevents redirect loop after successful verify)
-        const accessToken = currentSession?.access_token ?? null;
-        const tokenPart = accessToken ? accessToken.slice(0, 16) : 'no-token';
-        const verifiedKey = `2fa_verified:${currentUser.id}:${tokenPart}`;
-        const is2FAVerified = typeof window !== 'undefined' && sessionStorage.getItem(verifiedKey) === 'true';
-        
-        if (twoFASettings?.enabled) {
-          if (!is2FAVerified) {
-            // 2FA required but not verified yet - redirect to verify page
-            if (window.location.pathname !== '/verify-2fa') {
-              // Use setTimeout to ensure state updates complete before redirect
-              setTimeout(() => {
-                window.location.href = '/verify-2fa';
-              }, 100);
-              return;
-            }
-          } else if (window.location.pathname === '/verify-2fa') {
-            // Already verified for this session, go to app
-            window.location.href = '/tool';
-          }
-        } else if (window.location.pathname === '/verify-2fa') {
-          // 2FA not required, redirect to app
-          window.location.href = '/tool';
-        }
-      }  
+      const currentUser = currentSession?.user ?? null;
+
+      // Set user and session immediately
+      setUser(currentUser);
+      setSession(currentSession);
+
+      if (currentUser) {
+        // Load profile first
+        await loadUserProfile(currentUser);
+
+        // Then check 2FA status (but don't redirect here)
+        await check2FAStatus(currentUser.id, currentSession?.access_token);
+      } else {
+        // User logged out
+        setProfile(null);
+        setLocationData(null);
+        setNeeds2FA(false);
+        setChecking2FA(false);
+      }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {  
-      handleSession(session).finally(() => {  
-        if (mounted) setLoading(false);  
-        setAuthInitialized(true);  
-      });  
-    });  
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session).finally(() => {
+        if (mounted) {
+          setLoading(false);
+          setAuthInitialized(true);
+        }
+      });
+    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {  
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       handleSession(session);
-      
-      // Manage session cookie on auth state changes
+
+      // Manage session cookie
       if (session?.access_token) {
-        document.cookie = `auth_session=${session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+        try {
+          document.cookie = `auth_session=${session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+        } catch {
+          // Cookie setting may fail in some contexts
+        }
       } else {
-        document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
+        try {
+          document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
+        } catch {
+          // Cookie deletion may fail in some contexts
+        }
       }
     });
 
-    return () => {  
-      mounted = false;  
-      subscription?.unsubscribe();  
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
     };
-  }, [loadUserProfile]);
+  }, [loadUserProfile, check2FAStatus]);
 
   // Realtime profile updates
   useEffect(() => {
-    if (profileChannelRef.current) profileChannelRef.current.unsubscribe();
-    if (user?.id) {
-      const channel = supabase
-        .channel(`profile-updates-${user.id}`)
-        .on(
-          "postgres_changes",
-          { 
-            event: "UPDATE", 
-            schema: "public", 
-            table: "profiles", 
-            filter: `user_id=eq.${user.id}` 
-          },
-          (payload) => {
-            const newProfile = payload.new as Profile;
-            setProfile(prev => ({
-              ...prev,
-              ...newProfile,
-              word_balance: newProfile.word_balance ?? Math.max(0, newProfile.words_limit - newProfile.words_used),
-            }));
-          }
-        )
-        .subscribe();
-      profileChannelRef.current = channel;
+    if (profileChannelRef.current) {
+      try {
+        profileChannelRef.current.unsubscribe();
+      } catch {
+        // Ignore unsubscribe errors
+      }
     }
-    return () => profileChannelRef.current?.unsubscribe();
+
+    if (user?.id) {
+      try {
+        const channel = supabase
+          .channel(`profile-updates-${user.id}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "profiles",
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              const newProfile = payload.new as Profile;
+              setProfile(prev => ({
+                ...prev,
+                ...newProfile,
+                word_balance: newProfile.word_balance ?? Math.max(0, newProfile.words_limit - newProfile.words_used),
+              }));
+            }
+          )
+          .subscribe();
+        profileChannelRef.current = channel;
+      } catch (err) {
+        logError('realtimeProfile', err);
+      }
+    }
+
+    return () => {
+      if (profileChannelRef.current) {
+        try {
+          profileChannelRef.current.unsubscribe();
+        } catch {
+          // Ignore unsubscribe errors
+        }
+      }
+    };
   }, [user?.id]);
 
   // Auth actions
-  const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    options?: { fullName?: string }
+  ): Promise<{ data: any; error: any | null }> => {
     try {
       const { data, error } = await supabase.functions.invoke("signup", {
         body: { email, password, fullName: options?.fullName }
       });
 
-      // Parse the response
       let parsedData;
       try {
         parsedData = typeof data === "string" ? JSON.parse(data) : data;
-      } catch (parseError) {
-        if (error) return { data: null, error: new Error("Network error. Please check your connection and try again.") };
+      } catch {
+        if (error) {
+          logError('signUp', error);
+          return { data: null, error: new Error("Network error. Please check your connection and try again.") };
+        }
         return { data: null, error: new Error("Unexpected server response. Please try again.") };
       }
 
@@ -223,33 +315,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { data: parsedData, error: null };
     } catch (err) {
-      // Silent error handling
+      logError('signUp', err);
       return { data: null, error: new Error("Network error. Please check your connection and try again.") };
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<{ data: any; error: any | null }> => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error && error.message.includes("Email not confirmed")) {
-        return { data, error: new Error("Please confirm your email before signing in.") };
+
+      if (error) {
+        logError('signIn', error);
+        if (error.message.includes("Email not confirmed")) {
+          return { data, error: new Error("Please confirm your email before signing in.") };
+        }
+        return { data, error };
       }
-      
+
       // Create session cookie on successful login
       if (data?.session) {
-        document.cookie = `auth_session=${data.session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+        try {
+          document.cookie = `auth_session=${data.session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+        } catch {
+          // Cookie setting may fail
+        }
       }
-      
+
       return { data, error };
     } catch (err) {
-      // Silent error handling
+      logError('signIn', err);
       return { data: null, error: err as Error };
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<void> => {
     try {
-      // Let AuthContext handle 2FA redirect after successful OAuth
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -258,44 +361,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
     } catch (err) {
-      // Silent error handling in production
-      if (window.location.hostname === 'localhost') {
-        throw err;
-      }
+      logError('signInWithGoogle', err);
+      throw err;
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (): Promise<{ error: any | null }> => {
     try {
-      // Delete session cookie on logout
-      document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
-      
+      // CRITICAL: Clear all 2FA verification keys for this user
+      if (user?.id) {
+        clearAllVerificationKeys(user.id);
+      }
+
+      // Delete session cookie
+      try {
+        document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
+      } catch {
+        // Cookie deletion may fail
+      }
+
       const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        logError('signOut', error);
+      }
+
+      // Clear all state
       setUser(null);
       setSession(null);
       setProfile(null);
       setLocationData(null);
+      setNeeds2FA(false);
+      setChecking2FA(false);
+
       return { error };
     } catch (err) {
-      // Silent error handling
+      logError('signOut', err);
       return { error: err as Error };
     }
   };
 
-  const refreshProfile = useCallback(async () => {
+  const refreshProfile = useCallback(async (): Promise<void> => {
     if (user) await loadUserProfile(user);
   }, [user, loadUserProfile]);
 
-  const updateProfile = async (data: Partial<Profile>) => {
+  const updateProfile = async (data: Partial<Profile>): Promise<void> => {
     if (!user?.id) return;
+
     try {
       if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
       }
-      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      // Silent error handling
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(data)
+        .eq("user_id", user.id);
+
+      if (error) {
+        logError('updateProfile', error);
+      }
     } catch (err) {
-      // Silent error handling
+      logError('updateProfile', err);
     }
   };
 
@@ -306,6 +433,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading: loading || !authInitialized,
     locationData,
     planExpiryActive: shouldShowPopup,
+    needs2FA,
+    checking2FA,
     signUp,
     signIn,
     signInWithGoogle,

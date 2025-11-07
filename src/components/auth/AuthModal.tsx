@@ -6,41 +6,37 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft, Shield } from "lucide-react";
+import { Loader2, Mail, Lock, User, Eye, EyeOff, Mic, CheckCircle, ArrowLeft } from "lucide-react";
 import { IndiaOnlyAlert } from "@/components/common/IndiaOnlyAlert";
 import { LocationCacheService } from "@/services/locationCache";
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { FcGoogle } from "react-icons/fc";
-import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
 
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password' | '2fa-verify';
+type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password';
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [redirectPath, setRedirectPath] = useState('/tool');
 
-  // --- States for Sign In ---
+  // Sign In States
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
-  const [pendingUser, setPendingUser] = useState<any>(null);
-  const [twoFACode, setTwoFACode] = useState('');
-  const [useBackupCode, setUseBackupCode] = useState(false);
 
-  // --- States for Sign Up ---
+  // Sign Up States
   const [signUpFullName, setSignUpFullName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
 
-  // --- Common States ---
+  // Common States
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isIndianUser, setIsIndianUser] = useState<boolean>(true);
@@ -48,13 +44,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [resetEmail, setResetEmail] = useState('');
   const { signUp, signIn, signInWithGoogle } = useAuth();
 
-  // --- Loading States ---
+  // Loading States
   const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isResetLoading, setIsResetLoading] = useState(false);
   const isAuthLoading = isEmailLoading || isGoogleLoading;
 
-  // --- Field Clearing Functions ---
+  // Field Clearing Functions
   const clearSignInFields = () => {
     setSignInEmail('');
     setSignInPassword('');
@@ -80,9 +76,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   useEffect(() => {
     const shouldOpen = searchParams.get('auth') === 'open';
     const view = searchParams.get('view');
+
     if (shouldOpen) {
       onOpenChange(true);
-      if (view === 'forgot-password') setCurrentView('forgot-password');
+      if (view === 'forgot-password') {
+        setCurrentView('forgot-password');
+      }
+
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('auth');
       newSearchParams.delete('view');
@@ -94,15 +94,21 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   useEffect(() => {
     if (open) {
       const currentPath = window.location.pathname;
-      if (currentPath !== '/' && currentPath !== '/tool') setRedirectPath(currentPath);
+      if (currentPath !== '/' && currentPath !== '/tool') {
+        setRedirectPath(currentPath);
+      }
+
       clearAllFields();
       setCurrentView('choice');
-      LocationCacheService.getLocation().then(location => setIsIndianUser(location.isIndian));
+
+      LocationCacheService.getLocation()
+        .then(location => setIsIndianUser(location.isIndian))
+        .catch(() => setIsIndianUser(true));
     }
   }, [open]);
 
-  const validatePassword = (password: string) => {
-    const requirements = [];
+  const validatePassword = (password: string): string[] => {
+    const requirements: string[] = [];
     if (password.length < 8) requirements.push('at least 8 characters');
     if (!/[a-z]/.test(password)) requirements.push('one lowercase letter');
     if (!/[A-Z]/.test(password)) requirements.push('one uppercase letter');
@@ -110,7 +116,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     return requirements;
   };
 
-  // --- Event Handlers ---
+  // Event Handlers
   const handleSignInKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isAuthLoading) {
       e.preventDefault();
@@ -135,25 +141,43 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
-  // --- Sign In ---
+  // Sign In Handler
   const handleSignIn = async () => {
-    if (!signInEmail || !signInPassword) return toast.error('Please fill in all fields');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInEmail)) return toast.error('Please enter a valid email address');
+    if (!signInEmail || !signInPassword) {
+      return toast.error('Please fill in all fields');
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInEmail)) {
+      return toast.error('Please enter a valid email address');
+    }
 
     setIsEmailLoading(true);
+
     try {
-      const { data, error } = await signIn(signInEmail.trim().toLowerCase(), signInPassword);
+      const { data, error } = await signIn(
+        signInEmail.trim().toLowerCase(),
+        signInPassword
+      );
+
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast.error("Invalid email or password. If you signed up with Google, please use 'Continue with Google'.", { duration: 6000 });
+          toast.error(
+            "Invalid email or password. If you signed up with Google, please use 'Continue with Google'.",
+            { duration: 6000 }
+          );
         } else if (error.message.includes('Email not confirmed')) {
-          toast.error('Please confirm your email address first. Check your inbox for the confirmation link.', { duration: 8000 });
+          toast.error(
+            'Please confirm your email address first. Check your inbox for the confirmation link.',
+            { duration: 8000 }
+          );
         } else {
           toast.error(error.message || 'Sign in failed. Please try again.');
         }
+        setIsEmailLoading(false);
         return;
       }
-      if (data.user) {
+
+      if (data?.user) {
         // Check if 2FA is enabled
         const { data: twoFAData } = await supabase
           .from('user_2fa_settings')
@@ -161,59 +185,35 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           .eq('user_id', data.user.id)
           .single();
 
+        // Close modal and clear fields
+        onOpenChange(false);
+        clearSignInFields();
+        setIsEmailLoading(false);
+
         if (twoFAData?.enabled) {
-          // Navigate to dedicated /verify-2fa route without hard refresh
-          onOpenChange(false);
-          navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
-          setIsEmailLoading(false);
+          // Small delay to ensure modal closes smoothly before redirect
+          setTimeout(() => {
+            navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
+          }, 100);
           return;
         }
 
+        // No 2FA required - proceed normally
         toast.success('Welcome back!');
-        onOpenChange(false);
         navigate(redirectPath, { replace: true });
       }
     } catch (err) {
       toast.error('An unexpected error occurred.');
-    } finally {
-      setIsEmailLoading(false);
-      clearSignInFields();
-    }
-  };
-
-  const handleVerify2FA = async () => {
-    if (!twoFACode || (!useBackupCode && twoFACode.length !== 6)) {
-      return toast.error('Please enter a valid code');
-    }
-
-    setIsEmailLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-2fa', {
-        body: { code: twoFACode, isBackupCode: useBackupCode },
-      });
-
-      if (error || !data?.success) {
-        toast.error(error?.message || 'Invalid code. Please try again.');
-        return;
-      }
-
-      toast.success('Welcome back!');
-      setPendingUser(null);
-      setTwoFACode('');
-      onOpenChange(false);
-      navigate(redirectPath, { replace: true });
-    } catch (err) {
-      toast.error('Verification failed. Please try again.');
-    } finally {
       setIsEmailLoading(false);
     }
   };
 
-  // --- Sign Up ---
+  // Sign Up Handler
   const handleSignUp = async () => {
     if (!signUpEmail || !signUpPassword || !signUpFullName.trim()) {
       return toast.error('Please fill in all required fields');
     }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signUpEmail)) {
       return toast.error('Please enter a valid email address');
     }
@@ -238,21 +238,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       const location = await LocationCacheService.getLocation();
       if (!location.isIndian) {
         toast.error('Signup is only available in India');
+        setIsEmailLoading(false);
         return;
       }
 
-      // Use the signUp function from AuthContext
       const { data, error } = await signUp(
         signUpEmail.trim().toLowerCase(),
         signUpPassword,
         { fullName: signUpFullName.trim() }
       );
 
-      // Handle errors
       if (error) {
         const errorMessage = error.message || 'Signup failed. Please try again.';
 
-        // Handle specific errors
         if (errorMessage.includes('already exists') || errorMessage.includes('already registered')) {
           toast.error('An account with this email already exists. Please sign in instead.');
           setCurrentView('signin');
@@ -262,25 +260,30 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         } else {
           toast.error(errorMessage);
         }
+
+        setIsEmailLoading(false);
         return;
       }
 
-      // Success!
-      toast.success('Account created successfully! Please check your email to verify your account.', { duration: 10000 });
+      toast.success(
+        'Account created successfully! Please check your email to verify your account.',
+        { duration: 10000 }
+      );
+
       clearSignUpFields();
       setCurrentView('signin');
       setSignInEmail(signUpEmail);
-
+      setIsEmailLoading(false);
     } catch (err) {
       toast.error('Network error. Please check your connection and try again.');
-    } finally {
       setIsEmailLoading(false);
     }
   };
 
-  // --- Google Sign In ---
+  // Google Sign In Handler
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
+
     try {
       await signInWithGoogle();
       // Redirect will occur; keep modal open until navigation
@@ -290,47 +293,55 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
-  // --- Forgot Password ---
+  // Forgot Password Handler
   const handleForgotPassword = async () => {
-    if (!resetEmail) return toast.error('Please enter your email address');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)) return toast.error('Please enter a valid email address');
+    if (!resetEmail) {
+      return toast.error('Please enter your email address');
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)) {
+      return toast.error('Please enter a valid email address');
+    }
 
     setIsResetLoading(true);
+
     try {
       const { data, error } = await supabase.functions.invoke('send-password-reset', {
         body: { email: resetEmail.trim().toLowerCase() }
       });
 
-      // Check for network/function errors first
       if (error) {
         toast.error('Failed to send reset email. Please check your connection and try again.');
+        setIsResetLoading(false);
         return;
       }
 
-      // Parse the response data
       let result = data;
       if (typeof data === 'string') {
         try {
           result = JSON.parse(data);
         } catch {
-          // Parse error - silent fail
+          // Parse error - continue
         }
       }
 
-      // Check if the edge function returned an error in the response body
       if (result?.error) {
         toast.error('Failed to send reset email. Please try again.');
+        setIsResetLoading(false);
         return;
       }
 
-      // Success - show generic message for security
-      toast.success('If an account exists with this email, a password reset link has been sent. Please check your inbox.', { duration: 8000 });
+      toast.success(
+        'If an account exists with this email, a password reset link has been sent. Please check your inbox.',
+        { duration: 8000 }
+      );
+
       setCurrentView('choice');
+      setResetEmail('');
+      setIsResetLoading(false);
     } catch (err) {
       toast.error('Network error. Please check your connection and try again.');
-    } finally {
       setIsResetLoading(false);
-      setResetEmail('');
     }
   };
 
@@ -375,7 +386,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             {/* CHOICE VIEW */}
             {currentView === 'choice' && (
               <div className="space-y-4 pt-4">
-               <Button
+                <Button
                   variant="outline"
                   className="w-full h-12 flex items-center justify-center gap-3 text-base font-medium hover:bg-accent"
                   onClick={() => setCurrentView('signin')}
@@ -406,6 +417,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   )}
                   {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
                 </Button>
+
                 <div className="text-center pt-4">
                   <p className="text-sm text-muted-foreground">
                     Don't have an account?{' '}
@@ -572,7 +584,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                     </button>
                   </div>
                   {signUpPassword && validatePassword(signUpPassword).length > 0 && (
-                    <p className="text-xs text-destructive">Required: {validatePassword(signUpPassword).join(', ')}</p>
+                    <p className="text-xs text-destructive">
+                      Required: {validatePassword(signUpPassword).join(', ')}
+                    </p>
                   )}
                 </div>
 
@@ -614,11 +628,21 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
                   />
                   <Label htmlFor="terms" className="text-sm">
                     I agree to the{' '}
-                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
                       Terms
                     </a>{' '}
                     and{' '}
-                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
                       Privacy Policy
                     </a>
                   </Label>
@@ -689,89 +713,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           </>
         )}
       </DialogContent>
-
-      {/* 2FA Verification View */}
-      {currentView === '2fa-verify' && (
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Two-Factor Authentication
-            </DialogTitle>
-            <DialogDescription>
-              Enter the code from your authenticator app
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {!useBackupCode ? (
-              <>
-                <Label>Authentication Code</Label>
-                <div className="flex justify-center">
-                  <InputOTP maxLength={6} value={twoFACode} onChange={setTwoFACode}>
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-              </>
-            ) : (
-              <>
-                <Label htmlFor="backup-code">Backup Code</Label>
-                <Input
-                  id="backup-code"
-                  value={twoFACode}
-                  onChange={(e) => setTwoFACode(e.target.value.toUpperCase())}
-                  placeholder="Enter backup code"
-                  className="font-mono"
-                />
-              </>
-            )}
-
-            <Button
-              onClick={handleVerify2FA}
-              disabled={isEmailLoading || !twoFACode}
-              className="w-full"
-            >
-              {isEmailLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Verify & Sign In
-            </Button>
-
-            <Button
-              variant="link"
-              onClick={() => {
-                setUseBackupCode(!useBackupCode);
-                setTwoFACode('');
-              }}
-              className="w-full"
-            >
-              {useBackupCode ? 'Use authenticator code' : 'Use backup code instead'}
-            </Button>
-
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setCurrentView('choice');
-                setPendingUser(null);
-                setTwoFACode('');
-                setUseBackupCode(false);
-              }}
-              className="w-full"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Sign In
-            </Button>
-          </div>
-        </DialogContent>
-      )}
     </Dialog>
   );
 }

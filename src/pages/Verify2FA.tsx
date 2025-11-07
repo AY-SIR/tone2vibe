@@ -19,7 +19,7 @@ export default function Verify2FA() {
   const { user, session, signOut } = useAuth();
 
   useEffect(() => {
-    // Wait a moment for auth state to settle
+    // Wait for auth state to settle
     const timer = setTimeout(() => {
       if (!user) {
         navigate("/", { replace: true });
@@ -44,39 +44,46 @@ export default function Verify2FA() {
     }
 
     setLoading(true);
+
     try {
       const { data, error } = await supabase.functions.invoke('verify-2fa', {
         body: { code, isBackupCode: useBackup },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data?.success) {
-        // Mark this session as 2FA-verified to prevent redirect loop
+        // Mark this session as 2FA-verified
         try {
           if (user && session?.access_token) {
             const tokenPart = session.access_token.slice(0, 16);
             const verifiedKey = `2fa_verified:${user.id}:${tokenPart}`;
             sessionStorage.setItem(verifiedKey, 'true');
           }
-        } catch {}
+        } catch {
+          // Session storage may not be available
+        }
+
         toast({
           title: "Success",
           description: "2FA verification successful",
         });
+
         navigate(redirectTarget, { replace: true });
       } else {
         toast({
           variant: "destructive",
           title: "Verification Failed",
-          description: data.message || "Invalid code. Please try again.",
+          description: data?.message || "Invalid code. Please try again.",
         });
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Verification Failed",
-        description: error.message || "Invalid code. Please try again.",
+        description: error?.message || "Invalid code. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -104,10 +111,14 @@ export default function Verify2FA() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            Two-Factor Authentication Required
-          </CardTitle>
+         <CardTitle className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-lg sm:text-xl text-center sm:text-left">
+  <div className="flex items-center gap-2">
+    <Shield className="w-5 h-5 sm:w-6 sm:h-6" />
+    <span>Two-Factor Authentication</span>
+  </div>
+  <span>Required</span>
+</CardTitle>
+
           <CardDescription>
             Enter the 6-digit code from your authenticator app
           </CardDescription>
@@ -140,7 +151,7 @@ export default function Verify2FA() {
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Verify & Continue
             </Button>
-            
+
             {!useBackup && (
               <Button
                 variant="link"
@@ -156,7 +167,7 @@ export default function Verify2FA() {
               onClick={handleCancel}
               disabled={loading}
             >
-              Cancel & Sign Out
+              Cancel
             </Button>
           </div>
 

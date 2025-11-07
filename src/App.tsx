@@ -11,9 +11,8 @@ import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
 import { WordLimitPopup } from "./components/common/WordLimitPopup";
 import { CookieConsent } from "./components/common/CookieConsent";
 import { useOfflineDetection } from "@/hooks/useOfflineDetection";
-import { supabase } from "@/integrations/supabase/client";
 
-// Normal imports
+// Page imports
 import Index from "./pages/Index";
 import Tool from "./pages/Tool";
 import Payment from "./pages/Payment";
@@ -44,7 +43,7 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive, user, session } = useAuth();
+  const { planExpiryActive, user, needs2FA, checking2FA } = useAuth();
   const { isOffline, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -52,8 +51,13 @@ function AppContent() {
 
   // Check cookie consent on mount
   useEffect(() => {
-    const consent = localStorage.getItem("cookie-consent");
-    setCookieConsent(consent);
+    try {
+      const consent = localStorage.getItem("cookie-consent");
+      setCookieConsent(consent);
+    } catch {
+      // LocalStorage may not be available
+      setCookieConsent(null);
+    }
   }, []);
 
   // Disable right-click
@@ -66,33 +70,52 @@ function AppContent() {
   }, []);
 
   const handleCookieAccept = () => {
-    setCookieConsent("accepted");
+    try {
+      localStorage.setItem("cookie-consent", "accepted");
+      setCookieConsent("accepted");
+    } catch {
+      // LocalStorage may not be available
+    }
   };
 
   const handleCookieDecline = () => {
-    setCookieConsent("declined");
+    try {
+      localStorage.setItem("cookie-consent", "declined");
+      setCookieConsent("declined");
+    } catch {
+      // LocalStorage may not be available
+    }
   };
 
-  // Proactive client 2FA redirect on public routes (smooth, no flash)
+  // Handle 2FA redirect - centralized logic
   useEffect(() => {
-    if (!user) return;
-    const tokenPart = session?.access_token ? session.access_token.slice(0, 16) : 'no-token';
-    const verifiedKey = `2fa_verified:${user.id}:${tokenPart}`;
-    const isVerified = typeof window !== 'undefined' && sessionStorage.getItem(verifiedKey) === 'true';
-    if (isVerified) return;
+    // Don't redirect if:
+    // - No user logged in
+    // - Still checking 2FA status
+    // - Already on verify-2fa page
+    // - On public pages
+    if (!user || checking2FA) return;
 
-    const check = async () => {
-      const { data } = await supabase
-        .from('user_2fa_settings')
-        .select('enabled')
-        .eq('user_id', user.id)
-        .single();
-      if (data?.enabled && location.pathname !== '/verify-2fa') {
-        navigate(`/verify-2fa?redirect=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
-      }
-    };
-    check();
-  }, [user?.id, session?.access_token, location.pathname, location.search, navigate]);
+    const publicPaths = [
+      '/',
+      '/privacy',
+      '/terms',
+      '/contact',
+      '/cookies',
+      '/email-confirmation',
+      '/reset-password'
+    ];
+
+    if (publicPaths.includes(location.pathname)) return;
+    if (location.pathname === '/verify-2fa') return;
+
+    // If 2FA is needed and not on verification page, redirect
+    if (needs2FA) {
+      const currentPath = location.pathname + location.search;
+      const redirectUrl = `/verify-2fa?redirect=${encodeURIComponent(currentPath)}`;
+      navigate(redirectUrl, { replace: true });
+    }
+  }, [user, needs2FA, checking2FA, location.pathname, location.search, navigate]);
 
   // Show offline screen when offline (only after initial status check)
   if (statusChecked && isOffline) {
@@ -103,14 +126,8 @@ function AppContent() {
   return (
     <>
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<Index />} />
-        <Route path="/tool" element={<ProtectedRoute><Tool /></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-        <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-        <Route path="/payment-failed" element={<ProtectedRoute><PaymentFailed /></ProtectedRoute>} />
-        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
@@ -118,9 +135,70 @@ function AppContent() {
         <Route path="/email-confirmation" element={<EmailConfirmation />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-2fa" element={<Verify2FA />} />
+
+        {/* Protected routes */}
+        <Route
+          path="/tool"
+          element={
+            <ProtectedRoute>
+              <Tool />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <History />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payment"
+          element={
+            <ProtectedRoute>
+              <Payment />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payment-success"
+          element={
+            <ProtectedRoute>
+              <PaymentSuccess />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payment-failed"
+          element={
+            <ProtectedRoute>
+              <PaymentFailed />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>
 
+      {/* Global components */}
       {!cookieConsent && (
         <CookieConsent
           onAccept={handleCookieAccept}
