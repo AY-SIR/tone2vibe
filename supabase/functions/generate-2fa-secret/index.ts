@@ -60,9 +60,11 @@ serve(async (req) => {
 
     const secret = totp.secret.base32;
 
-    // Generate QR code
+    // Generate QR code as SVG (works in Deno without canvas)
     const otpauthUrl = totp.toString();
-    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+    const qrCodeSvg = await QRCode.toString(otpauthUrl, { type: 'svg', width: 200 });
+    // Convert SVG to data URL
+    const qrCodeDataUrl = `data:image/svg+xml;base64,${btoa(qrCodeSvg)}`;
 
     // Store secret (not enabled yet)
     const { error: upsertError } = await supabaseClient
