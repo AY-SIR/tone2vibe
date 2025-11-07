@@ -41,17 +41,12 @@ export class CouponService {
     }
 
     try {
-      // Base query
-      let query = supabase.from("coupons").select("*").ilike("code", code);
-
-      // Apply type filter if provided
-      if (type) query = query.eq("type", type);
-
-      // Execute query
-      const { data, error } = await query.maybeSingle();
+      // Use secure database function instead of direct query
+      const { data, error } = await supabase.rpc('validate_coupon_secure', {
+        p_coupon_code: code.trim()
+      });
 
       if (error) {
-        console.error("Error fetching coupon:", error);
         return {
           isValid: false,
           discount: 0,
@@ -59,7 +54,7 @@ export class CouponService {
         };
       }
 
-      if (!data) {
+      if (!data || data.length === 0) {
         return {
           isValid: false,
           discount: 0,
@@ -67,62 +62,42 @@ export class CouponService {
         };
       }
 
-      const coupon = data as any;
+      const result = data[0];
 
-      // Check if coupon is active
-      if (!coupon.active) {
+      if (!result.is_valid) {
         return {
           isValid: false,
           discount: 0,
-          message: "This coupon is no longer active.",
-        };
-      }
-
-      // Check expiration
-      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-        return {
-          isValid: false,
-          discount: 0,
-          message: "This coupon has expired.",
-        };
-      }
-
-      // Check usage limit
-      if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
-        return {
-          isValid: false,
-          discount: 0,
-          message: "This coupon has reached its usage limit.",
+          message: result.error_message || "Invalid coupon code.",
         };
       }
 
       // Calculate discount
       let discount = 0;
-      if (coupon.discount_percentage && coupon.discount_percentage > 0) {
-        discount = Math.floor((amount * coupon.discount_percentage) / 100);
-      } else if (coupon.discount_amount && coupon.discount_amount > 0) {
-        discount = Math.min(amount, Number(coupon.discount_amount));
+      if (result.discount_percentage && result.discount_percentage > 0) {
+        discount = Math.floor((amount * result.discount_percentage) / 100);
+      } else if (result.discount_amount && result.discount_amount > 0) {
+        discount = Math.min(amount, Number(result.discount_amount));
       }
 
       return {
         isValid: true,
         discount,
-        code: coupon.code,
+        code: result.code,
         message: "Coupon applied successfully!",
         coupon: {
-          id: coupon.id,
-          code: coupon.code,
-          discount_percentage: coupon.discount_percentage,
-          discount_amount: coupon.discount_amount,
-          type: coupon.type,
-          expires_at: coupon.expires_at,
-          max_uses: coupon.max_uses,
-          used_count: coupon.used_count,
-          last_used_at: coupon.last_used_at,
+          id: result.id,
+          code: result.code,
+          discount_percentage: result.discount_percentage,
+          discount_amount: result.discount_amount,
+          type: result.type,
+          expires_at: result.expires_at,
+          max_uses: result.max_uses,
+          used_count: result.used_count,
+          last_used_at: null,
         },
       };
     } catch (err) {
-      console.error("Unexpected error in validateCoupon:", err);
       return {
         isValid: false,
         discount: 0,

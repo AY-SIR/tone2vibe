@@ -22,16 +22,21 @@ export const WordLimitPopup = ({ planExpiryActive = false }: WordLimitPopupProps
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!profile || planExpiryActive) return; // Don't show if plan expiry is active
+    if (!profile || planExpiryActive) return;
+
+    // Check if popup was already shown in this session
+    const popupShownKey = `word_limit_popup_shown_${profile.user_id}`;
+    const lastShown = sessionStorage.getItem(popupShownKey);
+    
+    if (lastShown) return; // Don't show if already shown in this session
 
     const planWordsRemaining = Math.max(0, profile.words_limit - profile.plan_words_used);
     const totalAvailable = planWordsRemaining + profile.word_balance;
 
-    // Show popup when total words remaining is less than 100
-    if (totalAvailable < 100 && totalAvailable > 0) {
+    // Show popup when total words remaining is less than 100 or out of words
+    if (totalAvailable < 100) {
       setShowPopup(true);
-    } else if (totalAvailable <= 0) {
-      setShowPopup(true);
+      sessionStorage.setItem(popupShownKey, Date.now().toString());
     }
   }, [profile, planExpiryActive]);
 

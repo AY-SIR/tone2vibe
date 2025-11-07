@@ -140,9 +140,27 @@ export const TwoFactorSetup = ({ open, onOpenChange, onSuccess }: TwoFactorSetup
             <Card className="p-4 flex justify-center">
               {qrCode && <img src={qrCode} alt="QR Code" className="w-48 h-48" />}
             </Card>
-            <p className="text-xs text-muted-foreground text-center">
-              Or enter this key manually: <code className="bg-muted px-2 py-1 rounded">{secret}</code>
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground text-center">
+                Or enter this key manually:
+              </p>
+              <div className="flex items-center gap-2 justify-center">
+                <code className="bg-muted px-3 py-2 rounded text-sm font-mono">{secret}</code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(secret);
+                    toast({
+                      title: "Copied!",
+                      description: "Secret key copied to clipboard",
+                    });
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <Button onClick={() => setStep(3)} className="w-full">
               I've Scanned the QR Code
             </Button>

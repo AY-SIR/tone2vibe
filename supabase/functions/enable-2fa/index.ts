@@ -37,6 +37,7 @@ serve(async (req) => {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
+      console.error('enable-2fa: No user found in request');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -46,8 +47,9 @@ serve(async (req) => {
     const { code } = await req.json();
 
     if (!code || code.length !== 6) {
+      console.error('enable-2fa: Invalid code format', { code });
       return new Response(
-        JSON.stringify({ error: 'Invalid code format' }),
+        JSON.stringify({ error: 'Invalid code format. Please enter a 6-digit code.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -60,6 +62,7 @@ serve(async (req) => {
       .single();
 
     if (fetchError || !settings) {
+      console.error('enable-2fa: Failed to fetch 2FA settings', fetchError);
       return new Response(
         JSON.stringify({ error: '2FA not set up. Please generate a QR code first.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -67,6 +70,7 @@ serve(async (req) => {
     }
 
     if (settings.enabled) {
+      console.error('enable-2fa: 2FA already enabled for user', user.id);
       return new Response(
         JSON.stringify({ error: '2FA is already enabled' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -84,8 +88,9 @@ serve(async (req) => {
     const delta = totp.validate({ token: code, window: 1 });
 
     if (delta === null) {
+      console.error('enable-2fa: Invalid TOTP code for user', user.id);
       return new Response(
-        JSON.stringify({ error: 'Invalid verification code' }),
+        JSON.stringify({ error: 'Invalid verification code. Please check your authenticator app and try again.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -104,13 +109,14 @@ serve(async (req) => {
       .eq('user_id', user.id);
 
     if (updateError) {
-      console.error('Error enabling 2FA:', updateError);
+      console.error('enable-2fa: Database error enabling 2FA', updateError);
       return new Response(
-        JSON.stringify({ error: 'Failed to enable 2FA' }),
+        JSON.stringify({ error: 'Failed to enable 2FA. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('enable-2fa: Successfully enabled 2FA for user', user.id);
     return new Response(
       JSON.stringify({
         success: true,
@@ -119,8 +125,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    console.error('enable-2fa: Unexpected error', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
