@@ -19,7 +19,7 @@ interface AuthModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password';
+type ViewType = 'choice' | 'signin' | 'signup' | 'forgot-password' | 'verify-2fa';
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const navigate = useNavigate();
@@ -95,7 +95,7 @@ useEffect(() => {
   if (shouldOpen) {
     onOpenChange(true);
     if (view === 'forgot-password' || view === 'signin' || view === 'signup' || view === 'verify-2fa') {
-      setCurrentView(view as ViewType | 'verify-2fa');
+      setCurrentView(view as ViewType);
     }
 
     const newSearchParams = new URLSearchParams(searchParams);
@@ -204,7 +204,7 @@ useEffect(() => {
 
         if (twoFAData?.enabled) {
           // Stay in modal and switch to 2FA verification view
-          setCurrentView('verify-2fa' as any);
+          setCurrentView('verify-2fa');
           setIsEmailLoading(false);
           return;
         }
@@ -438,6 +438,7 @@ useEffect(() => {
             {currentView === 'signin' && 'Welcome back! Sign in to your account.'}
             {currentView === 'signup' && 'Create your account to get started.'}
             {currentView === 'forgot-password' && 'Reset your password'}
+            {currentView === 'verify-2fa' && 'Enter your two-factor authentication code'}
           </DialogDescription>
         </DialogHeader>
 
@@ -583,7 +584,7 @@ useEffect(() => {
             )}
 
             {/* 2FA VERIFY VIEW */}
-            {currentView === ('verify-2fa' as any) && (
+            {currentView === 'verify-2fa' && (
               <div className="space-y-4 pt-4">
                 <div className="space-y-2 text-center">
                   <Label>{useBackupCode ? 'Enter backup code' : 'Enter 6-digit authentication code'}</Label>
