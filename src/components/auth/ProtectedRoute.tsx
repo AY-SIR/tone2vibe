@@ -15,9 +15,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
   const [initialCheckDone, setInitialCheckDone] = useState(false);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
 
 // Handle 2FA verification requirement
 useEffect(() => {
+  // Don't check 2FA if we're already on the verify-2fa page
+  if (location.pathname === '/verify-2fa') {
+    setInitialCheckDone(true);
+    return;
+  }
+
   if (!loading && !checking2FA && user) {
     setInitialCheckDone(true);
 
@@ -33,13 +40,20 @@ useEffect(() => {
   }
 }, [loading, checking2FA, needs2FA, user, session, location, navigate]);
 
-// Show loading during auth check
-if (loading || checking2FA || (user && !initialCheckDone)) {
+// Handle redirect for non-authenticated users
+useEffect(() => {
+  if (!loading && !checking2FA && requireAuth && !user) {
+    setShouldRedirect(true);
+  }
+}, [loading, checking2FA, requireAuth, user]);
+
+// Show loading during auth check - keep it minimal to avoid flash
+if (loading || checking2FA || (user && !initialCheckDone && location.pathname !== '/verify-2fa')) {
   return <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10" />;
 }
 
 // Redirect to landing if auth required and user not logged in
-if (requireAuth && !user) {
+if (shouldRedirect) {
   const redirectPath = encodeURIComponent(location.pathname + location.search);
   return (
     <Navigate
