@@ -90,7 +90,7 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5" />
-            Two-Factor Authentication
+2FA Setup
           </CardTitle>
           <CardDescription>
             Add an extra layer of security to your account
@@ -152,7 +152,7 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
                     <InputOTPSlot index={1} />
                     <InputOTPSlot index={2} />
                   </InputOTPGroup>
-                  <InputOTPSeparator />
+
                   <InputOTPGroup>
                     <InputOTPSlot index={3} />
                     <InputOTPSlot index={4} />
@@ -160,7 +160,7 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
                   </InputOTPGroup>
                   {useBackupCode && (
                     <>
-                      <InputOTPSeparator />
+
                       <InputOTPGroup>
                         <InputOTPSlot index={6} />
                         <InputOTPSlot index={7} />

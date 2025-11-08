@@ -158,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('user_2fa_settings')
         .select('enabled')
         .eq('user_id', userId)
-        .single();
+              .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         logError('check2FAStatus', error);

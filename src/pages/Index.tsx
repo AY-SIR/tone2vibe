@@ -40,9 +40,11 @@ import { WelcomePopup } from "@/components/common/WelcomePopup";
 import { LocationService } from "@/services/locationService";
 
 const Index = () => {
-  const { user, profile } = useAuth();
+const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showUserUI, setShowUserUI] = useState(false);
+
 
 
   const [showAuthModal, setShowAuthModal] = useState(false);

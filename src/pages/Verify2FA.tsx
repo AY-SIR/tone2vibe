@@ -22,7 +22,9 @@ export default function Verify2FA() {
   useEffect(() => {
     const checkAuth = async () => {
       if (!user) {
-        navigate("/", { replace: true });
+        // Redirect to home with auth modal open
+        const redirect = searchParams.get("redirect") || "/tool";
+        navigate(`/?auth=open&redirect=${encodeURIComponent(redirect)}`, { replace: true });
         return;
       }
 
@@ -31,7 +33,7 @@ export default function Verify2FA() {
         .from('user_2fa_settings')
         .select('enabled')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() to handle missing rows
 
       if (!settings?.enabled) {
         // 2FA not enabled, redirect to intended page
@@ -182,7 +184,7 @@ export default function Verify2FA() {
                     <InputOTPSlot index={1} />
                     <InputOTPSlot index={2} />
                   </InputOTPGroup>
-                  <InputOTPSeparator />
+
                   <InputOTPGroup>
                     <InputOTPSlot index={3} />
                     <InputOTPSlot index={4} />

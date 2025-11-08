@@ -101,8 +101,8 @@ const Profile: React.FC = () => {
         .from('user_2fa_settings')
         .select('enabled, last_used_at')
         .eq('user_id', user.id)
-        .single();
-      
+        .maybeSingle(); // Use maybeSingle() to handle missing rows
+
       if (data) {
         setTwoFAEnabled(data.enabled);
         setTwoFALastUsed(data.last_used_at);
