@@ -8,28 +8,28 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ResponsiveGuard } from "@/components/common/ResponsiveGuard";
-import { WordLimitPopup } from "./components/common/WordLimitPopup";
-import { CookieConsent } from "./components/common/CookieConsent";
+import { WordLimitPopup } from "@/components/common/WordLimitPopup";
+import { CookieConsent } from "@/components/common/CookieConsent";
 import { useOfflineDetection } from "@/hooks/useOfflineDetection";
 
-// Page imports
-import Index from "./pages/Index";
-import Tool from "./pages/Tool";
-import Payment from "./pages/Payment";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentFailed from "./pages/PaymentFailed";
-import History from "./pages/History";
-import Analytics from "./pages/Analytics";
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
-import Contact from "./pages/Contact";
-import Cookies from "./pages/Cookies";
-import NotFound from "./pages/NotFound";
-import Profile from "./pages/Profile";
-import Offline from "./pages/Offline";
-import { EmailConfirmation } from "./pages/EmailConfirmation";
-import { ResetPassword } from "./pages/ResetPassword";
-import Verify2FA from "./pages/Verify2FA";
+// Pages
+import Index from "@/pages/Index";
+import Tool from "@/pages/Tool";
+import Payment from "@/pages/Payment";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentFailed from "@/pages/PaymentFailed";
+import History from "@/pages/History";
+import Analytics from "@/pages/Analytics";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
+import Contact from "@/pages/Contact";
+import Cookies from "@/pages/Cookies";
+import NotFound from "@/pages/NotFound";
+import Profile from "@/pages/Profile";
+import Offline from "@/pages/Offline";
+import { EmailConfirmation } from "@/pages/EmailConfirmation";
+import { ResetPassword } from "@/pages/ResetPassword";
+import Verify2FA from "@/pages/Verify2FA";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,62 +43,47 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive, user, needs2FA, checking2FA } = useAuth();
+  const { planExpiryActive } = useAuth();
   const { isOffline, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
-  const navigate = useNavigate();
-  const location = useLocation();
 
-  // Check cookie consent on mount
+  // ✅ Load cookie consent safely
   useEffect(() => {
     try {
       const consent = localStorage.getItem("cookie-consent");
       setCookieConsent(consent);
     } catch {
-      // LocalStorage may not be available
       setCookieConsent(null);
     }
   }, []);
 
-  // Disable right-click
+  // ✅ Disable right-click
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     document.addEventListener("contextmenu", handleContextMenu);
-    return () => {
-      document.removeEventListener("contextmenu", handleContextMenu);
-    };
+    return () => document.removeEventListener("contextmenu", handleContextMenu);
   }, []);
 
-  const handleCookieAccept = () => {
-    try {
-      localStorage.setItem("cookie-consent", "accepted");
-      setCookieConsent("accepted");
-    } catch {
-      // LocalStorage may not be available
-    }
-  };
-
-  const handleCookieDecline = () => {
-    try {
-      localStorage.setItem("cookie-consent", "declined");
-      setCookieConsent("declined");
-    } catch {
-      // LocalStorage may not be available
-    }
-  };
-
-  // Handle 2FA redirect - ProtectedRoute handles this now, removed duplicate logic
-
-  // Show offline screen when offline (only after initial status check)
+  // ✅ Offline detection (wait for status check)
   if (statusChecked && isOffline) {
     return <Offline />;
   }
 
-  // Render app normally when online
+  // ✅ Cookie handlers
+  const handleCookieAccept = () => {
+    localStorage.setItem("cookie-consent", "accepted");
+    setCookieConsent("accepted");
+  };
+
+  const handleCookieDecline = () => {
+    localStorage.setItem("cookie-consent", "declined");
+    setCookieConsent("declined");
+  };
+
   return (
     <>
       <Routes>
-        {/* Public routes */}
+        {/*  Public routes */}
         <Route path="/" element={<Index />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
@@ -108,7 +93,7 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-2fa" element={<Verify2FA />} />
 
-        {/* Protected routes */}
+        {/*  Protected routes */}
         <Route
           path="/tool"
           element={
@@ -166,11 +151,11 @@ function AppContent() {
           }
         />
 
-        {/* 404 */}
+        {/*  Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
 
-      {/* Global components */}
+      {/* Global UI Components */}
       {!cookieConsent && (
         <CookieConsent
           onAccept={handleCookieAccept}
