@@ -141,72 +141,74 @@ useEffect(() => {
     }
   };
 
-  // Sign In Handler
-  const handleSignIn = async () => {
-    if (!signInEmail || !signInPassword) {
-      return toast.error('Please fill in all fields');
+const handleSignIn = async () => {
+  if (!signInEmail || !signInPassword) {
+    return toast.error('Please fill in all fields');
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInEmail)) {
+    return toast.error('Please enter a valid email address');
+  }
+
+  setIsEmailLoading(true);
+
+  try {
+    const { data, error } = await signIn(
+      signInEmail.trim().toLowerCase(),
+      signInPassword
+    );
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        toast.error(
+          "Invalid email or password. If you signed up with Google, please use 'Continue with Google'.",
+          { duration: 6000 }
+        );
+      } else if (error.message.includes('Email not confirmed')) {
+        toast.error(
+          'Please confirm your email address first. Check your inbox for the confirmation link.',
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(error.message || 'Sign in failed. Please try again.');
+      }
+      setIsEmailLoading(false);
+      return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInEmail)) {
-      return toast.error('Please enter a valid email address');
-    }
+    if (data?.user) {
+      // Force immediate Supabase session refresh to ensure context sync
+      await supabase.auth.refreshSession();
 
-    setIsEmailLoading(true);
+      // ✅ Give the AuthContext time to receive session change
+      await new Promise((res) => setTimeout(res, 250));
 
-    try {
-      const { data, error } = await signIn(
-        signInEmail.trim().toLowerCase(),
-        signInPassword
-      );
+      // Check 2FA status
+      const { data: twoFAData } = await supabase
+        .from('user_2fa_settings')
+        .select('enabled')
+        .eq('user_id', data.user.id)
+        .single();
 
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast.error(
-            "Invalid email or password. If you signed up with Google, please use 'Continue with Google'.",
-            { duration: 6000 }
-          );
-        } else if (error.message.includes('Email not confirmed')) {
-          toast.error(
-            'Please confirm your email address first. Check your inbox for the confirmation link.',
-            { duration: 8000 }
-          );
-        } else {
-          toast.error(error.message || 'Sign in failed. Please try again.');
-        }
-        setIsEmailLoading(false);
+      onOpenChange(false);
+      clearSignInFields();
+      setIsEmailLoading(false);
+
+      if (twoFAData?.enabled) {
+        setTimeout(() => {
+          navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
+        }, 100);
         return;
       }
 
-      if (data?.user) {
-        // Check if 2FA is enabled
-        const { data: twoFAData } = await supabase
-          .from('user_2fa_settings')
-          .select('enabled')
-          .eq('user_id', data.user.id)
-          .single();
-
-        // Close modal first
-        onOpenChange(false);
-        clearSignInFields();
-        setIsEmailLoading(false);
-
-        if (twoFAData?.enabled) {
-          // Redirect to 2FA verification page
-          setTimeout(() => {
-            navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
-          }, 100);
-          return;
-        }
-
-        // No 2FA required - proceed normally
-        toast.success('Welcome back!');
-        navigate(redirectPath, { replace: true });
-      }
-    } catch (err) {
-      toast.error('An unexpected error occurred.');
-      setIsEmailLoading(false);
+      toast.success('Welcome back!');
+      navigate(redirectPath, { replace: true });
     }
-  };
+  } catch (err) {
+    toast.error('An unexpected error occurred.');
+    setIsEmailLoading(false);
+  }
+};
 
   // Sign Up Handler
   const handleSignUp = async () => {
