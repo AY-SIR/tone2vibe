@@ -12,6 +12,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
 
+// ---------- Types ----------
 export interface Profile {
   id: string;
   user_id: string;
@@ -67,36 +68,35 @@ interface AuthContextType {
   updateProfile: (data: Partial<Profile>) => Promise<void>;
 }
 
+// ---------- Context ----------
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 };
 
-// Helpers
-const getVerificationKey = (userId: string, accessToken?: string): string =>
-  `2fa_verified:${userId}:${accessToken?.slice(0, 16) ?? "no-token"}`;
+// ---------- Helpers ----------
+const getVerificationKey = (userId: string, token?: string) =>
+  `2fa_verified:${userId}:${token?.slice(0, 16) ?? "no-token"}`;
 
-const clearAllVerificationKeys = (userId: string): void => {
-  if (typeof window === "undefined") return;
+const clearAllVerificationKeys = (userId: string) => {
   try {
-    const keys: string[] = [];
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
-      if (key?.startsWith(`2fa_verified:${userId}:`)) keys.push(key);
+      if (key?.startsWith(`2fa_verified:${userId}:`))
+        sessionStorage.removeItem(key);
     }
-    keys.forEach((k) => sessionStorage.removeItem(k));
   } catch {}
 };
 
-const logError = (context: string, error: any): void => {
+const logError = (where: string, err: any) => {
   if (process.env.NODE_ENV === "development") {
-    console.error(`[Auth Error - ${context}]:`, error);
+    console.error(`[Auth Error - ${where}]`, err);
   }
 };
 
+// ---------- Provider ----------
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -104,7 +104,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  // 🔥 Use sessionStorage hint to prevent flash on reload
   const hasCachedSession =
     typeof window !== "undefined" &&
     sessionStorage.getItem("has-session") === "true";
@@ -113,42 +112,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [needs2FA, setNeeds2FA] = useState(false);
   const [checking2FA, setChecking2FA] = useState(false);
-  const profileChannelRef = useRef<any>(null);
   const { expiryData } = usePlanExpiry(user, profile);
+  const profileChannelRef = useRef<any>(null);
 
-  const loadUserProfile = useCallback(async (user: User) => {
+  // ---------- Load user profile ----------
+  const loadUserProfile = useCallback(async (u: User) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", u.id)
         .single();
 
-      if (data) {
-        setProfile({
-          ...data,
-          ip_address: data.ip_address ?? "",
-          word_balance:
-            data.word_balance ??
-            Math.max(0, data.words_limit - data.words_used),
-        });
-        setLocationData({ country: data.country || "India", currency: "INR" });
-      } else if (error?.code === "PGRST116") {
+      if (error && error.code !== "PGRST116") throw error;
+      if (!data) {
         setProfile(null);
         setLocationData({ country: "India", currency: "INR" });
-      } else if (error) logError("loadUserProfile", error);
+        return;
+      }
+
+      setProfile({
+        ...data,
+        word_balance:
+          data.word_balance ??
+          Math.max(0, data.words_limit - data.words_used),
+      });
+      setLocationData({ country: data.country || "India", currency: "INR" });
     } catch (err) {
       logError("loadUserProfile", err);
     }
   }, []);
 
+  // ---------- 2FA Check ----------
   const check2FAStatus = useCallback(
-    async (userId: string, accessToken?: string): Promise<boolean> => {
+    async (uid: string, token?: string) => {
       setChecking2FA(true);
       try {
-        const verifiedKey = getVerificationKey(userId, accessToken);
+        const verifiedKey = getVerificationKey(uid, token);
         const isVerified =
-          typeof window !== "undefined" &&
           sessionStorage.getItem(verifiedKey) === "true";
         if (isVerified) {
           setNeeds2FA(false);
@@ -156,19 +157,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           return false;
         }
 
-        const { data: settings, error } = await supabase
+        const { data } = await supabase
           .from("user_2fa_settings")
           .select("enabled")
-          .eq("user_id", userId)
+          .eq("user_id", uid)
           .maybeSingle();
 
-        if (error && error.code !== "PGRST116")
-          logError("check2FAStatus", error);
-
-        const requires2FA = !!settings?.enabled;
-        setNeeds2FA(requires2FA);
+        const enabled = !!data?.enabled;
+        setNeeds2FA(enabled);
         setChecking2FA(false);
-        return requires2FA;
+        return enabled;
       } catch (err) {
         logError("check2FAStatus", err);
         setChecking2FA(false);
@@ -178,18 +176,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     []
   );
 
+  // ---------- Session Handler ----------
   useEffect(() => {
     let mounted = true;
 
-    const handleSession = async (currentSession: Session | null) => {
+    const handleSession = async (sess: Session | null) => {
       if (!mounted) return;
-      const currentUser = currentSession?.user ?? null;
+      const currentUser = sess?.user ?? null;
 
       if (!currentUser) {
         setUser(null);
         setSession(null);
         setProfile(null);
-        setLocationData(null);
         setNeeds2FA(false);
         setChecking2FA(false);
         setLoading(false);
@@ -198,22 +196,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       sessionStorage.setItem("has-session", "true");
-
       const requires2FA = await check2FAStatus(
         currentUser.id,
-        currentSession?.access_token
+        sess?.access_token
       );
+
       const verifiedKey = getVerificationKey(
         currentUser.id,
-        currentSession?.access_token
+        sess?.access_token
       );
-      const alreadyVerified =
-        typeof window !== "undefined" &&
-        sessionStorage.getItem(verifiedKey) === "true";
+      const alreadyVerified = sessionStorage.getItem(verifiedKey) === "true";
 
       if (!requires2FA || alreadyVerified) {
         setUser(currentUser);
-        setSession(currentSession);
+        setSession(sess);
         await loadUserProfile(currentUser);
       } else {
         setUser(null);
@@ -223,23 +219,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(false);
     };
 
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
-    });
+    supabase.auth.getSession().then(({ data }) => handleSession(data.session));
 
-    // Auth state listener with refresh ignore
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event, sess) => {
         if (!mounted) return;
 
-        // ✅ Ignore token refresh events
+        // Ignore harmless refreshes if user known
         if (event === "TOKEN_REFRESHED" && user) {
-          setSession(session);
+          setSession(sess);
           return;
         }
 
-        await handleSession(session);
+        // Handle logins / first load / user updates
+        if (
+          ["SIGNED_IN", "INITIAL_SESSION", "USER_UPDATED"].includes(event) ||
+          (event === "TOKEN_REFRESHED" && !user)
+        ) {
+          await handleSession(sess);
+          return;
+        }
+
+        // Handle logout
+        if (event === "SIGNED_OUT") {
+          await handleSession(null);
+          return;
+        }
       }
     );
 
@@ -249,13 +254,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [check2FAStatus, loadUserProfile]);
 
-  // Realtime profile updates
+  // ---------- Realtime Profile Updates ----------
   useEffect(() => {
-    if (profileChannelRef.current) {
-      try {
-        profileChannelRef.current.unsubscribe();
-      } catch {}
-    }
+    if (profileChannelRef.current)
+      profileChannelRef.current.unsubscribe?.();
+
     if (user?.id) {
       const channel = supabase
         .channel(`profile-updates-${user.id}`)
@@ -284,47 +287,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         .subscribe();
       profileChannelRef.current = channel;
     }
-
     return () => {
-      if (profileChannelRef.current) {
-        try {
-          profileChannelRef.current.unsubscribe();
-        } catch {}
-      }
+      profileChannelRef.current?.unsubscribe?.();
     };
   }, [user?.id]);
 
-  const signUp = async (
-    email: string,
-    password: string,
-    options?: { fullName?: string }
-  ) => {
+  // ---------- Auth Actions ----------
+  const signUp = async (email: string, password: string, opt?: { fullName?: string }) => {
     try {
       const { data, error } = await supabase.functions.invoke("signup", {
-        body: { email, password, fullName: options?.fullName },
+        body: { email, password, fullName: opt?.fullName },
       });
       const parsed = typeof data === "string" ? JSON.parse(data) : data;
       if (!parsed?.success)
-        return {
-          data: null,
-          error: new Error(parsed?.error || "Signup failed."),
-        };
+        return { data: null, error: new Error(parsed?.error || "Signup failed.") };
       return { data: parsed, error: null };
     } catch {
-      return {
-        data: null,
-        error: new Error("Network error. Please try again."),
-      };
+      return { data: null, error: new Error("Network error.") };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { data, error };
+      await supabase.auth.refreshSession(); // ensures context syncs instantly
       return { data, error: null };
     } catch (err) {
       return { data: null, error: err as Error };
@@ -364,15 +351,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
     try {
-      if (data.words_used !== undefined && profile) {
+      if (data.words_used !== undefined && profile)
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
-      }
       await supabase.from("profiles").update(data).eq("user_id", user.id);
     } catch (err) {
       logError("updateProfile", err);
     }
   };
 
+  // ---------- Return Provider ----------
   return (
     <AuthContext.Provider
       value={{
