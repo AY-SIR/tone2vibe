@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, {
@@ -104,7 +103,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // 🔥 Use sessionStorage hint to prevent flash on reload
+  const hasCachedSession =
+    typeof window !== "undefined" &&
+    sessionStorage.getItem("has-session") === "true";
+  const [loading, setLoading] = useState(!hasCachedSession);
+
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [needs2FA, setNeeds2FA] = useState(false);
   const [checking2FA, setChecking2FA] = useState(false);
@@ -157,7 +162,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           .eq("user_id", userId)
           .maybeSingle();
 
-        if (error && error.code !== "PGRST116") logError("check2FAStatus", error);
+        if (error && error.code !== "PGRST116")
+          logError("check2FAStatus", error);
+
         const requires2FA = !!settings?.enabled;
         setNeeds2FA(requires2FA);
         setChecking2FA(false);
@@ -171,7 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     []
   );
 
-  // Core auth handler
   useEffect(() => {
     let mounted = true;
 
@@ -187,8 +193,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setNeeds2FA(false);
         setChecking2FA(false);
         setLoading(false);
+        sessionStorage.removeItem("has-session");
         return;
       }
+
+      sessionStorage.setItem("has-session", "true");
 
       const requires2FA = await check2FAStatus(
         currentUser.id,
@@ -207,7 +216,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setSession(currentSession);
         await loadUserProfile(currentUser);
       } else {
-        // Don’t show logged-in state yet
         setUser(null);
         setSession(null);
       }
@@ -215,19 +223,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(false);
     };
 
+    // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        handleSession(session);
+    // Auth state listener with refresh ignore
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+
+        // ✅ Ignore token refresh events
+        if (event === "TOKEN_REFRESHED" && user) {
+          setSession(session);
+          return;
+        }
+
+        await handleSession(session);
       }
     );
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      listener?.subscription?.unsubscribe();
     };
   }, [check2FAStatus, loadUserProfile]);
 
@@ -292,7 +310,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           error: new Error(parsed?.error || "Signup failed."),
         };
       return { data: parsed, error: null };
-    } catch (err) {
+    } catch {
       return {
         data: null,
         error: new Error("Network error. Please try again."),
