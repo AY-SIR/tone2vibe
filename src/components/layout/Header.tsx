@@ -9,26 +9,26 @@ import { Mic } from "lucide-react";
 
 const Header = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { user, profile } = useAuth();
-  const isLoggedIn = user && user.id !== "guest";
+  const { user, profile, needs2FA, loading } = useAuth();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
 
-const navigate = useNavigate();
-const [params] = useSearchParams();
+  // Safe login state: user exists & 2FA verified
+  const isLoggedIn = !!user && !needs2FA && !loading;
 
-// Open Auth modal when query params indicate
-useEffect(() => {
-  if (params.get('auth') === 'open') {
-    setShowAuthModal(true);
-  }
-}, [params]);
+  // Auto-open Auth modal if ?auth=open in URL
+  useEffect(() => {
+    if (params.get("auth") === "open") {
+      setShowAuthModal(true);
+    }
+  }, [params]);
 
   return (
     <>
       <header className="bg-white shadow-sm border border-gray-200 rounded-xl mx-4 mt-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
-
-            {/* Logo - use navigate on click */}
+            {/* Logo */}
             <div
               onClick={() => navigate("/")}
               className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
@@ -41,13 +41,12 @@ useEffect(() => {
               </span>
             </div>
 
-            {/* User Info & Actions */}
+            {/* Right section */}
             <div className="flex items-center space-x-2 sm:space-x-4">
               {isLoggedIn && profile && (
                 <div className="hidden min-[360px]:flex items-center space-x-2">
-  <MobileWordCounter />
-</div>
-
+                  <MobileWordCounter />
+                </div>
               )}
 
               {isLoggedIn ? (
