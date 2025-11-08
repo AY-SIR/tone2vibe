@@ -15,6 +15,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const [isVerified, setIsVerified] = useState(false);
 
+  // ✅ Keep 2FA verification status stable
   useEffect(() => {
     if (session?.access_token && user?.id) {
       const key = `2fa_verified:${user.id}:${session.access_token.slice(0, 16)}`;
@@ -22,18 +23,23 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     } else {
       setIsVerified(false);
     }
-  }, [user, session]);
+  }, [user?.id, session?.access_token]);
 
-  // Show smooth minimal loader during checks
-  if (loading || checking2FA) {
+  // ✅ Prevent flashing loader when Supabase silently refreshes
+  const shouldShowLoader =
+    loading || (checking2FA && !user && requireAuth);
+
+  if (shouldShowLoader) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/10">
-        <p className="text-gray-500 text-sm">Checking authentication...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground text-sm animate-pulse">
+          Checking authentication...
+        </p>
       </div>
     );
   }
 
-  // User not logged in
+  // ✅ Not logged in
   if (requireAuth && !user) {
     const redirectPath = encodeURIComponent(location.pathname + location.search);
     return (
@@ -44,17 +50,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // User logged in but needs to verify 2FA
+  // ✅ Logged in but needs 2FA verify
   if (user && needs2FA && !isVerified) {
     const redirectPath = encodeURIComponent(location.pathname + location.search);
-    return (
-      <Navigate
-        to={`/verify-2fa?redirect=${redirectPath}`}
-        replace
-      />
-    );
+    return <Navigate to={`/verify-2fa?redirect=${redirectPath}`} replace />;
   }
 
-  // All checks passed
+  // ✅ All good — render protected content
   return <>{children}</>;
 };
