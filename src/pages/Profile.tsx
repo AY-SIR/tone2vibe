@@ -50,8 +50,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
-import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
-import { TwoFactorManage } from "@/components/auth/TwoFactorManage";
 
 const Profile: React.FC = () => {
   const { user, profile, updateProfile, loading } = useAuth();
@@ -89,27 +87,6 @@ const Profile: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
-  const [show2FASetup, setShow2FASetup] = useState(false);
-  const [twoFAEnabled, setTwoFAEnabled] = useState(false);
-  const [twoFALastUsed, setTwoFALastUsed] = useState<string>();
-
-  // Check 2FA status
-  useEffect(() => {
-    const check2FAStatus = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from('user_2fa_settings')
-        .select('enabled, last_used_at')
-        .eq('user_id', user.id)
-        .maybeSingle(); // Use maybeSingle() to handle missing rows
-
-      if (data) {
-        setTwoFAEnabled(data.enabled);
-        setTwoFALastUsed(data.last_used_at);
-      }
-    };
-    check2FAStatus();
-  }, [user]);
 
   if (loading) {
     return <ProfileSkeleton />;
@@ -553,35 +530,6 @@ const Profile: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Two-Factor Authentication */}
-            {twoFAEnabled ? (
-              <TwoFactorManage 
-                lastUsed={twoFALastUsed} 
-                onDisabled={() => setTwoFAEnabled(false)} 
-              />
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 mb-2">
-                    <Shield className="w-5 h-5" />
-                    2FA Setup
-                  </CardTitle>
-                  <CardDescription>
-                    Add an extra layer of security to your account
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Protect your account with 2FA using Google Authenticator
-                  </p>
-                  <Button onClick={() => setShow2FASetup(true)} className="w-full">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Set Up 2FA
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Danger Zone */}
             <Card className="border-destructive/50 bg-destructive/5">
               <CardHeader>
@@ -660,15 +608,6 @@ const Profile: React.FC = () => {
     </AlertDialogFooter>
   </AlertDialogContent>
 </AlertDialog>
-
-      <TwoFactorSetup 
-        open={show2FASetup} 
-        onOpenChange={setShow2FASetup}
-        onSuccess={() => {
-          setTwoFAEnabled(true);
-          setShow2FASetup(false);
-        }}
-      />
     </div>
   );
 };

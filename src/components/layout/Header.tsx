@@ -9,12 +9,12 @@ import { Mic } from "lucide-react";
 
 const Header = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { user, profile, needs2FA, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
-  // Safe login state: user exists & 2FA verified
-  const isLoggedIn = !!user && !needs2FA && !loading;
+  // Safe login state: user exists and loading finished
+  const isLoggedIn = !!user && !loading;
 
   // Auto-open Auth modal if ?auth=open in URL
   useEffect(() => {

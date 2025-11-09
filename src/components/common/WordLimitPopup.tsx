@@ -17,14 +17,14 @@ interface WordLimitPopupProps {
 }
 
 export const WordLimitPopup = ({ planExpiryActive = false }: WordLimitPopupProps) => {
-  const { profile, needs2FA, checking2FA } = useAuth();
+  const { profile } = useAuth();
   const [showPopup, setShowPopup] = useState(false);
   const [hasShown, setHasShown] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Do not show during 2FA flows or plan expiry popup
-    if (!profile || planExpiryActive || hasShown || needs2FA || checking2FA) return;
+    // Do not show during plan expiry popup
+    if (!profile || planExpiryActive || hasShown) return;
 
     // Check if popup was already shown in this session
     const popupShownKey = `word_limit_popup_shown_${profile.user_id}`;

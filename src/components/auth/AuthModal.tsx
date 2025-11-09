@@ -180,13 +180,6 @@ const handleSignIn = async () => {
       // Ensure session sync
       await supabase.auth.refreshSession();
 
-      // Check 2FA status
-      const { data: twoFAData } = await supabase
-        .from('user_2fa_settings')
-        .select('enabled')
-        .eq('user_id', data.user.id)
-        .single();
-
       // Close modal immediately
       setIsEmailLoading(false);
       clearSignInFields();
@@ -194,12 +187,8 @@ const handleSignIn = async () => {
 
       // Navigate after small delay
       setTimeout(() => {
-        if (twoFAData?.enabled) {
-          navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
-        } else {
-          toast.success('Welcome back!');
-          navigate(redirectPath, { replace: true });
-        }
+        toast.success('Welcome back!');
+        navigate(redirectPath, { replace: true });
       }, 150);
     }
   } catch (err) {

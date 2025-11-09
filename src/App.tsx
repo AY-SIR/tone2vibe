@@ -29,7 +29,6 @@ import Profile from "@/pages/Profile";
 import Offline from "@/pages/Offline";
 import { EmailConfirmation } from "@/pages/EmailConfirmation";
 import { ResetPassword } from "@/pages/ResetPassword";
-import Verify2FA from "@/pages/Verify2FA";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,7 +90,6 @@ function AppContent() {
         <Route path="/cookies" element={<Cookies />} />
         <Route path="/email-confirmation" element={<EmailConfirmation />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/verify-2fa" element={<Verify2FA />} />
 
         {/*  Protected routes */}
         <Route

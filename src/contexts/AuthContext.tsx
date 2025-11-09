@@ -51,8 +51,6 @@ interface AuthContextType {
   loading: boolean;
   locationData: LocationData | null;
   planExpiryActive: boolean;
-  needs2FA: boolean;
-  checking2FA: boolean;
   signUp: (
     email: string,
     password: string,
@@ -77,19 +75,6 @@ export const useAuth = () => {
 };
 
 // ---------- Helpers ----------
-const getVerificationKey = (userId: string, token?: string) =>
-  `2fa_verified:${userId}:${token?.slice(0, 16) ?? "no-token"}`;
-
-const clearAllVerificationKeys = (userId: string) => {
-  try {
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key?.startsWith(`2fa_verified:${userId}:`))
-        sessionStorage.removeItem(key);
-    }
-  } catch {}
-};
-
 const logError = (where: string, err: any) => {
   if (process.env.NODE_ENV === "development") {
     console.error(`[Auth Error - ${where}]`, err);
@@ -110,8 +95,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(!hasCachedSession);
 
   const [locationData, setLocationData] = useState<LocationData | null>(null);
-  const [needs2FA, setNeeds2FA] = useState(false);
-  const [checking2FA, setChecking2FA] = useState(false);
   const { expiryData } = usePlanExpiry(user, profile);
   const profileChannelRef = useRef<any>(null);
 
@@ -149,39 +132,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // ---------- 2FA Check ----------
-  const check2FAStatus = useCallback(
-    async (uid: string, token?: string) => {
-      setChecking2FA(true);
-      try {
-        const verifiedKey = getVerificationKey(uid, token);
-        const isVerified =
-          sessionStorage.getItem(verifiedKey) === "true";
-        if (isVerified) {
-          setNeeds2FA(false);
-          setChecking2FA(false);
-          return false;
-        }
-
-        const { data } = await supabase
-          .from("user_2fa_settings")
-          .select("enabled")
-          .eq("user_id", uid)
-          .maybeSingle();
-
-        const enabled = !!data?.enabled;
-        setNeeds2FA(enabled);
-        setChecking2FA(false);
-        return enabled;
-      } catch (err) {
-        logError("check2FAStatus", err);
-        setChecking2FA(false);
-        return false;
-      }
-    },
-    []
-  );
-
   // ---------- Session Handler ----------
   useEffect(() => {
     let mounted = true;
@@ -194,34 +144,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUser(null);
         setSession(null);
         setProfile(null);
-        setNeeds2FA(false);
-        setChecking2FA(false);
         setLoading(false);
         sessionStorage.removeItem("has-session");
         return;
       }
 
       sessionStorage.setItem("has-session", "true");
-      const requires2FA = await check2FAStatus(
-        currentUser.id,
-        sess?.access_token
-      );
-
-      const verifiedKey = getVerificationKey(
-        currentUser.id,
-        sess?.access_token
-      );
-      const alreadyVerified = sessionStorage.getItem(verifiedKey) === "true";
-
-      if (!requires2FA || alreadyVerified) {
-        setUser(currentUser);
-        setSession(sess);
-        await loadUserProfile(currentUser);
-      } else {
-        setUser(null);
-        setSession(null);
-      }
-
+      setUser(currentUser);
+      setSession(sess);
+      await loadUserProfile(currentUser);
       setLoading(false);
     };
 
@@ -258,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       mounted = false;
       listener?.subscription?.unsubscribe();
     };
-  }, [check2FAStatus, loadUserProfile]);
+  }, [loadUserProfile]);
 
   // ---------- Realtime Profile Updates ----------
   useEffect(() => {
@@ -337,12 +268,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const signOut = async () => {
     try {
-      if (user?.id) clearAllVerificationKeys(user.id);
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
       setProfile(null);
-      setNeeds2FA(false);
       return { error: null };
     } catch (err) {
       logError("signOut", err);
@@ -375,8 +304,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         loading,
         locationData,
         planExpiryActive: !!expiryData?.show_popup,
-        needs2FA,
-        checking2FA,
         signUp,
         signIn,
         signInWithGoogle,

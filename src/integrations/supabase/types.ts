@@ -713,63 +713,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_2fa_attempts: {
-        Row: {
-          attempted_at: string | null
-          id: string
-          ip_address: string | null
-          success: boolean
-          user_id: string
-        }
-        Insert: {
-          attempted_at?: string | null
-          id?: string
-          ip_address?: string | null
-          success: boolean
-          user_id: string
-        }
-        Update: {
-          attempted_at?: string | null
-          id?: string
-          ip_address?: string | null
-          success?: boolean
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_2fa_settings: {
-        Row: {
-          backup_codes: string[] | null
-          created_at: string | null
-          enabled: boolean | null
-          id: string
-          last_used_at: string | null
-          secret: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          backup_codes?: string[] | null
-          created_at?: string | null
-          enabled?: boolean | null
-          id?: string
-          last_used_at?: string | null
-          secret: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          backup_codes?: string[] | null
-          created_at?: string | null
-          enabled?: boolean | null
-          id?: string
-          last_used_at?: string | null
-          secret?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_locations: {
         Row: {
           city: string | null
