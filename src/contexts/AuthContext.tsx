@@ -1,3 +1,6 @@
+// ==========================================
+// 2. AuthContext.tsx (FIXED VERSION)
+// ==========================================
 "use client";
 
 import React, {
@@ -68,6 +71,7 @@ interface AuthContextType {
 
 // ---------- Context ----------
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
@@ -88,15 +92,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-
-  const hasCachedSession =
-    typeof window !== "undefined" &&
-    sessionStorage.getItem("has-session") === "true";
-  const [loading, setLoading] = useState(!hasCachedSession);
-
+  const [loading, setLoading] = useState(true); // ✅ Always start with true
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const { expiryData } = usePlanExpiry(user, profile);
   const profileChannelRef = useRef<any>(null);
+  const isInitialized = useRef(false);
 
   // ---------- Load user profile ----------
   const loadUserProfile = useCallback(async (u: User) => {
@@ -108,6 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         .single();
 
       if (error && error.code !== "PGRST116") throw error;
+      
       if (!data) {
         setProfile(null);
         setLocationData({ country: "India", currency: "INR" });
@@ -126,7 +127,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           (data as any).word_balance ??
           Math.max(0, (data as any).words_limit - (data as any).words_used),
       });
-      setLocationData({ country: (data as any).country || "India", currency: "INR" });
+      setLocationData({ 
+        country: (data as any).country || "India", 
+        currency: "INR" 
+      });
     } catch (err) {
       logError("loadUserProfile", err);
     }
@@ -138,37 +142,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const handleSession = async (sess: Session | null) => {
       if (!mounted) return;
+      
       const currentUser = sess?.user ?? null;
 
       if (!currentUser) {
         setUser(null);
         setSession(null);
         setProfile(null);
+        setLocationData(null);
         setLoading(false);
-        sessionStorage.removeItem("has-session");
+        isInitialized.current = true;
         return;
       }
 
-      sessionStorage.setItem("has-session", "true");
       setUser(currentUser);
       setSession(sess);
       await loadUserProfile(currentUser);
       setLoading(false);
+      isInitialized.current = true;
     };
 
-    supabase.auth.getSession().then(({ data }) => handleSession(data.session));
+    // ✅ Initialize session
+    const initAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        await handleSession(initialSession);
+      } catch (error) {
+        logError("initAuth", error);
+        setLoading(false);
+        isInitialized.current = true;
+      }
+    };
 
+    initAuth();
+
+    // ✅ Listen to auth changes
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, sess) => {
         if (!mounted) return;
 
-        // Ignore harmless refreshes if user known
+        console.log("[Auth Event]", event);
+
+        // Ignore token refreshes if user is already set
         if (event === "TOKEN_REFRESHED" && user) {
           setSession(sess);
           return;
         }
 
-        // Handle logins / first load / user updates
+        // Handle all other auth events
         if (
           ["SIGNED_IN", "INITIAL_SESSION", "USER_UPDATED"].includes(event) ||
           (event === "TOKEN_REFRESHED" && !user)
@@ -177,7 +198,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           return;
         }
 
-        // Handle logout
         if (event === "SIGNED_OUT") {
           await handleSession(null);
           return;
@@ -189,12 +209,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       mounted = false;
       listener?.subscription?.unsubscribe();
     };
-  }, [loadUserProfile]);
+  }, [loadUserProfile, user]);
 
   // ---------- Realtime Profile Updates ----------
   useEffect(() => {
-    if (profileChannelRef.current)
+    if (profileChannelRef.current) {
       profileChannelRef.current.unsubscribe?.();
+    }
 
     if (user?.id) {
       const channel = supabase
@@ -222,33 +243,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         )
         .subscribe();
+      
       profileChannelRef.current = channel;
     }
+
     return () => {
       profileChannelRef.current?.unsubscribe?.();
     };
   }, [user?.id]);
 
   // ---------- Auth Actions ----------
-  const signUp = async (email: string, password: string, opt?: { fullName?: string }) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    opt?: { fullName?: string }
+  ) => {
     try {
       const { data, error } = await supabase.functions.invoke("signup", {
         body: { email, password, fullName: opt?.fullName },
       });
+      
       const parsed = typeof data === "string" ? JSON.parse(data) : data;
-      if (!parsed?.success)
-        return { data: null, error: new Error(parsed?.error || "Signup failed.") };
+      
+      if (!parsed?.success) {
+        return { 
+          data: null, 
+          error: new Error(parsed?.error || "Signup failed.") 
+        };
+      }
+      
       return { data: parsed, error: null };
-    } catch {
+    } catch (err) {
       return { data: null, error: new Error("Network error.") };
     }
   };
 
+  // ✅ FIX: Improved signIn with immediate state updates
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
       if (error) return { data, error };
-      await supabase.auth.refreshSession(); // ensures context syncs instantly
+
+      // ✅ Immediately update context state
+      if (data?.session && data?.user) {
+        setSession(data.session);
+        setUser(data.user);
+        
+        // Load profile in background
+        loadUserProfile(data.user);
+      }
+
       return { data, error: null };
     } catch (err) {
       return { data: null, error: err as Error };
@@ -259,10 +307,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: { 
+          redirectTo: `${window.location.origin}/tool`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        },
       });
     } catch (err) {
       logError("signInWithGoogle", err);
+      throw err;
     }
   };
 
@@ -272,6 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       setSession(null);
       setProfile(null);
+      setLocationData(null);
       return { error: null };
     } catch (err) {
       logError("signOut", err);
@@ -285,9 +341,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
+    
     try {
-      if (data.words_used !== undefined && profile)
+      if (data.words_used !== undefined && profile) {
         data.word_balance = Math.max(0, profile.words_limit - data.words_used);
+      }
+      
       await supabase.from("profiles").update(data).eq("user_id", user.id);
     } catch (err) {
       logError("updateProfile", err);
