@@ -1,5 +1,8 @@
+// ============================================
+// 3. App.tsx (COMPLETE FIXED VERSION)
+// ============================================
 import React, { useEffect, useState } from "react";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
@@ -42,9 +45,12 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { planExpiryActive } = useAuth();
+  const { planExpiryActive, loading: authLoading } = useAuth();
   const { isOffline, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+  
+  // ✅ FIX: Track if auth modal was recently closed to prevent popup overlap
+  const [authModalJustClosed, setAuthModalJustClosed] = useState(false);
 
   // ✅ Load cookie consent safely
   useEffect(() => {
@@ -79,10 +85,13 @@ function AppContent() {
     setCookieConsent("declined");
   };
 
+  // ✅ FIX: Only show WordLimitPopup after auth is done and modal is closed
+  const shouldShowWordLimitPopup = planExpiryActive && !authLoading && !authModalJustClosed;
+
   return (
     <>
       <Routes>
-        {/*  Public routes */}
+        {/* Public routes */}
         <Route path="/" element={<Index />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
@@ -91,7 +100,7 @@ function AppContent() {
         <Route path="/email-confirmation" element={<EmailConfirmation />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/*  Protected routes */}
+        {/* Protected routes */}
         <Route
           path="/tool"
           element={
@@ -149,7 +158,7 @@ function AppContent() {
           }
         />
 
-        {/*  Fallback */}
+        {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
 
@@ -161,7 +170,9 @@ function AppContent() {
         />
       )}
 
-      <WordLimitPopup planExpiryActive={planExpiryActive} />
+      {/* ✅ FIX: Only show WordLimitPopup when appropriate */}
+      {shouldShowWordLimitPopup && <WordLimitPopup planExpiryActive={true} />}
+      
       <Toaster />
       <Sonner />
     </>
