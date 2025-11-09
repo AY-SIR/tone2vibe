@@ -108,15 +108,21 @@ export default function Verify2FA() {
       } else {
         toast({
           variant: "destructive",
-          title: "Verification Failed",
-          description: result?.error || "Invalid code, try again.",
+          title: useBackup ? "Backup code galat" : "Code galat",
+          description: useBackup
+            ? "Backup code galat ya use ho chuka hai. Naya backup code try karein."
+            : "Code galat ya expire ho chuka hai. Authenticator app se naya code daalein aur fir se koshish karein.",
         });
       }
     } catch (err: any) {
+      const msg = String(err?.message || "");
+      const friendly = msg.includes("Too many failed attempts")
+        ? "Bahut zyada galat koshish ho gayi. Kripya 5 minute baad fir se try karein."
+        : "Kuch gadbad ho gayi. Kripya thodi der baad fir se koshish karein.";
       toast({
         variant: "destructive",
-        title: "Verification Failed",
-        description: err?.message || "Something went wrong.",
+        title: "Verification failed",
+        description: friendly,
       });
     } finally {
       setLoading(false);

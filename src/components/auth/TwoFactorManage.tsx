@@ -95,8 +95,8 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Failed to Disable 2FA",
-        description: error.message || "Please check your password and code",
+        title: "Disable failed",
+        description: "Password ya code galat ho sakta hai. Sahi details dal kar fir se try karein.",
       });
     } finally {
       setLoading(false);
@@ -137,8 +137,10 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
         </CardContent>
       </Card>
 
-      <AlertDialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
-        <AlertDialogContent>
+      <AlertDialog open={showDisableDialog} onOpenChange={(v) => v && setShowDisableDialog(true)}>
+        <AlertDialogContent
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Disable Two-Factor Authentication</AlertDialogTitle>
             <AlertDialogDescription>

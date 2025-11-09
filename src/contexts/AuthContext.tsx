@@ -133,11 +133,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setProfile({
         ...data,
+        ip_address:
+          typeof (data as any).ip_address === "string"
+            ? (data as any).ip_address
+            : (data as any).ip_address != null
+            ? String((data as any).ip_address)
+            : null,
         word_balance:
-          data.word_balance ??
-          Math.max(0, data.words_limit - data.words_used),
+          (data as any).word_balance ??
+          Math.max(0, (data as any).words_limit - (data as any).words_used),
       });
-      setLocationData({ country: data.country || "India", currency: "INR" });
+      setLocationData({ country: (data as any).country || "India", currency: "INR" });
     } catch (err) {
       logError("loadUserProfile", err);
     }
