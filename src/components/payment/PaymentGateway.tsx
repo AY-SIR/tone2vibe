@@ -123,11 +123,11 @@ export function PaymentGateway({
 
     try {
       if (finalAmount === 0) {
-        // Free activation with coupon
+        // Free activation with coupon - revalidate before activating
         if (!couponValidation.isValid || !couponValidation.code) {
           toast({
-            title: "Invalid Coupon",
-            description: "A valid coupon is required for free plan activation.",
+            title: "Coupon required",
+            description: "Free plan activation ke liye valid coupon code chahiye.",
             variant: "destructive",
             duration: 3000,
           });
@@ -136,23 +136,21 @@ export function PaymentGateway({
         }
         await handleFreeActivation();
       } else {
-        // Paid activation - call parent handler
-    toast({
-      title: "Payment initiated",
-      description: "Redirecting to payment gateway...",
-    });
+        // Paid activation - pass coupon code to parent handler
+        toast({
+          title: "Payment shuru ho raha hai",
+          description: "Payment gateway par redirect ho rahe hain...",
+        });
         onPayment(selectedPlan);
       }
     } catch (error) {
-      // FIXED: Redirect to payment-failed page with error details
-      const errorMessage = error instanceof Error ? error.message : "Failed to activate plan";
-      // Silent error handling
-
-      navigate(
-        `/payment-failed?type=subscription&reason=${encodeURIComponent(errorMessage)}`,
-        { replace: true }
-      );
-
+      const errorMessage = error instanceof Error ? error.message : "Plan activate nahi ho saka";
+      toast({
+        title: "Payment failed",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
       setIsActivating(false);
     }
   };
@@ -160,26 +158,26 @@ export function PaymentGateway({
   const handleFreeActivation = async () => {
     try {
       if (!user) {
-        throw new Error('User not logged in. Please login and try again.');
+        throw new Error('Pehle login karein');
       }
 
       const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Step 1: Verify coupon validity (secure RPC)
+      // Step 1: Re-verify coupon before activation (secure RPC)
       const { data: couponValidateData, error: couponValidateError } = await supabase.rpc('validate_coupon_secure', {
         p_coupon_code: couponValidation.code
       });
 
       if (couponValidateError) {
-        throw new Error('Failed to verify coupon. Please try again.');
+        throw new Error('Coupon verify nahi ho saka. Fir se try karein.');
       }
 
       const result = Array.isArray(couponValidateData) ? couponValidateData[0] : couponValidateData;
       if (!result || !result.is_valid) {
-        throw new Error(result?.error_message || 'Coupon is not valid for subscription.');
+        throw new Error(result?.error_message || 'Coupon ab valid nahi hai. Kripya dusra coupon try karein.');
       }
       if (result.type && !(result.type === 'subscription' || result.type === 'both')) {
-        throw new Error('Coupon not applicable for subscription plans.');
+        throw new Error('Ye coupon subscription ke liye nahi hai.');
       }
 
       // Step 2: Get plan limits

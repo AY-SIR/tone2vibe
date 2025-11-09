@@ -58,21 +58,37 @@ export function ResetPassword() {
 
     try {
       const token = searchParams.get('token');
-      if (!token) return toast.error('Invalid reset token');
+      if (!token) {
+        toast.error('Reset link galat hai');
+        setSubmitting(false);
+        return;
+      }
 
       // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('update-password', {
         body: { token, newPassword },
       });
 
-      if (error) return toast.error(error.message || 'Failed to reset password');
-      if (data?.error) return toast.error(data.error);
+      if (error) {
+        toast.error('Password reset nahi ho saka. Fir se try karein.');
+        setSubmitting(false);
+        return;
+      }
 
-      toast.success('Password reset successfully! You can now sign in.');
-      navigate('/?auth=open');
+      // Parse response if string
+      const result = typeof data === 'string' ? JSON.parse(data) : data;
+      
+      if (result?.error) {
+        toast.error(result.error);
+        setSubmitting(false);
+        return;
+      }
+
+      toast.success('Password successfully reset! Ab aap login kar sakte hain.');
+      setTimeout(() => navigate('/?auth=open'), 1000);
     } catch (err: any) {
       console.error('Password reset error:', err);
-      toast.error('Failed to reset password. Please try again.');
+      toast.error('Kuch gadbad ho gayi. Kripya fir se koshish karein.');
     } finally {
       setSubmitting(false);
     }

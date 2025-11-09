@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import GridConnect from "@/components/gridconnect";
 import { Marque2 } from "@/components/marque2"
 import { WordsFlip } from "@/components/wordsflip"
+import heroBg from "@/assets/hero-bg.jpg";
 
 import { FloatingNavigation } from "@/components/ui/FloatingNavigation";
 import { MobileWordCounter } from "@/components/layout/MobileWordCounter";
@@ -271,7 +272,15 @@ const { user, profile, loading: authLoading } = useAuth();
   return (
     <>
       {/* Hero Section */}
-      <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
+      <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center min-h-[600px]">
+        {/* Hero Background Image with Black & White filter */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
+          style={{ 
+            backgroundImage: `url(${heroBg})`,
+            filter: 'grayscale(100%) contrast(1.2)'
+          }}
+        />
         <div className="relative z-10 container mx-auto max-w-4xl">
           {/* Hero Content */}
           <div className="animate-fade-in">

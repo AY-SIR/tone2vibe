@@ -137,10 +137,19 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
         </CardContent>
       </Card>
 
-      <AlertDialog open={showDisableDialog} onOpenChange={(v) => v && setShowDisableDialog(true)}>
-        <AlertDialogContent
-          onEscapeKeyDown={(e) => e.preventDefault()}
-        >
+      <AlertDialog 
+        open={showDisableDialog} 
+        onOpenChange={(open) => {
+          // Only allow closing via Cancel button
+          if (!open && !loading) {
+            setShowDisableDialog(false);
+            setPassword("");
+            setDisableCode("");
+            setUseBackupCode(false);
+          }
+        }}
+      >
+        <AlertDialogContent onEscapeKeyDown={(e) => e.preventDefault()}>
           <AlertDialogHeader>
             <AlertDialogTitle>Disable Two-Factor Authentication</AlertDialogTitle>
             <AlertDialogDescription>

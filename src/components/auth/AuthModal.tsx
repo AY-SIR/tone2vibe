@@ -177,32 +177,27 @@ const handleSignIn = async () => {
     }
 
     if (data?.user) {
-      // Force immediate Supabase session refresh to ensure context sync
-      await supabase.auth.refreshSession();
-
-      // ✅ Give the AuthContext time to receive session change
-      await new Promise((res) => setTimeout(res, 250));
-
-      // Check 2FA status
+      // Check 2FA status first
       const { data: twoFAData } = await supabase
         .from('user_2fa_settings')
         .select('enabled')
         .eq('user_id', data.user.id)
         .single();
 
-      onOpenChange(false);
-      clearSignInFields();
+      // Close modal immediately
       setIsEmailLoading(false);
+      clearSignInFields();
+      onOpenChange(false);
 
-      if (twoFAData?.enabled) {
-        setTimeout(() => {
+      // Small delay then navigate
+      setTimeout(() => {
+        if (twoFAData?.enabled) {
           navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });
-        }, 100);
-        return;
-      }
-
-      toast.success('Welcome back!');
-      navigate(redirectPath, { replace: true });
+        } else {
+          toast.success('Welcome back!');
+          navigate(redirectPath, { replace: true });
+        }
+      }, 150);
     }
   } catch (err) {
     toast.error('An unexpected error occurred.');
@@ -285,13 +280,14 @@ const handleSignIn = async () => {
   // Google Sign In Handler
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-
+    onOpenChange(false); // Close modal before redirect
+    
     try {
       await signInWithGoogle();
-      // Redirect will occur; keep modal open until navigation
     } catch (error) {
-      toast.error("Failed to sign in with Google. Please check your connection and try again.");
+      toast.error("Google login me dikkat aayi. Connection check karein aur fir se try karein.");
       setIsGoogleLoading(false);
+      onOpenChange(true); // Reopen if failed
     }
   };
 
