@@ -108,17 +108,17 @@ export default function Verify2FA() {
       } else {
         toast({
           variant: "destructive",
-          title: useBackup ? "Backup code galat" : "Code galat",
+          title: useBackup ? "Invalid backup code" : "Invalid code",
           description: useBackup
-            ? "Backup code galat ya use ho chuka hai. Naya backup code try karein."
-            : "Code galat ya expire ho chuka hai. Authenticator app se naya code daalein aur fir se koshish karein.",
+            ? "Backup code is invalid or already used. Try a different one."
+            : "Code is invalid or expired. Please enter a fresh code from your authenticator app.",
         });
       }
     } catch (err: any) {
       const msg = String(err?.message || "");
       const friendly = msg.includes("Too many failed attempts")
-        ? "Bahut zyada galat koshish ho gayi. Kripya 5 minute baad fir se try karein."
-        : "Kuch gadbad ho gayi. Kripya thodi der baad fir se koshish karein.";
+        ? "Too many failed attempts. Please try again in 5 minutes."
+        : "Something went wrong. Please try again shortly.";
       toast({
         variant: "destructive",
         title: "Verification failed",
@@ -133,6 +133,20 @@ export default function Verify2FA() {
     await signOut();
     navigate("/", { replace: true });
   };
+
+  // Press Enter to verify
+  useEffect(() => {
+    const el = document.getElementById('verify-2fa-root');
+    if (!el) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleVerify();
+      }
+    };
+    el.addEventListener('keydown', handler);
+    return () => el.removeEventListener('keydown', handler);
+  }, [code, useBackup, loading]);
 
   if (checkingAuth) {
     return (
@@ -150,7 +164,7 @@ export default function Verify2FA() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/10 p-4">
+    <div id="verify-2fa-root" className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md border-primary/20">
         <CardHeader>
           <CardTitle className="flex flex-col sm:flex-row items-center gap-2 text-lg sm:text-xl text-center sm:text-left">

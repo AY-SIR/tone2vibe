@@ -96,7 +96,7 @@ export const TwoFactorManage = ({ lastUsed, onDisabled }: TwoFactorManageProps) 
       toast({
         variant: "destructive",
         title: "Disable failed",
-        description: "Password ya code galat ho sakta hai. Sahi details dal kar fir se try karein.",
+        description: "Password or code may be incorrect. Please double-check and try again.",
       });
     } finally {
       setLoading(false);

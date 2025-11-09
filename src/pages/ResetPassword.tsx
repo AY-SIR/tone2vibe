@@ -59,7 +59,7 @@ export function ResetPassword() {
     try {
       const token = searchParams.get('token');
       if (!token) {
-        toast.error('Reset link galat hai');
+        toast.error('Invalid reset token');
         setSubmitting(false);
         return;
       }
@@ -70,25 +70,23 @@ export function ResetPassword() {
       });
 
       if (error) {
-        toast.error('Password reset nahi ho saka. Fir se try karein.');
+        toast.error('Failed to reset password. Please try again.');
         setSubmitting(false);
         return;
       }
 
-      // Parse response if string
       const result = typeof data === 'string' ? JSON.parse(data) : data;
-      
       if (result?.error) {
         toast.error(result.error);
         setSubmitting(false);
         return;
       }
 
-      toast.success('Password successfully reset! Ab aap login kar sakte hain.');
-      setTimeout(() => navigate('/?auth=open'), 1000);
+      toast.success('Password reset successfully! You can now sign in.');
+      setTimeout(() => navigate('/?auth=open'), 500);
     } catch (err: any) {
       console.error('Password reset error:', err);
-      toast.error('Kuch gadbad ho gayi. Kripya fir se koshish karein.');
+      toast.error('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }

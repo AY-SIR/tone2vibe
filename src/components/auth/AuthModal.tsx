@@ -177,7 +177,10 @@ const handleSignIn = async () => {
     }
 
     if (data?.user) {
-      // Check 2FA status first
+      // Ensure session sync
+      await supabase.auth.refreshSession();
+
+      // Check 2FA status
       const { data: twoFAData } = await supabase
         .from('user_2fa_settings')
         .select('enabled')
@@ -189,7 +192,7 @@ const handleSignIn = async () => {
       clearSignInFields();
       onOpenChange(false);
 
-      // Small delay then navigate
+      // Navigate after small delay
       setTimeout(() => {
         if (twoFAData?.enabled) {
           navigate(`/verify-2fa?redirect=${encodeURIComponent(redirectPath)}`, { replace: true });

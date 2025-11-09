@@ -267,7 +267,7 @@ export const TwoFactorSetup = ({
 
         {/* Step 3 */}
         {step === 3 && (
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleVerifyCode(); } }}>
             <p className="text-sm text-muted-foreground">
               Enter the 6-digit code from your authenticator app:
             </p>
