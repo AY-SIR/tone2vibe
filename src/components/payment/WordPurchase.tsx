@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CreditCard, Package, AlertTriangle, IndianRupee } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LocationCacheService } from "@/services/locationCache";
 import { InstamojoService } from "@/services/instamojo";
 import { CouponInput } from "@/components/payment/couponInput";
-import type { CouponValidation } from "@/services/couponService";
+import { CouponService, type CouponValidation } from "@/services/couponService";
 import { v4 as uuidv4 } from "uuid";
 import { WordService } from "@/services/wordService";
 
@@ -116,6 +115,7 @@ export function WordPurchase() {
           variant: "destructive",
         });
         setShowPaymentGateway(false);
+        setLoading(false);
         return;
       }
 
@@ -126,6 +126,7 @@ export function WordPurchase() {
             description: "A valid coupon is required for free word purchases.",
             variant: "destructive",
           });
+          setLoading(false);
           return;
         }
         await handleFreeWordPurchase();
@@ -159,7 +160,6 @@ export function WordPurchase() {
         description: "Something went wrong. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -173,17 +173,16 @@ export function WordPurchase() {
       setLoading(true);
       const freeTransactionId = `COUPON_${couponCode}_${Date.now()}_${uuidv4().slice(0, 8)}`;
 
-      // Verify coupon
-      const { data: couponCheck, error: couponError } = await supabase
-        .from("coupons")
-        .select("*")
-        .eq("code", couponCode)
-        .single();
-      if (couponError || !couponCheck) throw new Error("Coupon is no longer valid");
+      // Re-validate coupon before processing
+      const revalidation = await CouponService.validateCoupon(
+        couponCode,
+        baseAmount,
+        'words'
+      );
 
-      const coupon = couponCheck as any;
-      if (coupon.max_uses && coupon.used_count >= coupon.max_uses)
-        throw new Error("Coupon usage limit exceeded");
+      if (!revalidation.isValid) {
+        throw new Error(revalidation.message || "Coupon is no longer valid");
+      }
 
       // Get current balance
       const { data: currentProfile, error: profileError } = await supabase
@@ -191,18 +190,25 @@ export function WordPurchase() {
         .select("word_balance")
         .eq("user_id", user!.id)
         .single();
+
       if (profileError) throw new Error("Failed to fetch current balance");
 
       const newBalance = (currentProfile?.word_balance || 0) + wordsPurchased;
 
       // Update balance
-      await supabase
+      const { error: updateError } = await supabase
         .from("profiles")
-        .update({ word_balance: newBalance, last_word_purchase_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({
+          word_balance: newBalance,
+          last_word_purchase_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq("user_id", user!.id);
 
+      if (updateError) throw new Error("Failed to update word balance");
+
       // Record purchase
-      await supabase
+      const { error: purchaseError } = await supabase
         .from("word_purchases")
         .insert({
           user_id: user!.id,
@@ -214,24 +220,34 @@ export function WordPurchase() {
           payment_method: "coupon",
         });
 
-      // Update coupon usage
-      await supabase
-        .from("coupons")
-        .update({ used_count: (coupon.used_count || 0) + 1, last_used_at: new Date().toISOString() } as any)
-        .eq("id", coupon.id);
+      if (purchaseError) {
+        console.error("Failed to record purchase:", purchaseError);
+        // Don't throw - balance is already updated
+      }
+
+      // Increment coupon usage
+      await CouponService.incrementCouponUsage(couponCode);
 
       // Reset form state
       setWordsAmount(1000);
       setCouponValidation({ isValid: false, discount: 0, message: "", code: "" });
       setShowPaymentGateway(false);
 
+      toast({
+        title: "Success!",
+        description: `${wordsPurchased.toLocaleString()} words added to your account.`,
+      });
+
       // Navigate to success page
-      navigate(
-        `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
-        { replace: true }
-      );
+      setTimeout(() => {
+        navigate(
+          `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
+          { replace: true }
+        );
+      }, 500);
+
     } catch (error) {
-      // Silent error handling
+      console.error("Free purchase error:", error);
       toast({
         title: "Error Processing Free Purchase",
         description: error instanceof Error ? error.message : "Something went wrong.",
@@ -369,7 +385,9 @@ export function WordPurchase() {
                 <div className="text-lg sm:text-xl font-bold">₹{finalAmount}</div>
                 <div className="text-xs opacity-75">
                   {wordsAmount.toLocaleString()} words
-                  {couponValidation.isValid && finalAmount === 0 && ' '}
+                  {couponValidation.isValid && baseAmount > 0 && (
+                    <span className="ml-2 line-through opacity-60">₹{baseAmount}</span>
+                  )}
                 </div>
               </div>
 
@@ -405,7 +423,7 @@ export function WordPurchase() {
       </Card>
 
       {/* Payment Dialog */}
-      <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway} >
+      <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
         <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6 rounded-lg" aria-describedby={undefined}>
           <DialogHeader className="pb-4">
             <DialogTitle className="text-center text-base sm:text-lg font-semibold">
@@ -438,7 +456,7 @@ export function WordPurchase() {
               >
                 <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 <span className="truncate text-center">
-                  {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words ` : `Pay ₹${finalAmount} - Secure Payment`}
+                  {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words FREE` : `Pay ₹${finalAmount} - Secure Payment`}
                 </span>
               </Button>
 

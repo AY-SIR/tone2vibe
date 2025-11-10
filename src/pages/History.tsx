@@ -491,7 +491,7 @@ const AudioDownloadDropdown = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom" sideOffset={5} className="w-56">
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-          Download Format (Max 2GB)
+          Download Formats
         </div>
         {formats.map((format) => (
           <DropdownMenuItem

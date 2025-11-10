@@ -151,47 +151,56 @@ Deno.serve(async (req)=>{
   <title>Confirm Your Email</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef3 100%);">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 30px 2px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 30px 5px;">
     <tr>
       <td align="center">
         <!-- Main Container -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06); overflow: hidden;">
-          
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #ffffff; border-radius: 20px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06); overflow: hidden;">
+
           <!-- Header with Logo -->
           <tr>
-            <td style="padding: 32px 24px 24px; background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="center">
-                    <div style="display: inline-flex; align-items: center; gap: 6px;">
-                      <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
-                           alt="Tone2Vibe" width="32" height="32" style="border-radius: 6px;" />
-                      <h1 style="color: #1a1a1a; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">
-                        Verify Your Email
-                      </h1>
-                    </div>
-                  </td>
-                </tr>
-              </table>
+            <td style="padding: 48px 32px 24px; background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%); text-align: center;">
+              <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
+                   alt="Tone2Vibe Logo"
+                   width="64"
+                   height="64"
+                   draggable="false"
+                   style="display: block; margin: 0 auto 16px; border-radius: 12px;" />
+             <h1
+  style="
+    color: #1a1a1a;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    text-align: center;
+    font-size: 18px;
+  "
+>
+                 Verify Your Email
+
+</h1>
+              <p style="color: #666666; margin: 8px 0 0; font-size: 15px;">
+                Tone2Vibe
+              </p>
             </td>
           </tr>
 
           <!-- Content -->
           <tr>
-            <td style="padding: 24px 24px 32px;">
+            <td style="padding: 32px 32px;">
               <p style="color: #1a1a1a; font-size: 16px; line-height: 1.6; margin: 0 0 8px; font-weight: 500;">
                 Hi ${displayName},
               </p>
-              
+
               <p style="color: #666666; font-size: 15px; line-height: 1.7; margin: 0 0 32px;">
-                Welcome to Tone2Vibe! To get started and secure your account, please confirm your email address by clicking the button below.
+                Welcome to Tone2Vibe! To get started please confirm your email address by clicking the button below.
               </p>
 
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" style="padding: 0 0 32px;">
-                    <a href="${confirmationUrl}" style="display: inline-block; background-color: #1a1a1a; color: #ffffff; text-decoration: none; padding: 15px 48px; font-size: 15px; font-weight: 600; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); transition: all 0.2s;">
+                    <a href="${confirmationUrl}" style="display: inline-block; background-color: #1a1a1a; color: #ffffff; text-decoration: none; padding: 16px 48px; font-size: 15px; font-weight: 600; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
                       Confirm Email Address
                     </a>
                   </td>
@@ -204,12 +213,12 @@ Deno.serve(async (req)=>{
 
           <!-- Notice Box -->
           <tr>
-            <td style="padding: 0 10px 30px;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-left: 3px solid #1a1a1a; border-radius: 6px;">
+            <td style="padding: 0 10px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fff8e6; border-left: 4px solid #f59e0b; border-radius: 8px;">
                 <tr>
-                  <td style="padding: 16px 20px;">
-                    <p style="color: #666666; font-size: 13px; line-height: 1.6; margin: 0;">
-                      <strong style="color: #1a1a1a;">Security Notice:</strong> This verification link will expire in 24 hours. If you didn't create an account with Tone2Vibe, you can safely ignore this email.
+                  <td style="padding: 20px;">
+                    <p style="color: #92400e; font-size: 13px; line-height: 1.6; margin: 0;">
+                      <strong style="color: #78350f;"> Security Notice:</strong> This verification link will expire in 24 hours. If you didn't create an account with Tone2Vibe, you can safely ignore this email.
                     </p>
                   </td>
                 </tr>
@@ -219,7 +228,7 @@ Deno.serve(async (req)=>{
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 24px 24px; text-align: center; background-color: #fafafa; border-top: 1px solid #eeeeee;">
+            <td style="padding: 32px; text-align: center; background-color: #fafafa; border-top: 1px solid #eeeeee;">
               <p style="color: #999999; font-size: 13px; margin: 0 0 8px; line-height: 1.5;">
                 Need help? Contact us at <a href="mailto:support@tone2vibe.in" style="color: #1a1a1a; text-decoration: none; font-weight: 500;">support@tone2vibe.in</a>
               </p>
@@ -233,8 +242,8 @@ Deno.serve(async (req)=>{
 
         <!-- Bottom Spacer Text -->
         <p style="color: #999999; font-size: 12px; margin: 24px 0 0; text-align: center; line-height: 1.5;">
-          You're receiving this email because you signed up for <br>
-         Tone2Vibe.in
+          You're receiving this email because you signed up for Tone2Vibe.<br>
+          www.tone2vibe.in
         </p>
 
       </td>

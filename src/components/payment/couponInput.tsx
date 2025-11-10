@@ -1,145 +1,149 @@
-import { useState } from 'react';
-import { Input } from "@/components/ui/input";
+// components/payment/couponInput.tsx
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Tag, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Tag, CheckCircle2, XCircle } from "lucide-react";
 import { CouponService, type CouponValidation } from "@/services/couponService";
 
 interface CouponInputProps {
   amount: number;
-  type: 'subscription' | 'words';
+  type: "subscription" | "words";
   onCouponApplied: (validation: CouponValidation) => void;
   disabled?: boolean;
 }
 
-export function CouponInput({ amount, type, onCouponApplied, disabled = false }: CouponInputProps) {
-  const [couponCode, setCouponCode] = useState('');
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<CouponValidation | null>(null);
+export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponInputProps) {
+  const [couponCode, setCouponCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [validation, setValidation] = useState<CouponValidation>({
+    isValid: false,
+    discount: 0,
+    message: "",
+    code: "",
+  });
 
-  const validateCoupon = async () => {
-    if (!couponCode.trim()) return;
-
-    setIsValidating(true);
-    try {
-      const result = await CouponService.validateCoupon(couponCode.trim(), amount);
-      setValidationResult(result);
-      onCouponApplied({
-        ...result,
-        code: couponCode.trim()
-      });
-    } catch (error) {
-      const errorResult: CouponValidation = {
+  const handleApplyCoupon = async () => {
+    const code = couponCode.trim();
+    if (!code) {
+      const invalid = {
         isValid: false,
         discount: 0,
-        message: 'Error validating coupon',
-        code: couponCode.trim()
+        message: "Please enter a coupon code",
+        code: "",
       };
-      setValidationResult(errorResult);
-      onCouponApplied(errorResult);
+      setValidation(invalid);
+      onCouponApplied(invalid);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const result = await CouponService.validateCoupon(code, amount, type);
+      setValidation(result);
+      onCouponApplied(result);
+    } catch (error) {
+      const err = {
+        isValid: false,
+        discount: 0,
+        message: "Error validating coupon. Please try again.",
+        code: "",
+      };
+      setValidation(err);
+      onCouponApplied(err);
     } finally {
-      setIsValidating(false);
+      setLoading(false);
     }
   };
 
-  const clearCoupon = () => {
-    setCouponCode('');
-    setValidationResult(null);
-    onCouponApplied({
+  const handleRemoveCoupon = () => {
+    setCouponCode("");
+    const reset = {
       isValid: false,
       discount: 0,
-      message: '',
-      code: ''
-    });
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      validateCoupon();
-    }
+      message: "",
+      code: "",
+    };
+    setValidation(reset);
+    onCouponApplied(reset);
   };
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Tag className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Have a coupon code?</span>
-      </div>
+      <div className="space-y-2">
+        <Label htmlFor="coupon-code" className="text-xs sm:text-sm flex items-center gap-2">
+          <Tag className="h-3 w-3 sm:h-4 sm:w-4" />
+          Have a Coupon Code?
+        </Label>
 
-      <div className="flex gap-2">
-        <div className="flex-1">
+        <div className="flex gap-2">
           <Input
+            id="coupon-code"
             type="text"
             placeholder="Enter coupon code"
             value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={disabled || isValidating || validationResult?.isValid}
-            className="text-sm"
+            onChange={(e) => setCouponCode(e.target.value)} // no .toUpperCase()
+            disabled={disabled || loading || validation.isValid}
+            className="text-sm" // removed uppercase
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !validation.isValid) {
+                e.preventDefault();
+                handleApplyCoupon();
+              }
+            }}
           />
-        </div>
 
-        {validationResult?.isValid ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={clearCoupon}
-            disabled={disabled}
-            className="px-3"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={validateCoupon}
-            disabled={disabled || isValidating || !couponCode.trim()}
-            className="px-3"
-          >
-            {isValidating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Check className="h-4 w-4" />
-            )}
-          </Button>
-        )}
-      </div>
-
-      {/* Validation Result */}
-      {validationResult && (
-        <div className="flex items-center gap-2">
-          {validationResult.isValid ? (
-            <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
-              <Check className="h-3 w-3 mr-1" />
-              {validationResult.message}
-            </Badge>
+          {!validation.isValid ? (
+            <Button
+              type="button"
+              onClick={handleApplyCoupon}
+              disabled={disabled || loading || !couponCode.trim()}
+              variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm px-3 sm:px-4"
+            >
+              {loading ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : "Apply"}
+            </Button>
           ) : (
-            <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
-              <X className="h-3 w-3 mr-1" />
-              {validationResult.message}
-            </Badge>
+            <Button
+              type="button"
+              onClick={handleRemoveCoupon}
+              disabled={disabled}
+              variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm px-3 sm:px-4"
+            >
+              Remove
+            </Button>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Discount Preview */}
-      {validationResult?.isValid && (
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-green-700">Original Amount:</span>
-            <span className="text-green-700">₹{amount}</span>
-          </div>
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-green-700">Discount:</span>
-            <span className="text-green-700">-₹{validationResult.discount}</span>
-          </div>
-          <div className="flex justify-between items-center text-sm font-medium border-t border-green-200 pt-2 mt-2">
-            <span className="text-green-800">Final Amount:</span>
-            <span className="text-green-800">₹{Math.max(0, amount - validationResult.discount)}</span>
+      {validation.message && (
+        <div
+          className={`flex items-start gap-2 p-3 rounded-lg text-xs sm:text-sm ${
+            validation.isValid
+              ? "bg-green-50 text-green-700 border border-green-200"
+              : "bg-red-50 text-red-700 border border-red-200"
+          }`}
+        >
+          {validation.isValid ? (
+            <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5" />
+          ) : (
+            <XCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 mt-0.5" />
+          )}
+
+          <div className="flex-1">
+            <p className="font-medium">{validation.message}</p>
+            {validation.isValid && validation.discount > 0 && (
+              <p className="text-xs mt-1 opacity-90">
+                Code: <span className="font-mono font-bold">{validation.code}</span>
+                {validation.discountType === "percentage"
+                  ? ` (${Math.round((validation.discount / (validation.originalAmount || amount)) * 100)}% off)`
+                  : " (Fixed discount)"}
+              </p>
+            )}
           </div>
         </div>
       )}

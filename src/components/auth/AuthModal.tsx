@@ -1,3 +1,6 @@
+// ==========================================
+// AuthModal.tsx (COMPLETE WORKING VERSION)
+// ==========================================
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [redirectPath, setRedirectPath] = useState('/tool');
+  const { user, signUp, signIn, signInWithGoogle } = useAuth();
 
   // Sign In States
   const [signInEmail, setSignInEmail] = useState('');
@@ -42,13 +46,12 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const [isIndianUser, setIsIndianUser] = useState<boolean>(true);
   const [currentView, setCurrentView] = useState<ViewType>('choice');
   const [resetEmail, setResetEmail] = useState('');
-const { signUp, signIn, signInWithGoogle } = useAuth();
 
-// Loading States
-const [isEmailLoading, setIsEmailLoading] = useState(false);
-const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-const [isResetLoading, setIsResetLoading] = useState(false);
-const isAuthLoading = isEmailLoading || isGoogleLoading;
+  // Loading States
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
+  const isAuthLoading = isEmailLoading || isGoogleLoading;
 
   // Field Clearing Functions
   const clearSignInFields = () => {
@@ -72,40 +75,47 @@ const isAuthLoading = isEmailLoading || isGoogleLoading;
     setShowConfirmPassword(false);
   };
 
-// Handle URL parameters
-useEffect(() => {
-  const shouldOpen = searchParams.get('auth') === 'open';
-  const view = searchParams.get('view');
-
-  if (shouldOpen) {
-    onOpenChange(true);
-    if (view === 'forgot-password') {
-      setCurrentView('forgot-password');
+  // ✅ Auto-close modal when user logs in successfully
+  useEffect(() => {
+    if (user && open) {
+      onOpenChange(false);
     }
+  }, [user, open, onOpenChange]);
 
-    const newSearchParams = new URLSearchParams(searchParams);
-    newSearchParams.delete('auth');
-    newSearchParams.delete('view');
-    setSearchParams(newSearchParams, { replace: true });
-  }
-}, [searchParams, onOpenChange, setSearchParams]);
+  // Handle URL parameters
+  useEffect(() => {
+    const shouldOpen = searchParams.get('auth') === 'open';
+    const view = searchParams.get('view');
 
-// Initialize form when modal opens
-useEffect(() => {
-  if (open) {
-    const currentPath = window.location.pathname;
-    if (currentPath !== '/' && currentPath !== '/tool') {
-      setRedirectPath(currentPath);
+    if (shouldOpen) {
+      onOpenChange(true);
+      if (view === 'forgot-password') {
+        setCurrentView('forgot-password');
+      }
+
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('auth');
+      newSearchParams.delete('view');
+      setSearchParams(newSearchParams, { replace: true });
     }
+  }, [searchParams, onOpenChange, setSearchParams]);
 
-    clearAllFields();
-    setCurrentView('choice');
+  // Initialize form when modal opens
+  useEffect(() => {
+    if (open) {
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/' && currentPath !== '/tool') {
+        setRedirectPath(currentPath);
+      }
 
-    LocationCacheService.getLocation()
-      .then(location => setIsIndianUser(location.isIndian))
-      .catch(() => setIsIndianUser(true));
-  }
-}, [open]);
+      clearAllFields();
+      setCurrentView('choice');
+
+      LocationCacheService.getLocation()
+        .then(location => setIsIndianUser(location.isIndian))
+        .catch(() => setIsIndianUser(true));
+    }
+  }, [open]);
 
   const validatePassword = (password: string): string[] => {
     const requirements: string[] = [];
@@ -141,61 +151,59 @@ useEffect(() => {
     }
   };
 
-const handleSignIn = async () => {
-  if (!signInEmail || !signInPassword) {
-    return toast.error('Please fill in all fields');
-  }
+  // Sign In Handler
+  const handleSignIn = async () => {
+    if (!signInEmail || !signInPassword) {
+      return toast.error('Please fill in all fields');
+    }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInEmail)) {
-    return toast.error('Please enter a valid email address');
-  }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInEmail)) {
+      return toast.error('Please enter a valid email address');
+    }
 
-  setIsEmailLoading(true);
+    setIsEmailLoading(true);
 
-  try {
-    const { data, error } = await signIn(
-      signInEmail.trim().toLowerCase(),
-      signInPassword
-    );
+    try {
+      const { data, error } = await signIn(
+        signInEmail.trim().toLowerCase(),
+        signInPassword
+      );
 
-    if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        toast.error(
-          "Invalid email or password. If you signed up with Google, please use 'Continue with Google'.",
-          { duration: 6000 }
-        );
-      } else if (error.message.includes('Email not confirmed')) {
-        toast.error(
-          'Please confirm your email address first. Check your inbox for the confirmation link.',
-          { duration: 8000 }
-        );
-      } else {
-        toast.error(error.message || 'Sign in failed. Please try again.');
+      if (error) {
+        setIsEmailLoading(false);
+
+        if (error.message.includes('Invalid login credentials')) {
+          return toast.error(
+            "Invalid email or password. If you signed up with Google, please use 'Continue with Google'.",
+            { duration: 6000 }
+          );
+        }
+
+        if (error.message.includes('Email not confirmed')) {
+          return toast.error(
+            'Please confirm your email address first. Check your inbox for the confirmation link.',
+            { duration: 8000 }
+          );
+        }
+
+        return toast.error(error.message || 'Sign in failed. Please try again.');
       }
-      setIsEmailLoading(false);
-      return;
-    }
 
-    if (data?.user) {
-      // Ensure session sync
-      await supabase.auth.refreshSession();
-
-      // Close modal immediately
-      setIsEmailLoading(false);
-      clearSignInFields();
-      onOpenChange(false);
-
-      // Navigate after small delay
-      setTimeout(() => {
+      if (data?.user) {
+        clearSignInFields();
+        setIsEmailLoading(false);
+        onOpenChange(false);
         toast.success('Welcome back!');
-        navigate(redirectPath, { replace: true });
-      }, 150);
+
+        setTimeout(() => {
+          navigate(redirectPath, { replace: true });
+        }, 100);
+      }
+    } catch (err) {
+      setIsEmailLoading(false);
+      toast.error('An unexpected error occurred.');
     }
-  } catch (err) {
-    toast.error('An unexpected error occurred.');
-    setIsEmailLoading(false);
-  }
-};
+  };
 
   // Sign Up Handler
   const handleSignUp = async () => {
@@ -223,7 +231,6 @@ const handleSignIn = async () => {
     setIsEmailLoading(true);
 
     try {
-      // Indian-only check
       const location = await LocationCacheService.getLocation();
       if (!location.isIndian) {
         toast.error('Signup is only available in India');
@@ -272,14 +279,28 @@ const handleSignIn = async () => {
   // Google Sign In Handler
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-    onOpenChange(false); // Close modal before redirect
-    
+
     try {
-      await signInWithGoogle();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/tool`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      onOpenChange(false);
     } catch (error) {
-      toast.error("Google login me dikkat aayi. Connection check karein aur fir se try karein.");
+      console.error('Google sign-in error:', error);
+      toast.error('Google login failed. Please try again.');
       setIsGoogleLoading(false);
-      onOpenChange(true); // Reopen if failed
     }
   };
 
@@ -307,7 +328,6 @@ const handleSignIn = async () => {
         return;
       }
 
-      // Handle response
       let result = data;
       if (typeof data === 'string') {
         try {
