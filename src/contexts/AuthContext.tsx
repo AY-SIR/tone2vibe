@@ -1,12 +1,19 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { User, Session } from "@supabase/supabase-js";
+import { useToast } from "@/hooks/use-toast";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
-import { useToast } from "@/hooks/use-toast";
 
 export interface Profile {
   id: string;
@@ -46,8 +53,15 @@ interface AuthContextType {
   loading: boolean;
   locationData: LocationData | null;
   planExpiryActive: boolean;
-  signUp: (email: string, password: string, options?: { fullName?: string }) => Promise<{ data: any; error: any | null }>;
-  signIn: (email: string, password: string) => Promise<{ data: any; error: any | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    options?: { fullName?: string }
+  ) => Promise<{ data: any; error: any | null }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ data: any; error: any | null }>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<{ error: any | null }>;
   refreshProfile: () => Promise<void>;
@@ -57,17 +71,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authInitialized, setAuthInitialized] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const profileChannelRef = useRef<any>(null);
@@ -75,72 +91,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const shouldShowPopup = expiryData?.show_popup || false;
 
-  // Load or create user profile
-  const loadUserProfile = useCallback(async (user: User) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+  // Load profile safely
+  const loadUserProfile = useCallback(
+    async (user: User) => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
 
-      if (data) {
-        setProfile({
-          ...data,
-          ip_address: (data.ip_address as string | null) ?? "",
-          word_balance: data.word_balance ?? Math.max(0, data.words_limit - data.words_used),
+        if (error) return;
+
+        if (data) {
+          setProfile({
+            ...data,
+            ip_address: data.ip_address ?? "",
+            word_balance:
+              data.word_balance ??
+              Math.max(0, data.words_limit - data.words_used),
+          });
+          setLocationData({
+            country: data.country || "India",
+            currency: "INR",
+          });
+        }
+      } catch {
+        toast({
+          title: "Profile Error",
+          description: "Could not load your profile.",
+          variant: "destructive",
         });
-        setLocationData({ country: data.country || "India", currency: "INR" });
-      } else if (error?.code === "PGRST116") {
-        setProfile(null);
-        setLocationData({ country: "India", currency: "INR" });
       }
-    } catch {
-      toast({
-        title: "Profile Error",
-        description: "Could not load your profile. Please refresh the page.",
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
+    },
+    [toast]
+  );
 
-  // Session handling
+  // Handle session lifecycle
   useEffect(() => {
-    let mounted = true;
+    const controller = new AbortController();
 
-    const handleSession = async (currentSession: Session | null) => {
-      if (!mounted) return;
-      const currentUser = currentSession?.user ?? null;
-      setSession(currentSession);
+    const handleSession = async (current: Session | null) => {
+      if (controller.signal.aborted) return;
+      const currentUser = current?.user ?? null;
+      setSession(current);
       setUser(currentUser);
       if (currentUser) await loadUserProfile(currentUser);
+      setLoading(false);
+      setInitialized(true);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session).finally(() => {
-        if (mounted) setLoading(false);
-        setAuthInitialized(true);
-      });
+      handleSession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       handleSession(session);
-      if (session?.access_token) {
-        document.cookie = `auth_session=${session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
-      } else {
-        document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
-      }
     });
 
     return () => {
-      mounted = false;
+      controller.abort();
       subscription?.unsubscribe();
     };
   }, [loadUserProfile]);
 
-  // Realtime profile updates
+  // Real-time profile updates
   useEffect(() => {
-    if (profileChannelRef.current) profileChannelRef.current.unsubscribe();
+    if (profileChannelRef.current) {
+      profileChannelRef.current.unsubscribe();
+      profileChannelRef.current = null;
+    }
+
     if (user?.id) {
       const channel = supabase
         .channel(`profile-updates-${user.id}`)
@@ -153,59 +176,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            const newProfile = payload.new as Profile;
+            const updated = payload.new as Profile;
             setProfile((prev) => ({
               ...prev,
-              ...newProfile,
-              word_balance: newProfile.word_balance ?? Math.max(0, newProfile.words_limit - newProfile.words_used),
+              ...updated,
+              word_balance:
+                updated.word_balance ??
+                Math.max(0, updated.words_limit - updated.words_used),
             }));
           }
         )
         .subscribe();
+
       profileChannelRef.current = channel;
     }
-    return () => profileChannelRef.current?.unsubscribe();
+
+    return () => {
+      if (profileChannelRef.current) {
+        profileChannelRef.current.unsubscribe();
+        profileChannelRef.current = null;
+      }
+    };
   }, [user?.id]);
 
   // Auth actions
-  const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    options?: { fullName?: string }
+  ) => {
     try {
-      const { data, error } = await supabase.functions.invoke("signup", {
+      const { data } = await supabase.functions.invoke("signup", {
         body: { email, password, fullName: options?.fullName },
       });
 
-      let parsedData;
-      try {
-        parsedData = typeof data === "string" ? JSON.parse(data) : data;
-      } catch {
-        return { data: null, error: new Error("Unexpected response from server.") };
+      const parsed = typeof data === "string" ? JSON.parse(data) : data ?? {};
+      if (!parsed.success) {
+        return { data: null, error: new Error(parsed.error || "Signup failed") };
       }
 
-      if (!parsedData || !parsedData.success) {
-        const errorMessage = parsedData?.error || "Signup failed. Please try again.";
-        return { data: null, error: new Error(errorMessage) };
-      }
-
-      return { data: parsedData, error: null };
+      return { data: parsed, error: null };
     } catch {
-      return { data: null, error: new Error("Network error. Please check your connection and try again.") };
+      return {
+        data: null,
+        error: new Error("Signup failed. Please try again."),
+      };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error && error.message.includes("Email not confirmed")) {
-        return { data, error: new Error("Please confirm your email before signing in.") };
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      if (data?.session) {
-        document.cookie = `auth_session=${data.session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
+      if (error?.message.includes("Email not confirmed")) {
+        return {
+          data,
+          error: new Error("Please confirm your email before signing in."),
+        };
       }
 
       return { data, error };
     } catch {
-      return { data: null, error: new Error("Sign-in failed. Please try again.") };
+      return {
+        data: null,
+        error: new Error("Sign-in failed. Please try again."),
+      };
     }
   };
 
@@ -214,14 +252,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin + "/tool",
+          redirectTo: window.location.origin,
           queryParams: { access_type: "offline", prompt: "consent" },
         },
       });
     } catch {
       toast({
         title: "Google Sign-In Failed",
-        description: "Could not sign in with Google. Please try again later.",
+        description: "Please try again later.",
         variant: "destructive",
       });
     }
@@ -229,7 +267,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      document.cookie = 'auth_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure';
       const { error } = await supabase.auth.signOut();
       setUser(null);
       setSession(null);
@@ -239,7 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       toast({
         title: "Logout Error",
-        description: "Could not log you out properly. Please refresh the page.",
+        description: "Please refresh the page.",
         variant: "destructive",
       });
       return { error: new Error("Logout failed") };
@@ -253,21 +290,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
     try {
-      if (data.words_used !== undefined && profile) {
-        data.word_balance = Math.max(0, profile.words_limit - data.words_used);
-      }
-      const { error } = await supabase.from("profiles").update(data).eq("user_id", user.id);
-      if (error) {
-        toast({
-          title: "Profile Update Failed",
-          description: "Unable to update your profile. Please try again.",
-          variant: "destructive",
-        });
-      }
+      const { error } = await supabase
+        .from("profiles")
+        .update(data)
+        .eq("user_id", user.id);
+      if (error) throw error;
     } catch {
       toast({
-        title: "Unexpected Error",
-        description: "Something went wrong while updating your profile.",
+        title: "Profile Update Failed",
+        description: "Unable to update your profile.",
         variant: "destructive",
       });
     }
@@ -277,7 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     profile,
-    loading: loading || !authInitialized,
+    loading: loading || !initialized,
     locationData,
     planExpiryActive: shouldShowPopup,
     signUp,
@@ -288,7 +319,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProfile,
   };
 
-  const isReady = authInitialized && !loading && (!user || (user && profile !== null));
+  const isReady =
+    initialized && !loading && (!user || (user && profile !== null));
 
   return (
     <AuthContext.Provider value={value}>
