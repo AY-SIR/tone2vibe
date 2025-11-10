@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export const useOfflineDetection = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'poor' | 'offline'>(
-    !navigator.onLine ? 'offline' : 'good'
-  );
+  const [connectionQuality, setConnectionQuality] = useState<
+    "good" | "poor" | "offline"
+  >(!navigator.onLine ? "offline" : "good");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [statusChecked, setStatusChecked] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -17,24 +17,22 @@ export const useOfflineDetection = () => {
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const checkInProgressRef = useRef(false);
   const failureStreakRef = useRef(0);
-  const backgroundCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backgroundCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   const verifyConnection = useCallback(async (): Promise<boolean> => {
     if (!navigator.onLine) return false;
 
-    // Helper to test a URL quickly
     const testUrl = async (url: string) => {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         const response = await fetch(url, {
-          method: 'HEAD',
-          cache: 'no-cache',
-          headers: {
-            'Cache-Control': 'no-cache',
-            Pragma: 'no-cache',
-          },
+          method: "HEAD",
+          cache: "no-cache",
+          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
           signal: controller.signal,
         });
 
@@ -45,16 +43,11 @@ export const useOfflineDetection = () => {
       }
     };
 
-    // 1️⃣ Internal API check
-    if (await testUrl('/api/health')) return true;
+    // Step checks
+    if (await testUrl("/api/health")) return true;
+    if (await testUrl("/health.txt")) return true;
+    if (await testUrl("https://cdnjs.cloudflare.com/cdn-cgi/trace")) return true;
 
-    // 2️⃣ Static local file check
-    if (await testUrl('/health.txt')) return true;
-
-    // 3️⃣ Cloudflare CDN fallback check
-    if (await testUrl('https://cdnjs.cloudflare.com/cdn-cgi/trace')) return true;
-
-    // All failed → Offline
     return false;
   }, []);
 
@@ -76,12 +69,13 @@ export const useOfflineDetection = () => {
           failureStreakRef.current = 0;
           setIsOffline(false);
           setRetryCount(0);
-          setConnectionQuality('good');
+          setConnectionQuality("good");
           setStatusChecked(true);
 
           if (wasOffline) {
             wasOfflineRef.current = false;
-            if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
+            if (restoredTimerRef.current)
+              clearTimeout(restoredTimerRef.current);
 
             setConnectionRestored(true);
             restoredTimerRef.current = setTimeout(() => {
@@ -98,7 +92,7 @@ export const useOfflineDetection = () => {
           if (shouldShowOffline) {
             wasOfflineRef.current = true;
             setIsOffline(true);
-            setConnectionQuality('offline');
+            setConnectionQuality("offline");
             setRetryCount((prev) => prev + 1);
             setConnectionRestored(false);
           }
@@ -113,7 +107,7 @@ export const useOfflineDetection = () => {
 
   const handleOnline = useCallback(async () => {
     if (!mountedRef.current) return;
-    setConnectionQuality('good');
+    setConnectionQuality("good");
     failureStreakRef.current = 0;
     await checkConnection();
   }, [checkConnection]);
@@ -122,7 +116,7 @@ export const useOfflineDetection = () => {
     if (!mountedRef.current) return;
     wasOfflineRef.current = true;
     setIsOffline(true);
-    setConnectionQuality('offline');
+    setConnectionQuality("offline");
     setRetryCount((prev) => prev + 1);
     setConnectionRestored(false);
     setStatusChecked(true);
@@ -131,7 +125,7 @@ export const useOfflineDetection = () => {
   }, []);
 
   const handleVisibilityChange = useCallback(() => {
-    if (document.visibilityState === 'visible' && wasOfflineRef.current) {
+    if (document.visibilityState === "visible" && wasOfflineRef.current) {
       checkConnection();
     }
   }, [checkConnection]);
@@ -140,35 +134,33 @@ export const useOfflineDetection = () => {
     mountedRef.current = true;
 
     const initialOnline = navigator.onLine;
+
     if (!initialOnline) {
       wasOfflineRef.current = true;
       setIsOffline(true);
-      setConnectionQuality('offline');
+      setConnectionQuality("offline");
       setStatusChecked(true);
     } else {
       wasOfflineRef.current = false;
       setIsOffline(false);
-      setConnectionQuality('good');
+      setConnectionQuality("good");
       setStatusChecked(true);
 
       backgroundCheckTimeoutRef.current = setTimeout(() => {
-        if (mountedRef.current) {
-          verifyConnection()
-            .then((online) => {
-              if (mountedRef.current && !online) {
-                wasOfflineRef.current = true;
-                setIsOffline(true);
-                setConnectionQuality('offline');
-              }
-            })
-            .catch(() => {});
-        }
+        if (!mountedRef.current) return;
+        verifyConnection().then((online) => {
+          if (mountedRef.current && !online) {
+            wasOfflineRef.current = true;
+            setIsOffline(true);
+            setConnectionQuality("offline");
+          }
+        });
       }, 1000);
     }
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     checkIntervalRef.current = setInterval(() => {
       if (
@@ -182,16 +174,22 @@ export const useOfflineDetection = () => {
 
     return () => {
       mountedRef.current = false;
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
 
       if (restoredTimerRef.current) clearTimeout(restoredTimerRef.current);
       if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
       if (backgroundCheckTimeoutRef.current)
         clearTimeout(backgroundCheckTimeoutRef.current);
     };
-  }, [handleOnline, handleOffline, handleVisibilityChange, checkConnection, verifyConnection]);
+  }, [
+    handleOnline,
+    handleOffline,
+    handleVisibilityChange,
+    checkConnection,
+    verifyConnection,
+  ]);
 
   return {
     isOffline,
