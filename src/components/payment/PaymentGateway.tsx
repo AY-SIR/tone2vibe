@@ -11,12 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Crown,
-  Star,
-  Zap,
-  Loader2
-} from "lucide-react";
+import { Crown, Star, Zap, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { CouponInput } from "@/components/payment/couponInput";
@@ -100,7 +95,6 @@ export function PaymentGateway({
   const currentPlan = profile?.plan || "free";
   const isUpgrade = currentPlan === "pro" && selectedPlan === "premium";
   const isDowngrade = currentPlan === "premium" && selectedPlan === "pro";
-  const isChange = isUpgrade || isDowngrade;
   const isExpired =
     profile?.plan_expires_at &&
     new Date(profile.plan_expires_at) <= new Date();
@@ -123,7 +117,6 @@ export function PaymentGateway({
 
     try {
       if (finalAmount === 0) {
-        // Free activation using coupon
         if (!couponValidation.isValid || !couponValidation.code) {
           toast({
             title: "Coupon required",
@@ -152,31 +145,39 @@ export function PaymentGateway({
     }
   };
 
-  // ✅ Secure free plan activation using Edge Functions
+  // ✅ Secure free plan activation using Edge Functions (auth required)
   const handleFreeActivation = async () => {
     try {
       if (!user) throw new Error("Please log in first");
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token)
+        throw new Error("Session expired. Please log in again.");
 
       const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 9)}`;
 
-      // Step 1: Validate coupon via Edge Function
+      // 🔒 Validate coupon securely via Edge Function
       const validateRes = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`, // ✅ required
+        },
         body: JSON.stringify({
           code: couponValidation.code,
           amount: plan.price,
-          type: "subscription"
-        })
+          type: "subscription",
+        }),
       });
 
       const validation = await validateRes.json();
-      if (!validation.isValid)
+      if (!validateRes.ok || !validation.isValid) {
         throw new Error(validation.message || "Invalid or expired coupon.");
+      }
 
-      // Step 2: Plan data setup
+      // Step 2: Plan setup
       const planLimits = {
         pro: { words_limit: 10000, upload_limit_mb: 25 },
         premium: { words_limit: 50000, upload_limit_mb: 100 }
@@ -203,7 +204,7 @@ export function PaymentGateway({
 
       if (profileError) throw new Error(profileError.message);
 
-      // Step 4: Insert payment record
+      // Step 4: Log payment
       const { error: paymentError } = await supabase.from("payments").insert({
         user_id: user.id,
         plan: selectedPlan,
@@ -218,15 +219,18 @@ export function PaymentGateway({
 
       if (paymentError) throw new Error(paymentError.message);
 
-      // Step 5: Increment coupon usage via Edge Function
+      // Step 5: Increment coupon usage (also auth-protected)
       const incRes = await fetch(`${SUPABASE_URL}/functions/v1/increment-coupon-usage`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: couponValidation.code })
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`, // ✅ required
+        },
+        body: JSON.stringify({ code: couponValidation.code }),
       });
 
       const incResult = await incRes.json();
-      if (!incResult.success) {
+      if (!incRes.ok || !incResult.success) {
         console.warn("Coupon usage increment failed:", incResult.error);
       }
 
@@ -242,7 +246,7 @@ export function PaymentGateway({
     }
   };
 
-  // Loading overlay
+  // 🌀 Loading overlay
   if (isProcessing || isActivating) {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">

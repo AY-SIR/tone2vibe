@@ -28,7 +28,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export class CouponService {
   /**
-   * ✅ Validate coupon using Edge Function
+   * ✅ Validate coupon using Edge Function (auth required)
    */
   static async validateCoupon(
     code: string,
@@ -36,7 +36,7 @@ export class CouponService {
     type: "subscription" | "words"
   ): Promise<CouponValidation> {
     try {
-      if (!code || !code.trim()) {
+      if (!code?.trim()) {
         return {
           isValid: false,
           discount: 0,
@@ -57,11 +57,31 @@ export class CouponService {
       const normalizedCode = code.trim();
       console.log("Validating coupon:", normalizedCode, "for type:", type, "amount:", amount);
 
-      // 🔥 Call Edge Function instead of direct Supabase table query
+      // 🔑 Get current user session (auth token required)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        console.warn("⚠️ No session found. User must be logged in to validate coupon.");
+        return {
+          isValid: false,
+          discount: 0,
+          message: "You must be logged in to use a coupon",
+          code: normalizedCode,
+        };
+      }
+
+      // 🔥 Call Edge Function securely
       const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: normalizedCode, amount, type }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`, // ✅ Auth required
+        },
+        body: JSON.stringify({
+          code: normalizedCode,
+          amount,
+          type,
+        }),
       });
 
       const result = await response.json();
@@ -71,12 +91,19 @@ export class CouponService {
         return {
           isValid: false,
           discount: 0,
-          message: result.error || "Error validating coupon. Please try again.",
+          message: result.message || "Error validating coupon. Please try again.",
           code: normalizedCode,
         };
       }
 
-      return result;
+      return {
+        isValid: result.valid ?? true,
+        discount: result.discount ?? 0,
+        message: result.message || "Coupon applied successfully",
+        code: normalizedCode,
+        discountType: result.type === "percentage" ? "percentage" : "fixed",
+        originalAmount: amount,
+      };
     } catch (error) {
       console.error("Coupon validation error:", error);
       return {
@@ -96,16 +123,26 @@ export class CouponService {
       const normalizedCode = code.trim();
       console.log("Incrementing coupon usage via Edge Function:", normalizedCode);
 
+      // 🔑 Ensure user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.warn("⚠️ User must be logged in to increment coupon usage.");
+        return false;
+      }
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/increment-coupon-usage`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ code: normalizedCode }),
       });
 
       const result = await response.json();
       console.log("Increment coupon usage result:", result);
 
-      return result.success === true;
+      return response.ok && result.success === true;
     } catch (error) {
       console.error("Error incrementing coupon usage:", error);
       return false;
@@ -114,7 +151,6 @@ export class CouponService {
 
   /**
    * 🧩 Get all active coupons (admin use only)
-   * Keep this only for backend-admin usage
    */
   static async getActiveCoupons(): Promise<Coupon[]> {
     try {
