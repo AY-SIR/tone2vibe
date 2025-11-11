@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { TriangleAlert as AlertTriangle, Clock, CreditCard } from 'lucide-react';
+import { AlertTriangle, Clock, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface PlanExpiryPopupProps {
@@ -22,6 +22,17 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
   isExpired
 }) => {
   const navigate = useNavigate();
+  const [isReloading, setIsReloading] = useState(false);
+
+  const handleClose = () => {
+    setIsReloading(true);
+    onClose();
+
+    // Wait 2 seconds then reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 2000);
+  };
 
   const handleUpgrade = () => {
     onClose();
@@ -59,43 +70,54 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
     return isExpired ? 'Renew Plan' : 'Extend Plan';
   };
 
+  // Loading overlay
+  if (isReloading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-white" />
+          <p className="text-white text-lg font-medium">Refreshing...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-   <Dialog open={isOpen} onOpenChange={onClose}>
-  <DialogContent
-    className="w-[90%] max-w-md mx-auto rounded-2xl px-4 sm:px-6 py-4"
-  >
-    <DialogHeader className="text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-        {getIcon()}
-      </div>
-      <DialogTitle className="text-lg font-semibold text-center">
-        {getTitle()}
-      </DialogTitle>
-      <DialogDescription className="text-sm text-muted-foreground">
-        {getDescription()}
-      </DialogDescription>
-    </DialogHeader>
-
-    <div className="flex flex-col gap-3 mt-4">
-      <Button
-        variant="outline"
-        onClick={onClose}
-        className="w-full bg-black text-white"
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent
+        className="w-[90%] max-w-md mx-auto rounded-2xl px-4 sm:px-6 py-4"
       >
-        Remind Me Later
-      </Button>
-    </div>
+        <DialogHeader className="text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            {getIcon()}
+          </div>
+          <DialogTitle className="text-lg font-semibold text-center">
+            {getTitle()}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            {getDescription()}
+          </DialogDescription>
+        </DialogHeader>
 
-    {isExpired && (
-      <div className="mt-4 p-3 bg-destructive/10 rounded-md">
-        <p className="text-xs text-destructive text-center">
-          Your plan has expired and you've been moved to the free tier.
-          Purchased words never expire and are still available.
-        </p>
-      </div>
-    )}
-  </DialogContent>
-</Dialog>
+        <div className="flex flex-col gap-3 mt-4">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            className="w-full bg-black text-white hover:bg-black/90"
+          >
+            Remind Me Later
+          </Button>
+        </div>
 
+        {isExpired && (
+          <div className="mt-4 p-3 bg-destructive/10 rounded-md">
+            <p className="text-xs text-destructive text-center">
+              Your plan has expired and you've been moved to the free tier.
+              Purchased words never expire and are still available.
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };

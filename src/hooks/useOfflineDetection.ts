@@ -24,17 +24,26 @@ export const useOfflineDetection = () => {
   const verifyConnection = useCallback(async (): Promise<boolean> => {
     if (!navigator.onLine) return false;
 
-    const testUrl = async (url: string) => {
+    const testUrl = async (url: string, isExternal: boolean = false) => {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        const response = await fetch(url, {
+        const fetchOptions: RequestInit = {
           method: "HEAD",
           cache: "no-cache",
-          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
           signal: controller.signal,
-        });
+        };
+
+        // Only add custom headers for local endpoints to avoid CORS issues
+        if (!isExternal) {
+          fetchOptions.headers = {
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
+          };
+        }
+
+        const response = await fetch(url, fetchOptions);
 
         clearTimeout(timeoutId);
         return response.ok;
@@ -43,10 +52,12 @@ export const useOfflineDetection = () => {
       }
     };
 
-    // Step checks
-    if (await testUrl("/api/health")) return true;
-    if (await testUrl("/health.txt")) return true;
-    if (await testUrl("https://cdnjs.cloudflare.com/cdn-cgi/trace")) return true;
+    // Check CDN first (most reliable and fast) - without custom headers
+    if (await testUrl("https://cdnjs.cloudflare.com/cdn-cgi/trace", true)) return true;
+
+    // Then check local health endpoints - with custom headers
+    if (await testUrl("/api/health.txt", false)) return true;
+    if (await testUrl("/health.txt", false)) return true;
 
     return false;
   }, []);

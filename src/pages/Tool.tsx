@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const STORAGE_KEY = "tool_state_v2";
-const MAX_TEXT_LENGTH = 500000; //
+const MAX_TEXT_LENGTH = 500000;
 const MAX_WORD_COUNT = 50000; // 50k words max
 const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB max for sessionStorage
 const MAX_BLOB_SIZE = 50 * 1024 * 1024; // 50MB max for voice recordings
@@ -136,6 +136,7 @@ const Tool = () => {
   const { toast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
+  const resetCounterRef = useRef(0); // Add reset counter for forcing remounts
 
   const totalSteps = 5;
 
@@ -194,6 +195,7 @@ const Tool = () => {
   const [processingStep, setProcessingStep] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
   const [isProcessingSuccess, setIsProcessingSuccess] = useState(false);
+  const [resetCounter, setResetCounter] = useState(0); // Add state for reset counter
 
   // Security: Safe word count calculation with limits
   const calculateWordCount = useCallback((text: string): number => {
@@ -535,8 +537,6 @@ const Tool = () => {
       setVoiceRecording(blob);
       setSelectedVoiceId("");
       setVoiceType('record');
-    } else {
-
     }
   };
 
@@ -581,6 +581,7 @@ const Tool = () => {
       }
     }
 
+    // Clear all state
     setExtractedText("");
     setWordCount(0);
     setSelectedLanguage("hi-IN");
@@ -590,6 +591,10 @@ const Tool = () => {
     setProcessedAudioUrl("");
     setCurrentStep(1);
     setCompletedSteps([]);
+
+    // Increment reset counter to force remount of Step 1
+    setResetCounter(prev => prev + 1);
+    resetCounterRef.current += 1;
 
     // Security: Safe cleanup
     try {
@@ -650,8 +655,6 @@ const Tool = () => {
         </div>
 
         <div className="container mx-auto px-4 py-8 max-w-6xl">
-
-
           <div className="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
             {Array.from({ length: totalSteps }, (_, i) => {
               const step = i + 1;
@@ -690,75 +693,72 @@ const Tool = () => {
                   <div className="flex-1">
                     <p className="font-medium text-destructive text-sm">Insufficient Word Balance</p>
                     <p className="text-xs sm:text-sm text-destructive/80">
-Need <strong>{wordCount.toLocaleString()}</strong> words · Remaining: <strong>{remainingWords.toLocaleString()}</strong>
+                      Need <strong>{wordCount.toLocaleString()}</strong> words · Remaining: <strong>{remainingWords.toLocaleString()}</strong>
                     </p>
                   </div>
-
                 </div>
               </CardContent>
             </Card>
           )}
 
-<Card className="bg-white/50 dark:bg-zinc-800/50 backdrop-blur-md border border-gray-300/30 dark:border-gray-700/30 shadow-xl transition-all duration-300">
+<Card className="bg-white/50 backdrop-blur-md border border-gray-300/30 transition-all duration-300">
             <CardHeader className="border-b p-4 sm:p-6">
-  <div className="flex items-center justify-between">
-    {/* Left side: Step number + title */}
-    <div className="flex items-center space-x-3">
-      <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm">
-        {currentStep}
-      </span>
-      <div>
-        <CardTitle className="text-base sm:text-lg lg:text-xl">
-          {getStepTitle(currentStep)}
-        </CardTitle>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          {getStepDescription(currentStep)}
-        </p>
-      </div>
-    </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-xs sm:text-sm">
+                    {currentStep}
+                  </span>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg lg:text-xl">
+                      {getStepTitle(currentStep)}
+                    </CardTitle>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                      {getStepDescription(currentStep)}
+                    </p>
+                  </div>
+                </div>
 
-    {/* Right side: Reset button */}
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 text-xs sm:text-sm"
-          disabled={isProcessing}
-        >
-          <RotateCcw className="h-4 w-4" />
-          {/* Show text only on desktop */}
-          <span className="hidden sm:inline">Reset All</span>
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Reset Everything?</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-3 text-gray-600 dark:text-gray-400">
-              <p>This will securely clear all your progress and return you to Step 1.</p>
-              <div className="text-xs space-y-1 bg-gray-50 dark:bg-zinc-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <p>• All text and settings will be cleared</p>
-                <p>• Voice recordings will be removed</p>
-                {currentStep === 5 && <p>• Generated audio will remain in history</p>}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-xs sm:text-sm"
+                      disabled={isProcessing}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      <span className="hidden sm:inline">Reset All</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="w-[95vw] max-w-lg rounded-lg">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset Everything?</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-3 text-gray-600 dark:text-gray-400">
+                          <p>This will securely clear all your progress and return you to Step 1.</p>
+                          <div className="text-xs space-y-1 bg-gray-50 dark:bg-zinc-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <p>• All text and settings will be cleared</p>
+                            <p>• Voice recordings will be removed</p>
+                            {currentStep === 5 && <p>• Generated audio will remain in history</p>}
+                          </div>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleCompleteReset}>
+                        Yes, Reset
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
-            </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleCompleteReset}>
-            Yes, Reset
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </div>
-</CardHeader>
+            </CardHeader>
 
             <CardContent className="p-4 sm:p-6">
               {currentStep === 1 && (
                 <ModernStepOne
+                  key={`step1-${resetCounter}`}
                   onNext={handleNext}
                   onTextExtracted={handleTextExtraction}
                   onWordCountUpdate={handleWordCountUpdate}

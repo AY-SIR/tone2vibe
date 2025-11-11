@@ -12,11 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Check,
   Crown,
   Star,
   Zap,
-  TriangleAlert as AlertTriangle,
   Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +36,7 @@ export function PaymentGateway({
   const { profile, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
   const [confirmPayment, setConfirmPayment] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [couponValidation, setCouponValidation] = useState({
@@ -46,6 +45,8 @@ export function PaymentGateway({
     message: "",
     code: ""
   });
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
   const pricing = {
     currency: "INR",
@@ -122,7 +123,7 @@ export function PaymentGateway({
 
     try {
       if (finalAmount === 0) {
-        // Free activation with coupon
+        // Free activation using coupon
         if (!couponValidation.isValid || !couponValidation.code) {
           toast({
             title: "Coupon required",
@@ -151,37 +152,31 @@ export function PaymentGateway({
     }
   };
 
+  // ✅ Secure free plan activation using Edge Functions
   const handleFreeActivation = async () => {
     try {
-      if (!user) throw new Error("Pehle login karein");
+      if (!user) throw new Error("Please log in first");
 
       const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 9)}`;
 
-      // Step 1: Validate coupon directly from table
-      const { data: couponData, error: couponError } = await supabase
-        .from("coupons")
-        .select("*")
-        .eq("code", couponValidation.code)
-        .limit(1);
+      // Step 1: Validate coupon via Edge Function
+      const validateRes = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: couponValidation.code,
+          amount: plan.price,
+          type: "subscription"
+        })
+      });
 
-      if (couponError) throw new Error("Coupon verify nahi ho saka.");
-      const result = couponData?.[0];
-      if (!result) throw new Error("Invalid or expired coupon.");
+      const validation = await validateRes.json();
+      if (!validation.isValid)
+        throw new Error(validation.message || "Invalid or expired coupon.");
 
-      if (result.expires_at && new Date(result.expires_at) < new Date()) {
-        throw new Error("Coupon expire ho gaya hai.");
-      }
-
-      if (
-        result.max_uses &&
-        result.used_count >= result.max_uses
-      ) {
-        throw new Error("Coupon usage limit khatam ho gayi hai.");
-      }
-
-      // Step 2: Prepare plan data
+      // Step 2: Plan data setup
       const planLimits = {
         pro: { words_limit: 10000, upload_limit_mb: 25 },
         premium: { words_limit: 50000, upload_limit_mb: 100 }
@@ -190,7 +185,7 @@ export function PaymentGateway({
       const now = new Date();
       const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      // Step 3: Update user profile
+      // Step 3: Update profile
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -208,7 +203,7 @@ export function PaymentGateway({
 
       if (profileError) throw new Error(profileError.message);
 
-      // Step 4: Record payment
+      // Step 4: Insert payment record
       const { error: paymentError } = await supabase.from("payments").insert({
         user_id: user.id,
         plan: selectedPlan,
@@ -223,28 +218,31 @@ export function PaymentGateway({
 
       if (paymentError) throw new Error(paymentError.message);
 
-      // Step 5: Increment coupon usage
-      const { error: couponUpdateError } = await supabase
-        .from("coupons")
-        .update({
-          used_count: (result.used_count || 0) + 1,
-          last_used_at: new Date().toISOString()
-        })
-        .eq("id", result.id);
+      // Step 5: Increment coupon usage via Edge Function
+      const incRes = await fetch(`${SUPABASE_URL}/functions/v1/increment-coupon-usage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponValidation.code })
+      });
 
-      if (couponUpdateError) throw new Error(couponUpdateError.message);
+      const incResult = await incRes.json();
+      if (!incResult.success) {
+        console.warn("Coupon usage increment failed:", incResult.error);
+      }
 
-      // Step 6: Success redirect
+      // Step 6: Redirect
       navigate(
         `/payment-success?plan=${selectedPlan}&amount=0&coupon=${couponValidation.code}`,
         { replace: true }
       );
     } catch (error) {
       throw error;
+    } finally {
+      setIsActivating(false);
     }
   };
 
-  // Loading Overlay
+  // Loading overlay
   if (isProcessing || isActivating) {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -260,7 +258,7 @@ export function PaymentGateway({
     );
   }
 
-  // Already subscribed
+  // Already subscribed UI
   if (!canPurchase && currentPlan === selectedPlan && !isExpired) {
     return (
       <Card className="w-full max-w-md mx-auto border-orange-200">

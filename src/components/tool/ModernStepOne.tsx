@@ -35,9 +35,16 @@ export default function ModernStepOne({
   const [isProcessing, setIsProcessing] = useState(false);
   const [textError, setTextError] = useState<string | null>(null);
 
+  // Enhanced useEffect to properly handle initialText changes including empty strings
   useEffect(() => {
+    // Always sync with initialText, even when it's empty
     setManualText(initialText);
     setExtractedText(initialText);
+
+    // Clear error when text is cleared
+    if (!initialText || initialText.trim() === "") {
+      setTextError(null);
+    }
   }, [initialText]);
 
   const calculateWordCount = (text: string) => {
@@ -134,6 +141,7 @@ export default function ModernStepOne({
       if (text.trim()) {
         const wordCount = calculateWordCount(text);
         setExtractedText(text);
+        setManualText(text); // Also update manual text
         onTextExtracted(text);
         onWordCountUpdate(wordCount);
         toast({
@@ -150,6 +158,7 @@ export default function ModernStepOne({
         variant: "destructive"
       });
       setExtractedText("");
+      setManualText("");
     } finally {
       setIsProcessing(false);
       onProcessingEnd();
