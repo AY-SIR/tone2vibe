@@ -445,15 +445,38 @@ const ModernStepFour = ({
         </Card>
       )}
 
-      {/* Prebuilt Voice Alert */}
-      {isPrebuiltVoice && (
-        <Alert className="border-purple-200 bg-purple-50">
-          <Crown className="h-4 w-4 text-purple-600" />
-          <AlertDescription className="text-sm text-purple-800">
-            <strong>Prebuilt Voice Mode:</strong> Professional voice ready to generate. Advanced settings are not available for prebuilt voices.
-          </AlertDescription>
-        </Alert>
+    {/* Prebuilt Voice Alert */}
+{isPrebuiltVoice && (
+  <Alert
+    className={`${
+      isFreeUser ? "border-blue-200 bg-blue-50" : "border-purple-200 bg-purple-50"
+    }`}
+  >
+    <Crown
+      className={`h-4 w-4 ${
+        isFreeUser ? "text-blue-600" : "text-purple-600"
+      }`}
+    />
+    <AlertDescription
+      className={`text-sm ${
+        isFreeUser ? "text-blue-800" : "text-purple-800"
+      }`}
+    >
+      <strong>Prebuilt Voice Mode:</strong>{" "}
+      {isFreeUser ? (
+        <>
+ Professional prebuilt voice ready to generate.
+         </>
+      ) : (
+        <>
+          Professional prebuilt voice ready to generate. Advanced settings are
+          not available for prebuilt voices.
+        </>
       )}
+    </AlertDescription>
+  </Alert>
+)}
+
 
       {/* Summary Card */}
       <Card>
