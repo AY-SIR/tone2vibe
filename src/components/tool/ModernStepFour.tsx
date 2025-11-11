@@ -516,6 +516,10 @@ const ModernStepFour = ({
                     <>
                       <TabsTrigger value="pacing" className="text-xs sm:text-sm">Pacing</TabsTrigger>
                       <TabsTrigger value="tuning" className="text-xs sm:text-sm">Tuning</TabsTrigger>
+                                          <TabsTrigger value="sfx" className="text-xs sm:text-sm px-2 py-2 col-span-2 data-[state=active]:bg-white data-[state=active]:shadow-sm border-t border-gray-200">
+                      Sound Effects
+                    </TabsTrigger>
+
                     </>
                   )}
                 </TabsList>
@@ -641,25 +645,94 @@ const ModernStepFour = ({
                   </TabsContent>
                 )}
 
-                {/* Premium Tuning */}
                 {isPremiumUser && (
+                <>
+                  <TabsContent value="pacing" className="space-y-4 mt-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center"><Mic2 className="h-4 w-4 mr-2" />Speaking Rate: {speakingRate[0]} WPM</label>
+                        <Slider value={speakingRate} onValueChange={(val) => { setSpeakingRate(val); handleSettingsChange(); }} min={80} max={220} step={5} className="w-full"/>
+                        <p className="text-xs text-gray-500">Set speed in Words Per Minute.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Overall Pause Multiplier: {pauseLength[0].toFixed(1)}x</label>
+                        <Slider value={pauseLength} onValueChange={(val) => { setPauseLength(val); handleSettingsChange(); }} min={0.5} max={3.0} step={0.1} className="w-full"/>
+                        <p className="text-xs text-gray-500">Adjust all natural pauses.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Comma Pause: {commaPause[0].toFixed(2)}s</label>
+                        <Slider value={commaPause} onValueChange={(val) => { setCommaPause(val); handleSettingsChange(); }} min={0.1} max={2.0} step={0.05} className="w-full"/>
+                        <p className="text-xs text-gray-500">Duration of pause at commas.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Period Pause: {periodPause[0].toFixed(2)}s</label>
+                        <Slider value={periodPause} onValueChange={(val) => { setPeriodPause(val); handleSettingsChange(); }} min={0.2} max={3.0} step={0.05} className="w-full"/>
+                        <p className="text-xs text-gray-500">Duration of pause at periods.</p>
+                      </div>
+                    </div>
+                  </TabsContent>
+
                   <TabsContent value="tuning" className="space-y-4 mt-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Voice Stability: {voiceStability[0].toFixed(2)}</label>
-                        <Slider value={voiceStability} onValueChange={(val) => { setVoiceStability(val); handleSettingsChange(); }} min={0.0} max={1.0} step={0.01} />
+                        <Slider value={voiceStability} onValueChange={(val) => { setVoiceStability(val); handleSettingsChange(); }} min={0.0} max={1.0} step={0.01} className="w-full"/>
+                        <p className="text-xs text-gray-500">Controls voice consistency.</p>
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Voice Clarity: {voiceClarity[0].toFixed(2)}</label>
-                        <Slider value={voiceClarity} onValueChange={(val) => { setVoiceClarity(val); handleSettingsChange(); }} min={0.0} max={1.0} step={0.01} />
+                        <Slider value={voiceClarity} onValueChange={(val) => { setVoiceClarity(val); handleSettingsChange(); }} min={0.0} max={1.0} step={0.01} className="w-full"/>
+                        <p className="text-xs text-gray-500">Boosts clarity vs. naturalness.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Breathing Sound: {breathingSound[0].toFixed(2)}</label>
+                        <Slider value={breathingSound} onValueChange={(val) => { setBreathingSound(val); handleSettingsChange(); }} min={0.0} max={1.0} step={0.01} className="w-full"/>
+                        <p className="text-xs text-gray-500">Add realistic breathing.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Word Emphasis: {wordEmphasis[0].toFixed(2)}</label>
+                        <Slider value={wordEmphasis} onValueChange={(val) => { setWordEmphasis(val); handleSettingsChange(); }} min={0.5} max={2.0} step={0.01} className="w-full"/>
+                        <p className="text-xs text-gray-500">Fine-tune word emphasis.</p>
                       </div>
                     </div>
                   </TabsContent>
-                )}
-              </Tabs>
-            </CardContent>
-          )}
-        </Card>
+
+                  <TabsContent value="sfx" className="space-y-4 mt-4">
+                    <div className="p-3 bg-purple-50 rounded-lg mb-4">
+                      <p className="text-xs text-purple-700">
+                        <Crown className="h-3 w-3 inline mr-1" />
+                        <strong>Premium Sound Design</strong> - Apply professional audio effects.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Output Format</label>
+                        <Select value={outputFormat} onValueChange={(val) => { setOutputFormat(val); handleSettingsChange(); }}>
+                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mp3_192">MP3 - 192kbps (High Quality)</SelectItem>
+                            <SelectItem value="mp3_320">MP3 - 320kbps (Ultra Quality)</SelectItem>
+                            <SelectItem value="wav_lossless">WAV - Lossless (Professional)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center space-x-2 p-4 border rounded-lg justify-center">
+                        <Switch id="reverb-mode" checked={reverbEnabled} onCheckedChange={(val) => { setReverbEnabled(val); handleSettingsChange(); }}/>
+                        <label htmlFor="reverb-mode" className="text-sm font-medium">Enable Reverb</label>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <label className="text-sm font-medium">Echo Depth: {echoDepth[0].toFixed(2)}</label>
+                        <Slider value={echoDepth} onValueChange={(val) => { setEchoDepth(val); handleSettingsChange(); }} min={0.0} max={1.0} step={0.05} className="w-full"/>
+                        <p className="text-xs text-gray-500">Adds a subtle echo effect.</p>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </>
+              )}
+            </Tabs>
+          </CardContent>
+        )}
+      </Card>
       )}
 
       {/* Sample Audio Player */}
