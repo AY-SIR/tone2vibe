@@ -24,11 +24,12 @@ export interface Coupon {
   last_used_at: string | null;
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// ✅ Fixed Supabase URL (safe to expose)
+const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
 export class CouponService {
   /**
-   * ✅ Validate coupon using Edge Function (auth required)
+   * ✅ Validate coupon using secure Supabase Edge Function
    */
   static async validateCoupon(
     code: string,
@@ -55,13 +56,11 @@ export class CouponService {
       }
 
       const normalizedCode = code.trim();
-      console.log("Validating coupon:", normalizedCode, "for type:", type, "amount:", amount);
 
-      // 🔑 Get current user session (auth token required)
+      // 🔐 Get current user session (auth token required)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session?.access_token) {
-        console.warn("⚠️ No session found. User must be logged in to validate coupon.");
         return {
           isValid: false,
           discount: 0,
@@ -70,12 +69,12 @@ export class CouponService {
         };
       }
 
-      // 🔥 Call Edge Function securely
+      // 🚀 Call Edge Function securely
       const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`, // ✅ Auth required
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           code: normalizedCode,
@@ -85,7 +84,6 @@ export class CouponService {
       });
 
       const result = await response.json();
-      console.log("Coupon validation result:", result);
 
       if (!response.ok) {
         return {
@@ -96,16 +94,28 @@ export class CouponService {
         };
       }
 
+      // ✅ SAFER FIX — interpret `valid` or `isValid` properly
+      const isValid =
+        typeof result.isValid === "boolean"
+          ? result.isValid
+          : typeof result.valid === "boolean"
+          ? result.valid
+          : false;
+
       return {
-        isValid: result.valid ?? true,
+        isValid,
         discount: result.discount ?? 0,
-        message: result.message || "Coupon applied successfully",
+        message:
+          result.message ||
+          (isValid
+            ? "Coupon applied successfully"
+            : "Invalid or inapplicable coupon."),
         code: normalizedCode,
-        discountType: result.type === "percentage" ? "percentage" : "fixed",
+        discountType:
+          result.type === "percentage" ? "percentage" : "fixed",
         originalAmount: amount,
       };
-    } catch (error) {
-      console.error("Coupon validation error:", error);
+    } catch {
       return {
         isValid: false,
         discount: 0,
@@ -116,35 +126,27 @@ export class CouponService {
   }
 
   /**
-   * ✅ Increment coupon usage (after successful payment)
+   * ✅ Increment coupon usage after successful payment
    */
   static async incrementCouponUsage(code: string): Promise<boolean> {
     try {
       const normalizedCode = code.trim();
-      console.log("Incrementing coupon usage via Edge Function:", normalizedCode);
 
-      // 🔑 Ensure user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.warn("⚠️ User must be logged in to increment coupon usage.");
-        return false;
-      }
+      if (!session?.access_token) return false;
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/increment-coupon-usage`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ code: normalizedCode }),
       });
 
       const result = await response.json();
-      console.log("Increment coupon usage result:", result);
-
       return response.ok && result.success === true;
-    } catch (error) {
-      console.error("Error incrementing coupon usage:", error);
+    } catch {
       return false;
     }
   }
@@ -160,14 +162,9 @@ export class CouponService {
         .eq("active", true)
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching coupons:", error);
-        return [];
-      }
-
+      if (error) return [];
       return data || [];
-    } catch (error) {
-      console.error("Error in getActiveCoupons:", error);
+    } catch {
       return [];
     }
   }
@@ -189,14 +186,9 @@ export class CouponService {
         active: couponData.active ?? true,
       });
 
-      if (error) {
-        console.error("Error creating coupon:", error);
-        return { success: false, error: error.message };
-      }
-
+      if (error) return { success: false, error: error.message };
       return { success: true };
-    } catch (error) {
-      console.error("Error in createCoupon:", error);
+    } catch {
       return { success: false, error: "Failed to create coupon" };
     }
   }
@@ -214,14 +206,9 @@ export class CouponService {
         })
         .eq("code", code.trim());
 
-      if (error) {
-        console.error("Error deactivating coupon:", error);
-        return false;
-      }
-
+      if (error) return false;
       return true;
-    } catch (error) {
-      console.error("Error in deactivateCoupon:", error);
+    } catch {
       return false;
     }
   }

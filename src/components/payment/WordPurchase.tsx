@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CreditCard, Package, AlertTriangle, IndianRupee } from "lucide-react";
+import { CreditCard, Package, AlertTriangle, IndianRupee, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,160 +103,149 @@ export function WordPurchase() {
     setShowPaymentGateway(true);
   };
 
-  // --- Payment Gateway ---
-  const handlePaymentGateway = async () => {
-    setLoading(true);
-    try {
-      const location = await LocationCacheService.getLocation();
-      if (!location.isIndian) {
+ const handlePaymentGateway = async () => {
+  setLoading(true);
+
+  try {
+    // ✅ Use cached location to avoid repeat API hits
+    let location = await LocationCacheService.getCachedLocation?.();
+    if (!location) location = await LocationCacheService.getLocation();
+
+    if (!location?.isIndian) {
+      toast({
+        title: "Access Denied",
+        description: `This service is only available in India. Your location: ${location?.country || "Unknown"}`,
+        variant: "destructive",
+      });
+      setShowPaymentGateway(false);
+      return;
+    }
+
+    // ✅ Free purchase path
+    if (finalAmount === 0) {
+      if (!couponValidation.isValid || !couponValidation.code) {
         toast({
-          title: "Access Denied",
-          description: `This service is only available in India. Your location: ${location.country}`,
+          title: "Invalid Coupon",
+          description: "A valid coupon is required for free word purchases.",
           variant: "destructive",
         });
-        setShowPaymentGateway(false);
-        setLoading(false);
         return;
       }
-
-      if (finalAmount === 0) {
-        if (!couponValidation.isValid || !couponValidation.code) {
-          toast({
-            title: "Invalid Coupon",
-            description: "A valid coupon is required for free word purchases.",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-        await handleFreeWordPurchase();
-        return;
-      }
-
-      const result = await InstamojoService.createWordPayment(
-        wordsAmount,
-        user!.email || "",
-        user!.user_metadata?.full_name || "User",
-        getUserPlan()
-      );
-
-      if (result.success && result.payment_request?.longurl) {
-        const pendingTransaction = {
-          type: "word_purchase",
-          amount: finalAmount,
-          words: wordsAmount,
-          payment_request_id: result.payment_request.id,
-          coupon_code: couponValidation.isValid ? couponValidation.code : null,
-          timestamp: Date.now(),
-        };
-        sessionStorage.setItem("pending_transaction", JSON.stringify(pendingTransaction));
-        window.location.href = result.payment_request.longurl;
-      } else {
-        throw new Error(result.message || "Failed to create payment");
-      }
-    } catch (error) {
-      toast({
-        title: "Payment Issue",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-      setLoading(false);
+      await handleFreeWordPurchase(); // Uses parallel writes below
+      return;
     }
-  };
 
-  // --- Free word purchase via coupon ---
-  const handleFreeWordPurchase = async () => {
-    const wordsPurchased = wordsAmount;
-    const couponCode = couponValidation.code;
+    // ✅ Pre-check: warm Instamojo API call early
+    const paymentPromise = InstamojoService.createWordPayment(
+      wordsAmount,
+      user!.email || "",
+      user!.user_metadata?.full_name || "User",
+      getUserPlan()
+    );
 
-    try {
-      setLoading(true);
-      const freeTransactionId = `COUPON_${couponCode}_${Date.now()}_${uuidv4().slice(0, 8)}`;
+    toast({
+      title: "Processing Payment...",
+      description: "Please wait while we connect to Instamojo.",
+    });
 
-      // Re-validate coupon before processing
-      const revalidation = await CouponService.validateCoupon(
-        couponCode,
-        baseAmount,
-        'words'
-      );
+    const result = await paymentPromise;
 
-      if (!revalidation.isValid) {
-        throw new Error(revalidation.message || "Coupon is no longer valid");
-      }
-
-      // Get current balance
-      const { data: currentProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("word_balance")
-        .eq("user_id", user!.id)
-        .single();
-
-      if (profileError) throw new Error("Failed to fetch current balance");
-
-      const newBalance = (currentProfile?.word_balance || 0) + wordsPurchased;
-
-      // Update balance
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          word_balance: newBalance,
-          last_word_purchase_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq("user_id", user!.id);
-
-      if (updateError) throw new Error("Failed to update word balance");
-
-      // Record purchase
-      const { error: purchaseError } = await supabase
-        .from("word_purchases")
-        .insert({
-          user_id: user!.id,
-          words_purchased: wordsPurchased,
-          amount_paid: 0,
-          currency: "INR",
-          status: "completed",
-          payment_id: freeTransactionId,
-          payment_method: "coupon",
-        });
-
-      if (purchaseError) {
-        console.error("Failed to record purchase:", purchaseError);
-        // Don't throw - balance is already updated
-      }
-
-      // Increment coupon usage
-      await CouponService.incrementCouponUsage(couponCode);
-
-      // Reset form state
-      setWordsAmount(1000);
-      setCouponValidation({ isValid: false, discount: 0, message: "", code: "" });
-      setShowPaymentGateway(false);
-
-      toast({
-        title: "Success!",
-        description: `${wordsPurchased.toLocaleString()} words added to your account.`,
-      });
-
-      // Navigate to success page
-      setTimeout(() => {
-        navigate(
-          `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
-          { replace: true }
-        );
-      }, 500);
-
-    } catch (error) {
-      console.error("Free purchase error:", error);
-      toast({
-        title: "Error Processing Free Purchase",
-        description: error instanceof Error ? error.message : "Something went wrong.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    if (result.success && result.payment_request?.longurl) {
+      const pendingTransaction = {
+        type: "word_purchase",
+        amount: finalAmount,
+        words: wordsAmount,
+        payment_request_id: result.payment_request.id,
+        coupon_code: couponValidation.isValid ? couponValidation.code : null,
+        timestamp: Date.now(),
+      };
+      sessionStorage.setItem("pending_transaction", JSON.stringify(pendingTransaction));
+      window.location.href = result.payment_request.longurl;
+    } else {
+      throw new Error(result.message || "Failed to create payment");
     }
-  };
+
+  } catch (error) {
+    console.error("Payment error:", error);
+    toast({
+      title: "Payment Issue",
+      description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+const handleFreeWordPurchase = async () => {
+  const wordsPurchased = wordsAmount;
+  const couponCode = couponValidation.code;
+
+  try {
+    setLoading(true);
+
+    // ✅ Revalidate coupon one more time
+    const [revalidation, profileData] = await Promise.all([
+      CouponService.validateCoupon(couponCode, baseAmount, "words"),
+      supabase.from("profiles").select("word_balance").eq("user_id", user!.id).single(),
+    ]);
+
+    if (!revalidation.isValid) {
+      throw new Error(revalidation.message || "Coupon is no longer valid");
+    }
+
+    if (profileData.error) throw new Error("Failed to fetch current balance");
+
+    const newBalance = (profileData.data?.word_balance || 0) + wordsPurchased;
+    const freeTransactionId = `COUPON_${couponCode}_${Date.now()}_${uuidv4().slice(0, 8)}`;
+
+    // ✅ Run DB updates in parallel
+    const [updateRes, purchaseRes, couponInc] = await Promise.all([
+      supabase.from("profiles").update({
+        word_balance: newBalance,
+        last_word_purchase_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", user!.id),
+      supabase.from("word_purchases").insert({
+        user_id: user!.id,
+        words_purchased: wordsPurchased,
+        amount_paid: 0,
+        currency: "INR",
+        status: "completed",
+        payment_id: freeTransactionId,
+        payment_method: "coupon",
+      }),
+      CouponService.incrementCouponUsage(couponCode),
+    ]);
+
+    if (updateRes.error) throw new Error("Failed to update word balance");
+
+    // ✅ Reset UI instantly
+    setWordsAmount(1000);
+    setCouponValidation({ isValid: false, discount: 0, message: "", code: "" });
+    setShowPaymentGateway(false);
+
+
+    // ✅ Navigate after a short delay
+    setTimeout(() => {
+      navigate(
+        `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
+        { replace: true }
+      );
+    }, 500);
+  } catch (error) {
+    console.error("Free purchase error:", error);
+    toast({
+      title: "Error Processing Free Purchase",
+      description: error instanceof Error ? error.message : "Something went wrong.",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // --- Loading / upgrade UI ---
   if (!user || !profile) {
@@ -445,20 +434,29 @@ export function WordPurchase() {
 
             <div className="space-y-2 px-2 sm:px-0">
               <Button
-                onClick={handlePaymentGateway}
-                disabled={loading || (finalAmount === 0 && !couponValidation.isValid)}
-                className={`w-full flex items-center justify-center gap-2 sm:gap-3 ${
-                  finalAmount === 0
-                    ? "bg-green-500 hover:bg-green-600"
-                    : "bg-orange-500 hover:bg-orange-600"
-                } text-white text-xs sm:text-sm px-3 py-2 sm:py-3 rounded-md disabled:opacity-50 disabled:cursor-not-allowed`}
-                size="lg"
-              >
-                <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                <span className="truncate text-center">
-                  {finalAmount === 0 ? `Get ${wordsAmount.toLocaleString()} Words FREE` : `Pay ₹${finalAmount} - Secure Payment`}
-                </span>
-              </Button>
+  onClick={async () => {
+    setLoading(true);
+    await handlePaymentGateway();
+  }}
+  disabled={loading || (finalAmount === 0 && !couponValidation.isValid)}
+  className={`w-full flex items-center justify-center gap-2 ${
+    finalAmount === 0 ? "bg-green-500 hover:bg-green-600" : "bg-orange-500 hover:bg-orange-600"
+  } text-white text-xs sm:text-sm px-3 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed`}
+>
+  {loading ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : (
+    <IndianRupee className="h-4 w-4" />
+  )}
+  <span className="truncate">
+    {loading
+      ? "Processing..."
+      : finalAmount === 0
+      ? `Get ${wordsAmount.toLocaleString()} Words FREE`
+      : `Pay ₹${finalAmount} - Secure Payment`}
+  </span>
+</Button>
+
 
               <p className="text-[10px] sm:text-xs text-gray-500 text-center px-1 sm:px-0">
                 {finalAmount === 0

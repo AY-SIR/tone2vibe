@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -25,13 +31,18 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
   const [isReloading, setIsReloading] = useState(false);
 
   const handleClose = () => {
-    setIsReloading(true);
-    onClose();
+    // Only reload if the plan is expired
+    if (isExpired) {
+      setIsReloading(true);
+      onClose();
 
-    // Wait 2 seconds then reload
-    setTimeout(() => {
-      window.location.reload();
-    }, 2000);
+      // Wait 2 seconds then reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      onClose(); // Just close, no reload
+    }
   };
 
   const handleUpgrade = () => {
@@ -70,7 +81,7 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
     return isExpired ? 'Renew Plan' : 'Extend Plan';
   };
 
-  // Loading overlay
+  // Loading overlay when expired plan triggers refresh
   if (isReloading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -84,9 +95,7 @@ export const PlanExpiryPopup: React.FC<PlanExpiryPopupProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent
-        className="w-[90%] max-w-md mx-auto rounded-2xl px-4 sm:px-6 py-4"
-      >
+      <DialogContent className="w-[90%] max-w-md mx-auto rounded-2xl px-4 sm:px-6 py-4">
         <DialogHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             {getIcon()}

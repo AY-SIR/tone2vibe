@@ -1,4 +1,3 @@
-// components/payment/couponInput.tsx
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +42,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
       const result = await CouponService.validateCoupon(code, amount, type);
       setValidation(result);
       onCouponApplied(result);
-    } catch (error) {
+    } catch {
       const err = {
         isValid: false,
         discount: 0,
@@ -83,9 +82,9 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
             type="text"
             placeholder="Enter coupon code"
             value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value)} // no .toUpperCase()
+            onChange={(e) => setCouponCode(e.target.value)}
             disabled={disabled || loading || validation.isValid}
-            className="text-sm" // removed uppercase
+            className="text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !validation.isValid) {
                 e.preventDefault();
@@ -122,7 +121,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
 
       {validation.message && (
         <div
-          className={`flex items-start gap-2 p-3 rounded-lg text-xs sm:text-sm ${
+          className={`flex items-start gap-2 p-3 rounded-lg text-xs sm:text-sm transition-all duration-200 ${
             validation.isValid
               ? "bg-green-50 text-green-700 border border-green-200"
               : "bg-red-50 text-red-700 border border-red-200"
@@ -136,12 +135,35 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
 
           <div className="flex-1">
             <p className="font-medium">{validation.message}</p>
-            {validation.isValid && validation.discount > 0 && (
+
+            {/* ✅ Only show discount info if valid and has discount */}
+            {validation.isValid && (
               <p className="text-xs mt-1 opacity-90">
-                Code: <span className="font-mono font-bold">{validation.code}</span>
-                {validation.discountType === "percentage"
-                  ? ` (${Math.round((validation.discount / (validation.originalAmount || amount)) * 100)}% off)`
-                  : " (Fixed discount)"}
+                Code:{" "}
+                <span className="font-mono font-bold">{validation.code}</span>{" "}
+                {validation.discountType === "percentage" &&
+                  validation.discount >= amount && (
+                    <span className="text-green-700 font-semibold">
+                      (FREE!)
+                    </span>
+                  )}
+                {validation.discountType === "percentage" &&
+                  validation.discount > 0 &&
+                  validation.discount < amount && (
+                    <span>
+                      (
+                      {Math.round(
+                        (validation.discount /
+                          (validation.originalAmount || amount)) *
+                          100
+                      )}
+                      % off)
+                    </span>
+                  )}
+                {validation.discountType === "fixed" &&
+                  validation.discount > 0 && (
+                    <span>(₹{validation.discount} off)</span>
+                  )}
               </p>
             )}
           </div>

@@ -41,7 +41,10 @@ export function PaymentGateway({
     code: ""
   });
 
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  // ✅ Secure Supabase URL fallback (safe to expose, but prevents missing env crash)
+  const SUPABASE_URL =
+    import.meta.env.VITE_SUPABASE_URL ||
+    "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
   const pricing = {
     currency: "INR",
@@ -120,7 +123,7 @@ export function PaymentGateway({
         if (!couponValidation.isValid || !couponValidation.code) {
           toast({
             title: "Coupon required",
-            description: "Free activation ke liye valid coupon chahiye.",
+            description: "A valid coupon is required for free activation.",
             variant: "destructive"
           });
           setIsActivating(false);
@@ -138,14 +141,14 @@ export function PaymentGateway({
       toast({
         title: "Payment failed",
         description:
-          error instanceof Error ? error.message : "Plan activate nahi ho saka",
+          error instanceof Error ? error.message : "Plan activation failed.",
         variant: "destructive"
       });
       setIsActivating(false);
     }
   };
 
-  // ✅ Secure free plan activation using Edge Functions (auth required)
+  // ✅ Secure free plan activation using Edge Function (with auth)
   const handleFreeActivation = async () => {
     try {
       if (!user) throw new Error("Please log in first");
@@ -158,19 +161,22 @@ export function PaymentGateway({
         .toString(36)
         .substr(2, 9)}`;
 
-      // 🔒 Validate coupon securely via Edge Function
-      const validateRes = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`, // ✅ required
-        },
-        body: JSON.stringify({
-          code: couponValidation.code,
-          amount: plan.price,
-          type: "subscription",
-        }),
-      });
+      // 🔒 Step 1: Validate coupon securely
+      const validateRes = await fetch(
+        `${SUPABASE_URL}/functions/v1/validate-coupon`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            code: couponValidation.code,
+            amount: plan.price,
+            type: "subscription",
+          }),
+        }
+      );
 
       const validation = await validateRes.json();
       if (!validateRes.ok || !validation.isValid) {
@@ -182,16 +188,19 @@ export function PaymentGateway({
         pro: { words_limit: 10000, upload_limit_mb: 25 },
         premium: { words_limit: 50000, upload_limit_mb: 100 }
       } as const;
+
       const limits = planLimits[selectedPlan];
       const now = new Date();
       const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      // Step 3: Update profile
+      // Step 3: Update user profile
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           plan: selectedPlan,
           words_limit: limits.words_limit,
+              plan_words_used: 0,               // ✅ reset plan usage tracker
+
           upload_limit_mb: limits.upload_limit_mb,
           plan_start_date: now.toISOString(),
           plan_end_date: planEndDate.toISOString(),
@@ -219,15 +228,18 @@ export function PaymentGateway({
 
       if (paymentError) throw new Error(paymentError.message);
 
-      // Step 5: Increment coupon usage (also auth-protected)
-      const incRes = await fetch(`${SUPABASE_URL}/functions/v1/increment-coupon-usage`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`, // ✅ required
-        },
-        body: JSON.stringify({ code: couponValidation.code }),
-      });
+      // Step 5: Increment coupon usage (auth-protected)
+      const incRes = await fetch(
+        `${SUPABASE_URL}/functions/v1/increment-coupon-usage`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ code: couponValidation.code }),
+        }
+      );
 
       const incResult = await incRes.json();
       if (!incRes.ok || !incResult.success) {
@@ -235,10 +247,11 @@ export function PaymentGateway({
       }
 
       // Step 6: Redirect
-      navigate(
-        `/payment-success?plan=${selectedPlan}&amount=0&coupon=${couponValidation.code}`,
-        { replace: true }
-      );
+     navigate(
+  `/payment-success?plan=${selectedPlan}&amount=0&type=subscription&coupon=${couponValidation.code}`,
+  { replace: true }
+);
+
     } catch (error) {
       throw error;
     } finally {
@@ -246,7 +259,7 @@ export function PaymentGateway({
     }
   };
 
-  // 🌀 Loading overlay
+  // 🌀 Loading Overlay
   if (isProcessing || isActivating) {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -297,11 +310,24 @@ export function PaymentGateway({
           >
             {plan.icon}
           </div>
+
           <CardTitle>
             {isUpgrade ? "Upgrade to " : "Subscribe to "} {plan.name}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+        {/* ✅ Plan Features Section */}
+<div className="mt-4 bg-gray-50 rounded-lg p-4">
+  <h4 className="font-semibold text-sm mb-3 text-gray-700">
+    What’s included in the {plan.name} plan:
+  </h4>
+  <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
+    {plan.features.map((feature, index) => (
+      <li key={index}>{feature}</li>
+    ))}
+  </ul>
+</div>
+
           <div>
             <h4 className="font-medium text-sm mb-2">Coupon Code</h4>
             <CouponInput
@@ -338,7 +364,7 @@ export function PaymentGateway({
             <Checkbox
               id="confirm-payment"
               checked={confirmPayment}
-              onCheckedChange={(checked) => setConfirmPayment(checked as boolean)}
+              onCheckedChange={(checked) => setConfirmPayment(!!checked)}
               disabled={finalAmount === 0 && !couponValidation.isValid}
             />
             <label
