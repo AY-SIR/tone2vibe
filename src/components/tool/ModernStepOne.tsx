@@ -349,7 +349,7 @@ export default function ModernStepOne({
               <CheckCircle className="h-4 w-4 text-green-600" />
               <span className="font-medium text-green-800 dark:text-green-300">Content Ready for Next Step</span>
             </div>
-            <p className="text-sm text-green-700 dark:text-green-400 line-clamp-3">
+            <p className="text-sm text-green-700 dark:text-green-400 ">
               {extractedText}
             </p>
           </CardContent>

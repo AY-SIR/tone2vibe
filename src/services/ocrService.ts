@@ -1,4 +1,4 @@
-import { createWorker } from 'tesseract.js';
+// ocrService.ts
 
 export interface OCRResult {
   success: boolean;
@@ -8,76 +8,52 @@ export interface OCRResult {
 }
 
 export class OCRService {
+  /**
+   * Main entry point for OCR (auto-detects image vs PDF)
+   *  TEMPORARILY DISABLED - Returns error message
+   */
   static async extractText(file: File): Promise<string> {
-    try {
-      const result = await this.extractTextFromImage(file);
-      return result.success ? result.text || '' : '';
-    } catch (error) {
-      console.error('OCR Error:', error);
-      return `Error extracting text from ${file.name}`;
-    }
+    return 'OCR feature is currently under maintenance. Please type your text manually or try again later.';
   }
 
+  /**
+   * Extracts text from image using Tesseract.js
+   *  TEMPORARILY DISABLED
+   */
   static async extractTextFromImage(imageFile: File): Promise<OCRResult> {
-    try {
-      console.log('Starting OCR with Tesseract.js');
-      
-      const worker = await createWorker('eng', 1, {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-          }
-        }
-      });
-
-      const { data } = await worker.recognize(imageFile);
-      await worker.terminate();
-
-      console.log('OCR completed successfully');
-
-      return {
-        success: true,
-        text: data.text,
-        confidence: data.confidence / 100
-      };
-    } catch (error) {
-      console.error('OCR Error:', error);
-      return {
-        success: false,
-        error: 'Failed to extract text from image. Please try again.'
-      };
-    }
+    return {
+      success: false,
+      error: 'Image OCR is currently not available. Please type your text manually.',
+    };
   }
 
-  private static fileToBase64(file: File): Promise<string> {
+  /**
+   * Extract text from PDF file using PDF.js
+   *  TEMPORARILY DISABLED
+   */
+  static async extractTextFromPDF(pdfFile: File): Promise<OCRResult> {
+    return {
+      success: false,
+      error: 'PDF text extraction is currently not available. Please type your text manually.',
+    };
+  }
+
+  /**
+   * Converts a File to a Data URL (Base64)
+   */
+  private static fileToDataURL(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]); // Remove data:image/...;base64, prefix
-      };
+      reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   }
 
-  static async extractTextFromPDF(pdfFile: File): Promise<OCRResult> {
-    try {
-      // PDF extraction requires PDF.js - for now return basic message
-      return {
-        success: true,
-        text: `PDF file detected: ${pdfFile.name}. Please copy and paste text from the PDF or convert pages to images for OCR processing.`,
-        confidence: 0.5
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'PDF text extraction not available. Please use images instead.'
-      };
-    }
-  }
-
+  /**
+   * Counts total words in a string
+   */
   static countWords(text: string): number {
-    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
   }
 }

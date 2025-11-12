@@ -444,25 +444,22 @@ const Tool = () => {
   }, [currentStep, totalSteps, extractedText, selectedLanguage, selectedVoiceId, voiceRecording, processedAudioUrl, hasEnoughWords, wordCount, remainingWords, toast, stopAllAudio]);
 
   const handlePrevious = useCallback(() => {
-    if (!isMountedRef.current || currentStep <= 1) return;
+  if (!isMountedRef.current || currentStep <= 1) return;
 
-    stopAllAudio();
+  stopAllAudio();
 
-    if (currentStep === 4) {
-      setProcessedAudioUrl("");
-    } else if (currentStep === 3) {
-      setSelectedVoiceId("");
-      setVoiceType('record');
-      setVoiceRecording(null);
-    } else if (currentStep === 2) {
-      setExtractedText("");
-      setWordCount(0);
-      setSelectedLanguage("en-US");
-    }
+  if (currentStep === 4) {
+    setProcessedAudioUrl("");
+  } else if (currentStep === 3) {
+    setSelectedVoiceId("");
+    setVoiceType('record');
+    setVoiceRecording(null);
+  }
+  // Remove the "else if (currentStep === 2)" block entirely
 
-    setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
-    setCurrentStep(currentStep - 1);
-  }, [currentStep, stopAllAudio]);
+  setCompletedSteps((prev) => prev.filter(step => step !== currentStep));
+  setCurrentStep(currentStep - 1);
+}, [currentStep, stopAllAudio]);
 
   const handleProcessingStart = (stepName: string, isSuccess: boolean = false) => {
     if (!isMountedRef.current) return;

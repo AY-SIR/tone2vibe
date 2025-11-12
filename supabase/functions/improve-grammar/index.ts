@@ -1,95 +1,115 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
-};
-
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { text, language } = await req.json();
-
-    if (!text || text.trim().length < 3) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Text must be at least 3 characters long',
-        improvedText: text
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
-      });
-    }
-
-    const lang = language || 'en-US';
-    let improvedText = text;
-
-    try {
-      // === PAID API CALL HERE ===
-      // Example: OpenAI GPT-4
-      const apiKey = Deno.env.get('OPENAI_API_KEY');
-      if (!apiKey) throw new Error('API key not configured');
-
-      const apiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+function getCorsHeaders(origin) {
+  const allowed = [
+    "https://tone2vibe.in",
+    "http://localhost:8080"
+  ];
+  return {
+    "Access-Control-Allow-Origin": allowed.includes(origin) ? origin : "https://tone2vibe.in",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+}
+const OPENROUTER_KEYS = Object.entries(Deno.env.toObject()).filter(([k])=>k.startsWith("OPENROUTER_KEY_")).map(([_, v])=>v);
+const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
+const MODELS = [
+  "qwen/qwen3-235b-a22b",
+  "z-ai/glm-4.5-air",
+  "deepseek/deepseek-v3-0324",
+  "tngtech/deepseek-r1t2-chimera",
+  "google/gemini-2.0-flash-experimental"
+];
+function getRandomKey() {
+  return OPENROUTER_KEYS[Math.floor(Math.random() * OPENROUTER_KEYS.length)];
+}
+async function callOpenRouter(model, text, key) {
+  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same meaning and tone. Return corrected text only:\n\n"${text}"`;
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "HTTP-Referer": "https://tone2vibe.in",
+      "X-Title": "Tone2Vibe Grammar",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional grammar corrector."
         },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo', // or gpt-4
-          messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0
+    })
+  });
+  if (!res.ok) throw new Error(`${model} failed`);
+  const data = await res.json();
+  return data?.choices?.[0]?.message?.content?.trim() ?? "";
+}
+async function callGeminiLite(text) {
+  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same tone. Return corrected text only:\n\n"${text}"`;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
             {
-              role: 'system',
-              content: `You are a professional grammar checker. Correct grammar, spelling, punctuation errors. Maintain meaning and style. Only return corrected text.`
-            },
-            { role: 'user', content: text }
-          ],
-          temperature: 0,
-          max_tokens: 4000
-        })
-      });
-
-      if (!apiResponse.ok) throw new Error(`API failed: ${apiResponse.statusText}`);
-
-      const data = await apiResponse.json();
-      improvedText = data.choices?.[0]?.message?.content || text;
-
-      return new Response(JSON.stringify({
-        success: true,
-        improvedText,
-        language: lang
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-
-    } catch (apiErr) {
-      // Fallback: return original text if API fails
-      console.error('Paid API error:', apiErr);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Grammar correction API unavailable',
-        improvedText: text,
-        language: lang
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      });
+              text: prompt
+            }
+          ]
+        }
+      ]
+    })
+  });
+  const data = await res.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+}
+Deno.serve(async (req)=>{
+  const origin = req.headers.get("origin") ?? "";
+  const corsHeaders = getCorsHeaders(origin);
+  if (req.method === "OPTIONS") return new Response(null, {
+    headers: corsHeaders
+  });
+  try {
+    const { text } = await req.json();
+    if (!text || text.trim().length < 3) throw new Error("Text too short");
+    let corrected = "";
+    for (const model of MODELS){
+      try {
+        corrected = await callOpenRouter(model, text, getRandomKey());
+        if (corrected) break;
+      } catch (_) {}
     }
-
-  } catch (error) {
-    console.error('Edge function error:', error);
+    if (!corrected) corrected = await callGeminiLite(text);
+    return new Response(JSON.stringify({
+      success: true,
+      improvedText: corrected
+    }), {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
+    });
+  } catch (err) {
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Grammar correction failed',
-      improvedText: ''
+      error: err.message
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
     });
   }
 });
