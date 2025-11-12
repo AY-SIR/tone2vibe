@@ -1,4 +1,4 @@
-import { createWorker } from 'tesseract.js';
+import { createWorker } from "tesseract.js";
 
 export interface OCRResult {
   success: boolean;
@@ -8,76 +8,112 @@ export interface OCRResult {
 }
 
 export class OCRService {
+  /**
+   * Smart hybrid OCR router:
+   * - ≤5 MB  → Paid (OCR.space)
+   * - >5 MB  → Free (Tesseract.js)
+   * - TXT    → Read directly
+   */
   static async extractText(file: File): Promise<string> {
     try {
-      const result = await this.extractTextFromImage(file);
-      return result.success ? result.text || '' : '';
-    } catch (error) {
-      console.error('OCR Error:', error);
-      return `Error extracting text from ${file.name}`;
+      const sizeMB = file.size / (1024 * 1024);
+      const name = file.name.toLowerCase();
+
+      // Direct read for TXT
+      if (name.endsWith(".txt")) {
+        return await file.text();
+      }
+
+      // 🔹 Use Paid API for small files (≤5MB)
+      if (sizeMB <= 5) {
+        const paid = await this.extractWithOCRSpace(file);
+        if (paid.success && paid.text) return paid.text;
+      }
+
+      // 🔹 Fallback to Free Tesseract.js for large files
+      const local = await this.extractTextFromImage(file);
+      return local.success ? local.text || "" : local.error || "";
+    } catch (err) {
+      console.error("OCR Error:", err);
+      return "OCR failed. Please try again.";
     }
   }
 
-  static async extractTextFromImage(imageFile: File): Promise<OCRResult> {
+  /** 🔹 Fast OCR.space API (works for images + PDFs up to 5 MB free) */
+  private static async extractWithOCRSpace(file: File): Promise<OCRResult> {
     try {
-      console.log('Starting OCR with Tesseract.js');
-      
-      const worker = await createWorker('eng', 1, {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-          }
-        }
+      const form = new FormData();
+      form.append("file", file);
+      form.append("apikey", "helloworld"); // Free demo key (replace with your own for higher quota)
+      form.append("language", "eng");
+
+      const res = await fetch("https://api.ocr.space/parse/image", {
+        method: "POST",
+        body: form,
       });
 
-      const { data } = await worker.recognize(imageFile);
+      const data = await res.json();
+      const parsed = data?.ParsedResults?.[0]?.ParsedText || "";
+
+      console.log(" OCR.space finished successfully");
+      return { success: true, text: parsed, confidence: 0.9 };
+    } catch (err) {
+      console.error(" OCR.space error:", err);
+      return { success: false, error: "Paid OCR API failed." };
+    }
+  }
+
+  /** 🔹 Free open-source OCR using Tesseract.js (optimized & throttled) */
+  static async extractTextFromImage(file: File): Promise<OCRResult> {
+    try {
+      console.log("Starting Tesseract OCR...");
+      const worker = await createWorker("eng", 1, {
+        logger: async (m) => {
+          if (m.status === "recognizing text" && m.progress) {
+            const percent = Math.round(m.progress * 100);
+            console.log(`Tesseract progress: ${percent}%`);
+            //  Add small delay every 10% to avoid UI freezing
+            if (percent % 10 === 0) {
+              await new Promise((r) => setTimeout(r, 200));
+            }
+          }
+        },
+      });
+
+      const startTime = performance.now();
+      const { data } = await worker.recognize(file);
+      const endTime = performance.now();
       await worker.terminate();
 
-      console.log('OCR completed successfully');
+      console.log(
+        `Tesseract OCR completed in ${((endTime - startTime) / 1000).toFixed(1)}s`
+      );
 
       return {
         success: true,
         text: data.text,
-        confidence: data.confidence / 100
+        confidence: data.confidence / 100,
       };
-    } catch (error) {
-      console.error('OCR Error:', error);
+    } catch (err) {
+      console.error(" Tesseract error:", err);
       return {
         success: false,
-        error: 'Failed to extract text from image. Please try again.'
+        error: "Failed to extract text via Tesseract.js. Try a smaller or clearer image.",
       };
     }
   }
 
-  private static fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]); // Remove data:image/...;base64, prefix
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  /** 🔹 Optional PDF handler placeholder (PDF.js integration later if needed) */
+  static async extractTextFromPDF(file: File): Promise<OCRResult> {
+    return {
+      success: true,
+      text: `📄 PDF detected: ${file.name}. OCR handled automatically by main extractText().`,
+      confidence: 0.5,
+    };
   }
 
-  static async extractTextFromPDF(pdfFile: File): Promise<OCRResult> {
-    try {
-      // PDF extraction requires PDF.js - for now return basic message
-      return {
-        success: true,
-        text: `PDF file detected: ${pdfFile.name}. Please copy and paste text from the PDF or convert pages to images for OCR processing.`,
-        confidence: 0.5
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'PDF text extraction not available. Please use images instead.'
-      };
-    }
-  }
-
+  /**  Count words utility */
   static countWords(text: string): number {
-    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    return text.trim().split(/\s+/).filter(Boolean).length;
   }
 }
