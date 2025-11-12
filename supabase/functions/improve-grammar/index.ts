@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+//  CORS: allow tone2vibe.in + localhost
 function getCorsHeaders(origin) {
   const allowed = [
     "https://tone2vibe.in",
@@ -7,30 +8,29 @@ function getCorsHeaders(origin) {
   ];
   return {
     "Access-Control-Allow-Origin": allowed.includes(origin) ? origin : "https://tone2vibe.in",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE"
   };
 }
-const OPENROUTER_KEYS = Object.entries(Deno.env.toObject()).filter(([k])=>k.startsWith("OPENROUTER_KEY_")).map(([_, v])=>v);
+//  Single API keys from environment
+const OPENROUTER_KEY = Deno.env.get("OPENROUTER_KEY");
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
+//  Exactly 4 OpenRouter models
 const MODELS = [
   "qwen/qwen3-235b-a22b",
   "z-ai/glm-4.5-air",
   "deepseek/deepseek-v3-0324",
-  "tngtech/deepseek-r1t2-chimera",
-  "google/gemini-2.0-flash-experimental"
+  "tngtech/deepseek-r1t2-chimera"
 ];
-function getRandomKey() {
-  return OPENROUTER_KEYS[Math.floor(Math.random() * OPENROUTER_KEYS.length)];
-}
-async function callOpenRouter(model, text, key) {
-  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same meaning and tone. Return corrected text only:\n\n"${text}"`;
+//  Call OpenRouter model
+async function callOpenRouter(model, text) {
+  const prompt = `Fix all grammar, spelling, and punctuation errors in the following text. Keep the same tone and meaning. Return only the corrected text:\n\n"${text}"`;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${key}`,
+      "Authorization": `Bearer ${OPENROUTER_KEY}`,
       "HTTP-Referer": "https://tone2vibe.in",
-      "X-Title": "Tone2Vibe Grammar",
+      "X-Title": "Tone2Vibe Grammar Fixer",
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -38,7 +38,7 @@ async function callOpenRouter(model, text, key) {
       messages: [
         {
           role: "system",
-          content: "You are a professional grammar corrector."
+          content: "You are a professional grammar corrector and proofreader."
         },
         {
           role: "user",
@@ -48,12 +48,13 @@ async function callOpenRouter(model, text, key) {
       temperature: 0
     })
   });
-  if (!res.ok) throw new Error(`${model} failed`);
+  if (!res.ok) throw new Error(`${model} request failed (${res.status})`);
   const data = await res.json();
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
+//  Gemini fallback if all OpenRouter models fail
 async function callGeminiLite(text) {
-  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same tone. Return corrected text only:\n\n"${text}"`;
+  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same tone and meaning. Return only corrected text:\n\n"${text}"`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
     headers: {
@@ -74,22 +75,27 @@ async function callGeminiLite(text) {
   const data = await res.json();
   return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
+//  Main handler
 Deno.serve(async (req)=>{
   const origin = req.headers.get("origin") ?? "";
   const corsHeaders = getCorsHeaders(origin);
-  if (req.method === "OPTIONS") return new Response(null, {
-    headers: corsHeaders
-  });
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: corsHeaders
+    });
+  }
   try {
     const { text } = await req.json();
-    if (!text || text.trim().length < 3) throw new Error("Text too short");
+    if (!text || text.trim().length < 3) throw new Error("Text too short or missing");
     let corrected = "";
+    // Try all 4 models in sequence
     for (const model of MODELS){
       try {
-        corrected = await callOpenRouter(model, text, getRandomKey());
+        corrected = await callOpenRouter(model, text);
         if (corrected) break;
       } catch (_) {}
     }
+    // Fallback to Gemini if all 4 fail
     if (!corrected) corrected = await callGeminiLite(text);
     return new Response(JSON.stringify({
       success: true,
