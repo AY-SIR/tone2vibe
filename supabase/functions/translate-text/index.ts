@@ -20,7 +20,7 @@ const MODELS = [
 ];
 //  OpenRouter translation call
 async function callOpenRouter(model, text, lang) {
-  const prompt = `Translate the following text into ${lang}. Return only the translated text:\n\n"${text}"`;
+  const prompt = `Translate the following text into ${lang}. Return only the translated text:\n\n${text}`;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -50,7 +50,7 @@ async function callOpenRouter(model, text, lang) {
 }
 //  Gemini fallback (if all OpenRouter models fail)
 async function callGeminiLite(text, lang) {
-  const prompt = `Translate this text into ${lang}. Return only the translated text:\n\n"${text}"`;
+  const prompt = `Translate this text into ${lang}. Return only the translated text:\n\n${text}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
     headers: {
