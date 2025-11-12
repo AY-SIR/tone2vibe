@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-//  CORS: allow tone2vibe.in + localhost
-function getCorsHeaders(origin) {
+/*  CORS: allow tone2vibe.in + localhost */ function getCorsHeaders(origin) {
   const allowed = [
     "https://tone2vibe.in",
     "http://localhost:8080"
@@ -12,19 +11,17 @@ function getCorsHeaders(origin) {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE"
   };
 }
-//  Single API keys from environment
-const OPENROUTER_KEY = Deno.env.get("OPENROUTER_KEY");
+/*  Single API keys from environment */ const OPENROUTER_KEY = Deno.env.get("OPENROUTER_KEY");
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
-//  Exactly 4 OpenRouter models
-const MODELS = [
+/*  Exactly 4 OpenRouter models */ const MODELS = [
   "qwen/qwen3-235b-a22b",
   "z-ai/glm-4.5-air",
   "deepseek/deepseek-v3-0324",
   "tngtech/deepseek-r1t2-chimera"
 ];
-//  Call OpenRouter model
-async function callOpenRouter(model, text) {
-  const prompt = `Fix all grammar, spelling, and punctuation errors in the following text. Keep the same tone and meaning. Return only the corrected text:\n\n"${text}"`;
+/*  OpenRouter model call */ async function callOpenRouter(model, text) {
+  // 🔧 Removed quotes around ${text} to avoid "..." in output
+  const prompt = `Fix all grammar, spelling, and punctuation errors in the following text. Keep the same tone and meaning. Return only the corrected text:\n\n${text}`;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -52,9 +49,9 @@ async function callOpenRouter(model, text) {
   const data = await res.json();
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
-//  Gemini fallback if all OpenRouter models fail
-async function callGeminiLite(text) {
-  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same tone and meaning. Return only corrected text:\n\n"${text}"`;
+/*  Gemini fallback if all OpenRouter models fail */ async function callGeminiLite(text) {
+  // 🔧 Removed quotes around ${text}
+  const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same tone and meaning. Return only the corrected text:\n\n${text}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
     headers: {
@@ -75,8 +72,7 @@ async function callGeminiLite(text) {
   const data = await res.json();
   return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
-//  Main handler
-Deno.serve(async (req)=>{
+/*  Main handler */ Deno.serve(async (req)=>{
   const origin = req.headers.get("origin") ?? "";
   const corsHeaders = getCorsHeaders(origin);
   if (req.method === "OPTIONS") {
@@ -86,14 +82,18 @@ Deno.serve(async (req)=>{
   }
   try {
     const { text } = await req.json();
-    if (!text || text.trim().length < 3) throw new Error("Text too short or missing");
+    if (!text || text.trim().length < 3) {
+      throw new Error("Text too short or missing");
+    }
     let corrected = "";
-    // Try all 4 models in sequence
+    // Try all 4 models sequentially
     for (const model of MODELS){
       try {
         corrected = await callOpenRouter(model, text);
         if (corrected) break;
-      } catch (_) {}
+      } catch (_) {
+      // continue to next model
+      }
     }
     // Fallback to Gemini if all 4 fail
     if (!corrected) corrected = await callGeminiLite(text);
