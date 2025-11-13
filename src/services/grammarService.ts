@@ -26,25 +26,43 @@ export class GrammarService {
         return { success: false, error: "Text must be at least 3 characters long" };
       }
 
-      const languageISO = this.localeToISO[language] || "en-US";
+      // Use full locale (not ISO)
+      const locale = this.localeToISO[language] ? language : "en-US";
 
       const { supabase } = await import("@/integrations/supabase/client");
 
       const { data, error } = await supabase.functions.invoke("improve-grammar", {
-        body: { text, language: languageISO }
+        body: { text, language: locale }
       });
 
-      if (error || !data) {
+      // If function failed
+      if (!data || error) {
         console.error("Grammar improvement error:", error);
-        return { success: true, improvedText: text, error: "Service unavailable, fallback applied" };
+        return {
+          success: true,
+          improvedText: text,
+          error: "Service unavailable"
+        };
       }
 
-      return data.success
-        ? { success: true, improvedText: data.improvedText }
-        : { success: true, improvedText: text, error: "Fallback applied" };
+      // If result is empty → fallback
+      if (!data.improvedText || data.improvedText.trim() === "") {
+        return {
+          success: true,
+          improvedText: text,
+          error: "Empty response "
+        };
+      }
+
+      return { success: true, improvedText: data.improvedText };
+
     } catch (err) {
       console.error("Text improvement error:", err);
-      return { success: true, improvedText: text, error: "Service failed, fallback applied" };
+      return {
+        success: true,
+        improvedText: text,
+        error: "Service failed, fallback applied"
+      };
     }
   }
 }
