@@ -1,6 +1,4 @@
-// ==========================================
-// AuthModal.tsx (COMPLETE WORKING VERSION)
-// ==========================================
+
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -389,7 +387,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             {currentView === 'choice' && 'Hello! Choose how you want to continue.'}
             {currentView === 'signin' && 'Welcome back! Sign in to your account.'}
             {currentView === 'signup' && 'Create your account to get started.'}
-            {currentView === 'forgot-password' && 'Reset your password'}
+            {currentView === 'forgot-password' && ''}
           </DialogDescription>
         </DialogHeader>
 
