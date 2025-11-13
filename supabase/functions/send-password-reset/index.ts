@@ -123,9 +123,9 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
 function getCorsHeaders(origin: string | null) {
   const allowedOrigins = [
     'https://tone2vibe.in',
-    'http://localhost:8000',
+    
     'http://localhost:8080',
-    'http://127.0.0.1:8080',
+    
   ];
 
   // If origin matches one of the allowed origins, use it; otherwise use the first allowed origin
@@ -134,7 +134,7 @@ function getCorsHeaders(origin: string | null) {
   return {
     'Access-Control-Allow-Origin': validOrigin || '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': '*',
     'Access-Control-Max-Age': '86400',
   };
 }
