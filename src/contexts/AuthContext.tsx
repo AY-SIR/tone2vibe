@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
-import { launchConfetti } from "@/utils/confetti"; // 🎉
+import { launchConfetti } from "@/utils/confetti";
 
 export interface Profile {
   id: string;
@@ -91,11 +91,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const { toast } = useToast();
 
-  const welcomeShownRef = useRef(false); // 🚫 Prevent duplicate welcome toasts
+  const welcomeShownRef = useRef(false); // prevent duplicate toast/confetti
 
   const shouldShowPopup = expiryData?.show_popup || false;
 
-  // Load profile safely
+  // Load profile
   const loadUserProfile = useCallback(
     async (user: User) => {
       try {
@@ -122,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch {
         toast({
           title: "Profile Error",
-          description: "Could not load your profile.",
+          description: "Could not load profile.",
           variant: "destructive",
         });
       }
@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     [toast]
   );
 
-  // Session handler
+  // Session lifecycle
   useEffect(() => {
     const controller = new AbortController();
 
@@ -138,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (controller.signal.aborted) return;
 
       const currentUser = current?.user ?? null;
+
       setSession(current);
       setUser(currentUser);
 
@@ -147,14 +148,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setInitialized(true);
     };
 
+    // On mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
     });
 
+    // On auth events
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_ev, session) => {
-      welcomeShownRef.current = false; // Reset only on auth change
+      welcomeShownRef.current = false;
       handleSession(session);
     });
 
@@ -164,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [loadUserProfile]);
 
-  // Real-time profile updates
+  // Realtime profile update
   useEffect(() => {
     if (profileChannelRef.current) {
       profileChannelRef.current.unsubscribe();
@@ -172,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     if (user?.id) {
-      const channel = supabase
+      profileChannelRef.current = supabase
         .channel(`profile-updates-${user.id}`)
         .on(
           "postgres_changes",
@@ -184,7 +187,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           },
           (payload) => {
             const updated = payload.new as Profile;
-
             setProfile((prev) => ({
               ...prev,
               ...updated,
@@ -195,8 +197,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         )
         .subscribe();
-
-      profileChannelRef.current = channel;
     }
 
     return () => {
@@ -207,34 +207,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [user?.id]);
 
-  // 🎉 Production-Ready Welcome & Confetti Logic
+  // 🎉 Final Shadcn Toast + Confetti (Strict-mode safe)
   useEffect(() => {
-    if (!initialized || loading || !profile || welcomeShownRef.current) return;
+    if (!initialized || loading || !profile) return;
 
-    // Mark as handled
+    if (welcomeShownRef.current) return;
     welcomeShownRef.current = true;
 
-    // New user (first login)
+    // New signup — first login
     if (profile.login_count === 1) {
-      toast({
-        title: "Account Created!",
-        description: "Welcome to Tone2Vibe 🎉",
-      });
-
-      setTimeout(() => launchConfetti(), 350);
+      setTimeout(() => {
+        toast({
+          title: "Account Created!",
+          description: "Welcome to Tone2Vibe 🎉",
+        });
+        launchConfetti();
+      }, 150);
       return;
     }
 
     // Returning user
     if (profile.login_count > 1) {
-      toast({
-        title: "Welcome back!",
-        description: "Glad to see you again 👋",
-      });
+      setTimeout(() => {
+        toast({
+          title: "Welcome back!",
+          description: "Glad to see you again 👋",
+        });
+      }, 150);
     }
   }, [initialized, loading, profile, toast]);
 
-  // Auth actions
+  // ---------- Auth Actions ---------- //
+
   const signUp = async (email, password, options) => {
     try {
       const { data } = await supabase.functions.invoke("signup", {
@@ -248,7 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       return { data: parsed, error: null };
     } catch {
-      return { data: null, error: new Error("Signup failed. Please try again.") };
+      return { data: null, error: new Error("Signup failed. Try again.") };
     }
   };
 
@@ -262,13 +266,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (error?.message.includes("Email not confirmed")) {
         return {
           data,
-          error: new Error("Please confirm your email before signing in."),
+          error: new Error("Please confirm your email first."),
         };
       }
 
       return { data, error };
     } catch {
-      return { data: null, error: new Error("Sign-in failed. Please try again.") };
+      return { data: null, error: new Error("Login failed. Try again.") };
     }
   };
 
@@ -284,7 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {
       toast({
         title: "Google Sign-In Failed",
-        description: "Please try again later.",
+        description: "Try again later.",
         variant: "destructive",
       });
     }
@@ -293,17 +297,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      welcomeShownRef.current = false; // reset after logout
+      welcomeShownRef.current = false;
       setUser(null);
       setSession(null);
       setProfile(null);
       setLocationData(null);
-
       return { error };
     } catch {
       toast({
         title: "Logout Error",
-        description: "Please refresh the page.",
+        description: "Please refresh.",
         variant: "destructive",
       });
       return { error: new Error("Logout failed") };
@@ -326,7 +329,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {
       toast({
         title: "Profile Update Failed",
-        description: "Unable to update your profile.",
+        description: "Try again later.",
         variant: "destructive",
       });
     }
@@ -357,6 +360,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       ) : (
         <>
           {children}
+
           <PlanExpiryPopup
             isOpen={shouldShowPopup}
             onClose={dismissPopup}
