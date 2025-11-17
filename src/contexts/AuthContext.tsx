@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
+import { launchConfetti } from "@/utils/confetti"; // 🎉
 
 export interface Profile {
   id: string;
@@ -84,10 +85,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+
   const [locationData, setLocationData] = useState<LocationData | null>(null);
-  const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const profileChannelRef = useRef<any>(null);
+  const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const { toast } = useToast();
+
+  const welcomeShownRef = useRef(false); // 🚫 Prevent duplicate welcome toasts
 
   const shouldShowPopup = expiryData?.show_popup || false;
 
@@ -95,13 +99,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const loadUserProfile = useCallback(
     async (user: User) => {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("profiles")
           .select("*")
           .eq("user_id", user.id)
           .single();
-
-        if (error) return;
 
         if (data) {
           setProfile({
@@ -111,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               data.word_balance ??
               Math.max(0, data.words_limit - data.words_used),
           });
+
           setLocationData({
             country: data.country || "India",
             currency: "INR",
@@ -127,16 +130,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     [toast]
   );
 
-  // Handle session lifecycle
+  // Session handler
   useEffect(() => {
     const controller = new AbortController();
 
     const handleSession = async (current: Session | null) => {
       if (controller.signal.aborted) return;
+
       const currentUser = current?.user ?? null;
       setSession(current);
       setUser(currentUser);
+
       if (currentUser) await loadUserProfile(currentUser);
+
       setLoading(false);
       setInitialized(true);
     };
@@ -147,7 +153,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_ev, session) => {
+      welcomeShownRef.current = false; // Reset only on auth change
       handleSession(session);
     });
 
@@ -177,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           },
           (payload) => {
             const updated = payload.new as Profile;
+
             setProfile((prev) => ({
               ...prev,
               ...updated,
@@ -199,32 +207,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [user?.id]);
 
+  // 🎉 Production-Ready Welcome & Confetti Logic
+  useEffect(() => {
+    if (!initialized || loading || !profile || welcomeShownRef.current) return;
+
+    // Mark as handled
+    welcomeShownRef.current = true;
+
+    // New user (first login)
+    if (profile.login_count === 1) {
+      toast({
+        title: "Account Created!",
+        description: "Welcome to Tone2Vibe 🎉",
+      });
+
+      setTimeout(() => launchConfetti(), 350);
+      return;
+    }
+
+    // Returning user
+    if (profile.login_count > 1) {
+      toast({
+        title: "Welcome back!",
+        description: "Glad to see you again 👋",
+      });
+    }
+  }, [initialized, loading, profile, toast]);
+
   // Auth actions
-  const signUp = async (
-    email: string,
-    password: string,
-    options?: { fullName?: string }
-  ) => {
+  const signUp = async (email, password, options) => {
     try {
       const { data } = await supabase.functions.invoke("signup", {
         body: { email, password, fullName: options?.fullName },
       });
 
       const parsed = typeof data === "string" ? JSON.parse(data) : data ?? {};
-      if (!parsed.success) {
+
+      if (!parsed.success)
         return { data: null, error: new Error(parsed.error || "Signup failed") };
-      }
 
       return { data: parsed, error: null };
     } catch {
-      return {
-        data: null,
-        error: new Error("Signup failed. Please try again."),
-      };
+      return { data: null, error: new Error("Signup failed. Please try again.") };
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email, password) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -240,10 +268,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       return { data, error };
     } catch {
-      return {
-        data: null,
-        error: new Error("Sign-in failed. Please try again."),
-      };
+      return { data: null, error: new Error("Sign-in failed. Please try again.") };
     }
   };
 
@@ -268,10 +293,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
+      welcomeShownRef.current = false; // reset after logout
       setUser(null);
       setSession(null);
       setProfile(null);
       setLocationData(null);
+
       return { error };
     } catch {
       toast({
@@ -287,13 +314,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (user) await loadUserProfile(user);
   }, [user, loadUserProfile]);
 
-  const updateProfile = async (data: Partial<Profile>) => {
+  const updateProfile = async (data) => {
     if (!user?.id) return;
     try {
       const { error } = await supabase
         .from("profiles")
         .update(data)
         .eq("user_id", user.id);
+
       if (error) throw error;
     } catch {
       toast({
