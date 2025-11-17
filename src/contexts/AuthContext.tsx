@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner"; // ✅ Sonner toast
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
@@ -54,15 +54,9 @@ interface AuthContextType {
   loading: boolean;
   locationData: LocationData | null;
   planExpiryActive: boolean;
-  signUp: (
-    email: string,
-    password: string,
-    options?: { fullName?: string }
-  ) => Promise<{ data: any; error: any | null }>;
-  signIn: (
-    email: string,
-    password: string
-  ) => Promise<{ data: any; error: any | null }>;
+  signUp: (email: string, password: string, options?: { fullName?: string }) =>
+    Promise<{ data: any; error: any | null }>;
+  signIn: (email: string, password: string) => Promise<{ data: any; error: any | null }>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<{ error: any | null }>;
   refreshProfile: () => Promise<void>;
@@ -89,57 +83,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const profileChannelRef = useRef<any>(null);
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
-  const { toast } = useToast();
 
-  const welcomeShownRef = useRef(false); // prevent duplicate toast/confetti
+  // Prevent toast spam (strict mode + rerender safe)
+  const welcomeToastShown = useRef(false); 
 
   const shouldShowPopup = expiryData?.show_popup || false;
 
-  // Load profile
-  const loadUserProfile = useCallback(
-    async (user: User) => {
-      try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
+  // ===============================
+  // LOAD USER PROFILE
+  // ===============================
+  const loadUserProfile = useCallback(async (user: User) => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
 
-        if (data) {
-          setProfile({
-            ...data,
-            ip_address: data.ip_address ?? "",
-            word_balance:
-              data.word_balance ??
-              Math.max(0, data.words_limit - data.words_used),
-          });
+      if (data) {
+        setProfile({
+          ...data,
+          ip_address: data.ip_address ?? "",
+          word_balance:
+            data.word_balance ??
+            Math.max(0, data.words_limit - data.words_used),
+        });
 
-          setLocationData({
-            country: data.country || "India",
-            currency: "INR",
-          });
-        }
-      } catch {
-        toast({
-          title: "Profile Error",
-          description: "Could not load profile.",
-          variant: "destructive",
+        setLocationData({
+          country: data.country || "India",
+          currency: "INR",
         });
       }
-    },
-    [toast]
-  );
+    } catch {
+      toast.error("Failed to load profile. Try again.");
+    }
+  }, []);
 
-  // Session lifecycle
+  // ===============================
+  // SESSION + AUTH STATE HANDLING
+  // ===============================
   useEffect(() => {
-    const controller = new AbortController();
+    const aborter = new AbortController();
 
-    const handleSession = async (current: Session | null) => {
-      if (controller.signal.aborted) return;
+    const handleSession = async (session: Session | null) => {
+      if (aborter.signal.aborted) return;
 
-      const currentUser = current?.user ?? null;
+      const currentUser = session?.user ?? null;
 
-      setSession(current);
+      setSession(session);
       setUser(currentUser);
 
       if (currentUser) await loadUserProfile(currentUser);
@@ -148,26 +139,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setInitialized(true);
     };
 
-    // On mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
     });
 
-    // On auth events
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_ev, session) => {
-      welcomeShownRef.current = false;
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
+      welcomeToastShown.current = false; // Reset on new session change
       handleSession(session);
     });
 
     return () => {
-      controller.abort();
-      subscription?.unsubscribe();
+      aborter.abort();
+      listener.subscription?.unsubscribe();
     };
   }, [loadUserProfile]);
 
-  // Realtime profile update
+  // ===============================
+  // REALTIME PROFILE UPDATES
+  // ===============================
   useEffect(() => {
     if (profileChannelRef.current) {
       profileChannelRef.current.unsubscribe();
@@ -176,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     if (user?.id) {
       profileChannelRef.current = supabase
-        .channel(`profile-updates-${user.id}`)
+        .channel("profile-updates-" + user.id)
         .on(
           "postgres_changes",
           {
@@ -200,63 +189,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     return () => {
-      if (profileChannelRef.current) {
-        profileChannelRef.current.unsubscribe();
-        profileChannelRef.current = null;
-      }
+      if (profileChannelRef.current) profileChannelRef.current.unsubscribe();
     };
   }, [user?.id]);
 
-  // 🎉 Final Shadcn Toast + Confetti (Strict-mode safe)
+  // ===============================
+  // 🎉 WELCOME / RETURN TOAST — SINGLE TIME ONLY
+  // ===============================
   useEffect(() => {
     if (!initialized || loading || !profile) return;
+    if (welcomeToastShown.current) return;
+    welcomeToastShown.current = true; // ensure only once
 
-    if (welcomeShownRef.current) return;
-    welcomeShownRef.current = true;
-
-    // New signup — first login
-    if (profile.login_count === 1) {
-      setTimeout(() => {
-        toast({
-          title: "Account Created!",
-          description: "Welcome to Tone2Vibe 🎉",
-        });
+    setTimeout(() => {
+      if (profile.login_count === 1) {
+        toast.success("Account Created! Welcome to Tone2Vibe 🎉");
         launchConfetti();
-      }, 150);
-      return;
-    }
+      } else if (profile.login_count > 1) {
+        toast.success("Welcome back 👋");
+      }
+    }, 200);
+  }, [initialized, loading, profile]);
 
-    // Returning user
-    if (profile.login_count > 1) {
-      setTimeout(() => {
-        toast({
-          title: "Welcome back!",
-          description: "Glad to see you again 👋",
-        });
-      }, 150);
-    }
-  }, [initialized, loading, profile, toast]);
+  // ===============================
+  // AUTH ACTIONS
+  // ===============================
 
-  // ---------- Auth Actions ---------- //
-
-  const signUp = async (email, password, options) => {
+  const signUp = async (email: string, password: string, options?: { fullName?: string }) => {
     try {
       const { data } = await supabase.functions.invoke("signup", {
         body: { email, password, fullName: options?.fullName },
       });
 
-      const parsed = typeof data === "string" ? JSON.parse(data) : data ?? {};
+      const res = typeof data === "string" ? JSON.parse(data) : data;
 
-      if (!parsed.success)
-        return { data: null, error: new Error(parsed.error || "Signup failed") };
+      if (!res?.success) {
+        return { data: null, error: new Error(res?.error || "Signup failed") };
+      }
 
-      return { data: parsed, error: null };
+      return { data: res, error: null };
     } catch {
       return { data: null, error: new Error("Signup failed. Try again.") };
     }
   };
 
-  const signIn = async (email, password) => {
+  const signIn = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -264,10 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (error?.message.includes("Email not confirmed")) {
-        return {
-          data,
-          error: new Error("Please confirm your email first."),
-        };
+        return { data, error: new Error("Please verify your email.") };
       }
 
       return { data, error };
@@ -286,55 +260,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         },
       });
     } catch {
-      toast({
-        title: "Google Sign-In Failed",
-        description: "Try again later.",
-        variant: "destructive",
-      });
+      toast.error("Google Sign-in failed. Try again.");
     }
   };
 
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      welcomeShownRef.current = false;
+
+      welcomeToastShown.current = false;
       setUser(null);
       setSession(null);
       setProfile(null);
       setLocationData(null);
+
       return { error };
     } catch {
-      toast({
-        title: "Logout Error",
-        description: "Please refresh.",
-        variant: "destructive",
-      });
+      toast.error("Logout failed. Refresh the page.");
       return { error: new Error("Logout failed") };
     }
   };
 
   const refreshProfile = useCallback(async () => {
-    if (user) await loadUserProfile(user);
+    if (user) loadUserProfile(user);
   }, [user, loadUserProfile]);
 
-  const updateProfile = async (data) => {
+  const updateProfile = async (data: Partial<Profile>) => {
     if (!user?.id) return;
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update(data)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+      await supabase.from("profiles").update(data).eq("user_id", user.id);
     } catch {
-      toast({
-        title: "Profile Update Failed",
-        description: "Try again later.",
-        variant: "destructive",
-      });
+      toast.error("Profile update failed. Try again.");
     }
   };
 
+  // ===============================
+  // CONTEXT VALUE
+  // ===============================
   const value: AuthContextType = {
     user,
     session,
@@ -350,12 +312,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     updateProfile,
   };
 
-  const isReady =
-    initialized && !loading && (!user || (user && profile !== null));
+  const ready = initialized && !loading && (!user || (user && profile));
 
   return (
     <AuthContext.Provider value={value}>
-      {!isReady ? (
+      {!ready ? (
         <LoadingScreen />
       ) : (
         <>
