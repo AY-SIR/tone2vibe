@@ -118,22 +118,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const updateLoginTracking = useCallback(async (userId: string) => {
     try {
+      // ✅ Prevent duplicate calls in quick succession
       const lastTracked = sessionStorage.getItem(LOGIN_TRACKING_KEY);
       const now = Date.now();
 
-      if (lastTracked && (now - parseInt(lastTracked)) < 30000) {
+      if (lastTracked && (now - parseInt(lastTracked)) < 10000) {
+        // Skip if tracked within last 10 seconds
         return;
       }
 
+      // Mark as in-progress immediately
+      sessionStorage.setItem(LOGIN_TRACKING_KEY, now.toString());
+
+      // Get IP address
       const ipResponse = await fetch('https://api.ipify.org?format=json');
       const { ip } = await ipResponse.json();
 
-      await supabase.rpc('update_user_login', {
+      // Fire and forget - background mein update hoga
+      supabase.rpc('update_user_login', {
         p_user_id: userId,
         p_ip_address: ip
       });
 
-      sessionStorage.setItem(LOGIN_TRACKING_KEY, now.toString());
     } catch (error) {
       // Silent fail for login tracking
     }
@@ -141,7 +147,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const aborter = new AbortController();
-    let hasProcessedSession = false;
+    let isInitialLoad = true;
 
     const handleSession = async (sess: Session | null, event?: string) => {
       if (aborter.signal.aborted) return;
@@ -152,12 +158,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(userObj);
 
       if (userObj) {
-        if (event === 'SIGNED_IN' && !hasProcessedSession) {
-          hasProcessedSession = true;
-          await updateLoginTracking(userObj.id);
-        }
-
+        // ✅ Always load profile first
         await loadUserProfile(userObj);
+
+        // ✅ ONLY track on actual SIGNED_IN event (not on page load)
+        if (event === 'SIGNED_IN' && !isInitialLoad) {
+          // Fire in background - don't wait
+          updateLoginTracking(userObj.id);
+        }
       }
 
       setInitialized(true);
@@ -166,17 +174,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
+      isInitialLoad = false;
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        hasProcessedSession = false;
         sessionStorage.removeItem(LOGIN_TRACKING_KEY);
         sessionStorage.removeItem(WELCOME_SHOWN_KEY);
-        sessionStorage.removeItem(INITIAL_LOGIN_DATA_KEY);
       }
 
-      handleSession(session, event === 'SIGNED_IN' ? 'SIGNED_IN' : undefined);
+      handleSession(session, event);
     });
 
     return () => {
@@ -224,68 +231,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!initialized || loading || !profile || !user) return;
 
     const currentLoginAt = profile.last_login_at;
-    const currentLoginCount = profile.login_count;
-    const userWelcomedKey = `${USER_WELCOMED_KEY}${user.id}_${currentLoginCount}`;
+    const userWelcomedKey = `${USER_WELCOMED_KEY}${user.id}`;
 
-    const hasBeenWelcomed = localStorage.getItem(userWelcomedKey);
-    if (hasBeenWelcomed === 'true') {
-      return;
-    }
+    // ✅ Check if already welcomed in this session
+    const sessionWelcomed = sessionStorage.getItem(WELCOME_SHOWN_KEY);
+    if (sessionWelcomed === 'true') return;
 
-    const storedData = sessionStorage.getItem(INITIAL_LOGIN_DATA_KEY);
-    const welcomeShown = sessionStorage.getItem(WELCOME_SHOWN_KEY);
+    // ✅ Check if we've stored the last login time
+    const storedLoginAt = localStorage.getItem(`${userWelcomedKey}_last_login`);
 
-    let initialData: { loginAt: string | null; loginCount: number | null } | null = null;
-
-    if (storedData) {
-      try {
-        initialData = JSON.parse(storedData);
-      } catch (e) {
-        initialData = null;
-      }
-    }
-
-    if (!initialData) {
-      sessionStorage.setItem(INITIAL_LOGIN_DATA_KEY, JSON.stringify({
-        loginAt: currentLoginAt,
-        loginCount: currentLoginCount
-      }));
-      return;
-    }
-
-    if (
-      currentLoginAt === initialData.loginAt &&
-      currentLoginCount === initialData.loginCount
-    ) {
-      return;
-    }
-
-    if (currentLoginCount !== initialData.loginCount) {
-      if (welcomeShown === 'true') return;
-
+    // ✅ If no stored time OR if current login is newer, show welcome
+    if (!storedLoginAt || currentLoginAt !== storedLoginAt) {
+      // Mark as welcomed for this session
       sessionStorage.setItem(WELCOME_SHOWN_KEY, 'true');
-      localStorage.setItem(userWelcomedKey, 'true');
 
-      sessionStorage.setItem(INITIAL_LOGIN_DATA_KEY, JSON.stringify({
-        loginAt: currentLoginAt,
-        loginCount: currentLoginCount
-      }));
+      // Store current login time
+      localStorage.setItem(`${userWelcomedKey}_last_login`, currentLoginAt || '');
 
-      if (currentLoginCount === 1) {
-        setTimeout(() => {
+      // Show welcome message
+      setTimeout(() => {
+        if (profile.login_count === 1) {
           toast.success("Account created! Welcome 🎉");
           launchConfetti();
-        }, 100);
-        return;
-      }
-
-      if (currentLoginCount > 1) {
-        setTimeout(() => {
+        } else {
           toast.success("Welcome back 👋");
-        }, 100);
-      }
+        }
+      }, 100);
     }
-  }, [profile?.last_login_at, profile?.login_count, initialized, loading, profile, user]);
+  }, [profile?.last_login_at, initialized, loading, profile, user]);
 
   const signUp = async (email: string, password: string, opt?: { fullName?: string }) => {
     try {
@@ -380,14 +353,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       sessionStorage.removeItem(LOGIN_TRACKING_KEY);
       sessionStorage.removeItem(WELCOME_SHOWN_KEY);
-      sessionStorage.removeItem(INITIAL_LOGIN_DATA_KEY);
 
       if (user?.id) {
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith(`${USER_WELCOMED_KEY}${user.id}`)) {
-            localStorage.removeItem(key);
-          }
-        });
+        // Clean up user-specific welcome tracking
+        const userWelcomedKey = `${USER_WELCOMED_KEY}${user.id}`;
+        localStorage.removeItem(`${userWelcomedKey}_last_login`);
       }
 
       setUser(null);

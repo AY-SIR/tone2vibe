@@ -347,52 +347,75 @@ premiumAnalytics?.hourlyUsage?.forEach(item => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Weekly Trends - Pro & Premium */}
-                {(isPro || isPremium) && weeklyTrendsIST && weeklyTrendsIST.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Last 7 days activity</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px] sm:h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={weeklyTrendsIST}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="week" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Bar dataKey="words" fill="#000000" name="Words" />
-                            <Bar dataKey="projects" fill="#666666" name="Projects" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+{(isPro || isPremium) && weeklyTrendsIST && weeklyTrendsIST.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg sm:text-xl">Weekly Trends</CardTitle>
+      <CardDescription className="text-xs sm:text-sm">Last 7 days activity</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="h-[250px] sm:h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={weeklyTrendsIST}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="week" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip />
+            {/* Added maxBarSize to prevent bars from becoming too huge */}
+            <Bar
+              dataKey="words"
+              fill="#000000"
+              name="Words"
+              maxBarSize={50}
+            />
+            <Bar
+              dataKey="projects"
+              fill="#666666"
+              name="Projects"
+              maxBarSize={50}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </CardContent>
+  </Card>
+)}
 
-                {/* Monthly Trends - Premium Only */}
-                {isPremium && monthlyTrendsIST && monthlyTrendsIST.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg sm:text-xl">Monthly Trends</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">Last 30 days activity</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px] sm:h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={monthlyTrendsIST}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Bar dataKey="words" fill="#1f2937" name="Words" />
-                            <Bar dataKey="projects" fill="#6b7280" name="Projects" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+
+             {/* Monthly Trends - Premium Only */}
+{isPremium && monthlyTrendsIST && monthlyTrendsIST.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg sm:text-xl">Monthly Trends</CardTitle>
+      <CardDescription className="text-xs sm:text-sm">Last 30 days activity</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="h-[250px] sm:h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={monthlyTrendsIST}>
+            <CartesianGrid strokeDasharray="3 3" />
+            {/* Ensure dataKey matches your data structure (e.g., 'date' or 'day' if showing daily) */}
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip />
+            <Bar
+              dataKey="words"
+              fill="#1f2937"
+              name="Words"
+              maxBarSize={50}
+            />
+            <Bar
+              dataKey="projects"
+              fill="#6b7280"
+              name="Projects"
+              maxBarSize={50}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </CardContent>
+  </Card>
+)}
 
                 {/* Projects per Language - Premium Only */}
                 {isPremium && analytics?.languageUsage && analytics.languageUsage.length > 0 && (
@@ -409,7 +432,7 @@ premiumAnalytics?.hourlyUsage?.forEach(item => {
                             <XAxis dataKey="language" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
                             <Tooltip />
-                            <Bar dataKey="count" name="Projects" fill="#4a5568" />
+                            <Bar dataKey="count" name="Projects" fill="#4a5568" maxBarSize={40}/>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
