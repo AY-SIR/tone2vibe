@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
-import { toast } from "sonner"; // ✅ Sonner
+import { toast } from "sonner";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { PlanExpiryPopup } from "@/components/common/PlanExpiryPopup";
 import { usePlanExpiry } from "@/hooks/usePlanExpiryGuard";
@@ -71,6 +71,11 @@ export const useAuth = () => {
   return ctx;
 };
 
+const LOGIN_TRACKING_KEY = 'last_login_tracked';
+const WELCOME_SHOWN_KEY = 'welcome_toast_shown';
+const INITIAL_LOGIN_DATA_KEY = 'initial_login_data';
+const USER_WELCOMED_KEY = 'user_welcomed_';
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -82,15 +87,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const profileChannelRef = useRef<any>(null);
 
-  const welcomeToastShown = useRef(false); // To prevent repeated toasts
-  const lastLoginAtRef = useRef<string | null>(null); // REAL change detection
-
   const { expiryData, dismissPopup } = usePlanExpiry(user, profile);
   const showExpiryPopup = expiryData?.show_popup || false;
 
-  // ===================================================
-  // LOAD & SYNC PROFILE
-  // ===================================================
   const loadUserProfile = useCallback(async (u: User) => {
     try {
       const { data } = await supabase
@@ -117,13 +116,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // ===================================================
-  // AUTH + SESSION HANDLER
-  // ===================================================
+  const updateLoginTracking = useCallback(async (userId: string) => {
+    try {
+      const lastTracked = sessionStorage.getItem(LOGIN_TRACKING_KEY);
+      const now = Date.now();
+
+      if (lastTracked && (now - parseInt(lastTracked)) < 30000) {
+        return;
+      }
+
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const { ip } = await ipResponse.json();
+
+      await supabase.rpc('update_user_login', {
+        p_user_id: userId,
+        p_ip_address: ip
+      });
+
+      sessionStorage.setItem(LOGIN_TRACKING_KEY, now.toString());
+    } catch (error) {
+      // Silent fail for login tracking
+    }
+  }, []);
+
   useEffect(() => {
     const aborter = new AbortController();
+    let hasProcessedSession = false;
 
-    const handleSession = async (sess: Session | null) => {
+    const handleSession = async (sess: Session | null, event?: string) => {
       if (aborter.signal.aborted) return;
 
       const userObj = sess?.user ?? null;
@@ -131,32 +151,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(sess);
       setUser(userObj);
 
-      if (userObj) await loadUserProfile(userObj);
+      if (userObj) {
+        if (event === 'SIGNED_IN' && !hasProcessedSession) {
+          hasProcessedSession = true;
+          await updateLoginTracking(userObj.id);
+        }
+
+        await loadUserProfile(userObj);
+      }
 
       setInitialized(true);
       setLoading(false);
     };
 
-    // Initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
     });
 
-    // On auth change
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      welcomeToastShown.current = false; // Reset toast lock
-      handleSession(session);
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        hasProcessedSession = false;
+        sessionStorage.removeItem(LOGIN_TRACKING_KEY);
+        sessionStorage.removeItem(WELCOME_SHOWN_KEY);
+        sessionStorage.removeItem(INITIAL_LOGIN_DATA_KEY);
+      }
+
+      handleSession(session, event === 'SIGNED_IN' ? 'SIGNED_IN' : undefined);
     });
 
     return () => {
       aborter.abort();
       listener.subscription?.unsubscribe();
     };
-  }, [loadUserProfile]);
+  }, [loadUserProfile, updateLoginTracking]);
 
-  // ===================================================
-  // REALTIME PROFILE LISTENING
-  // ===================================================
   useEffect(() => {
     if (profileChannelRef.current) {
       profileChannelRef.current.unsubscribe();
@@ -192,57 +220,127 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [user?.id]);
 
-  // ===================================================
-  // 🎉 SHOW TOAST ONLY ON REAL LOGIN (NOT PAGE RELOAD)
-  // ===================================================
   useEffect(() => {
-    if (!initialized || loading || !profile) return;
+    if (!initialized || loading || !profile || !user) return;
 
-    const currLogin = profile.last_login_at;
-    const prevLogin = lastLoginAtRef.current;
+    const currentLoginAt = profile.last_login_at;
+    const currentLoginCount = profile.login_count;
+    const userWelcomedKey = `${USER_WELCOMED_KEY}${user.id}_${currentLoginCount}`;
 
-    // If last_login_at is SAME → refresh, NOT login
-    if (currLogin === prevLogin) return;
-
-    // Update ref with new last_login_at
-    lastLoginAtRef.current = currLogin;
-
-    // Prevent duplicate firing
-    if (welcomeToastShown.current) return;
-    welcomeToastShown.current = true;
-
-    // New account
-    if (profile.login_count === 1) {
-      setTimeout(() => {
-        toast.success("Account created! Welcome 🎉");
-        launchConfetti();
-      }, 100);
+    const hasBeenWelcomed = localStorage.getItem(userWelcomedKey);
+    if (hasBeenWelcomed === 'true') {
       return;
     }
 
-    // Real login (NOT reload)
-    if (profile.login_count > 1) {
-      setTimeout(() => toast.success("Welcome back 👋"), 100);
-    }
-  }, [profile?.last_login_at, initialized, loading, profile]);
+    const storedData = sessionStorage.getItem(INITIAL_LOGIN_DATA_KEY);
+    const welcomeShown = sessionStorage.getItem(WELCOME_SHOWN_KEY);
 
-  // ===================================================
-  // AUTH FUNCTIONS
-  // ===================================================
+    let initialData: { loginAt: string | null; loginCount: number | null } | null = null;
+
+    if (storedData) {
+      try {
+        initialData = JSON.parse(storedData);
+      } catch (e) {
+        initialData = null;
+      }
+    }
+
+    if (!initialData) {
+      sessionStorage.setItem(INITIAL_LOGIN_DATA_KEY, JSON.stringify({
+        loginAt: currentLoginAt,
+        loginCount: currentLoginCount
+      }));
+      return;
+    }
+
+    if (
+      currentLoginAt === initialData.loginAt &&
+      currentLoginCount === initialData.loginCount
+    ) {
+      return;
+    }
+
+    if (currentLoginCount !== initialData.loginCount) {
+      if (welcomeShown === 'true') return;
+
+      sessionStorage.setItem(WELCOME_SHOWN_KEY, 'true');
+      localStorage.setItem(userWelcomedKey, 'true');
+
+      sessionStorage.setItem(INITIAL_LOGIN_DATA_KEY, JSON.stringify({
+        loginAt: currentLoginAt,
+        loginCount: currentLoginCount
+      }));
+
+      if (currentLoginCount === 1) {
+        setTimeout(() => {
+          toast.success("Account created! Welcome 🎉");
+          launchConfetti();
+        }, 100);
+        return;
+      }
+
+      if (currentLoginCount > 1) {
+        setTimeout(() => {
+          toast.success("Welcome back 👋");
+        }, 100);
+      }
+    }
+  }, [profile?.last_login_at, profile?.login_count, initialized, loading, profile, user]);
+
   const signUp = async (email: string, password: string, opt?: { fullName?: string }) => {
     try {
-      const { data } = await supabase.functions.invoke("signup", {
-        body: { email, password, fullName: opt?.fullName },
+      const supabaseUrl = supabase.supabaseUrl;
+      const supabaseAnonKey = supabase.supabaseKey;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error("Supabase configuration missing");
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          fullName: opt?.fullName
+        }),
       });
 
-      const parsed = typeof data === "string" ? JSON.parse(data) : data;
+      const data = await response.json();
 
-      if (!parsed?.success)
-        return { data: null, error: new Error(parsed?.error || "Signup failed") };
+      if (!response.ok) {
+        const errorMessage = data.error || `Signup failed (${response.status})`;
+        return {
+          data: null,
+          error: new Error(errorMessage)
+        };
+      }
 
-      return { data: parsed, error: null };
-    } catch (e) {
-      return { data: null, error: new Error("Signup failed. Try again.") };
+      if (data.success === false) {
+        return {
+          data: null,
+          error: new Error(data.error || "Signup failed")
+        };
+      }
+
+      return { data, error: null };
+
+    } catch (error: any) {
+      if (error.message && error.message.toLowerCase().includes('fetch')) {
+        return {
+          data: null,
+          error: new Error("Network error. Please check your connection.")
+        };
+      }
+
+      return {
+        data: null,
+        error: new Error(error?.message || "Signup failed. Please try again.")
+      };
     }
   };
 
@@ -280,8 +378,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { error } = await supabase.auth.signOut();
 
-      welcomeToastShown.current = false;
-      lastLoginAtRef.current = null;
+      sessionStorage.removeItem(LOGIN_TRACKING_KEY);
+      sessionStorage.removeItem(WELCOME_SHOWN_KEY);
+      sessionStorage.removeItem(INITIAL_LOGIN_DATA_KEY);
+
+      if (user?.id) {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith(`${USER_WELCOMED_KEY}${user.id}`)) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
 
       setUser(null);
       setSession(null);

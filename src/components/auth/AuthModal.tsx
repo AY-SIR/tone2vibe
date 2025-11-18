@@ -203,76 +203,107 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
     }
   };
 
-  // Sign Up Handler
-  const handleSignUp = async () => {
-    if (!signUpEmail || !signUpPassword || !signUpFullName.trim()) {
-      return toast.error('Please fill in all required fields');
+
+
+
+const handleSignUp = async () => {
+  // Validation
+  if (!signUpEmail || !signUpPassword || !signUpFullName.trim()) {
+    return toast.error('Please fill in all required fields');
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signUpEmail)) {
+    return toast.error('Please enter a valid email address');
+  }
+
+  const passwordRequirements = validatePassword(signUpPassword);
+  if (passwordRequirements.length > 0) {
+    return toast.error(`Password must include: ${passwordRequirements.join(', ')}`);
+  }
+
+  if (signUpPassword !== signUpConfirmPassword) {
+    return toast.error('Passwords do not match');
+  }
+
+  if (!agreeToTerms) {
+    return toast.error('You must agree to the Terms of Service and Privacy Policy');
+  }
+
+  setIsEmailLoading(true);
+
+  try {
+    // Check location
+    const location = await LocationCacheService.getLocation();
+    if (!location.isIndian) {
+      toast.error('Signup is only available in India');
+      setIsEmailLoading(false);
+      return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signUpEmail)) {
-      return toast.error('Please enter a valid email address');
-    }
+    // Call signup with user details
+    const { data, error } = await signUp(
+      signUpEmail.trim().toLowerCase(),
+      signUpPassword,
+      { fullName: signUpFullName.trim() }
+    );
 
-    const passwordRequirements = validatePassword(signUpPassword);
-    if (passwordRequirements.length > 0) {
-      return toast.error(`Password must include: ${passwordRequirements.join(', ')}`);
-    }
+    // ✅ Handle error response
+    if (error) {
+      const errorMessage = error.message || 'Signup failed. Please try again.';
 
-    if (signUpPassword !== signUpConfirmPassword) {
-      return toast.error('Passwords do not match');
-    }
+      // Check for "already exists" error
+      if (
+        errorMessage.toLowerCase().includes('already exists') ||
+        errorMessage.toLowerCase().includes('already registered') ||
+        errorMessage.toLowerCase().includes('account with this email')
+      ) {
+        toast.error(
+          'An account with this email already exists. Please sign in instead.',
+          { duration: 6000 }
+        );
 
-    if (!agreeToTerms) {
-      return toast.error('You must agree to the Terms of Service and Privacy Policy');
-    }
-
-    setIsEmailLoading(true);
-
-    try {
-      const location = await LocationCacheService.getLocation();
-      if (!location.isIndian) {
-        toast.error('Signup is only available in India');
-        setIsEmailLoading(false);
-        return;
-      }
-
-      const { data, error } = await signUp(
-        signUpEmail.trim().toLowerCase(),
-        signUpPassword,
-        { fullName: signUpFullName.trim() }
-      );
-
-      if (error) {
-        const errorMessage = error.message || 'Signup failed. Please try again.';
-
-        if (errorMessage.includes('already exists') || errorMessage.includes('already registered')) {
-          toast.error('An account with this email already exists. Please sign in instead.');
+        // Switch to sign-in view and prefill email
+        setTimeout(() => {
           setCurrentView('signin');
           setSignInEmail(signUpEmail);
-        } else if (errorMessage.includes('network') || errorMessage.includes('connection') || errorMessage.includes('fetch')) {
-          toast.error('Network error. Please check your connection and try again.');
-        } else {
-          toast.error(errorMessage);
-        }
+          clearSignUpFields();
+        }, 100);
 
         setIsEmailLoading(false);
         return;
       }
 
-      toast.success(
-        'Account created successfully! Please check your email to verify your account.',
-        { duration: 10000 }
-      );
+      // Handle network errors
+      if (errorMessage.toLowerCase().includes('network') ||
+          errorMessage.toLowerCase().includes('connection')) {
+        toast.error('Network error. Please check your connection and try again.');
+      } else {
+        // Show the actual error message from server
+        toast.error(errorMessage, { duration: 5000 });
+      }
 
-      clearSignUpFields();
-      setCurrentView('signin');
-      setSignInEmail(signUpEmail);
       setIsEmailLoading(false);
-    } catch (err) {
-      toast.error('Network error. Please check your connection and try again.');
-      setIsEmailLoading(false);
+      return;
     }
-  };
+
+    // ✅ Success - Account created
+    toast.success(
+      'Account created successfully! Please check your email to verify your account.',
+      { duration: 10000 }
+    );
+
+    // Clear fields and switch to sign-in view
+    clearSignUpFields();
+    setCurrentView('signin');
+    setSignInEmail(signUpEmail);
+    setIsEmailLoading(false);
+
+  } catch (err: any) {
+    console.error("Unexpected error in handleSignUp:", err);
+    toast.error('An unexpected error occurred. Please try again.');
+    setIsEmailLoading(false);
+  }
+};
 
   // Google Sign In Handler
   const handleGoogleSignIn = async () => {

@@ -4,7 +4,7 @@ interface PasswordResetRequest {
   email: string;
 }
 
-// Email template function (without logo)
+// Email Template
 function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -20,18 +20,42 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
         <!-- Main Container -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #ffffff; border-radius: 20px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06); overflow: hidden;">
 
-          <!-- Header with Logo -->
+            <!-- Header with Logo -->
           <tr>
             <td style="padding: 48px 32px 24px; background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%); text-align: center;">
-              <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
-                   alt="Tone2Vibe Logo"
-                   width="64"
-                   height="64"
-                                        draggable="false"
+             <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+  <tr>
+    <!-- Logo -->
+    <td style="padding-right: 10px; vertical-align: middle;">
+      <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
+           alt="Tone2Vibe"
+           width="40"
+           height="40"
+           style="display: block; border-radius: 8px;
+           "  draggable="false"/>
+    </td>
 
-                   style="display: block; margin: 0 auto 16px; border-radius: 12px;
-
-                   " />
+    <!-- Brand Name -->
+    <td style="vertical-align: middle;">
+      <span style="
+        font-size: 22px;
+        font-weight: 600;
+        color: #111111;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      ">
+        Tone2Vibe
+      </span>
+    </td>
+  </tr>
+</table>
+ <div
+                style="
+                  width: 100%;
+                  height: 1px;
+                  background: linear-gradient(to right, #e6e6e6, #f7f7f7);
+                  margin: 24px 0 20px;
+                "
+              ></div>
 <h1
   style="
     color: #1a1a1a;
@@ -39,15 +63,13 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
     font-weight: 700;
     letter-spacing: -0.5px;
     text-align: center;
-    font-size: 18px;
+    font-size: 22px;
   "
 >
   Reset Your Password
 </h1>
 
-              <p style="color: #666666; margin: 8px 0 0; font-size: 15px;">
-                Tone2Vibe
-              </p>
+
             </td>
           </tr>
 
@@ -119,203 +141,131 @@ function getPasswordResetEmailTemplate(fullName: string, resetUrl: string): stri
 </html>`;
 }
 
-// CORS headers with localhost:8080 support
+
+/* -----------------------------------------------------------
+   STRICT CORS (FINAL FIX — NO MORE ERRORS)
+----------------------------------------------------------- */
 function getCorsHeaders(origin: string | null) {
   const allowedOrigins = [
-    'https://tone2vibe.in',
-    
     'http://localhost:8080',
-    
+    'https://preview--tone2vibe-51.lovable.app',
+    'https://tone-to-vibe-speak-51.vercel.app',
+    'https://tone2vibe.in',
   ];
 
-  // If origin matches one of the allowed origins, use it; otherwise use the first allowed origin
-  const validOrigin = allowedOrigins.includes(origin || '') ? origin : allowedOrigins[0];
+  const isAllowed = allowedOrigins.includes(origin || '');
 
   return {
-    'Access-Control-Allow-Origin': validOrigin || '*',
+    'Access-Control-Allow-Origin': isAllowed ? origin! : '',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin'
   };
 }
 
+
+/* -----------------------------------------------------------
+   MAIN FUNCTION
+----------------------------------------------------------- */
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
 
-  // Handle preflight OPTIONS request
+  // OPTIONS — Preflight OK
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders
-    });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
-    // Validate environment variables
+    // Ensure server ENV is set
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const brevoApiKey = Deno.env.get('BREVO_API_KEY');
 
     if (!supabaseUrl || !supabaseKey || !brevoApiKey) {
-      console.error('Missing environment variables');
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create Supabase client
-    const supabaseClient = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      },
+    // Supabase client
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Parse request body
+    // Parse JSON
     const { email } = await req.json() as PasswordResetRequest;
-
     if (!email) {
       return new Response(
         JSON.stringify({ error: 'Email is required' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(normalizedEmail)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid email format' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Check if user exists
-    const { data: usersData, error: listError } = await supabaseClient.auth.admin.listUsers();
-
-    if (listError) {
-      console.error('Error listing users:', listError);
-      throw new Error('Failed to verify user');
-    }
-
+    // Find user
+    const { data: usersData } = await supabase.auth.admin.listUsers();
     const user = usersData?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
 
-    // Always respond with success to prevent email enumeration attacks
+    // Always respond success (anti-enumeration)
     if (!user) {
-      console.log('User not found for email:', normalizedEmail);
       return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'If an account exists with this email, a password reset link has been sent.'
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Generate secure reset token
+    // Create token
     const resetToken = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour expiry
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    // Store token in database
-    const { error: insertError } = await supabaseClient
-      .from('password_reset_tokens')
-      .insert({
-        user_id: user.id,
-        email: normalizedEmail,
-        token: resetToken,
-        expires_at: expiresAt
-      });
+    await supabase.from('password_reset_tokens').insert({
+      user_id: user.id,
+      email: normalizedEmail,
+      token: resetToken,
+      expires_at: expiresAt,
+    });
 
-    if (insertError) {
-      console.error('Error inserting reset token:', insertError);
-      throw new Error('Failed to generate reset token');
-    }
+    // Reset link
+    const resetUrl = `${origin}/reset-password?token=${resetToken}`;
 
-    // Build reset URL using request origin
-    const originHeader = req.headers.get('origin') || 'https://tone2vibe.in';
-    const resetUrl = `${originHeader}/reset-password?token=${resetToken}`;
-
-    // Fetch user's full name from profiles
-    const { data: profileData } = await supabaseClient
+    // Fetch user name
+    const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
       .eq('user_id', user.id)
       .single();
 
-    const fullName = profileData?.full_name || normalizedEmail.split('@')[0];
+    const fullName = profile?.full_name || normalizedEmail.split('@')[0];
 
-    // Send email via Brevo
-    try {
-      const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'api-key': brevoApiKey,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          sender: {
-            name: 'Tone2Vibe',
-            email: 'yadavakhilesh2519@gmail.com'
-          },
-          to: [{
-            email: normalizedEmail,
-            name: fullName
-          }],
-          subject: 'Reset Your Password - Tone2Vibe',
-          htmlContent: getPasswordResetEmailTemplate(fullName, resetUrl)
-        })
-      });
-
-      if (!emailResponse.ok) {
-        const errorText = await emailResponse.text();
-        console.error('Brevo API error:', errorText);
-        // Don't throw error - continue with success response
-      } else {
-        console.log('Password reset email sent successfully to:', normalizedEmail);
-      }
-    } catch (emailError) {
-      console.error('Error sending email:', emailError);
-      // Silent fail on email error - user still gets success response
-    }
+    // Send email
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'api-key': brevoApiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { name: 'Tone2Vibe', email: 'yadavakhilesh2519@gmail.com' },
+        to: [{ email: normalizedEmail, name: fullName }],
+        subject: 'Reset Your Password – Tone2Vibe',
+        htmlContent: getPasswordResetEmailTemplate(fullName, resetUrl)
+      })
+    });
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'If an account exists with this email, a password reset link has been sent.'
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (err) {
-    console.error('Unexpected error:', err);
     return new Response(
-      JSON.stringify({
-        error: err instanceof Error ? err.message : 'Internal server error'
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

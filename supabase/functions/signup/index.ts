@@ -1,39 +1,49 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Max-Age': '86400'
-};
-Deno.serve(async (req)=>{
+
+function getCorsHeaders(origin) {
+  const allowedOrigins = [
+    'http://localhost:8080',
+    'https://preview--tone2vibe-51.lovable.app',
+    'https://tone-to-vibe-speak-51.vercel.app',
+    'https://tone2vibe.in'
+  ];
+  const validOrigin = allowedOrigins.includes(origin || '') ? origin : 'null';
+  return {
+    'Access-Control-Allow-Origin': validOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400'
+  };
+}
+
+Deno.serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
       headers: corsHeaders
     });
   }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const brevoApiKey = Deno.env.get('BREVO_API_KEY');
+
     if (!supabaseUrl || !supabaseKey) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Server configuration error'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      // ❌ 500 Error - throw to be caught below
+      throw new Error('Server configuration error');
     }
+
     const supabaseClient = createClient(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
       }
     });
+
     let email, password, fullName;
     try {
       const body = await req.json();
@@ -41,57 +51,29 @@ Deno.serve(async (req)=>{
       password = body.password;
       fullName = body.fullName;
     } catch (e) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid request body'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      // ❌ 400 Error - throw to be caught below
+      throw new Error('Invalid request body');
     }
+
     if (!email || !password) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Email and password are required'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      // ❌ 400 Error - throw to be caught below
+      throw new Error('Email and password are required');
     }
+
     const normalizedEmail = email.trim().toLowerCase();
+
     // Check if user exists
     const { data: usersData, error: listError } = await supabaseClient.auth.admin.listUsers();
     if (listError) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to verify user status'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      throw new Error('Failed to verify user status');
     }
-    const existingUser = usersData?.users?.find((u)=>u.email?.toLowerCase() === normalizedEmail);
+
+    const existingUser = usersData?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
     if (existingUser) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'An account with this email already exists'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      // ❌ 409 Conflict - throw with specific message
+      throw new Error('An account with this email already exists');
     }
+
     // Create user
     const { data: userData, error: createError } = await supabaseClient.auth.admin.createUser({
       email: normalizedEmail,
@@ -101,22 +83,17 @@ Deno.serve(async (req)=>{
         full_name: fullName || email.split('@')[0]
       }
     });
+
     if (createError || !userData?.user) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to create user'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      throw new Error('Failed to create user');
     }
+
     const userId = userData.user.id;
+
     // Generate verification token
     const verificationToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     // Store token
     const { error: insertError } = await supabaseClient.from('email_verification_tokens').insert({
       user_id: userId,
@@ -125,24 +102,18 @@ Deno.serve(async (req)=>{
       token_type: 'email_confirmation',
       expires_at: expiresAt
     });
+
     if (insertError) {
       await supabaseClient.auth.admin.deleteUser(userId);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to create verification token'
-      }), {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      });
+      throw new Error('Failed to create verification token');
     }
+
     // Send email via Brevo
     if (brevoApiKey) {
-      const origin = req.headers.get('origin') || 'https://tone2vibe.in';
-      const confirmationUrl = `${origin}/email-confirmation?token=${verificationToken}`;
+      const requestOrigin = req.headers.get('origin') || 'https://tone2vibe.in';
+      const confirmationUrl = `${requestOrigin}/email-confirmation?token=${verificationToken}`;
       const displayName = fullName || email.split('@')[0];
+
       const emailHtml = `<!DOCTYPE html>
 <html>
 <head>
@@ -151,82 +122,67 @@ Deno.serve(async (req)=>{
   <title>Confirm Your Email</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef3 100%);">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 30px 5px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 10px 5px;">
     <tr>
       <td align="center">
-        <!-- Main Container -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; background-color: #ffffff; border-radius: 20px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06); overflow: hidden;">
-
-          <!-- Header with Logo -->
           <tr>
             <td style="padding: 48px 32px 24px; background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%); text-align: center;">
-              <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
-                   alt="Tone2Vibe Logo"
-                   width="64"
-                   height="64"
-                   draggable="false"
-                   style="display: block; margin: 0 auto 16px; border-radius: 12px;" />
-             <h1
-  style="
-    color: #1a1a1a;
-    margin: 0;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    text-align: center;
-    font-size: 18px;
-  "
->
-                 Verify Your Email
-
-</h1>
-              <p style="color: #666666; margin: 8px 0 0; font-size: 15px;">
-                Tone2Vibe
-              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                <tr>
+                  <td style="padding-right: 10px; vertical-align: middle;">
+                    <img src="https://res.cloudinary.com/dcrfzlqak/image/upload/v1758802751/favicon_yoag75.png"
+                         alt="Tone2Vibe"
+                         draggable="false"
+                         width="40"
+                         height="40"
+                         style="display: block; border-radius: 8px;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-size: 22px; font-weight: 600; color: #111111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;">
+                      Tone2Vibe
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <div style="width: 100%; height: 1px; background: linear-gradient(to right, #e6e6e6, #f7f7f7); margin: 24px 0 20px;"></div>
+              <h1 style="color: #1a1a1a; margin: 0; font-weight: 700; letter-spacing: -0.5px; text-align: center; font-size: 22px;">
+                Confirm Your Email
+              </h1>
             </td>
           </tr>
-
-          <!-- Content -->
           <tr>
             <td style="padding: 32px 32px;">
               <p style="color: #1a1a1a; font-size: 16px; line-height: 1.6; margin: 0 0 8px; font-weight: 500;">
                 Hi ${displayName},
               </p>
-
               <p style="color: #666666; font-size: 15px; line-height: 1.7; margin: 0 0 32px;">
-                Welcome to Tone2Vibe! To get started please confirm your email address by clicking the button below.
+                Welcome to Tone2Vibe! Please confirm your email address by clicking the button below.
               </p>
-
-              <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" style="padding: 0 0 32px;">
                     <a href="${confirmationUrl}" style="display: inline-block; background-color: #1a1a1a; color: #ffffff; text-decoration: none; padding: 16px 48px; font-size: 15px; font-weight: 600; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
-                      Confirm Email Address
+                      Confirm Email
                     </a>
                   </td>
                 </tr>
               </table>
-
-
             </td>
           </tr>
-
-          <!-- Notice Box -->
           <tr>
-            <td style="padding: 0 10px 40px;">
+            <td style="padding: 0 32px 40px;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fff8e6; border-left: 4px solid #f59e0b; border-radius: 8px;">
                 <tr>
                   <td style="padding: 20px;">
                     <p style="color: #92400e; font-size: 13px; line-height: 1.6; margin: 0;">
-                      <strong style="color: #78350f;"> Security Notice:</strong> This verification link will expire in 24 hours. If you didn't create an account with Tone2Vibe, you can safely ignore this email.
+                      <strong style="color: #78350f;">⚡ Quick Tip:</strong> This confirmation link will expire in 24 hours. If you didn't create this account, you can safely ignore this email.
                     </p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td style="padding: 32px; text-align: center; background-color: #fafafa; border-top: 1px solid #eeeeee;">
               <p style="color: #999999; font-size: 13px; margin: 0 0 8px; line-height: 1.5;">
@@ -237,23 +193,19 @@ Deno.serve(async (req)=>{
               </p>
             </td>
           </tr>
-
         </table>
-
-        <!-- Bottom Spacer Text -->
         <p style="color: #999999; font-size: 12px; margin: 24px 0 0; text-align: center; line-height: 1.5;">
-          You're receiving this email because you signed up for Tone2Vibe.<br>
+          You're receiving this email because an account was created with this email address.<br>
           www.tone2vibe.in
         </p>
-
       </td>
     </tr>
   </table>
 </body>
-</html>
-      `;
+</html>`;
+
       try {
-        await fetch('https://api.brevo.com/v3/smtp/email', {
+        const brevoResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
           headers: {
             'accept': 'application/json',
@@ -265,20 +217,27 @@ Deno.serve(async (req)=>{
               name: 'Tone2Vibe',
               email: 'yadavakhilesh2519@gmail.com'
             },
-            to: [
-              {
-                email: normalizedEmail,
-                name: displayName
-              }
-            ],
+            to: [{
+              email: normalizedEmail,
+              name: displayName
+            }],
             subject: 'Confirm Your Email - Tone2Vibe',
             htmlContent: emailHtml
           })
         });
+
+        if (!brevoResponse.ok) {
+          const errorText = await brevoResponse.text();
+          // Email failed but don't block signup - just log
+          console.error(`Brevo API error: ${brevoResponse.status} - ${errorText}`);
+        }
       } catch (emailError) {
-      // Email error - silent fail
+        // Email failed but user is created - silent fail
+        console.error('Email send failed:', emailError);
       }
     }
+
+    // ✅ SUCCESS - Return 200 with success response
     return new Response(JSON.stringify({
       success: true,
       userId,
@@ -290,12 +249,27 @@ Deno.serve(async (req)=>{
         'Content-Type': 'application/json'
       }
     });
-  } catch (err) {
+
+  } catch (err: any) {
+    // ❌ ERROR - Return error details in response
+    const errorMessage = err.message || 'Internal server error';
+
+    // Determine appropriate status code
+    let statusCode = 500;
+    if (errorMessage.includes('already exists')) {
+      statusCode = 409; // Conflict
+    } else if (
+      errorMessage.includes('Invalid request') ||
+      errorMessage.includes('Email and password are required')
+    ) {
+      statusCode = 400; // Bad Request
+    }
+
     return new Response(JSON.stringify({
       success: false,
-      error: 'Internal server error'
+      error: errorMessage
     }), {
-      status: 200,
+      status: statusCode,
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json'

@@ -31,6 +31,11 @@ const Payment = () => {
   });
   const [locationVerified, setLocationVerified] = useState(false);
 
+  // ✅ Scroll to top on component mount
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/');
@@ -44,8 +49,25 @@ const Payment = () => {
   useEffect(() => {
     const url = new URL(window.location.href);
     const tab = url.searchParams.get('tab');
-    if (tab === 'words') setActiveTab('words');
+    if (tab === 'words') {
+      setActiveTab('words');
+      // Scroll to top when switching tabs via URL
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, []);
+
+  // ✅ Scroll to top when payment gateway opens/closes
+  useEffect(() => {
+    if (showPaymentGateway) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [showPaymentGateway]);
+
+  // ✅ Scroll to top when switching tabs
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const loadPricing = async () => {
     try {
@@ -59,7 +81,6 @@ const Payment = () => {
 
   const verifyLocation = async () => {
     try {
-      // First check cookies for fast verification
       const cookieLocation = LocationCacheService.getLocationFromCookies();
 
       if (cookieLocation.isIndian && cookieLocation.ipVerified) {
@@ -67,7 +88,6 @@ const Payment = () => {
         return;
       }
 
-      // If not in cookies, perform full location check
       const location = await LocationCacheService.getLocation();
 
       if (!location.isIndian) {
@@ -196,8 +216,8 @@ const Payment = () => {
     const isExpired = profile?.plan_expires_at && new Date(profile.plan_expires_at) < new Date();
 
     if (planId === profile?.plan && !isExpired) {
-      // Don't show toast, just switch tab silently
       setActiveTab('words');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -267,32 +287,29 @@ const Payment = () => {
   if (!user || !profile) return null;
 
   if (showPaymentGateway) {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4">
-      {/* Back Button */}
-      <div className="mb-6 w-full max-w-md text-left">
-        <Button
-          variant="ghost"
-          onClick={() => setShowPaymentGateway(false)}
-          className="flex items-center space-x-2 text-sm"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back to Plans</span>
-        </Button>
-      </div>
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4">
+        <div className="mb-6 w-full max-w-md text-left">
+          <Button
+            variant="ghost"
+            onClick={() => setShowPaymentGateway(false)}
+            className="flex items-center space-x-2 text-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Plans</span>
+          </Button>
+        </div>
 
-      {/* Payment Gateway */}
-      <div className="w-full max-w-md">
-        <PaymentGateway
-          selectedPlan={selectedPlan}
-          onPayment={() => {}}
-          isProcessing={loading !== null}
-        />
+        <div className="w-full max-w-md">
+          <PaymentGateway
+            selectedPlan={selectedPlan}
+            onPayment={() => {}}
+            isProcessing={loading !== null}
+          />
+        </div>
       </div>
-    </div>
-  );
-}
-
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -310,7 +327,7 @@ const Payment = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6 sm:py-12 max-w-6xl">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6 sm:mb-8 bg-gray-100">
             <TabsTrigger value="plans" className="data-[state=active]:bg-black data-[state=active]:text-white text-xs sm:text-sm">Plan Management</TabsTrigger>
             <TabsTrigger value="words" disabled={!['pro', 'premium'].includes(profile?.plan || '')} className="data-[state=active]:bg-black data-[state=active]:text-white text-xs sm:text-sm">
@@ -321,7 +338,7 @@ const Payment = () => {
 
           <TabsContent value="plans" className="space-y-6 sm:space-y-8">
             <div className="text-center mb-6 sm:mb-12">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold  mb-4">Choose Your Plan</h1>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">Choose Your Plan</h1>
               <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
                 Unlock the full potential of AI voice cloning with our flexible pricing plans.
               </p>
@@ -389,7 +406,7 @@ const Payment = () => {
                         {loading === plan.id ? 'Processing...' : plan.buttonText}
                       </Button>
                       {plan.current && plan.id !== 'free' && (
-                        <Button onClick={() => setActiveTab('words')} variant="outline" className="w-full text-sm">
+                        <Button onClick={() => handleTabChange('words')} variant="outline" className="w-full text-sm">
                           <Package className="h-4 w-4 mr-2" />
                           Buy Additional Words
                         </Button>
@@ -401,7 +418,6 @@ const Payment = () => {
             </div>
 
             <div className="text-center text-gray-600 mt-6 sm:mt-8">
-
               <div className="text-xs sm:text-sm">
                 Location: भारत | India • Currency: ₹ INR Only
               </div>
