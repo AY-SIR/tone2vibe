@@ -12,18 +12,15 @@ import { Separator } from "@/components/ui/separator";
 import {
   XCircle,
   Home,
-  RefreshCcw,
   AlertCircle,
   Mail,
   Phone,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 
 export default function PaymentFailed() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [countdown, setCountdown] = useState(10);
 
   const rawReason = searchParams.get("reason") || "";
@@ -35,24 +32,27 @@ export default function PaymentFailed() {
     .replace("Failed to fetch", "Network error. Please try again.")
     .replace("null", "Something went wrong.");
 
+  // Countdown tick
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
+      setCountdown((prev) => {
+        if (prev <= 1) {
           clearInterval(timer);
           return 0;
         }
-        return c - 1;
+        return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(timer);
   }, []);
 
-  const handleTryAgain = () => {
-    if (type === "words") navigate("/payment?tab=words");
-    else if (type === "subscription") navigate("/payment");
-    else navigate("/payment");
-  };
+  // Auto redirect when countdown hits zero
+  useEffect(() => {
+    if (countdown === 0) {
+      navigate("/", { replace: true });
+    }
+  }, [countdown, navigate]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -82,11 +82,10 @@ export default function PaymentFailed() {
 
           <Separator />
 
+          {/* Action Buttons */}
           <div className="space-y-3">
-
-
             <Button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/", { replace: true })}
               variant="outline"
               className="w-full"
             >
@@ -95,6 +94,7 @@ export default function PaymentFailed() {
             </Button>
           </div>
 
+          {/* Support Section */}
           <div className="bg-muted/50 rounded-lg p-4 space-y-3">
             <p className="text-sm font-medium text-center">Need Help?</p>
 
@@ -102,7 +102,9 @@ export default function PaymentFailed() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => (window.location.href = "mailto:support@yourapp.com")}
+                onClick={() =>
+                  (window.location.href = "mailto:support@yourapp.com")
+                }
               >
                 <Mail className="mr-2 h-4 w-4" /> Email Support
               </Button>
@@ -117,6 +119,7 @@ export default function PaymentFailed() {
             </div>
           </div>
 
+          {/* Countdown */}
           <p className="text-center text-xs text-muted-foreground">
             Redirecting in {countdown}s...
           </p>
