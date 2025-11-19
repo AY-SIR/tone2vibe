@@ -35,14 +35,10 @@ export default function PaymentFailed() {
 
   // Log failure for analytics
   useEffect(() => {
-    console.log("Payment Failed:", {
-      type,
-      reason,
-      plan,
-      amount,
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
+    // Payment failure tracking (silent)
+    if (user?.id) {
+      // Track analytics here if needed
+    }
 
     // Add your analytics/telemetry here
     // Example: analytics.track('payment_failed', { type, reason, plan });
