@@ -59,10 +59,15 @@ export class CouponService {
 
       // 🔐 Get current user session and refresh if needed
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log("Session check:", { hasSession: !!session, hasToken: !!session?.access_token, sessionError });
 
       if (sessionError || !session?.access_token) {
         // Try to refresh the session
-        const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+        console.log("Attempting to refresh session...");
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        console.log("Refresh result:", { hasRefreshed: !!refreshedSession, refreshError });
         
         if (!refreshedSession?.access_token) {
           return {
@@ -99,6 +104,8 @@ export class CouponService {
     accessToken: string
   ): Promise<CouponValidation> {
     try {
+      console.log("Calling validate-coupon edge function...", { code, amount, type });
+      
       // 🚀 Call Edge Function securely
       const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
         method: "POST",
@@ -114,6 +121,8 @@ export class CouponService {
       });
 
       const result = await response.json();
+      
+      console.log("Validate coupon response:", { status: response.status, result });
 
       if (!response.ok) {
         return {
