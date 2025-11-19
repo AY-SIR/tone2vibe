@@ -1,80 +1,98 @@
-export function generateInvoiceHTML(
+// helpers.ts
+import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib";
+
+/**
+ * Generates a simple invoice PDF and returns Uint8Array bytes.
+ *
+ * @param invoiceNumber - invoice identifier
+ * @param payment - payment row/object from DB (expects .amount, .currency, .plan)
+ * @param profile - user profile (expects .full_name, .email)
+ * @param razorpayPaymentId - Razorpay payment id
+ * @param razorpayOrderId - Razorpay order id
+ * @param wordsPurchased - number|null
+ * @returns Uint8Array (PDF bytes)
+ */
+export async function generateInvoicePDF(
   invoiceNumber: string,
   payment: any,
   profile: any,
   razorpayPaymentId: string,
-  razorpayOrderId: string
-): string {
-  const wordCount = payment.plan ? 0 : Math.floor((payment.amount / 100) / (payment.plan === 'premium' ? 9 : 11) * 1000);
-  
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
-    .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #000; padding-bottom: 20px; }
-    .company-name { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
-    .invoice-details { margin-bottom: 30px; }
-    .details-row { display: flex; justify-content: space-between; margin: 10px 0; }
-    .label { font-weight: bold; }
-    .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-    .table th { background-color: #f2f2f2; }
-    .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 20px; }
-    .footer { margin-top: 40px; text-align: center; color: #666; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="company-name">Tone2Vibe</div>
-    <div>https://tone2vibe.in</div>
-  </div>
+  razorpayOrderId: string,
+  wordsPurchased: number | null
+): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595, 842]); // A4-ish
+  const helvetica = await pdf.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  <div class="invoice-details">
-    <h2>INVOICE</h2>
-    <div class="details-row">
-      <div><span class="label">Invoice Number:</span> ${invoiceNumber}</div>
-      <div><span class="label">Date:</span> ${new Date().toLocaleDateString('en-IN')}</div>
-    </div>
-    <div class="details-row">
-      <div><span class="label">Customer:</span> ${profile?.full_name || 'User'}</div>
-      <div><span class="label">Email:</span> ${profile?.email || ''}</div>
-    </div>
-    <div class="details-row">
-      <div><span class="label">Payment ID:</span> ${razorpayPaymentId}</div>
-      <div><span class="label">Order ID:</span> ${razorpayOrderId}</div>
-    </div>
-  </div>
+  const drawText = (text: string, x: number, y: number, opts?: { size?: number; bold?: boolean }) => {
+    page.drawText(text, {
+      x,
+      y,
+      size: opts?.size ?? 12,
+      font: opts?.bold ? helveticaBold : helvetica,
+      color: rgb(0, 0, 0),
+    });
+  };
 
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Quantity</th>
-        <th>Rate</th>
-        <th>Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>${payment.plan ? `${payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan - Monthly Subscription` : `Word Purchase - ${wordCount.toLocaleString()} words`}</td>
-        <td>1</td>
-        <td>₹${(payment.amount / 100).toFixed(2)}</td>
-        <td>₹${(payment.amount / 100).toFixed(2)}</td>
-      </tr>
-    </tbody>
-  </table>
+  let y = 780;
 
-  <div class="total">
-    Total: ₹${(payment.amount / 100).toFixed(2)}
-  </div>
+  // Header
+  drawText("Tone2Vibe", 40, y, { size: 20, bold: true });
+  drawText("https://tone2vibe.in", 40, y - 22);
+  y -= 50;
 
-  <div class="footer">
-    <p>Thank you for your business!</p>
-    <p>For support, contact: support@tone2vibe.in</p>
-    <p>This is a computer-generated invoice and does not require a signature.</p>
-  </div>
-</body>
-</html>`;
+  // Invoice title and meta
+  drawText("INVOICE", 40, y, { size: 18, bold: true });
+  drawText(`Invoice Number: ${invoiceNumber}`, 400, y);
+  y -= 24;
+
+  drawText(`Date: ${new Date().toLocaleDateString('en-IN')}`, 400, y);
+  y -= 30;
+
+  // Customer details
+  drawText("Bill To:", 40, y, { bold: true });
+  drawText(`${profile?.full_name || "User"}`, 40, y - 18);
+  drawText(`${profile?.email || ""}`, 40, y - 36);
+  y -= 70;
+
+  // Payment & order IDs
+  drawText(`Payment ID: ${razorpayPaymentId}`, 40, y);
+  drawText(`Order ID: ${razorpayOrderId}`, 300, y);
+  y -= 30;
+
+  // Table header
+  drawText("Description", 40, y, { bold: true });
+  drawText("Quantity", 320, y, { bold: true });
+  drawText("Rate", 400, y, { bold: true });
+  drawText("Amount", 480, y, { bold: true });
+  y -= 18;
+
+  // Item row
+  const amountStr = `₹${(payment.amount / 100).toFixed(2)}`;
+
+  const description = payment.plan
+    ? `${String(payment.plan).charAt(0).toUpperCase() + String(payment.plan).slice(1)} Plan - Monthly Subscription`
+    : `Word Purchase${wordsPurchased ? ` - ${wordsPurchased.toLocaleString()} words` : ""}`;
+
+  drawText(description, 40, y);
+  drawText("1", 320, y);
+  drawText(`₹${(payment.amount / 100).toFixed(2)}`, 400, y);
+  drawText(amountStr, 480, y);
+  y -= 40;
+
+  // Total
+  drawText("Total:", 400, y, { bold: true });
+  drawText(amountStr, 480, y, { bold: true });
+  y -= 60;
+
+  // Footer / notes
+  drawText("Thank you for your business!", 40, y);
+  y -= 18;
+  drawText("For support, contact: support@tone2vibe.in", 40, y);
+  y -= 12;
+  drawText("This is a computer-generated invoice and does not require a signature.", 40, y);
+
+  const pdfBytes = await pdf.save();
+  return pdfBytes;
 }
