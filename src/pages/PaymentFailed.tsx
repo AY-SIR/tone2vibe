@@ -72,13 +72,7 @@ export default function PaymentFailed() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Error Details */}
-          <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4">
-            <p className="font-medium text-sm text-destructive mb-1">
-              Error Details
-            </p>
-            <p className="text-sm text-muted-foreground">{reason}</p>
-          </div>
+          
 
           <Separator />
 
