@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { LocationCacheService } from "@/services/locationCache";
-import { InstamojoService } from "@/services/instamojo";
+import { RazorpayService } from "@/services/razorpay";
 import { CouponInput } from "@/components/payment/couponInput";
 import { CouponService, type CouponValidation } from "@/services/couponService";
 import { v4 as uuidv4 } from "uuid";
@@ -135,8 +135,8 @@ export function WordPurchase() {
       return;
     }
 
-    // ✅ Pre-check: warm Instamojo API call early
-    const paymentPromise = InstamojoService.createWordPayment(
+    // ✅ Pre-check: warm Razorpay API call early
+    const paymentPromise = RazorpayService.createWordPayment(
       wordsAmount,
       user!.email || "",
       user!.user_metadata?.full_name || "User",
@@ -145,22 +145,50 @@ export function WordPurchase() {
 
     toast({
       title: "Processing Payment...",
-      description: "Please wait while we connect to Instamojo.",
+      description: "Please wait while we initialize Razorpay.",
     });
 
     const result = await paymentPromise;
 
-    if (result.success && result.payment_request?.longurl) {
-      const pendingTransaction = {
-        type: "word_purchase",
-        amount: finalAmount,
-        words: wordsAmount,
-        payment_request_id: result.payment_request.id,
-        coupon_code: couponValidation.isValid ? couponValidation.code : null,
-        timestamp: Date.now(),
-      };
-      sessionStorage.setItem("pending_transaction", JSON.stringify(pendingTransaction));
-      window.location.href = result.payment_request.longurl;
+    if (result.success && result.order_id && result.razorpay_key) {
+      // Open Razorpay checkout
+      RazorpayService.openCheckout(
+        result.order_id,
+        result.razorpay_key,
+        result.amount!,
+        result.currency!,
+        user!.user_metadata?.full_name || "User",
+        user!.email || "",
+        user!.phone || "",
+        `${wordsAmount} Words Purchase`,
+        async (razorpayResponse: any) => {
+          // Payment successful - verify
+          const verifyResponse = await RazorpayService.verifyPayment(
+            razorpayResponse.razorpay_order_id,
+            razorpayResponse.razorpay_payment_id,
+            razorpayResponse.razorpay_signature
+          );
+
+          if (verifyResponse.success) {
+            toast({
+              title: "Purchase Successful!",
+              description: `${wordsAmount.toLocaleString()} words added to your account.`,
+            });
+            navigate(`/payment-success?words=${wordsAmount}&type=word_purchase`);
+          } else {
+            throw new Error(verifyResponse.message || "Payment verification failed");
+          }
+        },
+        (error: any) => {
+          console.error("Payment failed:", error);
+          toast({
+            title: "Payment Failed",
+            description: error.message || "Payment was cancelled or failed.",
+            variant: "destructive",
+          });
+          navigate("/payment-failed");
+        }
+      );
     } else {
       throw new Error(result.message || "Failed to create payment");
     }
