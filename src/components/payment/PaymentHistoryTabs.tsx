@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, CreditCard, Package, Crown, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { InvoiceDownload } from "./InvoiceDownload";
 
 interface Payment {
   id: string;
@@ -27,10 +28,17 @@ interface WordPurchase {
   created_at: string;
 }
 
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  payment_id: string;
+}
+
 export function PaymentHistoryTabs() {
   const { user } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [wordPurchases, setWordPurchases] = useState<WordPurchase[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,8 +67,16 @@ export function PaymentHistoryTabs() {
 
       if (wordPurchasesError) throw wordPurchasesError;
 
+      const { data: invoicesData, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, payment_id')
+        .eq('user_id', user!.id);
+
+      if (invoicesError) throw invoicesError;
+
       setPayments(paymentsData || []);
       setWordPurchases(wordPurchasesData || []);
+      setInvoices(invoicesData || []);
     } catch (error) {
       // Silent error handling
     } finally {
@@ -183,13 +199,19 @@ export function PaymentHistoryTabs() {
       Payment ID: {payment.payment_id}
     </div>
 
-    {/* Row 3: Status on left, date on right */}
+    {/* Row 3: Status on left, date and invoice on right */}
     <div className="mt-1 flex justify-between items-center text-sm text-gray-500">
       <div className="flex items-center space-x-2 mt-1">
-                            {getStatusBadge(payment.status)}
-                          </div>
-      <div>
-        {formatDate(payment.created_at)}
+        {getStatusBadge(payment.status)}
+      </div>
+      <div className="flex items-center space-x-2">
+        <span>{formatDate(payment.created_at)}</span>
+        {payment.status === 'completed' && invoices.find(inv => inv.payment_id === payment.payment_id) && (
+          <InvoiceDownload 
+            invoiceId={invoices.find(inv => inv.payment_id === payment.payment_id)!.id}
+            invoiceNumber={invoices.find(inv => inv.payment_id === payment.payment_id)!.invoice_number}
+          />
+        )}
       </div>
     </div>
   </CardContent>
@@ -238,13 +260,19 @@ export function PaymentHistoryTabs() {
                         )}
                       </div>
 
-    {/* Row 4: Status (left) and Date (right) */}
+    {/* Row 4: Status (left) and Date with Invoice (right) */}
     <div className="mt-1 flex justify-between items-center text-sm text-gray-500">
       <div className="flex items-center space-x-2 mt-1">
-                            {getStatusBadge(purchase.status)}
-                          </div>
-      <div>
-        {formatDate(purchase.created_at)}
+        {getStatusBadge(purchase.status)}
+      </div>
+      <div className="flex items-center space-x-2">
+        <span>{formatDate(purchase.created_at)}</span>
+        {purchase.status === 'completed' && invoices.find(inv => inv.payment_id === purchase.payment_id) && (
+          <InvoiceDownload 
+            invoiceId={invoices.find(inv => inv.payment_id === purchase.payment_id)!.id}
+            invoiceNumber={invoices.find(inv => inv.payment_id === purchase.payment_id)!.invoice_number}
+          />
+        )}
       </div>
     </div>
   </CardContent>

@@ -1,12 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type"
-};
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 // Sanitize input text (sample - limited length)
 const sanitizeText = (text: string): string => {
@@ -68,9 +62,11 @@ const createErrorResponse = (message: string, status = 400) => {
 };
 
 Deno.serve(async (req) => {
-  // CORS preflight
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {

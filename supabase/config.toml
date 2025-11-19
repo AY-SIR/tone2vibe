@@ -6,7 +6,13 @@ verify_jwt = false
 [functions.cleanup-old-data]
 verify_jwt = false
 
-[functions.create-instamojo-payment]
+[functions.create-razorpay-payment]
+verify_jwt = true
+
+[functions.verify-razorpay-payment]
+verify_jwt = true
+
+[functions.generate-invoice]
 verify_jwt = true
 
 [functions.delete-account]
@@ -20,9 +26,6 @@ verify_jwt = true
 
 [functions.generate-prebuilt-voice]
 verify_jwt = false
-
-[functions.verify-instamojo-payment]
-verify_jwt = true
 
 [functions.purge-expired-history]
 verify_jwt = false
