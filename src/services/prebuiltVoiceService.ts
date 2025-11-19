@@ -48,7 +48,7 @@ export class PrebuiltVoiceService {
     }
   }
 
-  /** ✅ Get voices available for user's plan (with caching) */
+  /** ✅ Get voices available for user's plan (with caching and proper sorting) */
   static async getVoicesForPlan(userPlan: string, limit?: number, offset?: number): Promise<PrebuiltVoice[]> {
     try {
       const allowedPlans = this.getAllowedPlans(userPlan);
@@ -60,21 +60,37 @@ export class PrebuiltVoiceService {
         return this.cache[cacheKey].data;
       }
 
+      // Fetch all voices with their plan requirements
       let query = supabase
         .from('prebuilt_voices')
         .select('*')
-        .eq('is_active', true)
-        .in('required_plan', allowedPlans)
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true });
-
-      if (limit) query = query.range(offset || 0, (offset || 0) + limit - 1);
+        .eq('is_active', true);
 
       const { data, error } = await query.throwOnError();
+      
+      if (!data) return [];
 
-      const result = (data || []) as PrebuiltVoice[];
-      this.cache[cacheKey] = { data: result, time: now };
-      return result;
+      // Sort voices by plan: free first, then pro, then premium
+      const planOrder: Record<string, number> = { 'free': 1, 'pro': 2, 'premium': 3 };
+      
+      const sortedVoices = data
+        .filter(voice => allowedPlans.includes(voice.required_plan))
+        .sort((a, b) => {
+          const orderA = planOrder[a.required_plan] || 999;
+          const orderB = planOrder[b.required_plan] || 999;
+          if (orderA !== orderB) return orderA - orderB;
+          // Within same plan, sort by sort_order then name
+          if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+          return a.name.localeCompare(b.name);
+        });
+
+      // Apply pagination if requested
+      const result = limit 
+        ? sortedVoices.slice(offset || 0, (offset || 0) + limit)
+        : sortedVoices;
+
+      this.cache[cacheKey] = { data: result as PrebuiltVoice[], time: now };
+      return result as PrebuiltVoice[];
     } catch (error) {
       console.error('Error in getVoicesForPlan:', error);
       return [];

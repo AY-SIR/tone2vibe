@@ -160,10 +160,10 @@ export class CouponService {
         .from("coupons")
         .select("*")
         .eq("active", true)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false});
 
       if (error) return [];
-      return data || [];
+      return (data || []) as Coupon[];
     } catch {
       return [];
     }

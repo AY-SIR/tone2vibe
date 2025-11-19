@@ -103,8 +103,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         setProfile({
           ...data,
+          ip_address: data.ip_address ? String(data.ip_address) : null,
           word_balance: data.word_balance ?? balance,
-        });
+        } as Profile);
 
         setLocationData({
           country: data.country || "India",
@@ -122,23 +123,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const lastTracked = sessionStorage.getItem(LOGIN_TRACKING_KEY);
       const now = Date.now();
 
-      if (lastTracked && (now - parseInt(lastTracked)) < 10000) {
-        // Skip if tracked within last 10 seconds
+      if (lastTracked && (now - parseInt(lastTracked)) < 5000) {
+        // Skip if tracked within last 5 seconds
         return;
       }
 
       // Mark as in-progress immediately
       sessionStorage.setItem(LOGIN_TRACKING_KEY, now.toString());
 
-      // Get IP address
-      const ipResponse = await fetch('https://api.ipify.org?format=json');
-      const { ip } = await ipResponse.json();
-
-      // Fire and forget - background mein update hoga
-      supabase.rpc('update_user_login', {
+      const clientIP = '0.0.0.0';
+      
+      await supabase.rpc('update_user_login', {
         p_user_id: userId,
-        p_ip_address: ip
+        p_ip_address: clientIP,
       });
+
+      // ✅ Show welcome message after profile is loaded (with 500ms delay for smooth UX)
+      const welcomeKey = USER_WELCOMED_KEY + userId;
+      const hasBeenWelcomed = sessionStorage.getItem(welcomeKey);
+      
+      if (!hasBeenWelcomed) {
+        setTimeout(async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) return; // Don't show if logged out
+
+          const profile = JSON.parse(localStorage.getItem(INITIAL_LOGIN_DATA_KEY) || '{}');
+          const userName = profile?.full_name || session.user?.user_metadata?.full_name || 'User';
+          
+          toast.success(`Welcome back, ${userName}! 🎉`, {
+            duration: 3000,
+          });
+          
+          sessionStorage.setItem(welcomeKey, 'true');
+          launchConfetti();
+        }, 500);
+      }
 
     } catch (error) {
       // Silent fail for login tracking
@@ -262,8 +281,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, opt?: { fullName?: string }) => {
     try {
-      const supabaseUrl = supabase.supabaseUrl;
-      const supabaseAnonKey = supabase.supabaseKey;
+      const supabaseUrl = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
+      const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zYm15aXFob2h0amRmYmpteGxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0MDk2MzIsImV4cCI6MjA2OTk4NTYzMn0.TkCDTkST4CNAEvMOC08GI7jvS0mlJ5hhMsKxw7heDak";
 
       if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error("Supabase configuration missing");
