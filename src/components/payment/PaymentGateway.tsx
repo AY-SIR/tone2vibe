@@ -28,7 +28,7 @@ export function PaymentGateway({
   onPayment,
   isProcessing = false
 }: PaymentGatewayProps) {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -165,100 +165,32 @@ export function PaymentGateway({
       if (!session?.access_token)
         throw new Error("Session expired. Please log in again.");
 
-      const freeTransactionId = `FREE_PLAN_${couponValidation.code}_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-
-      // 🔒 Step 1: Validate coupon securely
-      const validateRes = await fetch(
-        `${SUPABASE_URL}/functions/v1/validate-coupon`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            code: couponValidation.code,
-            amount: plan.price,
-            type: "subscription",
-          }),
-        }
-      );
-
-      const validation = await validateRes.json();
-      if (!validateRes.ok || !validation.isValid) {
-        throw new Error(validation.message || "Invalid or expired coupon.");
-      }
-
-      // Step 2: Plan setup
-      const planLimits = {
-        pro: { words_limit: 10000, upload_limit_mb: 25 },
-        premium: { words_limit: 50000, upload_limit_mb: 100 }
-      } as const;
-
-      const limits = planLimits[selectedPlan];
-      const now = new Date();
-      const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-      // Step 3: Update user profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
+      // Call activate-free-plan edge function to create payment + invoice
+      const activateRes = await supabase.functions.invoke('activate-free-plan', {
+        body: {
           plan: selectedPlan,
-          words_limit: limits.words_limit,
-              plan_words_used: 0,               // ✅ reset plan usage tracker
-
-          upload_limit_mb: limits.upload_limit_mb,
-          plan_start_date: now.toISOString(),
-          plan_end_date: planEndDate.toISOString(),
-          plan_expires_at: planEndDate.toISOString(),
-          last_payment_amount: 0,
-          last_payment_id: freeTransactionId,
-          updated_at: now.toISOString()
-        })
-        .eq("user_id", user.id);
-
-      if (profileError) throw new Error(profileError.message);
-
-      // Step 4: Log payment
-      const { error: paymentError } = await supabase.from("payments").insert({
-        user_id: user.id,
-        plan: selectedPlan,
-        amount: 0,
-        currency: "INR",
-        status: "completed",
-        payment_id: freeTransactionId,
-        payment_method: "coupon",
-        coupon_code: couponValidation.code,
-        created_at: now.toISOString()
+          user_id: user.id,
+          coupon_code: couponValidation.code
+        }
       });
 
-      if (paymentError) throw new Error(paymentError.message);
-
-      // Step 5: Increment coupon usage (auth-protected)
-      const incRes = await fetch(
-        `${SUPABASE_URL}/functions/v1/increment-coupon-usage`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ code: couponValidation.code }),
-        }
-      );
-
-      const incResult = await incRes.json();
-      if (!incRes.ok || !incResult.success) {
-        console.warn("Coupon usage increment failed:", incResult.error);
+      if (activateRes.error) {
+        throw new Error(activateRes.error.message || 'Failed to activate plan');
       }
 
-      // Step 6: Redirect
-     navigate(
-  `/payment-success?plan=${selectedPlan}&amount=0&type=subscription&coupon=${couponValidation.code}`,
-  { replace: true }
-);
+      const result = activateRes.data;
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Plan activation failed');
+      }
+
+      // Refresh profile and redirect to success page
+      await refreshProfile();
+      
+      navigate(
+        `/payment-success?plan=${selectedPlan}&amount=0&type=subscription&coupon=${couponValidation.code}&invoice=${result.invoice_number || ''}`,
+        { replace: true }
+      );
 
     } catch (error) {
       throw error;
