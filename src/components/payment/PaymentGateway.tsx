@@ -115,10 +115,21 @@ export function PaymentGateway({
   };
 
   const handlePayment = async () => {
-    if (!confirmPayment) return;
+    if (!confirmPayment) {
+      toast({
+        title: "Please Confirm",
+        description: "Check the confirmation box to proceed with payment.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // For paid plans, trigger Razorpay payment
     if (finalAmount > 0) {
+      toast({
+        title: "Initiating Payment",
+        description: "Opening payment gateway...",
+      });
       onPayment(selectedPlan);
       return;
     }
@@ -130,26 +141,31 @@ export function PaymentGateway({
       if (finalAmount === 0) {
         if (!couponValidation.isValid || !couponValidation.code) {
           toast({
-            title: "Coupon required",
-            description: "A valid coupon is required for free activation.",
+            title: "Coupon Required",
+            description: "A valid coupon code is required for free activation.",
             variant: "destructive"
           });
           setIsActivating(false);
           return;
         }
+        toast({
+          title: "Activating Free Plan",
+          description: "Processing your request...",
+        });
         await handleFreeActivation();
       } else {
         toast({
           title: "Redirecting to Payment",
-          description: "Please wait while we redirect..."
+          description: "Please wait while we redirect you..."
         });
         onPayment(selectedPlan);
       }
     } catch (error) {
+      console.error("Payment error:", error);
       toast({
-        title: "Payment failed",
+        title: "Activation Failed",
         description:
-          error instanceof Error ? error.message : "Plan activation failed.",
+          error instanceof Error ? error.message : "Plan activation failed. Please try again.",
         variant: "destructive"
       });
       setIsActivating(false);
@@ -159,11 +175,14 @@ export function PaymentGateway({
   // ✅ Secure free plan activation using Edge Function (with auth)
   const handleFreeActivation = async () => {
     try {
-      if (!user) throw new Error("Please log in first");
+      if (!user) {
+        throw new Error("Please log in first");
+      }
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token)
+      if (!session?.access_token) {
         throw new Error("Session expired. Please log in again.");
+      }
 
       // Call activate-free-plan edge function to create payment + invoice
       const activateRes = await supabase.functions.invoke('activate-free-plan', {
@@ -175,14 +194,21 @@ export function PaymentGateway({
       });
 
       if (activateRes.error) {
+        console.error("Edge function error:", activateRes.error);
         throw new Error(activateRes.error.message || 'Failed to activate plan');
       }
 
       const result = activateRes.data;
       
-      if (!result.success) {
-        throw new Error(result.error || 'Plan activation failed');
+      if (!result?.success) {
+        console.error("Activation response:", result);
+        throw new Error(result?.error || 'Plan activation failed');
       }
+
+      toast({
+        title: "✓ Plan Activated!",
+        description: `Your ${selectedPlan} plan is now active.`,
+      });
 
       // Refresh profile and redirect to success page
       await refreshProfile();
@@ -193,6 +219,12 @@ export function PaymentGateway({
       );
 
     } catch (error) {
+      console.error("Free activation error:", error);
+      toast({
+        title: "Activation Failed",
+        description: error instanceof Error ? error.message : "Could not activate plan. Please contact support.",
+        variant: "destructive",
+      });
       throw error;
     } finally {
       setIsActivating(false);
