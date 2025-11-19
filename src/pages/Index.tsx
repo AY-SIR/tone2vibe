@@ -270,10 +270,10 @@ const { user, profile, loading: authLoading } = useAuth();
     switch (currentSection) {
       case "home":
         return (
-          <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+          <div className="min-h-screen">
             {/* Hero Section */}
             <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
-              <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-0  pointer-events-none" />
         <div className="relative z-10 container mx-auto max-w-4xl">
           {/* Hero Content */}
           <div className="animate-fade-in">

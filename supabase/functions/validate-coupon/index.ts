@@ -5,7 +5,7 @@ import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
-  
+
   if (req.method === "OPTIONS") {
     return handleCorsPreflightRequest(req);
   }
@@ -15,102 +15,156 @@ serve(async (req) => {
 
     if (!code || !amount || !type) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
-          message: "Missing required fields" 
+        JSON.stringify({
+          isValid: false,
+          message: "Missing required fields",
         }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
+      {
+        auth: {
+          persistSession: false,
+        },
+      }
     );
 
-    // Get auth header
+    // Validate authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
-          message: "Authentication required" 
+        JSON.stringify({
+          isValid: false,
+          message: "Authentication required",
         }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // Verify user
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
+
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
-          message: "Invalid authentication" 
+        JSON.stringify({
+          isValid: false,
+          message: "Invalid authentication",
         }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // Validate coupon
+    // -------------------------
+    // 🔥 CASE-INSENSITIVE COUPON MATCH
+    // -------------------------
+    const normalizedCode = code.trim().toLowerCase();
+
     const { data: coupon, error: couponError } = await supabaseAdmin
       .from("coupons")
       .select("*")
-      .eq("code", code.toUpperCase().trim())
+      .ilike("code", normalizedCode) // 🔥 FIXED — case-insensitive
       .eq("active", true)
       .single();
 
     if (couponError || !coupon) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
+        JSON.stringify({
+          isValid: false,
           discount: 0,
-          message: "Invalid coupon code" 
+          message: "Invalid coupon code",
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // Check if coupon is expired
+    // Check expiry
     if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
+        JSON.stringify({
+          isValid: false,
           discount: 0,
-          message: "This coupon has expired" 
+          message: "This coupon has expired",
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // Check if coupon usage limit reached
+    // Check usage limit
     if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
+        JSON.stringify({
+          isValid: false,
           discount: 0,
-          message: "This coupon has reached its usage limit" 
+          message: "This coupon has reached its usage limit",
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // Check if coupon type matches
+    // Validate coupon type
     if (coupon.type !== "both" && coupon.type !== type) {
       return new Response(
-        JSON.stringify({ 
-          isValid: false, 
+        JSON.stringify({
+          isValid: false,
           discount: 0,
-          message: `This coupon is only valid for ${coupon.type} purchases` 
+          message: `This coupon is only valid for ${coupon.type} purchases`,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
       );
     }
 
-    // Calculate discount
+    // -------------------------
+    // 🎯 Calculate discount
+    // -------------------------
     let discount = 0;
     let discountType = "fixed";
 
@@ -122,7 +176,6 @@ serve(async (req) => {
       discountType = "fixed";
     }
 
-    // Ensure discount doesn't exceed amount
     discount = Math.min(discount, amount);
 
     return new Response(
@@ -131,20 +184,35 @@ serve(async (req) => {
         discount,
         type: discountType,
         message: `Coupon applied! You saved ₹${discount}`,
-        code: coupon.code
+        code: coupon.code,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
     );
-
   } catch (error) {
-    console.error('Coupon validation error:', error);
+    console.error("Coupon validation error:", error);
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         isValid: false,
         discount: 0,
-        message: error instanceof Error ? error.message : "Error validating coupon" 
+        message:
+          error instanceof Error
+            ? error.message
+            : "Error validating coupon",
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 });

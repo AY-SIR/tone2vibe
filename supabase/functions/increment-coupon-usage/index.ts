@@ -5,7 +5,7 @@ import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
-  
+
   if (req.method === "OPTIONS") {
     return handleCorsPreflightRequest(req);
   }
@@ -15,10 +15,7 @@ serve(async (req) => {
 
     if (!code) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Coupon code is required" 
-        }),
+        JSON.stringify({ success: false, message: "Coupon code is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -29,68 +26,72 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Get auth header
+    // Auth check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Authentication required" 
-        }),
+        JSON.stringify({ success: false, message: "Authentication required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verify user
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Invalid authentication" 
-        }),
+        JSON.stringify({ success: false, message: "Invalid authentication" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Increment coupon usage
+    // Normalize coupon code
+    const normalizedCode = code.trim().toLowerCase();
+
+    // Step 1: Fetch coupon (case-insensitive)
+    const { data: coupon, error: findError } = await supabaseAdmin
+      .from("coupons")
+      .select("*")
+      .ilike("code", normalizedCode)
+      .single();
+
+    if (findError || !coupon) {
+      return new Response(
+        JSON.stringify({ success: false, message: "Coupon not found" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Step 2: Update coupon usage
     const { error: updateError } = await supabaseAdmin
       .from("coupons")
       .update({
-        used_count: supabaseAdmin.sql`used_count + 1`,
+        used_count: coupon.used_count + 1,
         last_used_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq("code", code.toUpperCase().trim())
-      .eq("active", true);
+      .eq("id", coupon.id);
 
     if (updateError) {
       console.error("Error incrementing coupon usage:", updateError);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Failed to update coupon usage" 
-        }),
+        JSON.stringify({ success: false, message: "Failed to update coupon usage" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Coupon usage updated successfully"
-      }),
+      JSON.stringify({ success: true, message: "Coupon usage updated successfully" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error('Coupon increment error:', error);
+    console.error("Coupon increment error:", error);
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
-        message: error instanceof Error ? error.message : "Error updating coupon usage" 
+        message: error instanceof Error ? error.message : "Error updating coupon usage"
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
