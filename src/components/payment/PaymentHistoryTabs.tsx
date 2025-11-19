@@ -73,7 +73,7 @@ const fetchPaymentHistory = async () => {
 
         supabase
           .from('invoices')
-          .select('id, invoice_number, payment_id, amount, currency, plan_name, invoice_type, words_purchased, pdf_url')
+          .select('id, invoice_number, payment_id, amount, currency, plan_name, invoice_type, words_purchased, pdf_url, created_at')
           .eq('user_id', user!.id)
           .order('created_at', { ascending: false })
       ]);
