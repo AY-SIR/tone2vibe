@@ -24,13 +24,9 @@ export interface Coupon {
   last_used_at: string | null;
 }
 
-// ✅ Fixed Supabase URL (safe to expose)
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
 export class CouponService {
-  /**
-   * ✅ Validate coupon using secure Supabase Edge Function
-   */
   static async validateCoupon(
     code: string,
     amount: number,
@@ -57,18 +53,13 @@ export class CouponService {
 
       const normalizedCode = code.trim();
 
-      // 🔐 Get current user session and refresh if needed
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log("Session check:", { hasSession: !!session, hasToken: !!session?.access_token, sessionError });
+      const { data: { session }, error: sessionError } =
+        await supabase.auth.getSession();
 
       if (sessionError || !session?.access_token) {
-        // Try to refresh the session
-        console.log("Attempting to refresh session...");
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-        
-        console.log("Refresh result:", { hasRefreshed: !!refreshedSession, refreshError });
-        
+        const { data: { session: refreshedSession } } =
+          await supabase.auth.refreshSession();
+
         if (!refreshedSession?.access_token) {
           return {
             isValid: false,
@@ -77,14 +68,22 @@ export class CouponService {
             code: normalizedCode,
           };
         }
-        
-        // Use refreshed session
-        return await this._validateWithToken(normalizedCode, amount, type, refreshedSession.access_token);
+
+        return await this._validateWithToken(
+          normalizedCode,
+          amount,
+          type,
+          refreshedSession.access_token
+        );
       }
 
-      return await this._validateWithToken(normalizedCode, amount, type, session.access_token);
-    } catch (error) {
-      console.error("Coupon validation error:", error);
+      return await this._validateWithToken(
+        normalizedCode,
+        amount,
+        type,
+        session.access_token
+      );
+    } catch {
       return {
         isValid: false,
         discount: 0,
@@ -94,9 +93,6 @@ export class CouponService {
     }
   }
 
-  /**
-   * Internal helper to validate with token
-   */
   private static async _validateWithToken(
     code: string,
     amount: number,
@@ -104,36 +100,29 @@ export class CouponService {
     accessToken: string
   ): Promise<CouponValidation> {
     try {
-      console.log("Calling validate-coupon edge function...", { code, amount, type });
-      
-      // 🚀 Call Edge Function securely
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/validate-coupon`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          code: code,
-          amount,
-          type,
-        }),
-      });
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/validate-coupon`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ code, amount, type }),
+        }
+      );
 
       const result = await response.json();
-      
-      console.log("Validate coupon response:", { status: response.status, result });
 
       if (!response.ok) {
         return {
           isValid: false,
           discount: 0,
-          message: result.message || "Error validating coupon. Please try again.",
-          code: code,
+          message: result.message || "Error validating coupon.",
+          code,
         };
       }
 
-      // ✅ SAFER FIX — interpret `valid` or `isValid` properly
       const isValid =
         typeof result.isValid === "boolean"
           ? result.isValid
@@ -146,16 +135,13 @@ export class CouponService {
         discount: result.discount ?? 0,
         message:
           result.message ||
-          (isValid
-            ? "Coupon applied successfully"
-            : "Invalid or inapplicable coupon."),
-        code: code,
+          (isValid ? "Coupon applied successfully" : "Invalid or expired coupon."),
+        code,
         discountType:
           result.type === "percentage" ? "percentage" : "fixed",
         originalAmount: amount,
       };
-    } catch (error) {
-      console.error("Token validation error:", error);
+    } catch {
       return {
         isValid: false,
         discount: 0,
@@ -165,61 +151,53 @@ export class CouponService {
     }
   }
 
-  /**
-   * ✅ Increment coupon usage after successful payment
-   */
   static async incrementCouponUsage(code: string): Promise<boolean> {
     try {
       const normalizedCode = code.trim();
 
-      // Get session and refresh if needed
       let { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.access_token) {
-        const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+        const { data: { session: refreshedSession } } =
+          await supabase.auth.refreshSession();
         session = refreshedSession;
       }
-      
+
       if (!session?.access_token) return false;
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/increment-coupon-usage`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ code: normalizedCode }),
-      });
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/increment-coupon-usage`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ code: normalizedCode }),
+        }
+      );
 
       const result = await response.json();
       return response.ok && result.success === true;
-    } catch (error) {
-      console.error("Increment coupon error:", error);
+    } catch {
       return false;
     }
   }
 
-  /**
-   * 🧩 Get all active coupons (admin use only)
-   */
   static async getActiveCoupons(): Promise<Coupon[]> {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("coupons")
         .select("*")
         .eq("active", true)
-        .order("created_at", { ascending: false});
+        .order("created_at", { ascending: false });
 
-      if (error) return [];
       return (data || []) as Coupon[];
     } catch {
       return [];
     }
   }
 
-  /**
-   * 🧩 Admin only: Create coupon
-   */
   static async createCoupon(
     couponData: Partial<Coupon>
   ): Promise<{ success: boolean; error?: string }> {
@@ -241,9 +219,6 @@ export class CouponService {
     }
   }
 
-  /**
-   * 🧩 Admin only: Deactivate coupon
-   */
   static async deactivateCoupon(code: string): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -254,8 +229,7 @@ export class CouponService {
         })
         .eq("code", code.trim());
 
-      if (error) return false;
-      return true;
+      return !error;
     } catch {
       return false;
     }

@@ -207,197 +207,30 @@ export function WordPurchase() {
 
 
 const handleFreeWordPurchase = async () => {
-  const wordsPurchased = wordsAmount;
-  const couponCode = couponValidation.code;
-
   try {
-    setLoading(true);
+   const { data, error } = await supabase.functions.invoke("clever-service", {
+  method: "POST",
+  body: {
+    coupon_code: couponValidation.code,
+    words_amount: 0,
+  },
+});
 
-    // ✅ Revalidate coupon one more time
-    const [revalidation, profileData] = await Promise.all([
-      CouponService.validateCoupon(couponCode, baseAmount, "words"),
-      supabase.from("profiles").select("word_balance, full_name, email").eq("user_id", user!.id).single(),
-    ]);
 
-    if (!revalidation.isValid) {
-      throw new Error(revalidation.message || "Coupon is no longer valid");
-    }
+    if (error) throw error;
 
-    if (profileData.error) throw new Error("Failed to fetch current balance");
-
-    const newBalance = (profileData.data?.word_balance || 0) + wordsPurchased;
-    const freeTransactionId = `COUPON_${couponCode}_${Date.now()}_${uuidv4().slice(0, 8)}`;
-
-    // ✅ Run DB updates in parallel - including payment and invoice records
-    const [updateRes, purchaseRes, paymentRes, couponInc] = await Promise.all([
-      supabase.from("profiles").update({
-        word_balance: newBalance,
-        last_word_purchase_at: new Date().toISOString(),
-        last_payment_id: freeTransactionId,
-        last_payment_method: "coupon",
-        last_payment_amount: 0,
-        updated_at: new Date().toISOString(),
-      }).eq("user_id", user!.id),
-      supabase.from("word_purchases").insert({
-        user_id: user!.id,
-        words_purchased: wordsPurchased,
-        amount_paid: 0,
-        currency: "INR",
-        status: "completed",
-        payment_id: freeTransactionId,
-        payment_method: "coupon",
-      }),
-      supabase.from("payments").insert({
-        user_id: user!.id,
-        payment_id: freeTransactionId,
-        amount: 0,
-        currency: "INR",
-        status: "completed",
-        payment_method: "coupon",
-        coupon_code: couponCode,
-        plan: null,
-      }),
-      CouponService.incrementCouponUsage(couponCode),
-    ]);
-
-    if (updateRes.error) throw new Error("Failed to update word balance");
-
-    // Generate invoice
-    const invoiceNumber = `INV-${Date.now()}-${user!.id.substring(0, 8)}`;
-    const invoiceHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
-    .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #000; padding-bottom: 20px; }
-    .company-name { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
-    .invoice-details { margin-bottom: 30px; }
-    .details-row { display: flex; justify-content: space-between; margin: 10px 0; }
-    .label { font-weight: bold; }
-    .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-    .table th { background-color: #f2f2f2; }
-    .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 20px; }
-    .footer { margin-top: 40px; text-align: center; color: #666; font-size: 12px; }
-    .free-badge { color: #10b981; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="company-name">Tone2Vibe</div>
-    <div>https://tone2vibe.in</div>
-  </div>
-
-  <div class="invoice-details">
-    <h2>INVOICE</h2>
-    <div class="details-row">
-      <div><span class="label">Invoice Number:</span> ${invoiceNumber}</div>
-      <div><span class="label">Date:</span> ${new Date().toLocaleDateString('en-IN')}</div>
-    </div>
-    <div class="details-row">
-      <div><span class="label">Customer:</span> ${profileData.data?.full_name || 'User'}</div>
-      <div><span class="label">Email:</span> ${profileData.data?.email || ''}</div>
-    </div>
-    <div class="details-row">
-      <div><span class="label">Transaction ID:</span> ${freeTransactionId}</div>
-      <div><span class="label">Payment Method:</span> FREE (Coupon: ${couponCode})</div>
-    </div>
-  </div>
-
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Quantity</th>
-        <th>Rate</th>
-        <th>Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Word Purchase (Coupon: ${couponCode})</td>
-        <td>${wordsPurchased.toLocaleString()} words</td>
-        <td class="free-badge">INR 0.00 (FREE)</td>
-        <td class="free-badge">INR 0.00</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="total">
-    Total: <span class="free-badge">INR 0.00 (FREE)</span>
-  </div>
-
-  <div class="footer">
-    <p>Thank you for choosing Tone2Vibe!</p>
-    <p>For support, contact: support@tone2vibe.in</p>
-    <p>This is a computer-generated invoice and does not require a signature.</p>
-  </div>
-</body>
-</html>
-    `;
-
-    // Store invoice in database and storage
-    const { data: invoiceData } = await supabase
-      .from("invoices")
-      .insert({
-        user_id: user!.id,
-        payment_id: freeTransactionId,
-        invoice_number: invoiceNumber,
-        invoice_type: 'words',
-        amount: 0,
-        currency: 'INR',
-        plan_name: null,
-        words_purchased: wordsPurchased,
-        payment_method: 'coupon',
-        razorpay_order_id: null,
-        razorpay_payment_id: null,
-        razorpay_signature: null
-      })
-      .select()
-      .single();
-
-    // Store invoice HTML in storage bucket
-    if (invoiceData) {
-      const invoiceBlob = new Blob([invoiceHTML], { type: 'text/html' });
-      const invoicePath = `${user!.id}/${invoiceNumber}.html`;
-      
-      await supabase.storage
-        .from('invoices')
-        .upload(invoicePath, invoiceBlob, {
-          contentType: 'text/html',
-          upsert: true
-        });
-      
-      // Update invoice with file path
-      await supabase
-        .from('invoices')
-        .update({ pdf_url: invoicePath })
-        .eq('id', invoiceData.id);
-    }
-
-    // ✅ Reset UI instantly
-    setWordsAmount(1000);
-    setCouponValidation({ isValid: false, discount: 0, message: "", code: "" });
-    setShowPaymentGateway(false);
-
-    // ✅ Navigate after a short delay
-    setTimeout(() => {
-      navigate(
-        `/payment-success?type=words&count=${wordsPurchased}&amount=0&coupon=${couponCode}&method=free`,
-        { replace: true }
-      );
-    }, 500);
-  } catch (error) {
-    console.error("Free purchase error:", error);
     toast({
-      title: "Error Processing Free Purchase",
-      description: error instanceof Error ? error.message : "Something went wrong.",
+      title: "Success!",
+      description: `${wordsAmount} words added to your balance.`,
+    });
+
+    navigate(`/payment-success?words=${wordsAmount}&type=free`);
+  } catch (err) {
+    toast({
+      title: "Error",
+      description: err.message,
       variant: "destructive",
     });
-  } finally {
-    setLoading(false);
   }
 };
 
