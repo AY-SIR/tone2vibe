@@ -11,30 +11,34 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // ENV
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // AUTH
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header");
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "").trim();
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !userData?.user) throw new Error("Unauthorized");
 
+    const user = userData.user;
+
+    // BODY
     const { coupon_code, words_amount } = await req.json();
+    if (!coupon_code || !words_amount) throw new Error("Missing required fields");
 
-    if (!coupon_code || !words_amount) {
-      throw new Error("Missing required fields");
-    }
-
-    // Validate coupon
+    // ================================
+    //  VALIDATE COUPON (EXACT MATCH)
+    // ================================
     const { data: coupons, error: couponError } = await supabase
       .from("coupons")
       .select("*")
-      .eq("code", coupon_code)
-      .eq("type", "words")
-      .eq("active", true);
+      .eq("code", coupon_code)               // EXACT match only
+      .in("type", ["words", "both"])         // allow both
+      .eq("active", true);                   // must be active
 
     if (couponError || !coupons || coupons.length === 0) {
       throw new Error("Invalid coupon code");
@@ -42,49 +46,54 @@ Deno.serve(async (req) => {
 
     const coupon = coupons[0];
 
+    // Expiry
     if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
       throw new Error("Coupon has expired");
     }
 
+    // Max uses
     if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
       throw new Error("Coupon usage limit exceeded");
     }
 
-    // Update coupon usage
+    // Update usage
     await supabase
       .from("coupons")
       .update({
         used_count: (coupon.used_count || 0) + 1,
-        last_used_at: new Date().toISOString()
+        last_used_at: new Date().toISOString(),
       })
       .eq("id", coupon.id);
 
-    // Create payment record
-    const freePaymentId = `FREE_WORDS_${coupon_code}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    
-    await supabase
-      .from("payments")
-      .insert({
-        user_id: user.id,
-        amount: 0,
-        currency: "INR",
-        status: "completed",
-        payment_id: freePaymentId,
-        payment_method: "coupon",
-        coupon_code: coupon_code,
-        plan: null
-      });
+    // ================================
+    //  CREATE PURCHASE RECORD
+    // ================================
+    const freePaymentId =
+      `FREE_WORDS_${coupon_code}_${Date.now()}_${crypto.randomUUID().substring(0, 6)}`;
 
-    // Add words to user balance using RPC
-    await supabase.rpc('add_purchased_words', {
-      user_id_param: user.id,
-      words_to_add: words_amount,
-      payment_id_param: freePaymentId
+    await supabase.from("word_purchases").insert({
+      user_id: user.id,
+      words_purchased: words_amount,
+      amount_paid: 0,
+      currency: "INR",
+      payment_id: freePaymentId,
+      payment_method: "coupon",
+      status: "completed",
     });
 
-    // Generate invoice
+    // ================================
+    //  ADD WORDS (RPC)
+    // ================================
+    await supabase.rpc("add_purchased_words", {
+      user_id_param: user.id,
+      words_to_add: words_amount,
+      payment_id_param: freePaymentId,
+    });
+
+    // ================================
+    //  GENERATE INVOICE HTML
+    // ================================
     const invoiceNumber = `INV-${Date.now()}-${user.id.substring(0, 8)}`;
-    
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name, email")
@@ -95,20 +104,14 @@ Deno.serve(async (req) => {
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+    body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; }
     .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #000; padding-bottom: 20px; }
-    .company-name { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
-    .invoice-details { margin-bottom: 30px; }
-    .details-row { display: flex; justify-content: space-between; margin: 10px 0; }
-    .label { font-weight: bold; }
+    .company-name { font-size: 28px; font-weight: bold; }
     .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
     .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-    .table th { background-color: #f2f2f2; }
-    .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 20px; }
-    .footer { margin-top: 40px; text-align: center; color: #666; font-size: 12px; }
-    .free-badge { color: #10b981; font-weight: bold; }
+    .free { color: #10b981; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -117,55 +120,44 @@ Deno.serve(async (req) => {
     <div>https://tone2vibe.in</div>
   </div>
 
-  <div class="invoice-details">
-    <h2>INVOICE</h2>
-    <div class="details-row">
-      <div><span class="label">Invoice Number:</span> ${invoiceNumber}</div>
-      <div><span class="label">Date:</span> ${new Date().toLocaleDateString("en-IN")}</div>
-    </div>
-    <div class="details-row">
-      <div><span class="label">Customer:</span> ${profile?.full_name || "User"}</div>
-      <div><span class="label">Email:</span> ${profile?.email || ""}</div>
-    </div>
-    <div class="details-row">
-      <div><span class="label">Transaction ID:</span> ${freePaymentId}</div>
-      <div><span class="label">Payment Method:</span> FREE (Coupon: ${coupon_code})</div>
-    </div>
-  </div>
+  <h2>INVOICE</h2>
+
+  <p><b>Invoice Number:</b> ${invoiceNumber}</p>
+  <p><b>Date:</b> ${new Date().toLocaleDateString("en-IN")}</p>
+  <p><b>Customer:</b> ${profile?.full_name || "User"}</p>
+  <p><b>Email:</b> ${profile?.email || ""}</p>
+  <p><b>Transaction ID:</b> ${freePaymentId}</p>
+  <p><b>Payment Method:</b> FREE (Coupon: ${coupon_code})</p>
 
   <table class="table">
     <thead>
       <tr>
-        <th>Description</th>
-        <th>Quantity</th>
-        <th>Rate</th>
-        <th>Amount</th>
+        <th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td>Word Purchase - ${words_amount.toLocaleString()} words (Coupon: ${coupon_code})</td>
+        <td>${words_amount} Words (Coupon: ${coupon_code})</td>
         <td>1</td>
-        <td class="free-badge">INR 0.00 (FREE)</td>
-        <td class="free-badge">INR 0.00</td>
+        <td class="free">INR 0.00</td>
+        <td class="free">INR 0.00</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="total">
-    Total: <span class="free-badge">INR 0.00 (FREE)</span>
-  </div>
+  <h3>Total: <span class="free">INR 0.00 (FREE)</span></h3>
 
-  <div class="footer">
-    <p>Thank you for choosing Tone2Vibe!</p>
-    <p>For support, contact: support@tone2vibe.in</p>
-    <p>This is a computer-generated invoice and does not require a signature.</p>
-  </div>
+  <p style="margin-top:40px; text-align:center; color:#666; font-size:12px;">
+    Thank you for choosing Tone2Vibe!<br/>
+    support@tone2vibe.in
+  </p>
 </body>
 </html>
-    `;
+`;
 
-    // Store invoice in database
+    // ================================
+    //  STORE INVOICE
+    // ================================
     const { data: invoiceData } = await supabase
       .from("invoices")
       .insert({
@@ -175,27 +167,20 @@ Deno.serve(async (req) => {
         invoice_type: "words",
         amount: 0,
         currency: "INR",
-        plan_name: null,
         words_purchased: words_amount,
         payment_method: "free",
-        razorpay_order_id: null,
-        razorpay_payment_id: null,
-        razorpay_signature: null
       })
       .select()
       .single();
 
-    // Store invoice HTML in storage
     if (invoiceData) {
-      const invoiceBlob = new Blob([invoiceHTML], { type: "text/html" });
       const invoicePath = `${user.id}/${invoiceNumber}.html`;
+
+      const blob = new Blob([invoiceHTML], { type: "text/html" });
 
       await supabase.storage
         .from("invoices")
-        .upload(invoicePath, invoiceBlob, {
-          contentType: "text/html",
-          upsert: true
-        });
+        .upload(invoicePath, blob, { upsert: true });
 
       await supabase
         .from("invoices")
@@ -203,30 +188,25 @@ Deno.serve(async (req) => {
         .eq("id", invoiceData.id);
     }
 
+    // SUCCESS RESPONSE
     return new Response(
       JSON.stringify({
         success: true,
         message: "Words added successfully",
         payment_id: freePaymentId,
         invoice_number: invoiceNumber,
-        words_added: words_amount
+        words_added: words_amount,
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Free word purchase error:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

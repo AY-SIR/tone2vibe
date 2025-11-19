@@ -247,12 +247,26 @@ const handleFreeWordPurchase = async () => {
       description: "Applying coupon and adding words...",
     });
     
-    const { data, error } = await supabase.functions.invoke("free-word-purchase", {
-      body: {
-        coupon_code: couponValidation.code,
-        words_amount: wordsAmount,
-      },
-    });
+  const { data: sessionData } = await supabase.auth.getSession();
+const session = sessionData?.session;
+
+if (!session?.access_token) {
+  throw new Error("User session missing. Please log in again.");
+}
+
+const { data, error } = await supabase.functions.invoke(
+  "free-word-purchase",
+  {
+    body: {
+      coupon_code: couponValidation.code,
+      words_amount: wordsAmount,
+    },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+  }
+);
+
 
     if (error) {
       console.error("Edge function error:", error);
@@ -264,10 +278,7 @@ const handleFreeWordPurchase = async () => {
       throw new Error(data?.error || "Failed to add words");
     }
 
-    toast({
-      title: "✓ Purchase Successful!",
-      description: `${wordsAmount.toLocaleString()} words added to your account!`,
-    });
+
 
     navigate(`/payment-success?words=${wordsAmount}&type=free`);
   } catch (err) {

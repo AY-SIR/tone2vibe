@@ -1,266 +1,195 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useRef } from "react"
-import { useSearchParams, useNavigate } from "react-router-dom"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { CheckCircle, Loader2, XCircle, ArrowRight, Home } from "lucide-react"
-import { useAuth } from "@/contexts/AuthContext"
-import { supabase } from "@/integrations/supabase/client"
-import { toast } from "sonner"
-import confetti from "canvas-confetti"
+import { useEffect, useState, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, Loader2, XCircle, ArrowRight, Home } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import confetti from "canvas-confetti";
 
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
-const PaymentSuccess = () => {
-  const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const { refreshProfile, profile } = useAuth()
-  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying")
-  const [title, setTitle] = useState("Verifying Payment...")
-  const [description, setDescription] = useState("Please wait while we confirm your transaction.")
-  const [countdown, setCountdown] = useState(5) // Countdown for redirect
+export default function PaymentSuccess() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { refreshProfile, profile } = useAuth();
 
-  const confettiFired = useRef(false)
-  const hasProcessedRef = useRef(false)
-  const isMounted = useRef(true)
+  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
+  const [title, setTitle] = useState("Verifying Payment...");
+  const [description, setDescription] = useState(
+    "Please wait while we confirm your transaction."
+  );
+  const [countdown, setCountdown] = useState(5);
+
+  const confettiFired = useRef(false);
+  const hasProcessedRef = useRef(false);
 
   const fireConfetti = () => {
-    if (confettiFired.current) return
-    confettiFired.current = true
-    const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"]
-    confetti({ particleCount: 100, angle: 60, spread: 55, origin: { x: 0, y: 0.5 }, colors })
-    confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1, y: 0.5 }, colors })
-  }
+    if (confettiFired.current) return;
+    confettiFired.current = true;
 
-  // Track mount status
-  useEffect(() => {
-    return () => { isMounted.current = false }
-  }, [])
-
-  // Countdown timer for redirect
-  useEffect(() => {
-    if (status !== "success") return
-
-    const interval = setInterval(() => {
-      setCountdown(prev => prev - 1)
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [status])
-
-  // Auto navigate when countdown reaches 0
-  useEffect(() => {
-    if (countdown === 0) {
-      navigate("/")
-    }
-  }, [countdown, navigate])
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.5 },
+    });
+  };
 
   useEffect(() => {
-    if (hasProcessedRef.current || !profile?.id) return
-    hasProcessedRef.current = true
+    if (status !== "success") return;
+    const t = setInterval(() => setCountdown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [status]);
 
-    const verifyPayment = async () => {
+  useEffect(() => {
+    if (countdown === 0) navigate("/");
+  }, [countdown]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    if (hasProcessedRef.current) return;
+    hasProcessedRef.current = true;
+
+    const verify = async () => {
       try {
-        // Razorpay parameters
-        const razorpayOrderId = searchParams.get("razorpay_order_id")
-        const razorpayPaymentId = searchParams.get("razorpay_payment_id")
-        const razorpaySignature = searchParams.get("razorpay_signature")
-        
-        // Legacy Instamojo parameters
-        const paymentId = searchParams.get("payment_id")
-        const paymentRequestId = searchParams.get("payment_request_id")
-        const txId = searchParams.get("txId")
-        
-        const uniqueTransactionKey = razorpayOrderId || paymentRequestId || paymentId || txId
+        const type = searchParams.get("type") || "";
+        const words = searchParams.get("words") || searchParams.get("count") || "";
+        const plan = searchParams.get("plan") || "";
+        const coupon = searchParams.get("coupon") || "";
 
-        const type = searchParams.get("type")
-        const plan = searchParams.get("plan")
-        const count = searchParams.get("count")
-        const amount = searchParams.get("amount")
-        const coupon = searchParams.get("coupon")
+        // Razorpay params
+        const rp_order = searchParams.get("razorpay_order_id");
+        const rp_payment = searchParams.get("razorpay_payment_id");
+        const rp_sig = searchParams.get("razorpay_signature");
 
-        const userKey = `processed_${profile.id}`
-        let processedTransactions: string[] = []
-        try {
-          processedTransactions = JSON.parse(sessionStorage.getItem(userKey) || "[]")
-        } catch {
-          processedTransactions = []
+        const txId = searchParams.get("txId");
+        const uniqueKey = rp_order || txId || `free-${coupon}`;
+
+        // Avoid double processing
+        const localKey = `processed_${profile.id}`;
+        const prev = JSON.parse(sessionStorage.getItem(localKey) || "[]");
+
+        if (!prev.includes(uniqueKey)) {
+          prev.push(uniqueKey);
+          sessionStorage.setItem(localKey, JSON.stringify(prev));
         }
 
-        const onVerificationSuccess = async (successTitle: string, successDescription: string) => {
-          if (!isMounted.current) return
-          setStatus("success")
-          setTitle(successTitle)
-          setDescription(successDescription)
-          fireConfetti()
-          toast.success(type === 'subscription' ? "Plan Activated!" : "Words Purchased!")
-          await refreshProfile()
-         try {
-  const session = await supabase.auth.getSession()
-  const accessToken = session.data.session?.access_token
+        const success = async (t: string, d: string) => {
+          setStatus("success");
+          setTitle(t);
+          setDescription(d);
+          fireConfetti();
+          await refreshProfile();
+        };
 
-  if (accessToken) {
-    await fetch(`${SUPABASE_URL}/functions/v1/purge-expired-history`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    await fetch(`${SUPABASE_URL}/functions/v1/purge-user-analytics`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-  }
-} catch (err) {
-  // Silent fail for data purge
-}
-
+        // ---------------------------------------------------------------
+        // ✔ FREE WORD PURCHASE (ZERO PAYMENT)
+        // ---------------------------------------------------------------
+        if (type === "free") {
+          return success(
+            "Words Added Successfully!",
+            `${Number(words).toLocaleString()} words have been added using coupon ${coupon}.`
+          );
         }
 
-        if (uniqueTransactionKey && processedTransactions.includes(uniqueTransactionKey)) {
-          let welcomeTitle = "Welcome Back!"
-          let welcomeDescription = "Your purchase is already confirmed and ready to use."
-          if (type === "words" && count) {
-            welcomeDescription = `Your ${Number(count).toLocaleString()} words are ready to use.`
-          } else if (type === "subscription" && plan) {
-            welcomeDescription = `Your ${plan} plan is active and ready to use.`
-          }
-          await onVerificationSuccess(welcomeTitle, welcomeDescription)
-          return
-        }
-
-        if (uniqueTransactionKey) {
-          processedTransactions.push(uniqueTransactionKey)
-          sessionStorage.setItem(userKey, JSON.stringify(processedTransactions))
-        }
-
-        const isFree = amount === "0" && (coupon || txId)
-        if (isFree) {
-          if (type === "words" && count) {
-            await onVerificationSuccess("Words Added!", `${Number(count).toLocaleString()} words have been added using coupon ${coupon}.`)
-          } else if (type === "subscription" && plan) {
-            await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated using coupon ${coupon}.`)
-          } else {
-            await onVerificationSuccess("Success!", "Your free item has been added to your account.")
-          }
-          return
-        }
-
-        // Handle Razorpay payment verification
-        if (razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+        // ---------------------------------------------------------------
+        // ✔ RAZORPAY — MUST HAVE ALL PARAMS
+        // ---------------------------------------------------------------
+        if (rp_order && rp_payment && rp_sig) {
           const { data, error } = await supabase.functions.invoke("verify-razorpay-payment", {
-            body: { 
-              razorpay_order_id: razorpayOrderId, 
-              razorpay_payment_id: razorpayPaymentId, 
-              razorpay_signature: razorpaySignature 
+            body: {
+              razorpay_order_id: rp_order,
+              razorpay_payment_id: rp_payment,
+              razorpay_signature: rp_sig,
             },
-          })
+          });
 
-          if (error || !data?.success) {
-            const message = (error && (error as any).message) || data?.error || 'Verification failed'
-            navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
-            return
-          }
-        } 
-        // Legacy Instamojo verification (for old payment links)
-        else if (paymentId && paymentRequestId) {
-          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
-            body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
-          })
-
-          if (error || !data?.success) {
-            const message = (error && (error as any).message) || data?.error || 'Verification failed'
-            navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
-            return
+          if (!data?.success || error) {
+            return navigate(
+              `/payment-failed?reason=${encodeURIComponent("Payment verification failed")}&type=${type}`,
+              { replace: true }
+            );
           }
         } else {
-          navigate(`/payment-failed?reason=${encodeURIComponent('Missing payment information in URL')}&type=${type || 'subscription'}`, { replace: true })
-          return
+          // Missing Razorpay details → FAIL only for paid purchases
+          return navigate(
+            `/payment-failed?reason=${encodeURIComponent(
+              "We couldn't verify your payment details."
+            )}&type=${type}`,
+            { replace: true }
+          );
         }
 
+        // ---------------------------------------------------------------
+        // ✔ FINAL SCREEN (based on type)
+        // ---------------------------------------------------------------
         if (type === "words") {
-          const added = count ? Number(count).toLocaleString() : "Your purchased"
-          await onVerificationSuccess("Words Purchased!", `${added} words have been added to your account.`)
-          try { sessionStorage.removeItem('pending_transaction') } catch {}
-        } else if (type === "subscription") {
-          await onVerificationSuccess("Plan Activated!", `Your ${plan} plan has been activated successfully.`)
-        } else {
-          await onVerificationSuccess("Payment Successful!", "Your purchase has been completed successfully.")
+          return success(
+            "Words Purchased!",
+            `${Number(words).toLocaleString()} words have been added to your account.`
+          );
         }
 
-      } catch (error) {
-        if (!isMounted.current) return
-        console.error("Payment verification error:", error)
-        const message = error instanceof Error ? error.message : String(error)
-        navigate(`/payment-failed?reason=${encodeURIComponent(message)}`, { replace: true })
+        if (type === "subscription") {
+          return success("Plan Activated!", `Your ${plan} plan is now active.`);
+        }
+
+        return success("Payment Successful!", "Your purchase is confirmed.");
+      } catch (err) {
+        navigate(
+          `/payment-failed?reason=${encodeURIComponent(
+            "Something went wrong while processing your payment."
+          )}`,
+          { replace: true }
+        );
       }
-    }
+    };
 
-    verifyPayment()
-  }, [searchParams, refreshProfile, navigate, profile?.id])
+    verify();
+  }, [profile?.id]);
 
-  if (status === 'verifying') {
+  if (status === "verifying") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
-            <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin text-primary" />
+            <Loader2 className="h-10 w-10 mx-auto mb-4 animate-spin" />
             <p className="text-lg font-semibold">{title}</p>
-            <p className="text-sm text-muted-foreground mt-2">{description}</p>
+            <p className="text-sm text-muted-foreground">{description}</p>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
-      <Card className="w-full max-w-md animate-fade-in z-10">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          {status === "success" ? (
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          ) : (
-            <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-          )}
-          <CardTitle className="text-2xl font-bold">{title}</CardTitle>
+          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+          <CardTitle className="text-2xl">{title}</CardTitle>
         </CardHeader>
+
         <CardContent className="text-center space-y-4">
           <p className="text-muted-foreground">{description}</p>
 
-          <div className="space-y-2 pt-4">
-            {status === "success" ? (
-              <div className="space-y-2">
-                <Button onClick={() => navigate("/tool")} className="w-full">
-                  Start Creating
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-                <Button onClick={() => navigate("/")} variant="outline" className="w-full">
-                  Go to Home
-                  <Home className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button onClick={() => navigate("/payment")} className="w-full">
-                Try Again
-              </Button>
-            )}
+          <div className="pt-4 space-y-2">
+            <Button onClick={() => navigate("/tool")} className="w-full">
+              Start Creating <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+
+            <Button onClick={() => navigate("/")} variant="outline" className="w-full">
+              Go Home <Home className="h-4 w-4 ml-2" />
+            </Button>
           </div>
 
-          {status === "success" && (
-            <p className="text-sm text-muted-foreground">
-              Redirecting in {countdown} second{countdown > 1 ? 's' : ''}...
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Redirecting in {countdown}s...
+          </p>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-
-export default PaymentSuccess
