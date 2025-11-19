@@ -176,7 +176,7 @@ export function PaymentHistoryTabs() {
                         </div>
                       </div>
 
-                      <div className="mt-2 text-xs text-gray-400 break-words">
+                      <div className="mt-2 text-xs text-gray-400 break-all">
                         Payment ID: {payment.payment_id}
                       </div>
 
