@@ -116,8 +116,10 @@ serve(async (req) => {
       );
     }
 
-    // --- Create payment record ---
+    // --- Create payment record with consistent payment_id ---
     const freePaymentId = `FREE_PLAN_${coupon_code || 'DIRECT'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    
+    console.log(`Creating payment record for user ${user_id} with payment_id: ${freePaymentId}`);
     
     const { error: paymentError } = await supabaseAdmin
       .from("payments")
@@ -136,13 +138,21 @@ serve(async (req) => {
     if (paymentError) {
       console.error('Failed to create payment record:', paymentError);
       return new Response(
-        JSON.stringify({ error: "Failed to create payment record" }),
+        JSON.stringify({ 
+          success: false,
+          error: "Failed to create payment record",
+          details: paymentError.message 
+        }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // --- Generate Invoice for free plan activation ---
+    console.log(`Payment record created successfully with ID: ${freePaymentId}`);
+
+    // --- Generate Invoice (linked to payment via payment_id) ---
     const invoiceNumber = `INV-${Date.now()}-${user_id.substring(0, 8)}`;
+    
+    console.log(`Creating invoice ${invoiceNumber} for payment ${freePaymentId}`);
     
     // Get user profile for invoice details
     const { data: profile } = await supabaseAdmin
@@ -226,18 +236,19 @@ serve(async (req) => {
 </html>
     `;
 
-    // Store invoice in database
+    // Store invoice in database (linked via payment_id)
     const { data: invoiceData, error: invoiceError } = await supabaseAdmin
       .from("invoices")
       .insert({
         user_id: user_id,
-        payment_id: freePaymentId,
+        payment_id: freePaymentId,  // Links to payments table
         invoice_number: invoiceNumber,
         invoice_type: 'subscription',
         amount: 0,
         currency: 'INR',
-        plan_name: plan,
+        plan_name: plan,  // Matches payments.plan
         payment_method: 'free',
+        words_purchased: null,
         razorpay_order_id: null,
         razorpay_payment_id: null,
         razorpay_signature: null
@@ -247,8 +258,21 @@ serve(async (req) => {
 
     if (invoiceError) {
       console.error('Failed to create invoice:', invoiceError);
-      // Don't fail the activation, just log the error
+      // Don't fail activation - invoice is optional
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `${plan} plan activated! (Invoice generation failed)`,
+          discount,
+          payment_id: freePaymentId,
+          invoice_number: null,
+          warning: 'Invoice generation failed'
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    console.log(`Invoice created successfully: ${invoiceNumber}`);
 
     // Store invoice HTML in storage bucket
     if (invoiceData) {
@@ -277,16 +301,22 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `${plan} plan activated!`,
+        message: `${plan} plan activated successfully!`,
         discount,
-        invoice_number: invoiceNumber
+        payment_id: freePaymentId,
+        invoice_number: invoiceNumber,
+        plan: plan
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
+    console.error('Free plan activation error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      JSON.stringify({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error) 
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
