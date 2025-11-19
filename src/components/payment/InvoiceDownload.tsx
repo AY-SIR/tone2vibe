@@ -45,16 +45,17 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
 
         if (downloadError) throw downloadError;
 
-        const url = window.URL.createObjectURL(fileData);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.html`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
-      else {
+        // Convert HTML to PDF-like format by printing
+        const htmlContent = await fileData.text();
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
+      } else {
         // ✅ 4. No pdf in storage → fallback to generate invoice
         const { data, error } = await supabase.functions.invoke("generate-invoice", {
           body: { invoice_id: invoice.id },
@@ -62,21 +63,21 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
 
         if (error) throw error;
 
-        const blob = new Blob([data.invoice_html], { type: "text/html" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.html`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        // Open in new window for printing
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(data.invoice_html);
+          printWindow.document.close();
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
       }
 
-      toast.success("Invoice downloaded successfully");
+      toast.success("Invoice ready for printing");
     } catch (error) {
       console.error("Invoice download error:", error);
-      toast.error("Failed to download invoice");
+      toast.error("Failed to load invoice");
     } finally {
       setLoading(false);
     }
@@ -89,8 +90,9 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
       onClick={handleDownload}
       disabled={loading}
       className="h-8 w-8"
+      title="Print Invoice"
     >
-      <Download className="h-4 w-4" />Download
+      <Download className="h-4 w-4" />
     </Button>
   );
 };

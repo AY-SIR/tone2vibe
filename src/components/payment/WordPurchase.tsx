@@ -208,16 +208,15 @@ export function WordPurchase() {
 
 const handleFreeWordPurchase = async () => {
   try {
-   const { data, error } = await supabase.functions.invoke("clever-service", {
-  method: "POST",
-  body: {
-    coupon_code: couponValidation.code,
-    words_amount: 0,
-  },
-});
-
+    const { data, error } = await supabase.functions.invoke("free-word-purchase", {
+      body: {
+        coupon_code: couponValidation.code,
+        words_amount: wordsAmount,
+      },
+    });
 
     if (error) throw error;
+    if (!data?.success) throw new Error(data?.error || "Failed to add words");
 
     toast({
       title: "Success!",

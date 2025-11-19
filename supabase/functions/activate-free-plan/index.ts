@@ -234,7 +234,7 @@ serve(async (req) => {
     const freePaymentId = `FREE_PLAN_${coupon_code || 'DIRECT'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     console.log(`Creating payment record for user ${user_id} with payment_id: ${freePaymentId}`);
 
-    const { error: paymentError } = await supabaseAdmin
+    const { data: paymentData, error: paymentError } = await supabaseAdmin
       .from("payments")
       .insert({
         user_id,
@@ -246,15 +246,17 @@ serve(async (req) => {
         payment_method: "coupon",
         coupon_code: coupon_code || null,
         created_at: now,
-      });
+      })
+      .select()
+      .single();
 
-    if (paymentError) {
+    if (paymentError || !paymentData) {
       console.error("Failed to create payment record:", paymentError);
       return new Response(
         JSON.stringify({
           success: false,
           error: "Failed to create payment record",
-          details: paymentError.message,
+          details: paymentError?.message || "Unknown error",
         }),
         {
           status: 500,
