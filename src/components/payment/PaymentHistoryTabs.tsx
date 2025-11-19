@@ -32,6 +32,11 @@ interface Invoice {
   id: string;
   invoice_number: string;
   payment_id: string;
+  amount: number;
+  currency: string;
+  plan_name?: string;
+  invoice_type: string;
+  words_purchased?: number;
 }
 
 export function PaymentHistoryTabs() {
@@ -69,7 +74,7 @@ export function PaymentHistoryTabs() {
 
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
-        .select('id, invoice_number, payment_id')
+        .select('id, invoice_number, payment_id, amount, currency, plan_name, invoice_type, words_purchased')
         .eq('user_id', user!.id);
 
       if (invoicesError) throw invoicesError;

@@ -138,27 +138,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         p_ip_address: clientIP,
       });
 
-      // ✅ Show welcome message after profile is loaded (with 500ms delay for smooth UX)
-      const welcomeKey = USER_WELCOMED_KEY + userId;
-      const hasBeenWelcomed = sessionStorage.getItem(welcomeKey);
-      
-      if (!hasBeenWelcomed) {
-        setTimeout(async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) return; // Don't show if logged out
-
-          const profile = JSON.parse(localStorage.getItem(INITIAL_LOGIN_DATA_KEY) || '{}');
-          const userName = profile?.full_name || session.user?.user_metadata?.full_name || 'User';
-          
-          toast.success(`Welcome back, ${userName}! 🎉`, {
-            duration: 3000,
-          });
-          
-          sessionStorage.setItem(welcomeKey, 'true');
-          launchConfetti();
-        }, 500);
-      }
-
     } catch (error) {
       // Silent fail for login tracking
     }

@@ -118,7 +118,7 @@ const PaymentSuccess = () => {
     })
   }
 } catch (err) {
-  console.error('Failed to purge data:', err)
+  // Silent fail for data purge
 }
 
         }
