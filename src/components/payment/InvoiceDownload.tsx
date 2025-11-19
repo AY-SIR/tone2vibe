@@ -84,15 +84,15 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleDownload}
-      disabled={loading}
-      className="h-8 w-8"
-      title="Print Invoice"
-    >
-      <Download className="h-4 w-4" />Download 
-    </Button>
+<Button
+  variant="ghost"
+  onClick={handleDownload}
+  disabled={loading}
+  title="Print Invoice"
+  className="flex items-center gap-2"
+>
+  <Download className="h-4 w-4" />
+  Download
+</Button>
   );
 };
