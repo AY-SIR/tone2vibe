@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
-import { createHmac } from "https://deno.land/std@0.224.0/crypto/mod.ts";
+import { generateInvoiceHTML } from "./helpers.ts";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -110,8 +110,15 @@ Deno.serve(async (req) => {
         p_last_payment_method: 'razorpay'
       });
     } else {
-      // Word purchase - add words to balance
-      const wordCount = payment.amount * 1000 / (payment.amount / 1000); // Calculate from amount
+      // Word purchase - calculate based on user plan pricing
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('plan')
+        .eq('user_id', user.id)
+        .single();
+      
+      const pricePerThousand = userProfile?.plan === 'premium' ? 9 : 11;
+      const wordCount = Math.floor((payment.amount / 100) / pricePerThousand * 1000);
       
       await supabase.rpc('add_purchased_words', {
         user_id_param: user.id,
@@ -120,9 +127,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate invoice
+    // Generate and store invoice
     const invoiceNumber = `INV-${Date.now()}-${user.id.substring(0, 8)}`;
-    await supabase
+    
+    // Get user profile for invoice details
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('user_id', user.id)
+      .single();
+    
+    // Generate invoice HTML
+    const invoiceHTML = generateInvoiceHTML(invoiceNumber, payment, profile, razorpay_payment_id, razorpay_order_id);
+    
+    // Store invoice in database
+    const { data: invoiceData } = await supabase
       .from("invoices")
       .insert({
         user_id: user.id,
@@ -136,7 +155,28 @@ Deno.serve(async (req) => {
         razorpay_order_id: razorpay_order_id,
         razorpay_payment_id: razorpay_payment_id,
         razorpay_signature: razorpay_signature
-      });
+      })
+      .select()
+      .single();
+    
+    // Store invoice HTML in storage bucket
+    if (invoiceData) {
+      const invoiceBlob = new Blob([invoiceHTML], { type: 'text/html' });
+      const invoicePath = `${user.id}/${invoiceNumber}.html`;
+      
+      await supabase.storage
+        .from('invoices')
+        .upload(invoicePath, invoiceBlob, {
+          contentType: 'text/html',
+          upsert: true
+        });
+      
+      // Update invoice with PDF URL
+      await supabase
+        .from('invoices')
+        .update({ pdf_url: invoicePath })
+        .eq('id', invoiceData.id);
+    }
 
     return new Response(
       JSON.stringify({

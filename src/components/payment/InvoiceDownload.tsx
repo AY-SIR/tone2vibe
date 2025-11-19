@@ -16,22 +16,50 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
     try {
       setLoading(true);
       
-      const { data, error } = await supabase.functions.invoke('generate-invoice', {
-        body: { invoice_id: invoiceId }
-      });
+      // Get invoice details from database
+      const { data: invoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .select('pdf_url, user_id')
+        .eq('id', invoiceId)
+        .single();
 
-      if (error) throw error;
+      if (invoiceError || !invoice) throw new Error("Invoice not found");
 
-      // Create blob from HTML and trigger download
-      const blob = new Blob([data.invoice_html], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${invoiceNumber}.html`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Download from storage bucket
+      if (invoice.pdf_url) {
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('invoices')
+          .download(invoice.pdf_url);
+
+        if (downloadError) throw downloadError;
+
+        // Trigger download
+        const url = window.URL.createObjectURL(fileData);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${invoiceNumber}.html`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        // Fallback to generate-invoice if pdf_url is missing
+        const { data, error } = await supabase.functions.invoke('generate-invoice', {
+          body: { invoice_id: invoiceId }
+        });
+
+        if (error) throw error;
+
+        const blob = new Blob([data.invoice_html], { type: 'text/html' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${invoiceNumber}.html`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
       
       toast.success("Invoice downloaded successfully");
     } catch (error) {

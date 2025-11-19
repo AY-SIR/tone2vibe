@@ -1,30 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
-
-function getCorsHeaders(origin) {
-  const allowedOrigins = [
-    'http://localhost:8080',
-    'https://preview--tone2vibe-51.lovable.app',
-    'https://tone-to-vibe-speak-51.vercel.app',
-    'https://tone2vibe.in'
-  ];
-  const validOrigin = allowedOrigins.includes(origin || '') ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin': validOrigin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Max-Age': '86400'
-  };
-}
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
 
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders
-    });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
