@@ -53,7 +53,7 @@ export function PaymentHistoryTabs() {
     }
   }, [user]);
 
-  const fetchPaymentHistory = async () => {
+const fetchPaymentHistory = async () => {
     try {
       setLoading(true);
 
@@ -64,28 +64,46 @@ export function PaymentHistoryTabs() {
           .select('*')
           .eq('user_id', user!.id)
           .order('created_at', { ascending: false }),
-        
+
         supabase
           .from('word_purchases')
           .select('*')
           .eq('user_id', user!.id)
           .order('created_at', { ascending: false }),
-        
+
         supabase
           .from('invoices')
           .select('id, invoice_number, payment_id, amount, currency, plan_name, invoice_type, words_purchased, pdf_url')
           .eq('user_id', user!.id)
+          .order('created_at', { ascending: false })
       ]);
 
-      if (paymentsResult.error) throw paymentsResult.error;
-      if (wordPurchasesResult.error) throw wordPurchasesResult.error;
-      if (invoicesResult.error) throw invoicesResult.error;
+      if (paymentsResult.error) {
+        console.error('Payments fetch error:', paymentsResult.error);
+        throw paymentsResult.error;
+      }
+      if (wordPurchasesResult.error) {
+        console.error('Word purchases fetch error:', wordPurchasesResult.error);
+        throw wordPurchasesResult.error;
+      }
+      if (invoicesResult.error) {
+        console.error('Invoices fetch error:', invoicesResult.error);
+        console.error('Error details:', {
+          message: invoicesResult.error.message,
+          details: invoicesResult.error.details,
+          hint: invoicesResult.error.hint,
+          code: invoicesResult.error.code
+        });
+        // Don't throw - allow the component to work without invoices
+        setInvoices([]);
+      } else {
+        setInvoices(invoicesResult.data || []);
+      }
 
       setPayments(paymentsResult.data || []);
       setWordPurchases(wordPurchasesResult.data || []);
-      setInvoices(invoicesResult.data || []);
-      
-      console.log(`Loaded ${paymentsResult.data?.length || 0} payments, ${invoicesResult.data?.length || 0} invoices`);
+
+      console.log(`Loaded ${paymentsResult.data?.length || 0} payments, ${wordPurchasesResult.data?.length || 0} word purchases, ${invoicesResult.data?.length || 0} invoices`);
     } catch (error) {
       console.error('Failed to fetch payment history:', error);
     } finally {
