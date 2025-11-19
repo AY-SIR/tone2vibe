@@ -116,6 +116,14 @@ export function PaymentGateway({
 
   const handlePayment = async () => {
     if (!confirmPayment) return;
+    
+    // For paid plans, trigger Razorpay payment
+    if (finalAmount > 0) {
+      onPayment(selectedPlan);
+      return;
+    }
+
+    // For free (100% discount), use coupon activation
     setIsActivating(true);
 
     try {

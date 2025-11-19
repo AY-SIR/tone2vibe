@@ -62,10 +62,17 @@ const PaymentSuccess = () => {
 
     const verifyPayment = async () => {
       try {
+        // Razorpay parameters
+        const razorpayOrderId = searchParams.get("razorpay_order_id")
+        const razorpayPaymentId = searchParams.get("razorpay_payment_id")
+        const razorpaySignature = searchParams.get("razorpay_signature")
+        
+        // Legacy Instamojo parameters
         const paymentId = searchParams.get("payment_id")
         const paymentRequestId = searchParams.get("payment_request_id")
         const txId = searchParams.get("txId")
-        const uniqueTransactionKey = paymentRequestId || paymentId || txId
+        
+        const uniqueTransactionKey = razorpayOrderId || paymentRequestId || paymentId || txId
 
         const type = searchParams.get("type")
         const plan = searchParams.get("plan")
@@ -145,18 +152,35 @@ const PaymentSuccess = () => {
           return
         }
 
-        if (!paymentId || !paymentRequestId) {
+        // Handle Razorpay payment verification
+        if (razorpayOrderId && razorpayPaymentId && razorpaySignature) {
+          const { data, error } = await supabase.functions.invoke("verify-razorpay-payment", {
+            body: { 
+              razorpay_order_id: razorpayOrderId, 
+              razorpay_payment_id: razorpayPaymentId, 
+              razorpay_signature: razorpaySignature 
+            },
+          })
+
+          if (error || !data?.success) {
+            const message = (error && (error as any).message) || data?.error || 'Verification failed'
+            navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
+            return
+          }
+        } 
+        // Legacy Instamojo verification (for old payment links)
+        else if (paymentId && paymentRequestId) {
+          const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
+            body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
+          })
+
+          if (error || !data?.success) {
+            const message = (error && (error as any).message) || data?.error || 'Verification failed'
+            navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
+            return
+          }
+        } else {
           navigate(`/payment-failed?reason=${encodeURIComponent('Missing payment information in URL')}&type=${type || 'subscription'}`, { replace: true })
-          return
-        }
-
-        const { data, error } = await supabase.functions.invoke("verify-instamojo-payment", {
-          body: { payment_id: paymentId, payment_request_id: paymentRequestId, type, plan },
-        })
-
-        if (error || !data?.success) {
-          const message = (error && (error as any).message) || data?.error || 'Verification failed'
-          navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=${type || 'subscription'}`, { replace: true })
           return
         }
 
