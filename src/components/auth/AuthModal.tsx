@@ -191,7 +191,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         clearSignInFields();
         setIsEmailLoading(false);
         onOpenChange(false);
-        toast.success('Welcome back!');
 
         setTimeout(() => {
           navigate(redirectPath, { replace: true });

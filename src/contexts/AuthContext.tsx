@@ -249,10 +249,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Show welcome message
       setTimeout(() => {
         if (profile.login_count === 1) {
-          toast.success("Account created! Welcome 🎉");
+          toast.success("Welcome to Tone2Vibe! 🎉");
           launchConfetti();
         } else {
-          toast.success("Welcome back 👋");
+          toast.success("Welcome back!");
         }
       }, 100);
     }
