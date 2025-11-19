@@ -108,7 +108,7 @@ export function WordPurchase() {
 
   try {
     // ✅ Use cached location to avoid repeat API hits
-    let location = await LocationCacheService.getCachedLocation?.();
+    let location = LocationCacheService.getCachedLocation();
     if (!location) location = await LocationCacheService.getLocation();
 
     if (!location?.isIndian) {

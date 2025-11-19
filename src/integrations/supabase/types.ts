@@ -152,33 +152,6 @@ export type Database = {
         }
         Relationships: []
       }
-      coupon_validation_attempts: {
-        Row: {
-          attempted_at: string | null
-          coupon_code: string
-          id: string
-          ip_address: string | null
-          success: boolean
-          user_id: string
-        }
-        Insert: {
-          attempted_at?: string | null
-          coupon_code: string
-          id?: string
-          ip_address?: string | null
-          success: boolean
-          user_id: string
-        }
-        Update: {
-          attempted_at?: string | null
-          coupon_code?: string
-          id?: string
-          ip_address?: string | null
-          success?: boolean
-          user_id?: string
-        }
-        Relationships: []
-      }
       coupons: {
         Row: {
           active: boolean
@@ -311,6 +284,63 @@ export type Database = {
           user_id?: string
           voice_settings?: Json | null
           words_used?: number
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          invoice_number: string
+          invoice_type: string
+          payment_id: string
+          payment_method: string
+          pdf_url: string | null
+          plan_name: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          razorpay_signature: string | null
+          updated_at: string
+          user_id: string
+          words_purchased: number | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number: string
+          invoice_type: string
+          payment_id: string
+          payment_method?: string
+          pdf_url?: string | null
+          plan_name?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_signature?: string | null
+          updated_at?: string
+          user_id: string
+          words_purchased?: number | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number?: string
+          invoice_type?: string
+          payment_id?: string
+          payment_method?: string
+          pdf_url?: string | null
+          plan_name?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_signature?: string | null
+          updated_at?: string
+          user_id?: string
+          words_purchased?: number | null
         }
         Relationships: []
       }
@@ -838,48 +868,7 @@ export type Database = {
       }
     }
     Views: {
-      coupon_usage_stats: {
-        Row: {
-          active: boolean | null
-          code: string | null
-          created_at: string | null
-          discount_amount: number | null
-          discount_percentage: number | null
-          expires_at: string | null
-          last_used_at: string | null
-          max_uses: number | null
-          status: string | null
-          type: string | null
-          used_count: number | null
-        }
-        Insert: {
-          active?: boolean | null
-          code?: string | null
-          created_at?: string | null
-          discount_amount?: number | null
-          discount_percentage?: number | null
-          expires_at?: string | null
-          last_used_at?: string | null
-          max_uses?: number | null
-          status?: never
-          type?: string | null
-          used_count?: number | null
-        }
-        Update: {
-          active?: boolean | null
-          code?: string | null
-          created_at?: string | null
-          discount_amount?: number | null
-          discount_percentage?: number | null
-          expires_at?: string | null
-          last_used_at?: string | null
-          max_uses?: number | null
-          status?: never
-          type?: string | null
-          used_count?: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       add_purchased_words:
@@ -987,6 +976,10 @@ export type Database = {
           p_words_limit: number
         }
         Returns: Json
+      }
+      update_user_login: {
+        Args: { p_ip_address: string; p_user_id: string }
+        Returns: undefined
       }
       update_word_count: {
         Args: { p_user_id: string; p_words_used: number }

@@ -40,7 +40,7 @@ export class LocationCacheService {
   }
 
   /** Fetch location from cache if valid */
-  private static getCachedLocation(): LocationCache | null {
+  public static getCachedLocation(): LocationCache | null {
     try {
       const cached = localStorage.getItem(this.CACHE_KEY);
       if (!cached) return null;
