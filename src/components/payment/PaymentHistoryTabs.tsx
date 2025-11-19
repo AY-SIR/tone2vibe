@@ -37,6 +37,7 @@ interface Invoice {
   plan_name?: string;
   invoice_type: string;
   words_purchased?: number;
+  pdf_url?: string;
 }
 
 export function PaymentHistoryTabs() {
@@ -56,34 +57,37 @@ export function PaymentHistoryTabs() {
     try {
       setLoading(true);
 
-      const { data: paymentsData, error: paymentsError } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false });
+      // Fetch all data in parallel for better performance
+      const [paymentsResult, wordPurchasesResult, invoicesResult] = await Promise.all([
+        supabase
+          .from('payments')
+          .select('*')
+          .eq('user_id', user!.id)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('word_purchases')
+          .select('*')
+          .eq('user_id', user!.id)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('invoices')
+          .select('id, invoice_number, payment_id, amount, currency, plan_name, invoice_type, words_purchased, pdf_url')
+          .eq('user_id', user!.id)
+      ]);
 
-      if (paymentsError) throw paymentsError;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (wordPurchasesResult.error) throw wordPurchasesResult.error;
+      if (invoicesResult.error) throw invoicesResult.error;
 
-      const { data: wordPurchasesData, error: wordPurchasesError } = await supabase
-        .from('word_purchases')
-        .select('*')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false });
-
-      if (wordPurchasesError) throw wordPurchasesError;
-
-      const { data: invoicesData, error: invoicesError } = await supabase
-        .from('invoices')
-        .select('id, invoice_number, payment_id, amount, currency, plan_name, invoice_type, words_purchased')
-        .eq('user_id', user!.id);
-
-      if (invoicesError) throw invoicesError;
-
-      setPayments(paymentsData || []);
-      setWordPurchases(wordPurchasesData || []);
-      setInvoices(invoicesData || []);
+      setPayments(paymentsResult.data || []);
+      setWordPurchases(wordPurchasesResult.data || []);
+      setInvoices(invoicesResult.data || []);
+      
+      console.log(`Loaded ${paymentsResult.data?.length || 0} payments, ${invoicesResult.data?.length || 0} invoices`);
     } catch (error) {
-      // Silent error handling
+      console.error('Failed to fetch payment history:', error);
     } finally {
       setLoading(false);
     }
