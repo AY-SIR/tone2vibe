@@ -269,12 +269,11 @@ const { user, profile, loading: authLoading } = useAuth();
   const renderContent = () => {
     switch (currentSection) {
       case "home":
-  return (
-    <>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* Hero Section */}
-      <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+            {/* Hero Section */}
+            <section className="relative pt-6 pb-8 sm:pt-10 sm:pb-12 px-4 text-center overflow-hidden mt-16 flex items-center">
+              <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
         <div className="relative z-10 container mx-auto max-w-4xl">
           {/* Hero Content */}
           <div className="animate-fade-in">
@@ -339,11 +338,11 @@ const { user, profile, loading: authLoading } = useAuth();
         <Mic className="mx-3 h-5 w-5 text-gray-900" />
         <div className="flex-grow border-t border-gray-300"></div>
       </div>
-      <div className=" flex items-center justify-center p-8">
-      <CompareDemo />
-    </div>
-    </>
-  );
+              <div className=" flex items-center justify-center p-8">
+                <CompareDemo />
+              </div>
+          </div>
+        );
 
 
 
@@ -468,6 +467,7 @@ const { user, profile, loading: authLoading } = useAuth();
   };
 
   return (
+    <>
     <div className="relative  min-h-screen bg-white font-modern overflow-x-hidden">
       {/* Navigation */}
       <nav className="fixed top-2 left-6 right-6 z-50 rounded-2xl border border-white/20 bg-white/40 backdrop-blur-md shadow-lg transition-transform duration-300">
@@ -627,18 +627,18 @@ const { user, profile, loading: authLoading } = useAuth();
   <p>&copy; {new Date().getFullYear()} Tone2Vibe.in All rights reserved.</p>
 </div>
 
-          </div>
-        </div>
-      </footer>
-      </div>
+           </div>
+         </div>
+       </footer>
 
-      {/* Floating Navigation */}
-      <FloatingNavigation
-        currentSection={currentSection}
-        onSectionChange={handleSectionChange}
-      />
+       {/* Floating Navigation */}
+       <FloatingNavigation
+         currentSection={currentSection}
+         onSectionChange={handleSectionChange}
+       />
+     </div>
 
-      {/* Modals */}
+     {/* Modals */}
       <AuthModal
         open={showAuthModal}
         onOpenChange={handleAuthModalChange}
@@ -686,10 +686,10 @@ const { user, profile, loading: authLoading } = useAuth();
               </Button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-};
+         </div>
+       )}
+     </>
+   );
+ };
 
-export default Index;
+ export default Index;
