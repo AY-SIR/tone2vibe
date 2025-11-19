@@ -95,29 +95,7 @@ export default function PaymentFailed() {
           </div>
 
           {/* Support Section */}
-          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="text-sm font-medium text-center">Need Help?</p>
-
-            <div className="flex flex-col sm:flex-row gap-2 justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  (window.location.href = "mailto:support@yourapp.com")
-                }
-              >
-                <Mail className="mr-2 h-4 w-4" /> Email Support
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/support")}
-              >
-                <Phone className="mr-2 h-4 w-4" /> Contact Us
-              </Button>
-            </div>
-          </div>
+          
 
           {/* Countdown */}
           <p className="text-center text-xs text-muted-foreground">
