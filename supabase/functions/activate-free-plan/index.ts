@@ -116,8 +116,30 @@ serve(async (req) => {
       );
     }
 
-    // --- Generate payment ID for free activation ---
-    const freePaymentId = `FREE_ACTIVATION_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    // --- Create payment record ---
+    const freePaymentId = `FREE_PLAN_${coupon_code || 'DIRECT'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    
+    const { error: paymentError } = await supabaseAdmin
+      .from("payments")
+      .insert({
+        user_id,
+        plan,
+        amount: 0,
+        currency: "INR",
+        status: "completed",
+        payment_id: freePaymentId,
+        payment_method: "coupon",
+        coupon_code: coupon_code || null,
+        created_at: now
+      });
+
+    if (paymentError) {
+      console.error('Failed to create payment record:', paymentError);
+      return new Response(
+        JSON.stringify({ error: "Failed to create payment record" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // --- Generate Invoice for free plan activation ---
     const invoiceNumber = `INV-${Date.now()}-${user_id.substring(0, 8)}`;
