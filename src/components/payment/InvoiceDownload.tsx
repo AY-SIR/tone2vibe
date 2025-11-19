@@ -92,7 +92,7 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
       className="h-8 w-8"
       title="Print Invoice"
     >
-      <Download className="h-4 w-4" />
+      <Download className="h-4 w-4" />Download 
     </Button>
   );
 };
