@@ -87,6 +87,8 @@ Deno.serve(async (req) => {
     if (updateError) throw updateError;
 
     // Handle subscription or word purchase
+    let wordsPurchased = null;
+    
     if (payment.plan) {
       // Subscription - update user profile
       const planLimits = {
@@ -119,6 +121,7 @@ Deno.serve(async (req) => {
       
       const pricePerThousand = userProfile?.plan === 'premium' ? 9 : 11;
       const wordCount = Math.floor((payment.amount / 100) / pricePerThousand * 1000);
+      wordsPurchased = wordCount;
       
       await supabase.rpc('add_purchased_words', {
         user_id_param: user.id,
@@ -151,6 +154,7 @@ Deno.serve(async (req) => {
         amount: payment.amount,
         currency: payment.currency,
         plan_name: payment.plan,
+        words_purchased: wordsPurchased,
         payment_method: 'razorpay',
         razorpay_order_id: razorpay_order_id,
         razorpay_payment_id: razorpay_payment_id,
