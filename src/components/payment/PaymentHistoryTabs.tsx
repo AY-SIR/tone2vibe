@@ -230,7 +230,9 @@ export function PaymentHistoryTabs() {
                       </div>
 
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-400">
+                       <div className=" text-xs text-gray-400 break-words">
                         <span>Payment ID: {purchase.payment_id}</span>
+                       </div>
                         {purchase.payment_method && (
                           <span>Method: {purchase.payment_method}</span>
                         )}
