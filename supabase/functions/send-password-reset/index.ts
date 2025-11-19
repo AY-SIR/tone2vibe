@@ -169,10 +169,6 @@ function getCorsHeaders(origin: string | null) {
 /* -----------------------------------------------------------
    MAIN FUNCTION
 ----------------------------------------------------------- */
-Deno.serve(async (req: Request) => {
-  const origin = req.headers.get('origin');
-  const corsHeaders = getCorsHeaders(origin);
-
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
