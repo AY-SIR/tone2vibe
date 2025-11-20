@@ -179,7 +179,6 @@ Deno.serve(async (req) => {
       }
     );
   } catch (err: any) {
-    console.error("Sample generation function error:", err);
-    return createErrorResponse(err?.message || "An internal server error occurred", 500);
+    return createErrorResponse(err?.message || "An internal server error occurred", 500, corsHeaders);
   }
 });
