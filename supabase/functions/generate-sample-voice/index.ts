@@ -46,7 +46,7 @@ const validateVoiceSettings = (settings: any): boolean => {
 };
 
 // Common error response helper
-const createErrorResponse = (message: string, corsHeaders: Record<string, string>, status = 400) => {
+const createErrorResponse = (message: string, status: number, corsHeaders: Record<string, string>) => {
   return new Response(
     JSON.stringify({
       success: false,
