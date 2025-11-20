@@ -1,5 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
@@ -104,10 +103,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
-  } catch (e) {
+  } catch (e: unknown) {
     return new Response(JSON.stringify({
       ok: false,
-      error: e.message
+      error: (e as Error).message
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400

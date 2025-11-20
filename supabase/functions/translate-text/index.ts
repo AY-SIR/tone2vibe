@@ -1,7 +1,6 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 //  Allow all origins, headers, and methods (universal CORS)
-function getCorsHeaders(origin) {
+function getCorsHeaders(origin: string | null): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "*",
@@ -19,7 +18,7 @@ const MODELS = [
   "tngtech/deepseek-r1t2-chimera"
 ];
 //  OpenRouter translation call
-async function callOpenRouter(model, text, lang) {
+async function callOpenRouter(model: string, text: string, lang: string) {
   const prompt = `Translate the following text into ${lang}. Return only the translated text:\n\n${text}`;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -49,7 +48,7 @@ async function callOpenRouter(model, text, lang) {
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
 //  Gemini fallback (if all OpenRouter models fail)
-async function callGeminiLite(text, lang) {
+async function callGeminiLite(text: string, lang: string) {
   const prompt = `Translate this text into ${lang}. Return only the translated text:\n\n${text}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
@@ -104,10 +103,10 @@ Deno.serve(async (req)=>{
         "Content-Type": "application/json"
       }
     });
-  } catch (err) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({
       success: false,
-      error: err.message
+      error: (err as Error).message
     }), {
       status: 500,
       headers: {

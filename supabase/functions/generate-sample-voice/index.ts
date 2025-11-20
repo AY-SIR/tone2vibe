@@ -1,5 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 // Sanitize input text (sample - limited length)
@@ -47,7 +46,7 @@ const validateVoiceSettings = (settings: any): boolean => {
 };
 
 // Common error response helper
-const createErrorResponse = (message: string, status = 400) => {
+const createErrorResponse = (corsHeaders: Record<string, string>, message: string, status = 400) => {
   console.error(`Error [${status}]:`, message);
   return new Response(
     JSON.stringify({
@@ -75,13 +74,13 @@ Deno.serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      return createErrorResponse("Missing Supabase environment variables", 500);
+      return createErrorResponse(corsHeaders, "Missing Supabase environment variables", 500);
     }
 
     // Auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return createErrorResponse("Missing authorization header", 401);
+      return createErrorResponse(corsHeaders, "Missing authorization header", 401);
     }
 
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -91,7 +90,7 @@ Deno.serve(async (req) => {
     const { data, error: authError } = await supabaseClient.auth.getUser();
     const user = data?.user ?? null;
     if (authError || !user) {
-      return createErrorResponse("User not authenticated", 401);
+      return createErrorResponse(corsHeaders, "User not authenticated", 401);
     }
 
     // Parse JSON body
@@ -99,29 +98,29 @@ Deno.serve(async (req) => {
     try {
       body = await req.json();
     } catch (e) {
-      return createErrorResponse("Invalid JSON in request body", 400);
+      return createErrorResponse(corsHeaders, "Invalid JSON in request body", 400);
     }
 
     // Required fields
     if (!body.text || typeof body.text !== "string") {
-      return createErrorResponse("Invalid or missing 'text' field", 400);
+      return createErrorResponse(corsHeaders, "Invalid or missing 'text' field", 400);
     }
     if (!body.voice_settings || typeof body.voice_settings !== "object") {
-      return createErrorResponse("Invalid or missing 'voice_settings' field", 400);
+      return createErrorResponse(corsHeaders, "Invalid or missing 'voice_settings' field", 400);
     }
     if (!body.language || typeof body.language !== "string") {
-      return createErrorResponse("Invalid or missing 'language' field", 400);
+      return createErrorResponse(corsHeaders, "Invalid or missing 'language' field", 400);
     }
 
     // Validate voice settings
     if (!validateVoiceSettings(body.voice_settings)) {
-      return createErrorResponse("Invalid voice settings format", 400);
+      return createErrorResponse(corsHeaders, "Invalid voice settings format", 400);
     }
 
     // Sanitize text
     const sanitizedText = sanitizeText(body.text);
     if (!sanitizedText) {
-      return createErrorResponse("Text content is empty after sanitization", 400);
+      return createErrorResponse(corsHeaders, "Text content is empty after sanitization", 400);
     }
 
     // ✅ Only use provided word count
@@ -131,17 +130,17 @@ Deno.serve(async (req) => {
         : 0;
 
     if (providedWordCount === 0) {
-      return createErrorResponse("Missing or invalid 'word_count' value", 400);
+      return createErrorResponse(corsHeaders, "Missing or invalid 'word_count' value", 400);
     }
 
     if (providedWordCount > 100) {
-      return createErrorResponse("Sample text exceeds 100 word limit", 400);
+      return createErrorResponse(corsHeaders, "Sample text exceeds 100 word limit", 400);
     }
 
     // Voice ID format validation
     const voiceIdPattern = /^[a-zA-Z0-9_-]{1,100}$/;
     if (!voiceIdPattern.test(body.voice_settings.voice_id)) {
-      return createErrorResponse("Invalid voice ID format", 400);
+      return createErrorResponse(corsHeaders, "Invalid voice ID format", 400);
     }
 
     // Logging for debugging / monitoring
@@ -182,6 +181,8 @@ Deno.serve(async (req) => {
     );
   } catch (err: any) {
     console.error("Sample generation function error:", err);
-    return createErrorResponse(err?.message || "An internal server error occurred", 500);
+    const origin = req.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+    return createErrorResponse(corsHeaders, err?.message || "An internal server error occurred", 500);
   }
 });

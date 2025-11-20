@@ -1,7 +1,6 @@
 // File: supabase/functions/convert-audio/index.ts
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
@@ -58,9 +57,9 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${token}`,
         },
       });
-    } catch (fetchError) {
-      console.error("Fetch error:", fetchError);
-      return new Response(JSON.stringify({ error: "Failed to fetch audio: " + fetchError.message }), {
+    } catch (fetchError: unknown) {
+      console.error("Fetch error:", (fetchError));
+      return new Response(JSON.stringify({ error: "Failed to fetch audio: " + (fetchError as Error).message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -96,9 +95,9 @@ Deno.serve(async (req) => {
         "Cache-Control": "no-store",
       },
     });
-  } catch (e) {
-    console.error("convert-audio error:", e);
-    return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
+    } catch (e: unknown) {
+      console.error("convert-audio error:", e);
+      return new Response(JSON.stringify({ error: (e as Error).message || "Internal error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

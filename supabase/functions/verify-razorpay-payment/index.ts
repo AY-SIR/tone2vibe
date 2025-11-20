@@ -1,5 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 import { generateInvoiceHTML } from "../_shared/invoice-template.ts";
 
@@ -16,7 +15,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const razorpayKeySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
 
-    if (!razorpayKeySecret) {
+    if (!razorpayKeySecret || !supabaseUrl || !supabaseServiceKey) {
       throw new Error("Payment configuration error");
     }
 
@@ -149,12 +148,12 @@ Deno.serve(async (req) => {
     // Handle subscription or word purchase
     if (payment.plan) {
       // Subscription payment
-      const planLimits = {
+      const planLimits: Record<string, { words_limit: number; upload_limit_mb: number }> = {
         pro: { words_limit: 10000, upload_limit_mb: 25 },
         premium: { words_limit: 50000, upload_limit_mb: 100 }
       };
 
-      const limits = planLimits[payment.plan];
+      const limits = planLimits[payment.plan as string];
 
       const { error: profileError } = await supabase.rpc("safe_update_profile_for_subscription", {
         p_user_id: user.id,
@@ -265,7 +264,7 @@ Deno.serve(async (req) => {
       const pricePerThousand = userPlan === "premium" ? 9 : 11;
       items = [
         {
-          description: `${wordsPurchased.toLocaleString()} Words (${userPlan.toUpperCase()} Plan - ₹${pricePerThousand}/1000 words)`,
+          description: `${(wordsPurchased || 0).toLocaleString()} Words (${userPlan.toUpperCase()} Plan - ₹${pricePerThousand}/1000 words)`,
           quantity: 1,
           rate: payment.amount,
           amount: payment.amount

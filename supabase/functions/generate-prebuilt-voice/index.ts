@@ -1,5 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 // =====================================
@@ -137,9 +136,9 @@ Deno.serve(async (req) => {
             config: ttsConfig
           });
           processed++;
-        } catch (error) {
-          console.error(`❌ Failed to process ${voice.voice_id}:`, error.message);
-          results.push({ voice_id: voice.voice_id, success: false, error: error.message });
+      } catch (error: unknown) {
+        console.error(`❌ Failed to process ${voice.voice_id}:`, (error as Error).message);
+        results.push({ voice_id: voice.voice_id, success: false, error: (error as Error).message });
           failed++;
         }
       }
@@ -242,12 +241,12 @@ Deno.serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
-  } catch (error) {
-    console.error("❌ Prebuilt voice generation error:", error.message);
+  } catch (error: unknown) {
+    console.error("❌ Prebuilt voice generation error:", (error as Error).message);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
