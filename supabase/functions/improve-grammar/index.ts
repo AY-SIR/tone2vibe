@@ -1,5 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-/*  CORS: allow tone2vibe.in + localhost */ function getCorsHeaders(origin) {
+function getCorsHeaders(origin: string) {
   const allowed = [
     "https://tone2vibe.in",
     "http://localhost:8080"
@@ -18,7 +18,7 @@ const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
   "deepseek/deepseek-v3-0324",
   "tngtech/deepseek-r1t2-chimera"
 ];
-/*  OpenRouter model call */ async function callOpenRouter(model, text) {
+async function callOpenRouter(model: string, text: string) {
   // 🔧 Removed quotes around ${text} to avoid "..." in output
   const prompt = `Fix all grammar, spelling, and punctuation errors in the following text. Keep the same tone and meaning. Return only the corrected text:\n\n${text}`;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -48,7 +48,7 @@ const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
   const data = await res.json();
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
-/*  Gemini fallback if all OpenRouter models fail */ async function callGeminiLite(text) {
+async function callGeminiLite(text: string) {
   // 🔧 Removed quotes around ${text}
   const prompt = `Fix all grammar, spelling, and punctuation errors. Keep the same tone and meaning. Return only the corrected text:\n\n${text}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {

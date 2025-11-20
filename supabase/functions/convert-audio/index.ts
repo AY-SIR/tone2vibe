@@ -58,8 +58,7 @@ Deno.serve(async (req) => {
         },
       });
     } catch (fetchError) {
-      console.error("Fetch error:", fetchError);
-      return new Response(JSON.stringify({ error: "Failed to fetch audio: " + fetchError.message }), {
+      return new Response(JSON.stringify({ error: "Failed to fetch audio: " + (fetchError as Error).message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -96,8 +95,7 @@ Deno.serve(async (req) => {
       },
     });
   } catch (e) {
-    console.error("convert-audio error:", e);
-    return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
+    return new Response(JSON.stringify({ error: (e as Error).message || "Internal error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

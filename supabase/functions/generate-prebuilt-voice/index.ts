@@ -137,8 +137,7 @@ Deno.serve(async (req) => {
           });
           processed++;
         } catch (error) {
-          console.error(`❌ Failed to process ${voice.voice_id}:`, error.message);
-          results.push({ voice_id: voice.voice_id, success: false, error: error.message });
+          results.push({ voice_id: voice.voice_id, success: false, error: (error as Error).message });
           failed++;
         }
       }
@@ -242,11 +241,10 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
-    console.error("❌ Prebuilt voice generation error:", error.message);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
