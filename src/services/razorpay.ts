@@ -17,6 +17,7 @@ export interface RazorpayResponse {
   currency?: string;
   message?: string;
   payment_id?: string;
+  invoice_number?: string;
 }
 
 export class RazorpayService {
@@ -149,6 +150,7 @@ export class RazorpayService {
       return {
         success: true,
         payment_id: data.payment_id,
+        invoice_number: data.invoice_number,
         message: data.message || 'Payment verified successfully'
       };
     } catch (error) {
