@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
-import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 interface PasswordResetRequest {
   email: string;
