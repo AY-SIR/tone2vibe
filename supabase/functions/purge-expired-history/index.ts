@@ -59,9 +59,9 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, expired: expired?.length || 0, filesDeleted }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
-  } catch (e) {
+  } catch (e: unknown) {
     return new Response(
-      JSON.stringify({ success: false, error: e?.message || 'Unknown error' }),
+      JSON.stringify({ success: false, error: (e as Error)?.message || 'Unknown error' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

@@ -36,13 +36,13 @@ serve(async (req) => {
     );
 
     // Plan limits configuration
-    const planLimits = {
+    const planLimits: Record<string, { words_limit: number; upload_limit_mb: number }> = {
       free: { words_limit: 1000, upload_limit_mb: 10 },
       pro: { words_limit: 10000, upload_limit_mb: 25 },
       premium: { words_limit: 50000, upload_limit_mb: 100 }
     };
 
-    const limits = planLimits[plan];
+    const limits = planLimits[plan as string];
     if (!limits) {
       return new Response(
         JSON.stringify({

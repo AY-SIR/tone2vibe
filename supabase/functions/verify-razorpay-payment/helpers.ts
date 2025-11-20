@@ -1,4 +1,10 @@
-export function generateInvoiceHTML(invoiceNumber, payment, profile, razorpayPaymentId, razorpayOrderId) {
+export function generateInvoiceHTML(
+  invoiceNumber: string,
+  payment: any,
+  profile: any,
+  razorpayPaymentId: string,
+  razorpayOrderId: string
+) {
   const wordCount = payment.plan ? 0 : Math.floor(payment.amount / 100 / (payment.plan === 'premium' ? 9 : 11) * 1000);
   return `<!DOCTYPE html>
 <html>
