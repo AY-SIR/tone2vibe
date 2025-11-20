@@ -18,7 +18,7 @@ const MODELS = [
   "tngtech/deepseek-r1t2-chimera"
 ];
 //  OpenRouter translation call
-async function callOpenRouter(model, text, lang) {
+async function callOpenRouter(model: string, text: string, lang: string) {
   const prompt = `Translate the following text into ${lang}. Return only the translated text:\n\n${text}`;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -48,7 +48,7 @@ async function callOpenRouter(model, text, lang) {
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
 //  Gemini fallback (if all OpenRouter models fail)
-async function callGeminiLite(text, lang) {
+async function callGeminiLite(text: string, lang: string) {
   const prompt = `Translate this text into ${lang}. Return only the translated text:\n\n${text}`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_KEY}`, {
     method: "POST",
@@ -106,7 +106,7 @@ Deno.serve(async (req)=>{
   } catch (err) {
     return new Response(JSON.stringify({
       success: false,
-      error: err.message
+      error: (err as Error).message
     }), {
       status: 500,
       headers: {
