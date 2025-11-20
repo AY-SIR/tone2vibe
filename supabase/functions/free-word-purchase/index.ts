@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    return jsonError(error.message || "Unexpected server error", 500, corsHeaders);
+    return jsonError((error as Error).message || "Unexpected server error", 500, corsHeaders);
   }
 });
 
