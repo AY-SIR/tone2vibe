@@ -89,9 +89,6 @@ Deno.serve(async (req) => {
         coupon_code: coupon_code || null
       });
 
-    if (paymentError) {
-      console.error("Payment record creation error:", paymentError);
-    }
 
     return new Response(
       JSON.stringify({
@@ -106,7 +103,6 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Create payment error:", error);
     return new Response(
       JSON.stringify({
         success: false,

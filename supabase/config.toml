@@ -3,6 +3,12 @@ project_id = "msbmyiqhohtjdfbjmxlf"
 [functions.activate-free-plan]
 verify_jwt = false
 
+[functions.free-word-purchase]
+verify_jwt = true
+
+[functions.mark-payment-failed]
+verify_jwt = true
+
 [functions.validate-coupon]
 verify_jwt = true
 
