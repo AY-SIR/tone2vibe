@@ -44,11 +44,6 @@ Deno.serve(async (req)=>{
     }
     // Parse request body
     const { code, amount, type } = await req.json();
-    console.log("Validating coupon:", {
-      code,
-      amount,
-      type
-    });
     if (!code || !amount || !type) {
       return new Response(JSON.stringify({
         isValid: false,
@@ -83,7 +78,6 @@ Deno.serve(async (req)=>{
       "both"
     ]);
     if (couponError) {
-      console.error("Database error:", couponError);
       return new Response(JSON.stringify({
         isValid: false,
         message: "Error validating coupon"

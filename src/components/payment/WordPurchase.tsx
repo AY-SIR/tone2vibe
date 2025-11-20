@@ -139,7 +139,6 @@ export function WordPurchase() {
         throw new Error(result.message || "Failed to initialize payment");
       }
     } catch (error) {
-      console.error("Payment error:", error);
       const errorMessage = error instanceof Error ? error.message : "Something went wrong";
       navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
     } finally {
@@ -177,7 +176,6 @@ export function WordPurchase() {
 
       navigate(`/payment-success?words=${wordsAmount}&type=free&invoice=${data.invoice_number || ''}`);
     } catch (err) {
-      console.error("Free word purchase error:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to process purchase";
       navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
     }
@@ -195,7 +193,7 @@ export function WordPurchase() {
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
     } catch (error) {
-      console.error("Failed to mark payment as failed:", error);
+      // Silent fail for failure tracking
     }
   };
 

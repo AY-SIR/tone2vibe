@@ -148,6 +148,7 @@ serve(async (req) => {
     }
 
     const now = new Date().toISOString();
+    const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     // Update user profile with plan
     const { error: updateError } = await supabaseAdmin
@@ -157,7 +158,9 @@ serve(async (req) => {
         words_limit: limits.words_limit,
         upload_limit_mb: limits.upload_limit_mb,
         plan_start_date: now,
-        plan_end_date: null,
+        plan_end_date: expiryDate,
+        plan_expires_at: expiryDate,
+        plan_words_used: 0,
         updated_at: now
       })
       .eq("user_id", user_id);

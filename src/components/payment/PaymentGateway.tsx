@@ -148,7 +148,6 @@ export function PaymentGateway({
         onPayment(selectedPlan);
       }
     } catch (error) {
-      console.error("Payment error:", error);
       setIsActivating(false);
     }
   };
@@ -190,7 +189,6 @@ export function PaymentGateway({
       );
 
     } catch (error) {
-      console.error("Free activation error:", error);
       throw error;
     } finally {
       setIsActivating(false);

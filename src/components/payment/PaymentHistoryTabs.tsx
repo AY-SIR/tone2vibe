@@ -67,8 +67,7 @@ export function PaymentHistoryTabs() {
       setPayments(paymentsResult.data || []);
       setWordPurchases(wordPurchasesResult.data || []);
     } catch (error) {
-      console.error('Failed to fetch payment history:', error);
-      // Optional: Show a toast error message here
+      // Silent fail - data will show as empty
     } finally {
       setLoading(false);
     }

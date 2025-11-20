@@ -3,28 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { toast } from "sonner"; // Assuming you use a toast notification library like sonner
+import { toast } from "sonner";
 
 interface InvoiceDownloadProps {
   invoiceId: string;
   invoiceNumber: string;
 }
-
-// Helper to extract the file path from the Supabase public URL
-const extractFilePath = (url: string, bucketName: string): string => {
-  // Pattern to find the path after the bucket name in the public URL
-  // e.g., '.../storage/v1/object/public/invoices/path/to/file' -> 'path/to/file'
-  const prefix = `/storage/v1/object/public/${bucketName}/`;
-  const index = url.indexOf(prefix);
-
-  if (index === -1) {
-    // If the standard URL structure is not found, return the original url
-    // which might be the path itself if stored correctly in the DB
-    return url;
-  }
-
-  return url.substring(index + prefix.length);
-};
 
 export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadProps) => {
   const [loading, setLoading] = useState(false);
@@ -59,8 +43,8 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
         throw new Error("Invoice file path not found in database.");
       }
 
-      // Extract the file path from the stored URL
-      const filePath = extractFilePath(invoice.pdf_url, bucketName);
+      // pdf_url already stores just the path (e.g., "userId/invoiceNumber.html")
+      const filePath = invoice.pdf_url;
 
       const { data: fileData, error: downloadError } = await supabase.storage
         .from(bucketName)
@@ -80,10 +64,9 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
       return { htmlContent, invoiceNumber: invoice.invoice_number || invoiceNumber };
 
     } catch (error) {
-      console.error("Invoice fetch error:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
       toast.error(errorMessage);
-      throw error; // Re-throw to prevent further execution in handlers
+      throw error;
     } finally {
       setLoading(false);
     }

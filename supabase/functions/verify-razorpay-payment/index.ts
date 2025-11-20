@@ -355,7 +355,6 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Payment verification error:", error);
     return new Response(
       JSON.stringify({
         success: false,
