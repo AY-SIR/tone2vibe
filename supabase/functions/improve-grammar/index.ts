@@ -1,4 +1,3 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 /*  CORS: allow tone2vibe.in + localhost */ function getCorsHeaders(origin) {
   const allowed = [
