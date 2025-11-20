@@ -182,7 +182,6 @@ export function ProfileDropdown() {
             <DialogTitle className="mt-2 mb-4 flex items-center gap-2">
               Are you sure you want to sign out?
             </DialogTitle>
-            <div className="border-t border-gray-200 dark:border-gray-800 my-4" />
             <DialogDescription>
               This will end your current session and you will be logged out.
             </DialogDescription>

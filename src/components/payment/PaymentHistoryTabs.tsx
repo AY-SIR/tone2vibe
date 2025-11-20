@@ -6,6 +6,7 @@ import { Calendar, CreditCard, Package, Crown, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { InvoiceDownload } from "@/components/payment/InvoiceDownload";
+import { Skeleton } from "@/components/ui/skeleton"; // Assuming you have a Skeleton component
 
 interface Payment {
   id: string;
@@ -41,6 +42,8 @@ export function PaymentHistoryTabs() {
   }, [user]);
 
   const fetchPaymentHistory = async () => {
+    if (!user) return; // Guard clause for user
+
     try {
       setLoading(true);
 
@@ -48,13 +51,13 @@ export function PaymentHistoryTabs() {
         supabase
           .from('payments')
           .select('*')
-          .eq('user_id', user!.id)
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
 
         supabase
           .from('word_purchases')
           .select('*')
-          .eq('user_id', user!.id)
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
       ]);
 
@@ -65,6 +68,7 @@ export function PaymentHistoryTabs() {
       setWordPurchases(wordPurchasesResult.data || []);
     } catch (error) {
       console.error('Failed to fetch payment history:', error);
+      // Optional: Show a toast error message here
     } finally {
       setLoading(false);
     }
@@ -85,11 +89,14 @@ export function PaymentHistoryTabs() {
       completed: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200 transition-colors",
       pending: "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200 transition-colors",
       failed: "bg-red-100 text-red-800 border-red-200 hover:bg-red-200 transition-colors",
-      cancelled: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200 transition-colors"
+      cancelled: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200 transition-colors",
+      default: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 transition-colors"
     };
 
+    const variantKey = status.toLowerCase() as keyof typeof variants;
+
     return (
-      <Badge className={variants[status as keyof typeof variants] || variants.pending}>
+      <Badge className={variants[variantKey] || variants.default}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
@@ -97,9 +104,9 @@ export function PaymentHistoryTabs() {
 
   const getPlanIcon = (plan: string) => {
     switch (plan) {
-      case 'pro': return <Zap className="h-4 w-4" />;
-      case 'premium': return <Crown className="h-4 w-4" />;
-      default: return <CreditCard className="h-4 w-4" />;
+      case 'pro': return <Zap className="h-4 w-4 text-purple-600" />;
+      case 'premium': return <Crown className="h-4 w-4 text-yellow-500" />;
+      default: return <CreditCard className="h-4 w-4 text-blue-500" />;
     }
   };
 
@@ -107,14 +114,24 @@ export function PaymentHistoryTabs() {
     return (
       <Card className="w-full max-w-8xl mx-auto">
         <CardContent className="p-6 space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3 mx-auto animate-pulse"></div>
+          <Skeleton className="h-6 w-1/3 mx-auto" />
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-8 w-1/2" />
+            <Skeleton className="h-8 w-1/2" />
+          </div>
           {[...Array(5)].map((_, index) => (
-            <div key={index} className="flex items-center justify-between animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+            <div key={index} className="p-4 border rounded-lg space-y-2">
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-1/4" />
+                <Skeleton className="h-4 w-1/6" />
+              </div>
+              <Skeleton className="h-3 w-1/2" />
+              <div className="flex justify-between pt-1">
+                <Skeleton className="h-4 w-1/6" />
+                <Skeleton className="h-4 w-1/6" />
+              </div>
             </div>
           ))}
-          <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto animate-pulse"></div>
         </CardContent>
       </Card>
     );
@@ -124,7 +141,7 @@ export function PaymentHistoryTabs() {
     <Card className="w-full max-w-8xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
-          <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
+          <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
           <span className="text-sm md:text-base lg:text-lg xl:text-xl font-semibold">
             Payment History
           </span>
@@ -137,12 +154,12 @@ export function PaymentHistoryTabs() {
 
       <CardContent>
         <Tabs defaultValue="plans" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="plans" className="flex items-center space-x-2">
+          <TabsList className="grid w-full grid-cols-2 mb-6 h-12">
+            <TabsTrigger value="plans" className="flex items-center space-x-2 h-full">
               <CreditCard className="h-4 w-4" />
               <span>Plan Payments</span>
             </TabsTrigger>
-            <TabsTrigger value="words" className="flex items-center space-x-2">
+            <TabsTrigger value="words" className="flex items-center space-x-2 h-full">
               <Package className="h-4 w-4" />
               <span>Word Purchases</span>
             </TabsTrigger>
@@ -184,18 +201,15 @@ export function PaymentHistoryTabs() {
                         {getStatusBadge(payment.status)}
                         <span>{formatDate(payment.created_at)}</span>
                       </div>
-            <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
+                      <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
 
-<div className=" flex justify-center mt-3">
-  <InvoiceDownload
-    invoiceId={payment.payment_id}
-    invoiceNumber={payment.payment_id}
-  />
-</div>
-
-
+                      <div className=" flex justify-center mt-3">
+                        <InvoiceDownload
+                          invoiceId={payment.payment_id}
+                          invoiceNumber={payment.payment_id}
+                        />
+                      </div>
                     </CardContent>
-
                   </Card>
                 ))}
               </div>
@@ -218,7 +232,7 @@ export function PaymentHistoryTabs() {
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <Package className="h-4 w-4" />
+                          <Package className="h-4 w-4 text-green-500" />
                           <div className="font-medium">
                             {purchase.words_purchased.toLocaleString()} Words
                           </div>
@@ -230,9 +244,9 @@ export function PaymentHistoryTabs() {
                       </div>
 
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-gray-400">
-                       <div className=" text-xs text-gray-400 break-words">
-                        <span>Payment ID: {purchase.payment_id}</span>
-                       </div>
+                        <div className=" text-xs text-gray-400 break-words">
+                          <span>Payment ID: {purchase.payment_id}</span>
+                        </div>
                         {purchase.payment_method && (
                           <span>Method: {purchase.payment_method}</span>
                         )}
@@ -243,14 +257,14 @@ export function PaymentHistoryTabs() {
                         <span>{formatDate(purchase.created_at)}</span>
                       </div>
 
-                       <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
+                      <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
 
-<div className=" flex justify-center mt-3">
-<InvoiceDownload
-  invoiceId={purchase.payment_id}
-  invoiceNumber={purchase.payment_id}
-/>
- </div>
+                      <div className=" flex justify-center mt-3">
+                        <InvoiceDownload
+                          invoiceId={purchase.payment_id}
+                          invoiceNumber={purchase.payment_id}
+                        />
+                      </div>
 
                     </CardContent>
                   </Card>

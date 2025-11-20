@@ -13,7 +13,6 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Crown, Star, Zap, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { CouponInput } from "@/components/payment/couponInput";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,15 +20,16 @@ interface PaymentGatewayProps {
   selectedPlan: "pro" | "premium";
   onPayment: (plan: "pro" | "premium") => void;
   isProcessing: boolean;
+  orderId?: string;
 }
 
 export function PaymentGateway({
   selectedPlan = "pro",
   onPayment,
-  isProcessing = false
+  isProcessing = false,
+  orderId
 }: PaymentGatewayProps) {
   const { profile, user, refreshProfile } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const [confirmPayment, setConfirmPayment] = useState(false);
@@ -40,11 +40,6 @@ export function PaymentGateway({
     message: "",
     code: ""
   });
-
-  // ✅ Secure Supabase URL fallback (safe to expose, but prevents missing env crash)
-  const SUPABASE_URL =
-    import.meta.env.VITE_SUPABASE_URL ||
-    "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
   const pricing = {
     currency: "INR",
@@ -114,65 +109,50 @@ export function PaymentGateway({
     return `Subscribe for ${pricing.symbol}${finalAmount}`;
   };
 
+  const markPaymentFailed = async (orderId: string, reason: string) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
+
+      if (!session?.access_token) return;
+
+      await supabase.functions.invoke("mark-payment-failed", {
+        body: { order_id: orderId, reason, type: "subscription" },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+    } catch (error) {
+      console.error("Failed to mark payment as failed:", error);
+    }
+  };
+
   const handlePayment = async () => {
     if (!confirmPayment) {
-      toast({
-        title: "Please Confirm",
-        description: "Check the confirmation box to proceed with payment.",
-        variant: "destructive",
-      });
       return;
     }
-    
-    // For paid plans, trigger Razorpay payment
+
     if (finalAmount > 0) {
-      toast({
-        title: "Initiating Payment",
-        description: "Opening payment gateway...",
-      });
       onPayment(selectedPlan);
       return;
     }
 
-    // For free (100% discount), use coupon activation
     setIsActivating(true);
 
     try {
       if (finalAmount === 0) {
         if (!couponValidation.isValid || !couponValidation.code) {
-          toast({
-            title: "Coupon Required",
-            description: "A valid coupon code is required for free activation.",
-            variant: "destructive"
-          });
           setIsActivating(false);
           return;
         }
-        toast({
-          title: "Activating Free Plan",
-          description: "Processing your request...",
-        });
         await handleFreeActivation();
       } else {
-        toast({
-          title: "Redirecting to Payment",
-          description: "Please wait while we redirect you..."
-        });
         onPayment(selectedPlan);
       }
     } catch (error) {
       console.error("Payment error:", error);
-      toast({
-        title: "Activation Failed",
-        description:
-          error instanceof Error ? error.message : "Plan activation failed. Please try again.",
-        variant: "destructive"
-      });
       setIsActivating(false);
     }
   };
 
-  // ✅ Secure free plan activation using Edge Function (with auth)
   const handleFreeActivation = async () => {
     try {
       if (!user) {
@@ -184,7 +164,6 @@ export function PaymentGateway({
         throw new Error("Session expired. Please log in again.");
       }
 
-      // Call activate-free-plan edge function to create payment + invoice
       const activateRes = await supabase.functions.invoke('activate-free-plan', {
         body: {
           plan: selectedPlan,
@@ -194,25 +173,17 @@ export function PaymentGateway({
       });
 
       if (activateRes.error) {
-        console.error("Edge function error:", activateRes.error);
         throw new Error(activateRes.error.message || 'Failed to activate plan');
       }
 
       const result = activateRes.data;
-      
+
       if (!result?.success) {
-        console.error("Activation response:", result);
         throw new Error(result?.error || 'Plan activation failed');
       }
 
-      toast({
-        title: "✓ Plan Activated!",
-        description: `Your ${selectedPlan} plan is now active.`,
-      });
-
-      // Refresh profile and redirect to success page
       await refreshProfile();
-      
+
       navigate(
         `/payment-success?plan=${selectedPlan}&amount=0&type=subscription&coupon=${couponValidation.code}&invoice=${result.invoice_number || ''}`,
         { replace: true }
@@ -220,18 +191,12 @@ export function PaymentGateway({
 
     } catch (error) {
       console.error("Free activation error:", error);
-      toast({
-        title: "Activation Failed",
-        description: error instanceof Error ? error.message : "Could not activate plan. Please contact support.",
-        variant: "destructive",
-      });
       throw error;
     } finally {
       setIsActivating(false);
     }
   };
 
-  // 🌀 Loading Overlay
   if (isProcessing || isActivating) {
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -247,7 +212,6 @@ export function PaymentGateway({
     );
   }
 
-  // Already subscribed UI
   if (!canPurchase && currentPlan === selectedPlan && !isExpired) {
     return (
       <Card className="w-full max-w-md mx-auto border-orange-200">
@@ -272,7 +236,6 @@ export function PaymentGateway({
     );
   }
 
-  // Main UI
   return (
     <div className="min-h-screen flex items-center justify-center">
       <Card className="w-full max-w-lg">
@@ -288,17 +251,16 @@ export function PaymentGateway({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-        {/* ✅ Plan Features Section */}
-<div className="mt-4 bg-gray-50 rounded-lg p-4">
-  <h4 className="font-semibold text-sm mb-3 text-gray-700">
-    What’s included in the {plan.name} plan:
-  </h4>
-  <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
-    {plan.features.map((feature, index) => (
-      <li key={index}>{feature}</li>
-    ))}
-  </ul>
-</div>
+          <div className="mt-4 bg-gray-50 rounded-lg p-4">
+            <h4 className="font-semibold text-sm mb-3 text-gray-700">
+              What's included in the {plan.name} plan:
+            </h4>
+            <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
+              {plan.features.map((feature, index) => (
+                <li key={index}>{feature}</li>
+              ))}
+            </ul>
+          </div>
 
           <div>
             <h4 className="font-medium text-sm mb-2">Coupon Code</h4>

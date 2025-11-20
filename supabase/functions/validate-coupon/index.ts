@@ -1,218 +1,187 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
-
-serve(async (req) => {
+Deno.serve(async (req)=>{
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
-
   if (req.method === "OPTIONS") {
     return handleCorsPreflightRequest(req);
   }
-
   try {
-    const { code, amount, type } = await req.json();
-
-    if (!code || !amount || !type) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          message: "Missing required fields",
-        }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Server configuration error");
     }
-
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          persistSession: false,
-        },
-      }
-    );
-
-    // Validate authentication
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Authenticate user
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          message: "Authentication required",
-        }),
-        {
-          status: 401,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          message: "Invalid authentication",
-        }),
-        {
-          status: 401,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    // -------------------------
-    // 🔥 CASE-INSENSITIVE COUPON MATCH
-    // -------------------------
-    const normalizedCode = code.trim().toLowerCase();
-
-    const { data: coupon, error: couponError } = await supabaseAdmin
-      .from("coupons")
-      .select("*")
-      .ilike("code", normalizedCode) // 🔥 FIXED — case-insensitive
-      .eq("active", true)
-      .single();
-
-    if (couponError || !coupon) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          discount: 0,
-          message: "Invalid coupon code",
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    // Check expiry
-    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          discount: 0,
-          message: "This coupon has expired",
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    // Check usage limit
-    if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          discount: 0,
-          message: "This coupon has reached its usage limit",
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    // Validate coupon type
-    if (coupon.type !== "both" && coupon.type !== type) {
-      return new Response(
-        JSON.stringify({
-          isValid: false,
-          discount: 0,
-          message: `This coupon is only valid for ${coupon.type} purchases`,
-        }),
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    // -------------------------
-    // 🎯 Calculate discount
-    // -------------------------
-    let discount = 0;
-    let discountType = "fixed";
-
-    if (coupon.discount_percentage > 0) {
-      discount = Math.floor((amount * coupon.discount_percentage) / 100);
-      discountType = "percentage";
-    } else if (coupon.discount_amount > 0) {
-      discount = Math.min(coupon.discount_amount, amount);
-      discountType = "fixed";
-    }
-
-    discount = Math.min(discount, amount);
-
-    return new Response(
-      JSON.stringify({
-        isValid: true,
-        discount,
-        type: discountType,
-        message: `Coupon applied! You saved ₹${discount}`,
-        code: coupon.code,
-      }),
-      {
-        status: 200,
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "Authentication required"
+      }), {
+        status: 401,
         headers: {
           ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-  } catch (error) {
-    console.error("Coupon validation error:", error);
-
-    return new Response(
-      JSON.stringify({
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    const token = authHeader.replace("Bearer ", "").trim();
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !userData?.user) {
+      return new Response(JSON.stringify({
         isValid: false,
-        discount: 0,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Error validating coupon",
-      }),
-      {
+        message: "Invalid authentication"
+      }), {
+        status: 401,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    // Parse request body
+    const { code, amount, type } = await req.json();
+    console.log("Validating coupon:", {
+      code,
+      amount,
+      type
+    });
+    if (!code || !amount || !type) {
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "Missing required parameters"
+      }), {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    // Validate amount is a positive number
+    const numericAmount = Number(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "Invalid amount"
+      }), {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    // Query coupon from database
+    const normalizedCode = code.trim();
+    const { data: coupons, error: couponError } = await supabase.from("coupons").select("*").ilike("code", normalizedCode) // case-insensitive
+    .eq("active", true).in("type", [
+      type,
+      "both"
+    ]);
+    if (couponError) {
+      console.error("Database error:", couponError);
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "Error validating coupon"
+      }), {
         status: 500,
         headers: {
           ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    if (!coupons || coupons.length === 0) {
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "Invalid or expired coupon code"
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    const coupon = coupons[0];
+    // Check if coupon is expired
+    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "This coupon has expired"
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    // Check usage limit
+    if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+      return new Response(JSON.stringify({
+        isValid: false,
+        message: "This coupon has reached its maximum usage limit"
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+    // Calculate discount based on the EXACT amount passed in
+    let discount = 0;
+    let discountType = "fixed";
+    // Check which discount field is being used
+    if (coupon.discount_percentage && coupon.discount_percentage > 0) {
+      // Percentage discount
+      discountType = "percentage";
+      // ✅ CRITICAL: Use the exact amount and apply consistent rounding
+      const percentageDiscount = numericAmount * coupon.discount_percentage / 100;
+      discount = Math.ceil(percentageDiscount); // Round up to match frontend
+    } else if (coupon.discount_amount && coupon.discount_amount > 0) {
+      // Fixed amount discount
+      discountType = "fixed";
+      discount = coupon.discount_amount;
+    }
+    // ✅ CRITICAL: Ensure discount never exceeds the amount
+    discount = Math.min(discount, numericAmount);
+    console.log("Coupon validation result:", {
+      code,
+      discount,
+      discountType,
+      originalAmount: numericAmount
+    });
+    return new Response(JSON.stringify({
+      isValid: true,
+      valid: true,
+      discount: discount,
+      message: `Coupon applied! You save ₹${discount}`,
+      type: discountType,
+      originalAmount: numericAmount
+    }), {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
       }
-    );
+    });
+  } catch (error) {
+    console.error("Validate coupon error:", error);
+    return new Response(JSON.stringify({
+      isValid: false,
+      message: "Error validating coupon. Please try again."
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
+    });
   }
 });

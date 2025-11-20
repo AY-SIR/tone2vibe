@@ -1,8 +1,7 @@
-
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
-import { generateInvoicePDF } from "./helpers.ts";
+import { generateInvoiceHTML } from "../_shared/invoice-template.ts";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -13,42 +12,62 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Env
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const razorpayKeySecret = Deno.env.get("RAZORPAY_KEY_SECRET");
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error("Supabase env vars not configured");
-    }
     if (!razorpayKeySecret) {
-      throw new Error("Razorpay key secret not configured");
+      throw new Error("Payment configuration error");
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Auth
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization header");
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authData?.user) throw new Error("Unauthorized");
-    const user = authData.user;
-
-    // Body
-    const body = await req.json().catch(() => ({}));
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    } = body;
-
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      throw new Error("Missing required Razorpay fields");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Please log in to continue."
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
     }
 
-    // Verify signature: HMAC SHA256 of "<order_id>|<payment_id>" using RAZORPAY_KEY_SECRET
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Your session has expired. Please log in again."
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Payment verification failed due to missing information."
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    // Verify Razorpay signature
     const text = `${razorpay_order_id}|${razorpay_payment_id}`;
     const encoder = new TextEncoder();
     const keyData = encoder.encode(razorpayKeySecret);
@@ -62,53 +81,82 @@ Deno.serve(async (req) => {
       ["sign"]
     );
 
-    const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, message);
-    const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, "0"))
+    const signature = await crypto.subtle.sign("HMAC", cryptoKey, message);
+    const expectedSignature = Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
     if (expectedSignature !== razorpay_signature) {
-      throw new Error("Invalid payment signature");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Payment verification failed. Please contact support if amount was deducted."
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
     }
 
-    // Fetch payment record (assumes you originally created a payments row keyed by razorpay_order_id)
+    // Fetch payment record
     const { data: payment, error: paymentFetchError } = await supabase
       .from("payments")
       .select("*")
-      .eq("payment_id", razorpay_order_id) // adjust column if you store order id in a different field
+      .eq("payment_id", razorpay_order_id)
       .eq("user_id", user.id)
       .single();
 
     if (paymentFetchError || !payment) {
-      throw new Error("Payment record not found");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Payment record not found. Please contact support."
+        }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
     }
 
-    // Update payment status to completed and set real payment id
+    // Update payment status
     const { error: updateError } = await supabase
       .from("payments")
       .update({
         status: "completed",
-        payment_id: razorpay_payment_id, // store actual payment id
+        payment_id: razorpay_payment_id
       })
       .eq("payment_id", razorpay_order_id)
       .eq("user_id", user.id);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Unable to update payment status. Please contact support."
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    let wordsPurchased = null;
+    let userPlan = payment.plan;
 
     // Handle subscription or word purchase
-    let wordsPurchased: number | null = null;
-
     if (payment.plan) {
-      // subscription
-      const planLimits: Record<string, { words_limit: number; upload_limit_mb: number }> = {
+      // Subscription payment
+      const planLimits = {
         pro: { words_limit: 10000, upload_limit_mb: 25 },
-        premium: { words_limit: 50000, upload_limit_mb: 100 },
+        premium: { words_limit: 50000, upload_limit_mb: 100 }
       };
 
-      const limits = planLimits[payment.plan] || { words_limit: 10000, upload_limit_mb: 25 };
+      const limits = planLimits[payment.plan];
 
-      // Call stored procedure to update profile safely
-      const { error: rpcError } = await supabase.rpc('safe_update_profile_for_subscription', {
+      const { error: profileError } = await supabase.rpc("safe_update_profile_for_subscription", {
         p_user_id: user.id,
         p_plan: payment.plan,
         p_words_limit: limits.words_limit,
@@ -119,109 +167,203 @@ Deno.serve(async (req) => {
         p_plan_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         p_last_payment_amount: payment.amount,
         p_last_payment_id: razorpay_payment_id,
-        p_last_payment_method: 'razorpay'
+        p_last_payment_method: "razorpay"
       });
-      if (rpcError) throw rpcError;
+
+      if (profileError) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Payment verified but unable to activate plan. Please contact support."
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
     } else {
-      // word purchase: compute words based on previous logic
-      const { data: userProfile, error: profileErr } = await supabase
-        .from('profiles')
-        .select('plan')
-        .eq('user_id', user.id)
+      // Word purchase - get user's current plan
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("plan")
+        .eq("user_id", user.id)
         .single();
 
-      const pricePerThousand = userProfile?.plan === 'premium' ? 9 : 11;
-      const wordCount = Math.floor((payment.amount / 100) / pricePerThousand * 1000);
+      userPlan = userProfile?.plan || "pro";
+      const pricePerThousand = userPlan === "premium" ? 9 : 11;
+      const wordCount = Math.floor((payment.amount / pricePerThousand) * 1000);
       wordsPurchased = wordCount;
 
-      const { error: addWordsError } = await supabase.rpc('add_purchased_words', {
+      // Create word purchase record
+      const { error: wordPurchaseError } = await supabase
+        .from("word_purchases")
+        .insert({
+          user_id: user.id,
+          words_purchased: wordCount,
+          amount_paid: payment.amount,
+          currency: "INR",
+          payment_id: razorpay_payment_id,
+          payment_method: "razorpay",
+          status: "completed"
+        });
+
+      if (wordPurchaseError) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Payment verified but unable to record word purchase. Please contact support."
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
+
+      // Add words to account
+      const { error: rpcError } = await supabase.rpc("add_purchased_words", {
         user_id_param: user.id,
         words_to_add: wordCount,
         payment_id_param: razorpay_payment_id
       });
-      if (addWordsError) throw addWordsError;
+
+      if (rpcError) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Payment verified but unable to credit words. Please contact support."
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          }
+        );
+      }
     }
 
-    // --- Generate PDF bytes using helper ---
-    // Get profile details to include on invoice
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, email')
-      .eq('user_id', user.id)
-      .single();
-
+    // Generate invoice
     const invoiceNumber = `INV-${Date.now()}-${user.id.substring(0, 8)}`;
 
-    const pdfBytes = await generateInvoicePDF(
-      invoiceNumber,
-      payment,
-      profile,
-      razorpay_payment_id,
-      razorpay_order_id,
-      wordsPurchased
-    ); // returns Uint8Array
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("user_id", user.id)
+      .single();
 
-    // Upload PDF to storage bucket 'invoices'
-    const pdfPath = `${user.id}/${invoiceNumber}.pdf`;
-
-    // supabase-js upload in Deno accepts a Blob or Uint8Array
-    const uploadResult = await supabase.storage
-      .from("invoices")
-      .upload(pdfPath, new Blob([pdfBytes]), {
-        contentType: "application/pdf",
-        upsert: true,
-      });
-
-    if (uploadResult.error) {
-      throw uploadResult.error;
+    let items = [];
+    if (payment.plan) {
+      items = [
+        {
+          description: `${payment.plan.charAt(0).toUpperCase() + payment.plan.slice(1)} Plan - Monthly Subscription`,
+          quantity: 1,
+          rate: payment.amount,
+          amount: payment.amount
+        }
+      ];
+    } else {
+      const pricePerThousand = userPlan === "premium" ? 9 : 11;
+      items = [
+        {
+          description: `${wordsPurchased.toLocaleString()} Words (${userPlan.toUpperCase()} Plan - ₹${pricePerThousand}/1000 words)`,
+          quantity: 1,
+          rate: payment.amount,
+          amount: payment.amount
+        }
+      ];
     }
 
-    // Insert invoice record in DB (store path in pdf_url)
-    const { data: invoiceData, error: invoiceInsertError } = await supabase
+    const invoiceHTML = generateInvoiceHTML({
+      invoiceNumber,
+      customerName: profile?.full_name || "Valued Customer",
+      customerEmail: profile?.email || "",
+      date: new Date().toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      }),
+      time: new Date().toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit"
+      }),
+      transactionId: razorpay_payment_id,
+      paymentMethod: "Razorpay",
+      items,
+      subtotal: payment.amount,
+      discount: 0,
+      total: payment.amount,
+      isFree: false,
+      razorpayDetails: {
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id
+      },
+      wordDetails: wordsPurchased
+        ? {
+            words: wordsPurchased,
+            plan: userPlan,
+            pricePerThousand: userPlan === "premium" ? 9 : 11
+          }
+        : null
+    });
+
+    // Store invoice
+    const { data: invoiceData } = await supabase
       .from("invoices")
       .insert({
         user_id: user.id,
         payment_id: razorpay_payment_id,
         invoice_number: invoiceNumber,
-        invoice_type: payment.plan ? 'subscription' : 'words',
+        invoice_type: payment.plan ? "subscription" : "words",
         amount: payment.amount,
         currency: payment.currency,
-        plan_name: payment.plan,
+        plan_name: payment.plan || userPlan,
         words_purchased: wordsPurchased,
-        payment_method: 'razorpay',
+        payment_method: "razorpay",
         razorpay_order_id: razorpay_order_id,
         razorpay_payment_id: razorpay_payment_id,
-        razorpay_signature: razorpay_signature,
-        pdf_url: pdfPath
+        razorpay_signature: razorpay_signature
       })
       .select()
       .single();
 
-    if (invoiceInsertError) {
-      throw invoiceInsertError;
+    if (invoiceData) {
+      const invoiceBlob = new Blob([invoiceHTML], { type: "text/html" });
+      const invoicePath = `${user.id}/${invoiceNumber}.html`;
+
+      await supabase.storage
+        .from("invoices")
+        .upload(invoicePath, invoiceBlob, {
+          contentType: "text/html",
+          upsert: true
+        });
+
+      await supabase
+        .from("invoices")
+        .update({ pdf_url: invoicePath })
+        .eq("id", invoiceData.id);
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         payment_id: razorpay_payment_id,
-        invoice: { id: invoiceData.id, pdf_path: pdfPath },
-        message: "Payment verified and PDF invoice created & uploaded"
+        invoice_number: invoiceNumber,
+        message: "Payment verified successfully"
       }),
       {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Payment verification error:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error?.message || String(error),
+        error: "Unable to verify payment. Please contact support if amount was deducted."
       }),
       {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
   }

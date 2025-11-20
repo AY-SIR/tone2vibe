@@ -7,18 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CreditCard, Package, AlertTriangle, IndianRupee, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { LocationCacheService } from "@/services/locationCache";
 import { RazorpayService } from "@/services/razorpay";
 import { CouponInput } from "@/components/payment/couponInput";
 import { CouponService, type CouponValidation } from "@/services/couponService";
-import { v4 as uuidv4 } from "uuid";
 import { WordService } from "@/services/wordService";
 
 export function WordPurchase() {
   const { user, profile } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const [wordsAmount, setWordsAmount] = useState<number>(1000);
@@ -31,7 +28,6 @@ export function WordPurchase() {
     code: "",
   });
 
-  // --- Safe helpers ---
   const getUserPlan = () => profile?.plan || "free";
   const getWordBalance = () => profile?.word_balance || 0;
 
@@ -61,240 +57,148 @@ export function WordPurchase() {
 
   const handleCouponApplied = (validation: CouponValidation) => setCouponValidation(validation);
 
-  // --- Purchase handler ---
   const handlePurchase = () => {
     if (!user || !profile) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to purchase words.",
-        variant: "destructive",
-      });
+      navigate("/login");
       return;
     }
 
     if (!canPurchaseWords()) {
-      toast({
-        title: "Upgrade Required",
-        description: "Word purchases are only available for Pro and Premium users.",
-        variant: "destructive",
-      });
+      navigate("/payment");
       return;
     }
 
-    if (wordsAmount < 1000) {
-      toast({
-        title: "Minimum Purchase Required",
-        description: "Minimum purchase is 1000 words.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (wordsAmount < 1000) return;
 
     const maxAvailable = getMaxPurchaseLimit();
-    if (wordsAmount > maxAvailable) {
-      toast({
-        title: "Limit Exceeded",
-        description: `You can only purchase up to ${maxAvailable.toLocaleString()} more words.`,
-        variant: "destructive",
-      });
-      return;
-    }
+    if (wordsAmount > maxAvailable) return;
 
     setShowPaymentGateway(true);
   };
 
- const handlePaymentGateway = async () => {
-  setLoading(true);
-  
-  toast({
-    title: "Processing Request",
-    description: "Initializing payment gateway...",
-  });
+  const handlePaymentGateway = async () => {
+    setLoading(true);
 
-  try {
-    // ✅ Use cached location to avoid repeat API hits
-    let location = LocationCacheService.getCachedLocation();
-    if (!location) {
-      toast({
-        title: "Checking Location",
-        description: "Verifying service availability...",
-      });
-      location = await LocationCacheService.getLocation();
-    }
+    try {
+      let location = LocationCacheService.getCachedLocation();
+      if (!location) {
+        location = await LocationCacheService.getLocation();
+      }
 
-    if (!location?.isIndian) {
-      toast({
-        title: "Service Unavailable",
-        description: `This service is only available in India. Your detected location: ${location?.country || "Unknown"}`,
-        variant: "destructive",
-      });
-      setShowPaymentGateway(false);
-      return;
-    }
-
-    // ✅ Free purchase path
-    if (finalAmount === 0) {
-      if (!couponValidation.isValid || !couponValidation.code) {
-        toast({
-          title: "Coupon Required",
-          description: "A valid coupon code is required for free word purchases.",
-          variant: "destructive",
-        });
+      if (!location?.isIndian) {
+        navigate(`/payment-failed?reason=${encodeURIComponent("This service is only available in India")}&type=words`);
         return;
       }
-      toast({
-        title: "Processing Free Purchase",
-        description: "Applying your coupon and adding words...",
-      });
-      await handleFreeWordPurchase();
-      return;
-    }
 
-    // ✅ Pre-check: warm Razorpay API call early
-    toast({
-      title: "Connecting to Payment Gateway",
-      description: "Setting up your payment...",
-    });
-    
-    const paymentPromise = RazorpayService.createWordPayment(
-      wordsAmount,
-      user!.email || "",
-      user!.user_metadata?.full_name || "User",
-      getUserPlan()
-    );
-
-    const result = await paymentPromise;
-
-    if (result.success && result.order_id && result.razorpay_key) {
-      toast({
-        title: "Opening Payment Gateway",
-        description: "Complete your payment in the popup window.",
-      });
-      
-      // Open Razorpay checkout
-      RazorpayService.openCheckout(
-        result.order_id,
-        result.razorpay_key,
-        result.amount!,
-        result.currency!,
-        user!.user_metadata?.full_name || "User",
-        user!.email || "",
-        user!.phone || "",
-        `${wordsAmount} Words Purchase`,
-        async (razorpayResponse: any) => {
-          // Payment successful - verify
-          toast({
-            title: "Payment Received",
-            description: "Verifying your payment...",
-          });
-          
-          const verifyResponse = await RazorpayService.verifyPayment(
-            razorpayResponse.razorpay_order_id,
-            razorpayResponse.razorpay_payment_id,
-            razorpayResponse.razorpay_signature
-          );
-
-          if (verifyResponse.success) {
-            toast({
-              title: "✓ Purchase Successful!",
-              description: `${wordsAmount.toLocaleString()} words have been added to your account.`,
-            });
-            navigate(`/payment-success?words=${wordsAmount}&type=word_purchase`);
-          } else {
-            console.error("Verification failed:", verifyResponse);
-            toast({
-              title: "Verification Failed",
-              description: verifyResponse.message || "Could not verify your payment. Please contact support.",
-              variant: "destructive",
-            });
-            navigate(`/payment-failed?reason=${encodeURIComponent(verifyResponse.message || "Verification failed")}&type=words`);
-          }
-        },
-        (error: any) => {
-          console.error("Payment failed:", error);
-          const errorMessage = error.message || error.description || "Payment was cancelled or failed.";
-          toast({
-            title: "Payment Failed",
-            description: errorMessage,
-            variant: "destructive",
-          });
-          navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
+      if (finalAmount === 0) {
+        if (!couponValidation.isValid || !couponValidation.code) {
+          return;
         }
+        await handleFreeWordPurchase();
+        return;
+      }
+
+      const result = await RazorpayService.createWordPayment(
+        wordsAmount,
+        user!.email || "",
+        user!.user_metadata?.full_name || "User",
+        getUserPlan() // ✅ NOW SENDING PLAN
       );
-    } else {
-      throw new Error(result.message || "Failed to initialize payment gateway");
+
+      if (result.success && result.order_id && result.razorpay_key) {
+        RazorpayService.openCheckout(
+          result.order_id,
+          result.razorpay_key,
+          result.amount!,
+          result.currency!,
+          user!.user_metadata?.full_name || "User",
+          user!.email || "",
+          user!.phone || "",
+          `${wordsAmount} Words Purchase`,
+          async (razorpayResponse: any) => {
+            const verifyResponse = await RazorpayService.verifyPayment(
+              razorpayResponse.razorpay_order_id,
+              razorpayResponse.razorpay_payment_id,
+              razorpayResponse.razorpay_signature
+            );
+
+            if (verifyResponse.success) {
+              navigate(`/payment-success?words=${wordsAmount}&type=word_purchase&invoice=${verifyResponse.invoice_number || ''}`);
+            } else {
+              await markPaymentFailed(razorpayResponse.razorpay_order_id, verifyResponse.message || "Verification failed", "words");
+              navigate(`/payment-failed?reason=${encodeURIComponent(verifyResponse.message || "Verification failed")}&type=words`);
+            }
+          },
+          async (error: any) => {
+            const errorMessage = error.message || error.description || "Payment was cancelled";
+            await markPaymentFailed(result.order_id!, errorMessage, "words");
+            navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
+          }
+        );
+      } else {
+        throw new Error(result.message || "Failed to initialize payment");
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong";
+      navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
+    } finally {
+      setLoading(false);
     }
+  };
 
-  } catch (error) {
-    console.error("Payment error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Something went wrong. Please try again.";
-    toast({
-      title: "Payment Error",
-      description: errorMessage,
-      variant: "destructive",
-    });
-    navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleFreeWordPurchase = async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
 
+      if (!session?.access_token) {
+        throw new Error("Session expired. Please log in again.");
+      }
 
-const handleFreeWordPurchase = async () => {
-  try {
-    toast({
-      title: "Processing Free Purchase",
-      description: "Applying coupon and adding words...",
-    });
-    
-  const { data: sessionData } = await supabase.auth.getSession();
-const session = sessionData?.session;
+      const { data, error } = await supabase.functions.invoke("free-word-purchase", {
+        body: {
+          coupon_code: couponValidation.code,
+          words_amount: wordsAmount,
+          user_plan: getUserPlan() // ✅ NOW SENDING PLAN
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-if (!session?.access_token) {
-  throw new Error("User session missing. Please log in again.");
-}
+      if (error) {
+        throw new Error(error.message || "Failed to process free purchase");
+      }
 
-const { data, error } = await supabase.functions.invoke(
-  "free-word-purchase",
-  {
-    body: {
-      coupon_code: couponValidation.code,
-      words_amount: wordsAmount,
-    },
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  }
-);
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to add words");
+      }
 
-
-    if (error) {
-      console.error("Edge function error:", error);
-      throw new Error(error.message || "Backend error occurred");
+      navigate(`/payment-success?words=${wordsAmount}&type=free&invoice=${data.invoice_number || ''}`);
+    } catch (err) {
+      console.error("Free word purchase error:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to process purchase";
+      navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
     }
-    
-    if (!data?.success) {
-      console.error("Free purchase failed:", data);
-      throw new Error(data?.error || "Failed to add words");
+  };
+
+  const markPaymentFailed = async (orderId: string, reason: string, type: string) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
+
+      if (!session?.access_token) return;
+
+      await supabase.functions.invoke("mark-payment-failed", {
+        body: { order_id: orderId, reason, type },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+    } catch (error) {
+      console.error("Failed to mark payment as failed:", error);
     }
+  };
 
-
-
-    navigate(`/payment-success?words=${wordsAmount}&type=free`);
-  } catch (err) {
-    console.error("Free word purchase error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Failed to process free purchase";
-    toast({
-      title: "Purchase Failed",
-      description: errorMessage,
-      variant: "destructive",
-    });
-    navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
-  }
-};
-
-
-  // --- Loading / upgrade UI ---
   if (!user || !profile) {
     return (
       <Card className="w-full max-w-md mx-auto">
@@ -334,7 +238,6 @@ const { data, error } = await supabase.functions.invoke(
 
   return (
     <>
-      {/* Main Card */}
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="p-3 sm:p-6">
           <CardTitle className="flex items-center space-x-2 text-base sm:text-lg md:text-xl">
@@ -347,7 +250,6 @@ const { data, error } = await supabase.functions.invoke(
         </CardHeader>
 
         <CardContent className="space-y-4 p-3 sm:p-6">
-          {/* Usage Info */}
           <div className="bg-gray-50 rounded-lg p-3">
             <h3 className="font-medium mb-2 text-xs sm:text-sm">Current Usage</h3>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -373,16 +275,8 @@ const { data, error } = await supabase.functions.invoke(
                 </div>
               </div>
             )}
-
-            <div className="mt-2 text-xs text-gray-500 space-y-1">
-              <p><strong>Plan:</strong> {getUserPlan().toUpperCase()} - {getUserPlan() === 'free' ? '1,000' : getUserPlan() === 'pro' ? '10,000' : '50,000'} words/month</p>
-              {getUserPlan() !== 'free' && (
-                <p><strong>Can Purchase:</strong> Up to {getUserPlan() === 'pro' ? '36,000' : '49,000'} additional words</p>
-              )}
-            </div>
           </div>
 
-          {/* Purchase Section */}
           {maxAvailable > 0 ? (
             <>
               <div className="space-y-2">
@@ -444,11 +338,6 @@ const { data, error } = await supabase.functions.invoke(
               <p className="text-xs text-gray-500 mt-1">
                 You've reached the maximum word limit for your {getUserPlan()} plan.
               </p>
-              {getUserPlan() === "pro" && (
-                <p className="text-xs text-gray-500 mt-2">
-                  Upgrade to Premium for higher purchase limits (49k additional words).
-                </p>
-              )}
             </div>
           )}
 
@@ -458,7 +347,6 @@ const { data, error } = await supabase.functions.invoke(
         </CardContent>
       </Card>
 
-      {/* Payment Dialog */}
       <Dialog open={showPaymentGateway} onOpenChange={setShowPaymentGateway}>
         <DialogContent className="w-[95vw] max-w-[400px] p-4 sm:p-6 rounded-lg" aria-describedby={undefined}>
           <DialogHeader className="pb-4">
@@ -481,29 +369,28 @@ const { data, error } = await supabase.functions.invoke(
 
             <div className="space-y-2 px-2 sm:px-0">
               <Button
-  onClick={async () => {
-    setLoading(true);
-    await handlePaymentGateway();
-  }}
-  disabled={loading || (finalAmount === 0 && !couponValidation.isValid)}
-  className={`w-full flex items-center justify-center gap-2 ${
-    finalAmount === 0 ? "bg-green-500 hover:bg-green-600" : "bg-orange-500 hover:bg-orange-600"
-  } text-white text-xs sm:text-sm px-3 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed`}
->
-  {loading ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
-  ) : (
-    <IndianRupee className="h-4 w-4" />
-  )}
-  <span className="truncate">
-    {loading
-      ? "Processing..."
-      : finalAmount === 0
-      ? `Get ${wordsAmount.toLocaleString()} Words FREE`
-      : `Pay ₹${finalAmount} - Secure Payment`}
-  </span>
-</Button>
-
+                onClick={async () => {
+                  setLoading(true);
+                  await handlePaymentGateway();
+                }}
+                disabled={loading || (finalAmount === 0 && !couponValidation.isValid)}
+                className={`w-full flex items-center justify-center gap-2 ${
+                  finalAmount === 0 ? "bg-green-500 hover:bg-green-600" : "bg-orange-500 hover:bg-orange-600"
+                } text-white text-xs sm:text-sm px-3 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <IndianRupee className="h-4 w-4" />
+                )}
+                <span className="truncate">
+                  {loading
+                    ? "Processing..."
+                    : finalAmount === 0
+                    ? `Get ${wordsAmount.toLocaleString()} Words FREE`
+                    : `Pay ₹${finalAmount} - Secure Payment`}
+                </span>
+              </Button>
 
               <p className="text-[10px] sm:text-xs text-gray-500 text-center px-1 sm:px-0">
                 {finalAmount === 0

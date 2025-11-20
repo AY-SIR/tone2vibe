@@ -68,6 +68,9 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
     onCouponApplied(reset);
   };
 
+  // Calculate if the purchase is free after discount
+  const isFree = validation.isValid && validation.discount >= amount;
+
   return (
     <div className="space-y-3">
       <div className="space-y-2">
@@ -77,21 +80,25 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
         </Label>
 
         <div className="flex gap-2">
-          <Input
-            id="coupon-code"
-            type="text"
-            placeholder="Enter coupon code"
-            value={couponCode}
-            onChange={(e) => setCouponCode(e.target.value)}
-            disabled={disabled || loading || validation.isValid}
-            className="text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !validation.isValid) {
-                e.preventDefault();
-                handleApplyCoupon();
-              }
-            }}
-          />
+         <Input
+  id="coupon-code"
+  type="text"
+  placeholder="Enter coupon code"
+  value={couponCode}
+  onChange={(e) => setCouponCode(e.target.value)}
+  disabled={disabled || loading || validation.isValid}
+  className="text-sm"
+  autoCapitalize="none"
+  autoCorrect="off"
+  spellCheck={false}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" && !validation.isValid) {
+      e.preventDefault();
+      handleApplyCoupon();
+    }
+  }}
+/>
+
 
           {!validation.isValid ? (
             <Button
@@ -100,7 +107,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
               disabled={disabled || loading || !couponCode.trim()}
               variant="outline"
               size="sm"
-              className="text-xs sm:text-sm px-3 sm:px-4"
+              className="text-xs sm:text-sm px-3 sm:px-4 whitespace-nowrap"
             >
               {loading ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> : "Apply"}
             </Button>
@@ -111,7 +118,7 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
               disabled={disabled}
               variant="outline"
               size="sm"
-              className="text-xs sm:text-sm px-3 sm:px-4"
+              className="text-xs sm:text-sm px-3 sm:px-4 whitespace-nowrap"
             >
               Remove
             </Button>
@@ -136,35 +143,20 @@ export function CouponInput({ amount, type, onCouponApplied, disabled }: CouponI
           <div className="flex-1">
             <p className="font-medium">{validation.message}</p>
 
-            {/* ✅ Only show discount info if valid and has discount */}
-            {validation.isValid && (
-              <p className="text-xs mt-1 opacity-90">
-                Code:{" "}
-                <span className="font-mono font-bold">{validation.code}</span>{" "}
-                {validation.discountType === "percentage" &&
-                  validation.discount >= amount && (
-                    <span className="text-green-700 font-semibold">
-                      (FREE!)
-                    </span>
+            {/* Show discount details if valid */}
+            {validation.isValid && validation.discount > 0 && (
+              <div className="text-xs mt-1 opacity-90 space-y-0.5">
+                <p>
+                  Code: <span className="font-mono font-bold">{validation.code}</span>
+                </p>
+                <p className="font-semibold">
+                  {isFree ? (
+                    <span className="text-green-700"> Your purchase is FREE!</span>
+                  ) : (
+                    <span>You save ₹{validation.discount}</span>
                   )}
-                {validation.discountType === "percentage" &&
-                  validation.discount > 0 &&
-                  validation.discount < amount && (
-                    <span>
-                      (
-                      {Math.round(
-                        (validation.discount /
-                          (validation.originalAmount || amount)) *
-                          100
-                      )}
-                      % off)
-                    </span>
-                  )}
-                {validation.discountType === "fixed" &&
-                  validation.discount > 0 && (
-                    <span>(₹{validation.discount} off)</span>
-                  )}
-              </p>
+                </p>
+              </div>
             )}
           </div>
         </div>
