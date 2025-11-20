@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 //  Allow all origins, headers, and methods (universal CORS)
-function getCorsHeaders(origin) {
+function getCorsHeaders(origin: string) {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "*",

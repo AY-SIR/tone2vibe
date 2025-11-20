@@ -108,7 +108,7 @@ async function callGeminiLite(text: string) {
   } catch (err) {
     return new Response(JSON.stringify({
       success: false,
-      error: err.message
+      error: (err as Error).message
     }), {
       status: 500,
       headers: {

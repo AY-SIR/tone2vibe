@@ -37,7 +37,8 @@ const validateVoiceSettings = (settings: any) => {
   ];
 
   for (const [key, min, max] of numericChecks) {
-    if (typeof settings[key] === "number" && (settings[key] < min || settings[key] > max)) {
+    const value = settings[key];
+    if (typeof value === "number" && (value < (min as number) || value > (max as number))) {
       return false;
     }
   }
@@ -245,9 +246,8 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Generation function error:", error.message);
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Internal server error" }),
+      JSON.stringify({ success: false, error: (error as Error).message || "Internal server error" }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500
