@@ -174,7 +174,10 @@ Deno.serve(async (req) => {
   
   // OPTIONS — Preflight OK
   if (req.method === 'OPTIONS') {
-    return handleCorsPreflightRequest(req);
+    return new Response(null, {
+      headers: corsHeaders,
+      status: 204
+    });
   }
 
   try {
