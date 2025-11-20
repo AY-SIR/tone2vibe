@@ -73,13 +73,13 @@ Deno.serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      return createErrorResponse("Missing Supabase environment variables", 500);
+      return createErrorResponse("Missing Supabase environment variables", 500, corsHeaders);
     }
 
     // Auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return createErrorResponse("Missing authorization header", 401);
+      return createErrorResponse("Missing authorization header", 401, corsHeaders);
     }
 
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     const { data, error: authError } = await supabaseClient.auth.getUser();
     const user = data?.user ?? null;
     if (authError || !user) {
-      return createErrorResponse("User not authenticated", 401);
+      return createErrorResponse("User not authenticated", 401, corsHeaders);
     }
 
     // Parse JSON body
@@ -97,29 +97,29 @@ Deno.serve(async (req) => {
     try {
       body = await req.json();
     } catch (e) {
-      return createErrorResponse("Invalid JSON in request body", 400);
+      return createErrorResponse("Invalid JSON in request body", 400, corsHeaders);
     }
 
     // Required fields
     if (!body.text || typeof body.text !== "string") {
-      return createErrorResponse("Invalid or missing 'text' field", 400);
+      return createErrorResponse("Invalid or missing 'text' field", 400, corsHeaders);
     }
     if (!body.voice_settings || typeof body.voice_settings !== "object") {
-      return createErrorResponse("Invalid or missing 'voice_settings' field", 400);
+      return createErrorResponse("Invalid or missing 'voice_settings' field", 400, corsHeaders);
     }
     if (!body.language || typeof body.language !== "string") {
-      return createErrorResponse("Invalid or missing 'language' field", 400);
+      return createErrorResponse("Invalid or missing 'language' field", 400, corsHeaders);
     }
 
     // Validate voice settings
     if (!validateVoiceSettings(body.voice_settings)) {
-      return createErrorResponse("Invalid voice settings format", 400);
+      return createErrorResponse("Invalid voice settings format", 400, corsHeaders);
     }
 
     // Sanitize text
     const sanitizedText = sanitizeText(body.text);
     if (!sanitizedText) {
-      return createErrorResponse("Text content is empty after sanitization", 400);
+      return createErrorResponse("Text content is empty after sanitization", 400, corsHeaders);
     }
 
     // ✅ Only use provided word count
@@ -129,17 +129,17 @@ Deno.serve(async (req) => {
         : 0;
 
     if (providedWordCount === 0) {
-      return createErrorResponse("Missing or invalid 'word_count' value", 400);
+      return createErrorResponse("Missing or invalid 'word_count' value", 400, corsHeaders);
     }
 
     if (providedWordCount > 100) {
-      return createErrorResponse("Sample text exceeds 100 word limit", 400);
+      return createErrorResponse("Sample text exceeds 100 word limit", 400, corsHeaders);
     }
 
     // Voice ID format validation
     const voiceIdPattern = /^[a-zA-Z0-9_-]{1,100}$/;
     if (!voiceIdPattern.test(body.voice_settings.voice_id)) {
-      return createErrorResponse("Invalid voice ID format", 400);
+      return createErrorResponse("Invalid voice ID format", 400, corsHeaders);
     }
 
     // Logging for debugging / monitoring
