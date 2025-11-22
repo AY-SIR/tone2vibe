@@ -248,9 +248,16 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       await navigator.clipboard.writeText(extractedText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast({ title: "Copied!", description: "Text copied to clipboard." });
+      toast({ 
+        title: "✅ Copied!", 
+        description: "Text copied to clipboard successfully." 
+      });
     } catch {
-      toast({ title: "Copy Failed", description: "Unable to copy.", variant: "destructive" });
+      toast({ 
+        title: "Copy Failed", 
+        description: "Unable to copy text to clipboard.", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -303,8 +310,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
     setConversionProgress(0);
 
     toast({
-      title: "Converting Audio",
-      description: `Converting to ${format.toUpperCase()}...`
+      title: "🔄 Converting Audio",
+      description: `Converting your audio to ${format.toUpperCase()} format...`
     });
 
     progressIntervalRef.current = setInterval(() => {
@@ -386,8 +393,8 @@ export const ModernStepFive: React.FC<ModernStepFiveProps> = ({
       setConversionProgress(100);
 
       toast({
-        title: "Download Complete",
-        description: `Audio downloaded as ${format.toUpperCase()}.`
+        title: "✅ Download Complete",
+        description: `Your audio has been successfully downloaded as ${format.toUpperCase()}.`
       });
 
     } catch (error: any) {

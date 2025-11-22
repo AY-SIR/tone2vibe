@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
+import html2pdf from "html2pdf.js";
 
 interface InvoiceDownloadProps {
   invoiceId: string;
@@ -14,6 +15,7 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
   const [loading, setLoading] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [invoiceHTML, setInvoiceHTML] = useState<string>("");
+  const { toast } = useToast();
 
   const fetchInvoice = async () => {
     try {
@@ -27,7 +29,6 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
       const userId = authData.user.id;
       const bucketName = "invoices";
 
-      // Fetch invoice using payment_id and user_id
       const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
         .select("pdf_url, invoice_number")
@@ -43,7 +44,6 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
         throw new Error("Invoice file path not found in database.");
       }
 
-      // pdf_url already stores just the path (e.g., "userId/invoiceNumber.html")
       const filePath = invoice.pdf_url;
 
       const { data: fileData, error: downloadError } = await supabase.storage
@@ -51,21 +51,23 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
         .download(filePath);
 
       if (downloadError) {
-        console.error("Storage Download Error:", downloadError);
         throw new Error(`Failed to download file: ${downloadError.message}`);
       }
 
       if (!fileData) {
-         throw new Error("Downloaded file data is empty.");
+        throw new Error("Downloaded file data is empty.");
       }
 
-      // Assuming the invoice content is stored as an HTML file
       const htmlContent = await fileData.text();
       return { htmlContent, invoiceNumber: invoice.invoice_number || invoiceNumber };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-      toast.error(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
       throw error;
     } finally {
       setLoading(false);
@@ -77,42 +79,49 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
       const { htmlContent } = await fetchInvoice();
       setInvoiceHTML(htmlContent);
       setViewDialogOpen(true);
+      toast({
+        title: "Invoice Loaded",
+        description: "Your invoice is ready to view."
+      });
     } catch (error) {
-      // Error is already logged and toasted in fetchInvoice
+      // Error already handled in fetchInvoice
     }
   };
 
   const handleDownload = async () => {
     try {
+      toast({
+        title: "Preparing Download",
+        description: "Converting invoice to PDF..."
+      });
+
       const { htmlContent, invoiceNumber: fetchedInvoiceNumber } = await fetchInvoice();
 
-      // Create a blob URL for download (better than print window for actual download)
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const blobUrl = URL.createObjectURL(blob);
+      // Convert HTML to PDF using html2pdf.js
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      
+      const opt = {
+        margin: 0,
+        filename: `Invoice-${fetchedInvoiceNumber}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      };
 
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `Invoice-${fetchedInvoiceNumber}.html`; // Download as HTML file
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
+      await html2pdf().set(opt).from(element).save();
 
-      toast.success("Download initiated successfully.");
-
-      // If you specifically want to trigger a print dialog:
-      // const printWindow = window.open('', '_blank');
-      // if (printWindow) {
-      //   printWindow.document.write(htmlContent);
-      //   printWindow.document.title = `Invoice-${fetchedInvoiceNumber}`;
-      //   printWindow.document.close();
-      //   printWindow.onload = () => {
-      //     printWindow.print();
-      //   };
-      // }
+      toast({
+        title: "Download Complete",
+        description: "Invoice PDF has been downloaded successfully."
+      });
 
     } catch (error) {
-      // Error is already logged and toasted in fetchInvoice
+      toast({
+        title: "Download Failed",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -135,12 +144,12 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
           variant="ghost"
           onClick={handleDownload}
           disabled={loading}
-          title="Download Invoice"
+          title="Download Invoice as PDF"
           className="flex items-center gap-2"
           size="sm"
         >
           <Download className="h-4 w-4" />
-          Download
+          {loading ? "Processing..." : "Download PDF"}
         </Button>
       </div>
 
@@ -151,7 +160,7 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
           </DialogHeader>
           <div
             dangerouslySetInnerHTML={{ __html: invoiceHTML }}
-            className="invoice-preview p-4 border rounded"
+            className="invoice-preview"
           />
         </DialogContent>
       </Dialog>

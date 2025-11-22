@@ -251,8 +251,8 @@ const ModernStepFour = ({
 
         setSampleAudio(data.audio_url);
         toast({
-          title: "Sample Ready!",
-          description: "Listen and adjust settings if needed.",
+          title: "✨ Sample Generated!",
+          description: "Your voice sample is ready. Listen and adjust settings if needed."
         });
       } else {
         throw new Error("No audio URL in response");
@@ -284,8 +284,8 @@ const ModernStepFour = ({
   const handleApproveSample = () => {
     setSampleApproved(true);
     toast({
-      title: "Great Choice!",
-      description: "Your voice settings are locked in. Ready to generate your full audio!",
+      title: "🎯 Settings Approved!",
+      description: "Your voice settings are locked in. Ready to generate your full audio!"
     });
   };
 
@@ -387,6 +387,11 @@ const ModernStepFour = ({
         setProgress(100);
         onProcessingStart("Audio Generated Successfully!", true);
         setGenerationComplete(true);
+        
+        toast({
+          title: "🎉 Generation Complete!",
+          description: `Your ${wordCount.toLocaleString()} word audio is ready to play and download.`
+        });
       } else {
         throw new Error("No audio content received");
       }
