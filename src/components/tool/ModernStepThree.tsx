@@ -363,6 +363,11 @@ export default function ModernStepThree({
     setSelectedVoice({ type: 'prebuilt', id: voiceId, name: voice.name });
     onVoiceSelect(voiceId, 'prebuilt');
 
+    toast({
+      title: "🎙️ Voice Selected",
+      description: `${voice.name} is ready to use for generation.`
+    });
+
     // Auto-play the preview
     try {
       let audioUrl: string | null = null;
