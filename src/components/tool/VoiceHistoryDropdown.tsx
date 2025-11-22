@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Play, Pause, Mic, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
@@ -131,7 +131,6 @@ export const VoiceHistoryDropdown = ({
   const audioBlobCacheRef = useRef<Map<string, string>>(new Map());
 
   const { user, profile } = useAuth();
-  const { toast } = useToast();
 
   const getLimitForPlan = () => {
     switch (profile?.plan) {
@@ -166,10 +165,8 @@ export const VoiceHistoryDropdown = ({
         setVoices(data || []);
       } catch (err) {
         console.error("Error fetching voices:", err);
-        toast({
-          title: "Could not load voices",
-          description: "Please try again later",
-          variant: "default",
+        toast.error("Could not load voices", {
+          description: "Please try again later"
         });
         setVoices([]);
       } finally {
@@ -206,10 +203,8 @@ export const VoiceHistoryDropdown = ({
 
   const playVoice = async (voice: UserVoice) => {
     if (!voice.audio_url) {
-      toast({
-        title: "No audio found",
-        description: "This voice cannot be played",
-        variant: "default"
+      toast.error("No audio found", {
+        description: "This voice cannot be played"
       });
       return;
     }
@@ -228,7 +223,6 @@ export const VoiceHistoryDropdown = ({
       if (audioBlobCacheRef.current.has(voice.id)) {
         blobUrl = audioBlobCacheRef.current.get(voice.id)!;
       } else {
-        // ✅ FIX: Get session properly
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError || !sessionData.session) {
@@ -254,7 +248,6 @@ export const VoiceHistoryDropdown = ({
           ttlSeconds: 86400
         };
 
-        // ✅ FIX: Proper Authorization header
         const issueResponse = await fetch(
           `${SUPABASE_URL}/functions/v1/issue-audio-token`,
           {
@@ -262,7 +255,7 @@ export const VoiceHistoryDropdown = ({
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`,
-              'apikey': session.access_token // Some Supabase configs need this
+              'apikey': session.access_token
             },
             body: JSON.stringify(tokenRequestBody),
           }
@@ -318,10 +311,8 @@ export const VoiceHistoryDropdown = ({
           audioBlobCacheRef.current.delete(voice.id);
         }
 
-        toast({
-          title: "Playback failed",
-          description: "Could not play this audio",
-          variant: "default"
+        toast.error("Playback failed", {
+          description: "Could not play this audio"
         });
       };
 
@@ -333,10 +324,8 @@ export const VoiceHistoryDropdown = ({
     } catch (error) {
       console.error('Voice playback error:', error);
       stopPlayback();
-      toast({
-        title: "Could not play voice",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "default"
+      toast.error("Could not play voice", {
+        description: error instanceof Error ? error.message : "Please try again"
       });
     }
   };

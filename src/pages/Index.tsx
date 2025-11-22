@@ -474,11 +474,14 @@ const { user, profile, loading: authLoading } = useAuth();
         <div className="px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => handleSectionChange("home")}
-            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            className="flex items-center space-x-2  transition-opacity"
           >
             <div className="w-8 h-8 bg-white/70 rounded-lg flex items-center justify-center shadow-sm">
-              <Mic className="h-5 w-5 text-black" />
-            </div>
+ <img
+    src="/favicon.png"
+    alt="icon"
+    className="w-5 h-5 "
+  />                 </div>
             <span className="text-xl font-bold bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
               Tone2Vibe
             </span>
@@ -537,8 +540,11 @@ const { user, profile, loading: authLoading } = useAuth();
                 className="flex items-center space-x-2 mb-4 hover:opacity-80 transition-opacity"
               >
                 <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                  <Mic className="h-5 w-5 text-black" />
-                </div>
+ <img
+    src="/favicon.png"
+    alt="icon"
+    className="w-5 h-5 "
+  />                     </div>
                 <span className="text-xl font-bold text-black">
                   Tone2Vibe
                 </span>

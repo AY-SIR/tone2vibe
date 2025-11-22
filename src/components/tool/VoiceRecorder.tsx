@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, Square, Play, Pause, Trash2, Loader2, CheckCircle,Mic2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Mic, Square, Play, Pause, Trash2, Loader2, CheckCircle, Mic2 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrophonePermissionDialog } from "@/components/common/MicrophonePermissionDialog";
 import {
@@ -16,14 +16,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-/**
- *  Modern, Denoised, Supabase-Ready Voice Recorder
- * - Aggressive noise suppression (custom WebAudio chain)
- * - Orange bar visualizer (recording + playback)
- * - Auto silence detection
- * - WebM/WAV auto fallback
- * - Supabase upload integration
- */
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
   onRecordingStart?: () => void;
@@ -48,8 +40,6 @@ export const VoiceRecorder = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
-  const { toast } = useToast();
-
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -64,7 +54,6 @@ export const VoiceRecorder = ({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  /** 🧹 Cleanup all audio objects */
   const cleanup = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -98,25 +87,20 @@ export const VoiceRecorder = ({
     };
   }, [cleanup]);
 
-  /** 🎧 Create advanced denoising filter chain */
   const createDenoisedPipeline = (audioCtx: AudioContext, src: MediaStreamAudioSourceNode) => {
-    // High-pass filter to remove rumble
     const highPass = audioCtx.createBiquadFilter();
     highPass.type = "highpass";
     highPass.frequency.value = 120;
 
-    // Low-pass filter to remove hiss
     const lowPass = audioCtx.createBiquadFilter();
     lowPass.type = "lowpass";
     lowPass.frequency.value = 8000;
 
-    // Peaking filter for voice clarity
     const clarityBoost = audioCtx.createBiquadFilter();
     clarityBoost.type = "peaking";
     clarityBoost.frequency.value = 3000;
     clarityBoost.gain.value = 6;
 
-    // Mild compressor for consistency
     const compressor = audioCtx.createDynamicsCompressor();
     compressor.threshold.value = -40;
     compressor.knee.value = 20;
@@ -132,7 +116,6 @@ export const VoiceRecorder = ({
     return compressor;
   };
 
-  /**  Live bar visualizer (shared for record + playback) */
   const startVisualizer = (analyser: AnalyserNode, color1 = "#f97316", color2 = "#fdba74") => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -163,7 +146,6 @@ export const VoiceRecorder = ({
     draw();
   };
 
-  /**  Playback visualizer */
   const visualizePlayback = (audioElement: HTMLAudioElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -184,7 +166,6 @@ export const VoiceRecorder = ({
     };
   };
 
-  /**  Start Recording */
   const startRecording = async () => {
     onRecordingStart?.();
     reset();
@@ -216,7 +197,6 @@ export const VoiceRecorder = ({
       denoisedOutput.connect(analyser);
       analyser.connect(dest);
 
-      // start live visualizer
       startVisualizer(analyser, "#f97316", "#fdba74");
 
       const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -238,12 +218,12 @@ export const VoiceRecorder = ({
           setAudioBlob(blob);
           setRecordedDuration(durationRef.current);
           setStatus("completed");
-          toast({ title: "Recording completed" });
+          toast.success("Recording Completed", {
+            description: `Successfully recorded ${durationRef.current} seconds of audio.`
+          });
         } else {
-          toast({
-            title: "Too short",
-            description: `Record at least ${minimumDuration}s.`,
-            variant: "destructive",
+          toast.error("Recording Too Short", {
+            description: `Please record at least ${minimumDuration} seconds.`
           });
           reset();
         }
@@ -258,22 +238,23 @@ export const VoiceRecorder = ({
         durationRef.current = elapsed;
       }, 500);
 
-      toast({ title: "Recording started " });
+      toast.success("Recording Started ", {
+        description: "Speak clearly into your microphone."
+      });
     } catch (err: any) {
       console.error(err);
-      if (err.name === "NotAllowedError") setShowPermissionDialog(true);
-      else
-        toast({
-          title: "Microphone error",
-          description: err.message,
-          variant: "destructive",
+      if (err.name === "NotAllowedError") {
+        setShowPermissionDialog(true);
+      } else {
+        toast.error("Microphone Error", {
+          description: err.message || "Failed to access microphone."
         });
+      }
       setStatus("idle");
       cleanup();
     }
   };
 
-  /**  Stop recording */
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       durationRef.current = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -284,7 +265,6 @@ export const VoiceRecorder = ({
     }
   };
 
-  /**  Playback */
   const playRecording = () => {
     if (!audioBlob) return;
     if (!audioRef.current) {
@@ -292,7 +272,7 @@ export const VoiceRecorder = ({
       audioUrlRef.current = url;
       const audio = new Audio(url);
       audioRef.current = audio;
-      visualizePlayback(audio); // Attach visualizer to playback
+      visualizePlayback(audio);
       audio.onended = () => setIsPlaying(false);
     }
     if (isPlaying) {
@@ -306,85 +286,82 @@ export const VoiceRecorder = ({
     }
   };
 
-  /** Save to Supabase */
-const confirmRecording = async () => {
-  if (!audioBlob || isSaving) return;
-  setIsSaving(true);
+  const confirmRecording = async () => {
+    if (!audioBlob || isSaving) return;
+    setIsSaving(true);
 
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
 
-    /**  Generate unique + readable voice name */
-    const generateVoiceName = () => {
-      const istDate = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-      const d = new Date(istDate);
+      const generateVoiceName = () => {
+        const istDate = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+        const d = new Date(istDate);
 
-      // Random 4-character code (A–Z, a–z, 0–9)
-      const randomCode = Array.from({ length: 4 }, () =>
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
-          Math.floor(Math.random() * 62)
-        ]
-      ).join("");
+        const randomCode = Array.from({ length: 4 }, () =>
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[
+            Math.floor(Math.random() * 62)
+          ]
+        ).join("");
 
-      const dateStr = `${d.getDate().toString().padStart(2, "0")}${(d.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}${d.getFullYear().toString().slice(-2)}`;
-      const timeStr = `${d.getHours().toString().padStart(2, "0")}${d
-        .getMinutes()
-        .toString()
-        .padStart(2, "0")}`;
+        const dateStr = `${d.getDate().toString().padStart(2, "0")}${(d.getMonth() + 1)
+          .toString()
+          .padStart(2, "0")}${d.getFullYear().toString().slice(-2)}`;
+        const timeStr = `${d.getHours().toString().padStart(2, "0")}${d
+          .getMinutes()
+          .toString()
+          .padStart(2, "0")}`;
 
-      return `Recorded_${randomCode}_${dateStr}_${timeStr}_Voice`;
-    };
+        return `Recorded_${randomCode}_${dateStr}_${timeStr}_Voice`;
+      };
 
-    const voiceName = generateVoiceName();
+      const voiceName = generateVoiceName();
+      const fileName = `${voiceName}.webm`;
+      const path = `${user.id}/${fileName}`;
 
-    /** Create unique file path */
-    const fileName = `${voiceName}.webm`;
-    const path = `${user.id}/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("user-voices")
+        .upload(path, audioBlob);
+      if (uploadError) throw uploadError;
 
-    /**  Upload to Supabase Storage */
-    const { error: uploadError } = await supabase.storage
-      .from("user-voices")
-      .upload(path, audioBlob);
-    if (uploadError) throw uploadError;
+      await supabase.from("user_voices").update({ is_selected: false }).eq("user_id", user.id);
 
-    /**  Update and Insert into DB */
-    await supabase.from("user_voices").update({ is_selected: false }).eq("user_id", user.id);
+      const { error: insertError } = await supabase.from("user_voices").insert([
+        {
+          user_id: user.id,
+          name: voiceName,
+          audio_url: path,
+          duration: recordedDuration.toString(),
+          language: selectedLanguage,
+          is_selected: true,
+        },
+      ]);
+      if (insertError) throw insertError;
 
-    const { error: insertError } = await supabase.from("user_voices").insert([
-      {
-        user_id: user.id,
-        name: voiceName,
-        audio_url: path,
-        duration: recordedDuration.toString(),
-        language: selectedLanguage,
-        is_selected: true,
-      },
-    ]);
-    if (insertError) throw insertError;
-
-    /**  Success */
-    onRecordingComplete(audioBlob);
-    toast({ title: "Voice saved!", description: `${recordedDuration}s recorded.` });
-    setStatus("saved");
-  } catch (err: any) {
-    toast({ title: "Failed to save", description: err.message, variant: "destructive" });
-    setIsSaving(false);
-  }
-};
+      onRecordingComplete(audioBlob);
+      toast.success("Voice Saved! ✨", {
+        description: `${recordedDuration}s recording saved successfully.`
+      });
+      setStatus("saved");
+    } catch (err: any) {
+      toast.error("Failed to Save", {
+        description: err.message || "Could not save your recording."
+      });
+      setIsSaving(false);
+    }
+  };
 
   const confirmDelete = () => {
     reset();
     setShowDeleteDialog(false);
-    toast({ title: "Recording deleted" });
+    toast.success("Recording Deleted", {
+      description: "Your recording has been removed."
+    });
   };
 
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
-  
   return (
     <>
       <Card>
@@ -454,42 +431,38 @@ const confirmRecording = async () => {
           )}
 
           {status === "saved" && (
-           <div className="flex flex-col items-center justify-center gap-4 text-center">
-  {/* Success Message */}
-  <div className="flex items-center justify-center gap-2 text-green-600">
-    <CheckCircle className="h-5 w-5" />
-    <p className="font-medium">Voice Saved Successfully!</p>
-  </div>
+            <div className="flex flex-col items-center justify-center gap-4 text-center">
+              <div className="flex items-center justify-center gap-2 text-green-600">
+                <CheckCircle className="h-5 w-5" />
+                <p className="font-medium">Voice Saved Successfully!</p>
+              </div>
 
-  {/* Buttons Row */}
-  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-2">
-    <Button
-      onClick={playRecording}
-      variant="outline"
-      size="sm"
-      className="w-full sm:w-40 md:w-48 flex items-center justify-center"
-    >
-      {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-      {isPlaying ? "Pause" : "Play"}
-    </Button>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-2">
+                <Button
+                  onClick={playRecording}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-40 md:w-48 flex items-center justify-center"
+                >
+                  {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                  {isPlaying ? "Pause" : "Play"}
+                </Button>
 
-    <Button
-      onClick={startRecording}
-      variant="secondary"
-      size="sm"
-      className="w-full sm:w-40 md:w-48 flex items-center justify-center"
-    >
-      <Mic2 className="h-4 w-4 mr-2" />
-      Record Another
-    </Button>
-  </div>
-</div>
-
+                <Button
+                  onClick={startRecording}
+                  variant="secondary"
+                  size="sm"
+                  className="w-full sm:w-40 md:w-48 flex items-center justify-center"
+                >
+                  <Mic2 className="h-4 w-4 mr-2" />
+                  Record Another
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="rounded-lg w-[95vw] max-w-lg">
           <AlertDialogHeader>
@@ -510,7 +483,6 @@ const confirmRecording = async () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Microphone Permission */}
       <MicrophonePermissionDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog} />
     </>
   );

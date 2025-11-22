@@ -31,11 +31,14 @@ const Header = () => {
             {/* Logo */}
             <div
               onClick={() => navigate("/")}
-              className="flex items-center space-x-2 hover:opacity-80 transition-opacity cursor-pointer"
+              className="flex items-center space-x-2  transition-opacity cursor-pointer"
             >
               <div className="w-8 h-8 bg-white/70 rounded-lg flex items-center justify-center shadow-sm">
-                <Mic className="h-5 w-5 text-black" />
-              </div>
+ <img
+    src="/favicon.png"
+    alt="icon"
+    className="w-5 h-5 "
+  />               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-black to-gray-600 bg-clip-text text-transparent">
                 Tone2Vibe
               </span>

@@ -1,3 +1,7 @@
+// ============================================
+// Profile.tsx with Sonner
+// ============================================
+
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Card,
@@ -46,14 +50,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { ProfileSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 
 const Profile: React.FC = () => {
   const { user, profile, updateProfile, loading } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -68,7 +71,6 @@ const Profile: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
 
-  // Initialize form data when profile loads
   useEffect(() => {
     if (profile || user) {
       setFormData({
@@ -81,14 +83,12 @@ const Profile: React.FC = () => {
     }
   }, [profile, user]);
 
-  // Handle authentication redirect
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth");
     }
   }, [loading, user, navigate]);
 
-  // Show loading skeleton
   if (loading) return <ProfileSkeleton />;
   if (!user) return null;
 
@@ -116,27 +116,26 @@ const Profile: React.FC = () => {
         preferred_language: formData.preferred_language,
       });
 
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been successfully updated.",
+      toast.success("Profile Updated", {
+        description: "Your profile has been successfully updated."
       });
     } catch (error) {
       console.error("Profile update failed:", error);
-      toast({
-        title: "Update failed",
-        description: "Could not update profile. Please try again.",
-        variant: "destructive",
+      toast.error("Update Failed", {
+        description: "Could not update profile. Please try again."
       });
     } finally {
       setIsUpdating(false);
     }
-  }, [formData, updateProfile, toast, user]);
+  }, [formData, updateProfile, user]);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!user) return;
 
     if (confirmEmail.trim().toLowerCase() !== user.email?.toLowerCase()) {
-      toast({ title: "Email does not match.", variant: "destructive" });
+      toast.error("Email Does Not Match", {
+        description: "Please enter the correct email address."
+      });
       return;
     }
 
@@ -145,27 +144,23 @@ const Profile: React.FC = () => {
       const res = await supabase.functions.invoke("delete-account");
       if (res?.error) throw res.error;
 
-      toast({
-        title: "Account deleted",
-        description: "Your account has been permanently deleted.",
+      toast.success("Account Deleted", {
+        description: "Your account has been permanently deleted."
       });
 
-      // Sign out and navigate
       await supabase.auth.signOut();
       navigate("/");
     } catch (error) {
       console.error("Account deletion failed:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete account. Please try again.",
-        variant: "destructive",
+      toast.error("Deletion Failed", {
+        description: "Failed to delete account. Please try again."
       });
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
       setConfirmEmail("");
     }
-  }, [confirmEmail, user, toast, navigate]);
+  }, [confirmEmail, user, navigate]);
 
   const getInitials = useCallback(() => {
     if (formData.full_name) {
@@ -241,14 +236,12 @@ const Profile: React.FC = () => {
 
   const isEmailMatch = confirmEmail.trim().toLowerCase() === user.email?.toLowerCase();
 
-  // Check if plan expiry date is valid
   const isValidExpiryDate = profile?.plan_expires_at &&
     new Date(profile.plan_expires_at).toString() !== 'Invalid Date';
 
   return (
     <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col space-y-8">
-        {/* Back button */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-4 px-4 py-2">
           <Button
             variant="ghost"
@@ -260,7 +253,6 @@ const Profile: React.FC = () => {
           </Button>
         </div>
 
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-800 tracking-tight text-center">
             Profile Settings
@@ -271,9 +263,7 @@ const Profile: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Left column: Profile & Plan */}
           <div className="md:col-span-2 flex flex-col gap-8">
-            {/* Mobile Profile Card - visible only on small screens */}
             <div className="block md:hidden">
               <Card>
                 <CardContent className="pt-6">
@@ -304,7 +294,6 @@ const Profile: React.FC = () => {
               </Card>
             </div>
 
-            {/* Profile Info Form */}
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
@@ -394,7 +383,6 @@ const Profile: React.FC = () => {
               </CardFooter>
             </Card>
 
-            {/* Plan Details */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -403,86 +391,81 @@ const Profile: React.FC = () => {
                 <CardDescription>{planDetails.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-               <div>
- <div className="flex justify-between items-center mb-1 text-sm font-medium">
-  <span>Words Used</span>
-  <span>
-    <span
-      className={`${
-        wordsLimit - planWordsUsed < 50 ? "text-red-500" : "text-foreground"
-      }`}
-    >
-      {planWordsUsed.toLocaleString()}
-    </span>
-    {" / "}
-    <span className="text-foreground">
-      {wordsLimit.toLocaleString()}
-    </span>
-  </span>
-</div>
+                <div>
+                  <div className="flex justify-between items-center mb-1 text-sm font-medium">
+                    <span>Words Used</span>
+                    <span>
+                      <span
+                        className={`${
+                          wordsLimit - planWordsUsed < 50 ? "text-red-500" : "text-foreground"
+                        }`}
+                      >
+                        {planWordsUsed.toLocaleString()}
+                      </span>
+                      {" / "}
+                      <span className="text-foreground">
+                        {wordsLimit.toLocaleString()}
+                      </span>
+                    </span>
+                  </div>
 
+                  <Progress
+                    value={usagePercentage}
+                    className={`h-2 transition-all duration-300 overflow-hidden ${
+                      usagePercentage >= 90 ? "[&>div]:bg-red-500" : "[&>div]:bg-blue-600"
+                    }`}
+                  />
 
-
- <Progress
-  value={usagePercentage}
-  className={`h-2 transition-all duration-300 overflow-hidden ${
-    usagePercentage >= 90 ? "[&>div]:bg-red-500" : "[&>div]:bg-blue-600"
-  }`}
-/>
-
-
-  <p
-    className={`text-xs mt-1 text-right transition-colors duration-300 ${
-      usagePercentage >= 90
-        ? "text-red-500 font-semibold"
-        : "text-muted-foreground"
-    }`}
-  >
-    {usagePercentage >= 100
-      ? "0% remaining — limit reached!"
-      : `${(100 - usagePercentage).toFixed(1)}% remaining this month`}
-  </p>
-</div>
-
+                  <p
+                    className={`text-xs mt-1 text-right transition-colors duration-300 ${
+                      usagePercentage >= 90
+                        ? "text-red-500 font-semibold"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {usagePercentage >= 100
+                      ? "0% remaining — limit reached!"
+                      : `${(100 - usagePercentage).toFixed(1)}% remaining this month`}
+                  </p>
+                </div>
 
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm">Word Balance</h4>
-                <div className="flex justify-between items-center">
-  <span className="text-sm text-muted-foreground">
-    Purchased Words:
-  </span>
-  <span
-    className={`text-sm font-medium transition-colors duration-300 ${
-      (profile?.word_balance || 0) < 50
-        ? "text-red-500 font-semibold"
-        : "text-blue-600"
-    }`}
-  >
-    {(profile?.word_balance || 0).toLocaleString()}
-  </span>
-</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Purchased Words:
+                    </span>
+                    <span
+                      className={`text-sm font-medium transition-colors duration-300 ${
+                        (profile?.word_balance || 0) < 50
+                          ? "text-red-500 font-semibold"
+                          : "text-blue-600"
+                      }`}
+                    >
+                      {(profile?.word_balance || 0).toLocaleString()}
+                    </span>
+                  </div>
 
-                 <div className="flex justify-between items-center">
-  <span className="text-sm text-muted-foreground">
-    Total Available:
-  </span>
-  <span
-    className={`text-sm font-bold transition-colors duration-300 ${
-      ((profile?.words_limit || 0) -
-        (profile?.plan_words_used || 0) +
-        (profile?.word_balance || 0)) < 50
-        ? "text-red-500"
-        : "text-green-600"
-    }`}
-  >
-    {(
-      (profile?.words_limit || 0) -
-      (profile?.plan_words_used || 0) +
-      (profile?.word_balance || 0)
-    ).toLocaleString()}
-  </span>
-</div>
-
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Total Available:
+                    </span>
+                    <span
+                      className={`text-sm font-bold transition-colors duration-300 ${
+                        ((profile?.words_limit || 0) -
+                          (profile?.plan_words_used || 0) +
+                          (profile?.word_balance || 0)) < 50
+                          ? "text-red-500"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {(
+                        (profile?.words_limit || 0) -
+                        (profile?.plan_words_used || 0) +
+                        (profile?.word_balance || 0)
+                      ).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
 
                 {profile?.plan !== "free" && isValidExpiryDate && (
@@ -530,9 +513,7 @@ const Profile: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right Column: Avatar + Danger Zone */}
           <div className="flex flex-col gap-8">
-            {/* Desktop Profile Card */}
             <Card className="hidden md:block">
               <CardContent className="pt-6">
                 <div className="flex flex-col items-center text-center gap-4">
@@ -561,7 +542,6 @@ const Profile: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Danger Zone */}
             <Card className="border-destructive/50 bg-destructive/5">
               <CardHeader>
                 <CardTitle className="text-destructive">Danger Zone</CardTitle>
@@ -587,7 +567,6 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* Delete Account Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent className="max-w-md w-[90%] rounded-2xl mx-auto px-4 sm:px-6 py-4">
           <AlertDialogHeader>

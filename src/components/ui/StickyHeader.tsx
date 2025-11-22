@@ -70,8 +70,11 @@ export function StickyHeader() {
             className="flex items-center space-x-2 p-0 hover:bg-transparent"
           >
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <Mic className="h-4 w-4 text-white" />
-            </div>
+ <img
+    src="/favicon.png"
+    alt="icon"
+    className="w-4 h-4"
+  />            </div>
             <span className="font-bold text-lg hidden sm:inline">Tone2Vibe</span>
           </Button>
         </div>

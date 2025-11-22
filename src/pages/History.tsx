@@ -52,17 +52,15 @@ import {
 } from "lucide-react";
 import { useVoiceHistory } from "@/hooks/useVoiceHistory";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { CardSkeleton } from "@/components/common/Skeleton";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = "https://msbmyiqhohtjdfbjmxlf.supabase.co";
 
-// Security: File size limit (2GB)
-const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 
-// Security: Allowed audio MIME types
 const ALLOWED_AUDIO_TYPES = [
   'audio/mpeg',
   'audio/mp3',
@@ -75,28 +73,20 @@ const ALLOWED_AUDIO_TYPES = [
   'audio/x-m4a'
 ];
 
-// ============================================
-// SECURITY: Input Sanitization
-// ============================================
 const sanitizeInput = (input: string): string => {
   if (typeof input !== 'string') return '';
 
-  // Remove potentially dangerous characters
   return input
-    .replace(/[<>\"']/g, '') // Remove HTML/script injection chars
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .replace(/on\w+=/gi, '') // Remove event handlers
+    .replace(/[<>\"']/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+=/gi, '')
     .trim()
-    .slice(0, 1000); // Limit length
+    .slice(0, 1000);
 };
 
-// ============================================
-// SECURITY: URL Validation
-// ============================================
 const isValidUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
-    // Only allow https and specific domain
     return parsed.protocol === 'https:' &&
            parsed.hostname.endsWith('.supabase.co');
   } catch {
@@ -104,28 +94,22 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-// ============================================
-// UTILITY: Clean Storage Path (Enhanced Security)
-// ============================================
 const cleanStoragePath = (rawPath: string, bucket: string): string => {
   if (!rawPath || typeof rawPath !== 'string') return '';
 
   let path = rawPath.trim();
 
-  // Security: Validate bucket name
   const validBuckets = ['user-voices', 'user-generates'];
   if (!validBuckets.includes(bucket)) {
     console.error('Invalid bucket name');
     return '';
   }
 
-  // Security: Prevent path traversal attacks
   if (path.includes('..') || path.includes('~')) {
     console.error('Path traversal attempt detected');
     return '';
   }
 
-  // Security: Remove any null bytes
   path = path.replace(/\0/g, '');
 
   if (!path.includes('http') &&
@@ -142,14 +126,12 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
   path = path.replace(/\?.*$/, '');
   path = path.replace(/^\/+/, '');
 
-  // Security: Final validation - must be user_id/filename format
   const pathParts = path.split('/');
   if (pathParts.length !== 2 || pathParts.some(p => !p)) {
     console.error('Invalid path format');
     return '';
   }
 
-  // Security: Validate filename (no special chars except dash, underscore, dot)
   const filename = pathParts[1];
   if (!/^[\w\-\.]+$/.test(filename)) {
     console.error('Invalid filename format');
@@ -159,13 +141,10 @@ const cleanStoragePath = (rawPath: string, bucket: string): string => {
   return path;
 };
 
-// ============================================
-// SECURITY: Token Cache with Enhanced Protection
-// ============================================
 class TokenCache {
   private cache: Map<string, { token: string; expiresAt: Date }> = new Map();
-  private readonly maxCacheSize = 100; // Prevent memory exhaustion
-  private readonly minTTL = 5 * 60 * 1000; // 5 minutes minimum TTL
+  private readonly maxCacheSize = 100;
+  private readonly minTTL = 5 * 60 * 1000;
 
   async getOrFetchToken(
     bucket: string,
@@ -173,12 +152,10 @@ class TokenCache {
     sessionToken: string,
     supabaseUrl: string
   ): Promise<string> {
-    // Security: Validate inputs
     if (!bucket || !storagePath || !sessionToken || !supabaseUrl) {
       throw new Error('Invalid token request parameters');
     }
 
-    // Security: Validate URL
     if (!isValidUrl(supabaseUrl)) {
       throw new Error('Invalid Supabase URL');
     }
@@ -186,16 +163,13 @@ class TokenCache {
     const key = `${bucket}:${storagePath}`;
     const cached = this.cache.get(key);
 
-    // Return cached token if valid for at least 5 more minutes
     if (cached && cached.expiresAt.getTime() - Date.now() > this.minTTL) {
       return cached.token;
     }
 
-    // Security: Prevent cache overflow
     if (this.cache.size >= this.maxCacheSize) {
       this.clearExpired();
       if (this.cache.size >= this.maxCacheSize) {
-        // Clear oldest entries
         const entries = Array.from(this.cache.entries());
         entries.sort((a, b) => a[1].expiresAt.getTime() - b[1].expiresAt.getTime());
         for (let i = 0; i < 20; i++) {
@@ -204,9 +178,8 @@ class TokenCache {
       }
     }
 
-    // Fetch new token with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
       const tokenResponse = await fetch(
@@ -235,18 +208,15 @@ class TokenCache {
 
       const tokenData = await tokenResponse.json();
 
-      // Security: Validate token response
       if (!tokenData.ok || !tokenData.token || typeof tokenData.token !== 'string') {
         throw new Error('Invalid token response');
       }
 
-      // Security: Validate expiration
       const expiresAt = new Date(tokenData.expires_at);
       if (isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
         throw new Error('Invalid token expiration');
       }
 
-      // Cache the token
       this.cache.set(key, {
         token: tokenData.token,
         expiresAt
@@ -276,12 +246,8 @@ class TokenCache {
   }
 }
 
-// Global token cache instance
 const tokenCache = new TokenCache();
 
-// ============================================
-// TYPES
-// ============================================
 type HistoryItem = {
   id: string;
   title: string;
@@ -306,32 +272,6 @@ type UserVoice = {
   language: string | null;
 };
 
-// ============================================
-// SECURITY: File Size Validator
-// ============================================
-const validateFileSize = async (url: string): Promise<boolean> => {
-  try {
-    const response = await fetch(url, { method: 'HEAD' });
-    const contentLength = response.headers.get('content-length');
-
-    if (contentLength) {
-      const size = parseInt(contentLength, 10);
-      if (size > MAX_FILE_SIZE) {
-        console.error(`File size ${size} exceeds limit ${MAX_FILE_SIZE}`);
-        return false;
-      }
-    }
-
-    return true;
-  } catch {
-    // If we can't check, allow it but be cautious
-    return true;
-  }
-};
-
-// ============================================
-// AUDIO DOWNLOAD DROPDOWN COMPONENT (Secured)
-// ============================================
 const AudioDownloadDropdown = ({
   audioUrl,
   fileName,
@@ -342,7 +282,6 @@ const AudioDownloadDropdown = ({
   sourceType: "generated" | "recorded";
 }) => {
   const [downloading, setDownloading] = useState<string | null>(null);
-  const { toast } = useToast();
 
   if (!audioUrl) return null;
 
@@ -356,12 +295,10 @@ const AudioDownloadDropdown = ({
       const bucket = sourceType === "recorded" ? "user-voices" : "user-generates";
       const cleanPath = cleanStoragePath(audioUrl, bucket);
 
-      // Security: Validate cleaned path
       if (!cleanPath) {
         throw new Error("Invalid file path");
       }
 
-      // Get or reuse cached token
       const token = await tokenCache.getOrFetchToken(
         bucket,
         cleanPath,
@@ -371,14 +308,12 @@ const AudioDownloadDropdown = ({
 
       const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${encodeURIComponent(token)}`;
 
-      // Security: Validate URL before fetch
       if (!isValidUrl(streamUrl.split('?')[0])) {
         throw new Error("Invalid stream URL");
       }
 
-      // Download with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const audioResponse = await fetch(streamUrl, {
         headers: {
@@ -393,13 +328,11 @@ const AudioDownloadDropdown = ({
         throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
       }
 
-      // Security: Check content type
       const contentType = audioResponse.headers.get('content-type');
       if (!contentType || !ALLOWED_AUDIO_TYPES.some(type => contentType.includes(type))) {
         throw new Error("Invalid audio file type");
       }
 
-      // Security: Check file size
       const contentLength = audioResponse.headers.get('content-length');
       if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
         throw new Error("File size exceeds 2GB limit");
@@ -407,15 +340,12 @@ const AudioDownloadDropdown = ({
 
       const audioBlob = await audioResponse.blob();
 
-      // Security: Validate blob size
       if (audioBlob.size > MAX_FILE_SIZE) {
         throw new Error("File size exceeds 2GB limit");
       }
 
-      // Security: Sanitize filename
       const sanitizedFileName = sanitizeInput(fileName).replace(/[^\w\-]/g, '_');
 
-      // Create download link
       const url = window.URL.createObjectURL(audioBlob);
       const link = document.createElement("a");
       link.href = url;
@@ -424,19 +354,15 @@ const AudioDownloadDropdown = ({
       link.click();
       document.body.removeChild(link);
 
-      // Cleanup
       setTimeout(() => window.URL.revokeObjectURL(url), 100);
 
-      // Inform user about format
       if (format !== 'mp3') {
-        toast({
-          title: "Download Complete",
-          description: `Downloaded as MP3 (${format.toUpperCase()} conversion not available). You can convert it using external tools.`,
+        toast.success("Download Complete", {
+          description: `Downloaded as MP3 (${format.toUpperCase()} conversion not available). You can convert it using external tools.`
         });
       } else {
-        toast({
-          title: "Download Complete",
-          description: `${sanitizedFileName}.mp3 has been downloaded successfully.`,
+        toast.success("Download Complete", {
+          description: `${sanitizedFileName}.mp3 has been downloaded successfully.`
         });
       }
     } catch (error: any) {
@@ -449,10 +375,8 @@ const AudioDownloadDropdown = ({
         errorMessage = error.message;
       }
 
-      toast({
-        title: "Download Failed",
-        description: errorMessage,
-        variant: "destructive",
+      toast.error("Download Failed", {
+        description: errorMessage
       });
     } finally {
       setDownloading(null);
@@ -513,7 +437,6 @@ const AudioDownloadDropdown = ({
 const wrapTextAtLimit = (text: string, limit = 66): string => {
   if (!text || typeof text !== 'string') return '';
 
-  // Security: Sanitize text
   const sanitized = sanitizeInput(text);
   const words = sanitized.split(' ');
   let line = '';
@@ -531,9 +454,6 @@ const wrapTextAtLimit = (text: string, limit = 66): string => {
   return lines.join('\n');
 };
 
-// ============================================
-// SHOW MORE TEXT COMPONENT
-// ============================================
 const ShowMoreText = ({ text }: { text: string }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -556,9 +476,6 @@ const ShowMoreText = ({ text }: { text: string }) => {
   );
 };
 
-// ============================================
-// PROJECT CARD COMPONENT
-// ============================================
 const ProjectCard = memo(({
   project,
   playingAudio,
@@ -618,7 +535,7 @@ const ProjectCard = memo(({
           </div>
         </div>
       </CardHeader>
-            <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
+      <div className="border-t border-gray-200 dark:border-gray-800 my-2" />
 
       <CardContent className="">
         {type === 'generated' && project.original_text && (
@@ -681,9 +598,6 @@ const ProjectCard = memo(({
 
 ProjectCard.displayName = 'ProjectCard';
 
-// ============================================
-// MAIN HISTORY COMPONENT
-// ============================================
 const History = memo(() => {
   const { user, profile } = useAuth();
   const { projects: projectsFromHook, loading: projectsLoading, error: projectsError, retentionInfo } = useVoiceHistory();
@@ -703,14 +617,12 @@ const History = memo(() => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBlobCacheRef = useRef<Map<string, string>>(new Map());
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
     setProjects(projectsFromHook || []);
   }, [projectsFromHook]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -726,7 +638,6 @@ const History = memo(() => {
     };
   }, []);
 
-  // Clean expired tokens periodically
   useEffect(() => {
     const interval = setInterval(() => {
       tokenCache.clearExpired();
@@ -799,13 +710,11 @@ const History = memo(() => {
 
     const itemToDelete = deleteCandidate;
 
-    // Stop audio immediately if playing
     if (playingAudio === itemToDelete.id) {
       stopCurrentAudio();
       setLoadingAudio(null);
     }
 
-    // Clean up cached blob
     if (audioBlobCacheRef.current.has(itemToDelete.id)) {
       const cachedUrl = audioBlobCacheRef.current.get(itemToDelete.id);
       if (cachedUrl) {
@@ -844,9 +753,13 @@ const History = memo(() => {
         setProjects((current) => current.filter((p) => p.id !== itemToDelete.id));
       }
 
-      toast({ title: "Item Deleted", description: `"${itemToDelete.title}" has been removed.` });
+      toast.success("Item Deleted", {
+        description: `"${itemToDelete.title}" has been removed.`
+      });
     } catch (error: any) {
-      toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+      toast.error("Deletion Failed", {
+        description: error.message
+      });
     } finally {
       setIsDeleting(null);
     }
@@ -892,21 +805,17 @@ const History = memo(() => {
   }, [projects, userVoices]);
 
   const playAudio = async (project: HistoryItem) => {
-    // If clicking same audio, stop it immediately
     if (playingAudio === project.id) {
       stopCurrentAudio();
       setLoadingAudio(null);
       return;
     }
 
-    // Stop any currently playing audio IMMEDIATELY
     stopCurrentAudio();
 
     if (!project.audio_url) {
-      toast({
-        title: "Audio Not Available",
-        description: "This audio file is no longer available.",
-        variant: "destructive"
+      toast.error("Audio Not Available", {
+        description: "This audio file is no longer available."
       });
       return;
     }
@@ -917,11 +826,9 @@ const History = memo(() => {
       let blobUrl: string;
       let needsNewFetch = false;
 
-      // Check cache first
       if (audioBlobCacheRef.current.has(project.id)) {
         blobUrl = audioBlobCacheRef.current.get(project.id)!;
 
-        // Verify the blob URL is still valid
         try {
           const testAudio = new Audio();
           testAudio.src = blobUrl;
@@ -939,7 +846,6 @@ const History = memo(() => {
         const bucket = project.source_type === "recorded" ? "user-voices" : "user-generates";
         const cleanPath = cleanStoragePath(project.audio_url, bucket);
 
-        // Security: Validate cleaned path
         if (!cleanPath) {
           throw new Error("Invalid audio file path");
         }
@@ -954,7 +860,6 @@ const History = memo(() => {
           throw new Error("Not authenticated");
         }
 
-        // Use cached token or fetch new one
         const token = await tokenCache.getOrFetchToken(
           bucket,
           cleanPath,
@@ -964,14 +869,12 @@ const History = memo(() => {
 
         const streamUrl = `${SUPABASE_URL}/functions/v1/stream-audio?token=${encodeURIComponent(token)}`;
 
-        // Security: Validate URL
         if (!isValidUrl(streamUrl.split('?')[0])) {
           throw new Error("Invalid stream URL");
         }
 
-        // Fetch with timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         const audioResponse = await fetch(streamUrl, {
           headers: {
@@ -986,13 +889,11 @@ const History = memo(() => {
           throw new Error(`Failed to fetch audio: ${audioResponse.status}`);
         }
 
-        // Security: Validate content type
         const contentType = audioResponse.headers.get('content-type');
         if (!contentType || !ALLOWED_AUDIO_TYPES.some(type => contentType.includes(type))) {
           throw new Error("Invalid audio file type");
         }
 
-        // Security: Check file size before downloading
         const contentLength = audioResponse.headers.get('content-length');
         if (contentLength) {
           const size = parseInt(contentLength, 10);
@@ -1003,7 +904,6 @@ const History = memo(() => {
 
         const audioBlob = await audioResponse.blob();
 
-        // Security: Verify blob is audio and within size limit
         if (!audioBlob.type.startsWith('audio/')) {
           throw new Error("Invalid audio file format");
         }
@@ -1014,9 +914,7 @@ const History = memo(() => {
 
         blobUrl = URL.createObjectURL(audioBlob);
 
-        // Cache the blob URL (limit cache size)
         if (audioBlobCacheRef.current.size >= 50) {
-          // Remove oldest cache entry
           const firstKey = audioBlobCacheRef.current.keys().next().value;
           const oldUrl = audioBlobCacheRef.current.get(firstKey);
           if (oldUrl) URL.revokeObjectURL(oldUrl);
@@ -1025,10 +923,8 @@ const History = memo(() => {
         audioBlobCacheRef.current.set(project.id, blobUrl);
       }
 
-      // Create new audio element
       const audio = new Audio();
 
-      // Set up event handlers BEFORE setting src
       audio.onended = () => {
         setPlayingAudio(null);
         setLoadingAudio(null);
@@ -1057,16 +953,13 @@ const History = memo(() => {
           }
         }
 
-        toast({
-          title: "Playback Error",
-          description: errorMessage,
-          variant: "destructive"
+        toast.error("Playback Error", {
+          description: errorMessage
         });
 
         stopCurrentAudio();
         setLoadingAudio(null);
 
-        // Remove from cache if error
         if (audioBlobCacheRef.current.has(project.id)) {
           const cachedUrl = audioBlobCacheRef.current.get(project.id)!;
           URL.revokeObjectURL(cachedUrl);
@@ -1078,12 +971,10 @@ const History = memo(() => {
         console.log("Audio ready to play");
       };
 
-      // Now set the source and load
       audio.src = blobUrl;
       audio.load();
       audioRef.current = audio;
 
-      // Wait for the audio to be ready before playing
       await new Promise((resolve, reject) => {
         const loadedHandler = () => {
           audio.removeEventListener('loadeddata', loadedHandler);
@@ -1100,7 +991,6 @@ const History = memo(() => {
         audio.addEventListener('loadeddata', loadedHandler);
         audio.addEventListener('error', errorHandler);
 
-        // Timeout after 10 seconds
         setTimeout(() => {
           audio.removeEventListener('loadeddata', loadedHandler);
           audio.removeEventListener('error', errorHandler);
@@ -1122,10 +1012,8 @@ const History = memo(() => {
         errorMessage = err.message;
       }
 
-      toast({
-        title: "Playback Failed",
-        description: errorMessage,
-        variant: "destructive"
+      toast.error("Playback Failed", {
+        description: errorMessage
       });
       stopCurrentAudio();
       setLoadingAudio(null);
@@ -1145,7 +1033,6 @@ const History = memo(() => {
       </div>
     );
 
-  // Security: Sanitize search term
   const sanitizedSearchTerm = sanitizeInput(searchTerm);
 
   const filteredItems = allItems.filter((item) => {
@@ -1179,7 +1066,7 @@ const History = memo(() => {
           </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mb-2">Voice History</h1>
           <p className="text-xs mt-2 sm:text-sm text-muted-foreground">
-            Your voice projects • {retentionInfo("all")} retention (from plan start)
+            Your voice projects • {retentionInfo("all")} retention
           </p>
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
             <div className="text-xs sm:text-sm flex items-center gap-2">
@@ -1217,8 +1104,6 @@ const History = memo(() => {
                 </SelectContent>
               </Select>
             </div>
-
-
 
             <Tabs defaultValue="generated" className="w-full mt-6">
               <TabsList className="grid w-full grid-cols-2">
