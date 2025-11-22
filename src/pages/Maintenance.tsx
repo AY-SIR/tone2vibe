@@ -1,32 +1,15 @@
 import { useEffect, useState } from "react";
-import { Wrench, Clock, RefreshCw } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Wrench, RefreshCw, Mail } from "lucide-react";
 
 export default function Maintenance() {
-  const [message, setMessage] = useState("We are currently performing scheduled maintenance. Please check back soon.");
   const [dots, setDots] = useState("");
 
   useEffect(() => {
-    // Fetch custom maintenance message
-    const fetchMessage = async () => {
-      const { data } = await supabase
-        .from("maintenance")
-        .select("message")
-        .single();
-      
-      if (data?.message) {
-        setMessage(data.message);
-      }
-    };
-
-    fetchMessage();
-
-    // Animated dots
-    const interval = setInterval(() => {
+    const dotsInterval = setInterval(() => {
       setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
     }, 500);
 
-    return () => clearInterval(interval);
+    return () => clearInterval(dotsInterval);
   }, []);
 
   const handleRefresh = () => {
@@ -34,50 +17,66 @@ export default function Maintenance() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full text-center space-y-8 animate-in fade-in duration-1000">
-        {/* Icon */}
-        <div className="flex justify-center">
-          <div className="relative">
-            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full animate-pulse" />
-            <div className="relative bg-card border border-border rounded-full p-8 shadow-2xl">
-              <Wrench className="w-20 h-20 text-primary animate-bounce" style={{ animationDuration: "3s" }} />
-            </div>
+    <div className="min-h-screen bg-white flex flex-col">
+
+
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
+        <div className="max-w-2xl w-full text-center space-y-8 sm:space-y-12">
+        <div className="max-w-7xl mx-auto flex justify-center">
+  <div className="flex items-center gap-3">
+    <div className="w-12 h-12 bg-white/70 rounded-lg flex items-center justify-center shadow-sm">
+ <img
+    src="/favicon.png"
+    alt="icon"
+    className="w-7 h-7 "
+  />               </div>
+    <h2 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
+      Tone2Vibe
+    </h2>
+  </div>
+</div>
+
+          {/* Icon and Title on Same Line */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6">
+
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-light text-black tracking-tight">
+              Under Maintenance
+            </h1>
           </div>
-        </div>
+           <div className="flex items-center justify-center gap-2 text-black/60">
+            <Mail className="w-4 h-4 sm:w-5 sm:h-5" />
+            <a
+              href="mailto:support@tone2vibe.in"
+              className="text-sm sm:text-base font-light hover:text-black transition-colors duration-300"
+            >
+              support@tone2vibe.in
+            </a>
+          </div>
 
-        {/* Title */}
-        <div className="space-y-4">
-          <h1 className="text-5xl md:text-6xl font-bold text-foreground">
-            Under Maintenance
-          </h1>
-          <p className="text-xl md:text-2xl text-muted-foreground">
-            {message}
+          {/* Message */}
+          <p className="text-base sm:text-lg md:text-xl text-black/60 font-light">
+            We're upgrading our systems{dots}
           </p>
+
+
+          {/* Button */}
+          <button
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-2 sm:gap-3 px-8 sm:px-12 py-3 sm:py-4 bg-black text-white hover:bg-black/90 font-light text-sm sm:text-base tracking-wide uppercase transition-all duration-300"
+          >
+            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+            Refresh
+          </button>
         </div>
 
-        {/* Status */}
-        <div className="flex items-center justify-center gap-3 text-muted-foreground">
-          <Clock className="w-5 h-5" />
-          <span className="text-lg font-medium">
-            We'll be back shortly{dots}
-          </span>
-        </div>
 
-        {/* Refresh Button */}
-        <button
-          onClick={handleRefresh}
-          className="inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-semibold transition-all hover:scale-105 shadow-lg hover:shadow-xl"
-        >
-          <RefreshCw className="w-5 h-5" />
-          Check Again
-        </button>
 
-        {/* Footer */}
-        <div className="pt-8 text-sm text-muted-foreground">
-          <p>Thank you for your patience</p>
-        </div>
-      </div>
+      </main>
+
+
+
+
     </div>
   );
 }
