@@ -129,8 +129,8 @@ export function PaymentGateway({
   const handlePayment = async () => {
     if (!confirmPayment) {
       toast({
-        title: "Confirmation Required",
-        description: "Please confirm the payment before proceeding.",
+        title: "Please confirm payment",
+        description: "Check the box to confirm before proceeding",
         variant: "destructive",
       });
       return;
@@ -138,8 +138,8 @@ export function PaymentGateway({
 
     if (finalAmount > 0) {
       toast({
-        title: "Opening Payment Gateway",
-        description: "Redirecting to secure payment...",
+        title: "Opening payment gateway",
+        description: "Redirecting to secure payment",
       });
       onPayment(selectedPlan);
       return;
@@ -150,28 +150,34 @@ export function PaymentGateway({
     try {
       if (finalAmount === 0) {
         if (!couponValidation.isValid || !couponValidation.code) {
+          const message = "Valid coupon code required for free activation";
+          await markPaymentFailed("INVALID_COUPON", message, "subscription");
           toast({
-            title: "Invalid Coupon",
-            description: "Please apply a valid coupon code for free activation.",
+            title: "Coupon required",
+            description: message,
             variant: "destructive",
           });
+          navigate(`/payment-failed?reason=${encodeURIComponent(message)}&type=subscription`);
           setIsActivating(false);
           return;
         }
         toast({
-          title: "Activating Plan",
-          description: `Setting up your ${planDetails[selectedPlan].name} plan...`,
+          title: "Activating your plan",
+          description: `Setting up ${planDetails[selectedPlan].name} plan with your coupon`,
         });
         await handleFreeActivation();
       } else {
         onPayment(selectedPlan);
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unable to activate plan. Please try again";
+      await markPaymentFailed("ACTIVATION_ERROR", errorMessage, "subscription");
       toast({
-        title: "Activation Failed",
-        description: error instanceof Error ? error.message : "Could not activate plan.",
+        title: "Activation failed",
+        description: errorMessage,
         variant: "destructive",
       });
+      navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=subscription`);
       setIsActivating(false);
     }
   };
@@ -179,12 +185,16 @@ export function PaymentGateway({
   const handleFreeActivation = async () => {
     try {
       if (!user) {
-        throw new Error("Please log in first");
+        const message = "Please log in to activate your plan";
+        await markPaymentFailed("NOT_LOGGED_IN", message, "subscription");
+        throw new Error(message);
       }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        throw new Error("Session expired. Please log in again.");
+        const message = "Your session has expired. Please log in again";
+        await markPaymentFailed("SESSION_EXPIRED", message, "subscription");
+        throw new Error(message);
       }
 
       const activateRes = await supabase.functions.invoke('activate-free-plan', {
@@ -196,24 +206,24 @@ export function PaymentGateway({
       });
 
       if (activateRes.error) {
-        // Track activation failure
-        await markPaymentFailed("FREE_ACTIVATION_FAILED", activateRes.error.message || 'Failed to activate plan', "subscription");
-        throw new Error(activateRes.error.message || 'Failed to activate plan');
+        const message = activateRes.error.message || 'Unable to activate plan. Please contact support';
+        await markPaymentFailed("FREE_ACTIVATION_FAILED", message, "subscription");
+        throw new Error(message);
       }
 
       const result = activateRes.data;
 
       if (!result?.success) {
-        // Track activation failure
-        await markPaymentFailed("FREE_ACTIVATION_FAILED", result?.error || 'Plan activation failed', "subscription");
-        throw new Error(result?.error || 'Plan activation failed');
+        const message = result?.error || 'Plan activation failed. Please try again or contact support';
+        await markPaymentFailed("FREE_ACTIVATION_FAILED", message, "subscription");
+        throw new Error(message);
       }
 
       await refreshProfile();
 
       toast({
-        title: "Plan Activated Successfully!",
-        description: `Your ${planDetails[selectedPlan].name} plan is now active.`,
+        title: "Plan activated successfully",
+        description: `Your ${planDetails[selectedPlan].name} plan is now active`,
       });
 
       navigate(
