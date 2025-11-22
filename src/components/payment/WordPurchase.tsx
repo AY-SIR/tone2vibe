@@ -61,8 +61,8 @@ export function WordPurchase() {
   const handlePurchase = () => {
     if (!user || !profile) {
       toast({
-        title: "Authentication Required",
-        description: "Please log in to purchase words.",
+        title: "Please log in first",
+        description: "You need to be logged in to purchase words",
         variant: "destructive",
       });
       navigate("/login");
@@ -71,8 +71,8 @@ export function WordPurchase() {
 
     if (!canPurchaseWords()) {
       toast({
-        title: "Upgrade Required",
-        description: "Please upgrade to Pro or Premium to purchase words.",
+        title: "Plan upgrade needed",
+        description: "Word purchases are available for Pro and Premium users only",
         variant: "destructive",
       });
       navigate("/payment");
@@ -81,8 +81,8 @@ export function WordPurchase() {
 
     if (wordsAmount < 1000) {
       toast({
-        title: "Invalid Amount",
-        description: "Minimum purchase is 1,000 words.",
+        title: "Amount too low",
+        description: "Please purchase at least 1,000 words",
         variant: "destructive",
       });
       return;
@@ -91,16 +91,16 @@ export function WordPurchase() {
     const maxAvailable = getMaxPurchaseLimit();
     if (wordsAmount > maxAvailable) {
       toast({
-        title: "Limit Exceeded",
-        description: `Maximum available: ${maxAvailable.toLocaleString()} words.`,
+        title: "Purchase limit reached",
+        description: `You can only purchase up to ${maxAvailable.toLocaleString()} more words`,
         variant: "destructive",
       });
       return;
     }
 
     toast({
-      title: "Preparing Purchase",
-      description: `Setting up payment for ${wordsAmount.toLocaleString()} words...`,
+      title: "Setting up payment",
+      description: `Preparing to purchase ${wordsAmount.toLocaleString()} words`,
     });
     setShowPaymentGateway(true);
   };
@@ -110,8 +110,8 @@ export function WordPurchase() {
 
     try {
       toast({
-        title: "Validating Location",
-        description: "Checking service availability...",
+        title: "Checking location",
+        description: "Verifying service availability in your region",
       });
 
       let location = LocationCacheService.getCachedLocation();
@@ -120,44 +120,45 @@ export function WordPurchase() {
       }
 
       if (!location?.isIndian) {
-        // Track location failure
         await markPaymentFailed("LOCATION_CHECK_FAILED", "Service only available in India", "words");
         toast({
-          title: "Service Unavailable",
-          description: "This service is only available in India.",
+          title: "Sorry, this service is not available in your region",
+          description: "Our word purchase service is currently only available in India",
           variant: "destructive",
         });
-        navigate(`/payment-failed?reason=${encodeURIComponent("This service is only available in India")}&type=words`);
+        navigate(`/payment-failed?reason=${encodeURIComponent("This service is only available for users in India")}&type=words`);
         return;
       }
 
       if (finalAmount === 0) {
         if (!couponValidation.isValid || !couponValidation.code) {
+          await markPaymentFailed("INVALID_COUPON", "Invalid or missing coupon code", "words");
           toast({
-            title: "Invalid Coupon",
-            description: "Please apply a valid coupon code.",
+            title: "Coupon required for free purchase",
+            description: "Please apply a valid coupon code to proceed",
             variant: "destructive",
           });
+          navigate(`/payment-failed?reason=${encodeURIComponent("Valid coupon code required for free word purchase")}&type=words`);
           return;
         }
         toast({
-          title: "Processing Free Purchase",
-          description: "Activating your free words...",
+          title: "Activating free words",
+          description: "Processing your free word purchase with coupon",
         });
         await handleFreeWordPurchase();
         return;
       }
 
       toast({
-        title: "Opening Payment Gateway",
-        description: "Redirecting to secure payment...",
+        title: "Opening payment gateway",
+        description: "Redirecting you to secure payment",
       });
 
       const result = await RazorpayService.createWordPayment(
         wordsAmount,
         user!.email || "",
         user!.user_metadata?.full_name || "User",
-        getUserPlan() // ✅ NOW SENDING PLAN
+        getUserPlan()
       );
 
       if (result.success && result.order_id && result.razorpay_key) {
@@ -172,8 +173,8 @@ export function WordPurchase() {
           `${wordsAmount} Words Purchase`,
           async (razorpayResponse: any) => {
             toast({
-              title: "Verifying Payment",
-              description: "Please wait while we confirm your payment...",
+              title: "Verifying payment",
+              description: "Please wait while we confirm your transaction",
             });
 
             const verifyResponse = await RazorpayService.verifyPayment(
@@ -184,42 +185,42 @@ export function WordPurchase() {
 
             if (verifyResponse.success) {
               toast({
-                title: "Payment Successful!",
-                description: `${wordsAmount.toLocaleString()} words added to your account.`,
+                title: "Payment successful",
+                description: `${wordsAmount.toLocaleString()} words have been added to your account`,
               });
               navigate(`/payment-success?words=${wordsAmount}&type=word_purchase&invoice=${verifyResponse.invoice_number || ''}`);
             } else {
+              const friendlyMessage = verifyResponse.message || "We couldn't verify your payment. Please contact support";
+              await markPaymentFailed(razorpayResponse.razorpay_order_id, friendlyMessage, "words");
               toast({
-                title: "Payment Verification Failed",
-                description: verifyResponse.message || "Could not verify payment.",
+                title: "Payment verification failed",
+                description: friendlyMessage,
                 variant: "destructive",
               });
-              await markPaymentFailed(razorpayResponse.razorpay_order_id, verifyResponse.message || "Verification failed", "words");
-              navigate(`/payment-failed?reason=${encodeURIComponent(verifyResponse.message || "Verification failed")}&type=words`);
+              navigate(`/payment-failed?reason=${encodeURIComponent(friendlyMessage)}&type=words`);
             }
           },
           async (error: any) => {
-            const errorMessage = error.message || error.description || "Payment was cancelled";
+            const errorMessage = error.message || error.description || "Payment was cancelled or failed. No charges were made";
+            await markPaymentFailed(result.order_id!, errorMessage, "words");
             toast({
-              title: "Payment Failed",
+              title: "Payment not completed",
               description: errorMessage,
               variant: "destructive",
             });
-            await markPaymentFailed(result.order_id!, errorMessage, "words");
             navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
           }
         );
       } else {
-        // Track payment initialization failure
-        await markPaymentFailed("PAYMENT_INIT_FAILED", result.message || "Failed to initialize payment", "words");
-        throw new Error(result.message || "Failed to initialize payment");
+        const friendlyMessage = result.message || "We couldn't start the payment process. Please try again";
+        await markPaymentFailed("PAYMENT_INIT_FAILED", friendlyMessage, "words");
+        throw new Error(friendlyMessage);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Something went wrong";
-      // Track general payment error if not already tracked
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong. Please try again or contact support";
       await markPaymentFailed("PAYMENT_ERROR", errorMessage, "words");
       toast({
-        title: "Payment Error",
+        title: "Unable to process payment",
         description: errorMessage,
         variant: "destructive",
       });
@@ -235,14 +236,16 @@ export function WordPurchase() {
       const session = sessionData?.session;
 
       if (!session?.access_token) {
-        throw new Error("Session expired. Please log in again.");
+        const message = "Your session has expired. Please log in again";
+        await markPaymentFailed("SESSION_EXPIRED", message, "words");
+        throw new Error(message);
       }
 
       const { data, error } = await supabase.functions.invoke("free-word-purchase", {
         body: {
           coupon_code: couponValidation.code,
           words_amount: wordsAmount,
-          user_plan: getUserPlan() // ✅ NOW SENDING PLAN
+          user_plan: getUserPlan()
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -250,16 +253,29 @@ export function WordPurchase() {
       });
 
       if (error) {
-        throw new Error(error.message || "Failed to process free purchase");
+        const message = error.message || "We couldn't process your free word purchase. Please try again";
+        await markPaymentFailed("FREE_PURCHASE_ERROR", message, "words");
+        throw new Error(message);
       }
 
       if (!data?.success) {
-        throw new Error(data?.error || "Failed to add words");
+        const message = data?.error || "Unable to add words to your account. Please contact support";
+        await markPaymentFailed("FREE_PURCHASE_FAILED", message, "words");
+        throw new Error(message);
       }
 
+      toast({
+        title: "Words added successfully",
+        description: `${wordsAmount.toLocaleString()} free words have been added to your account`,
+      });
       navigate(`/payment-success?words=${wordsAmount}&type=free&invoice=${data.invoice_number || ''}`);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to process purchase";
+      const errorMessage = err instanceof Error ? err.message : "Failed to complete purchase. Please try again";
+      toast({
+        title: "Free purchase failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
       navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
     }
   };

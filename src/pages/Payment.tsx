@@ -91,22 +91,23 @@ const Payment = () => {
       const location = await LocationCacheService.getLocation();
 
       if (!location.isIndian) {
-        toast({
-          title: "Access Restricted",
-          description: `This service is only available in India. Your location: ${location.country}`,
-          variant: "destructive"
-        });
-        setTimeout(() => navigate('/'), 3000);
+      toast({
+        title: "Service not available in your region",
+        description: `Our service is currently only available in India. Detected location: ${location.country}`,
+        variant: "destructive"
+      });
+      navigate(`/payment-failed?reason=${encodeURIComponent(`Service only available in India. Your location: ${location.country}`)}&type=subscription`);
         return;
       }
 
       setLocationVerified(true);
     } catch (error) {
       toast({
-        title: "Location Verification Failed",
-        description: "Unable to verify your location. Please try again.",
+        title: "Unable to verify location",
+        description: "We couldn't verify your location. Please refresh the page or try again later",
         variant: "destructive"
       });
+      navigate(`/payment-failed?reason=${encodeURIComponent("Location verification failed. Please try again later")}&type=subscription`);
     }
   };
 
@@ -190,8 +191,8 @@ const Payment = () => {
   const handlePlanSelect = async (planId: string) => {
     if (!locationVerified) {
       toast({
-        title: "Location Not Verified",
-        description: "Please wait while we verify your location.",
+        title: "Location verification in progress",
+        description: "Please wait a moment while we verify your location",
         variant: "destructive"
       });
       return;
@@ -200,13 +201,13 @@ const Payment = () => {
     if (planId === 'free') {
       if (isFreePlanActive) {
         toast({
-          title: "This is your current plan",
-          description: "Upgrade to Pro or Premium for more features!",
+          title: "You're already on the Free plan",
+          description: "Upgrade to Pro or Premium to unlock more features",
         });
       } else {
         toast({
-          title: "Cannot Downgrade",
-          description: "You cannot downgrade to the free plan while a subscription is active. Please contact support if you wish to cancel.",
+          title: "Downgrade not available",
+          description: "Active subscriptions cannot be downgraded. Please contact our support team for assistance",
           variant: "destructive"
         });
       }
@@ -223,8 +224,8 @@ const Payment = () => {
 
     if (user?.id === 'guest') {
       toast({
-        title: "Guest Access",
-        description: "Please sign up for an account to upgrade your plan.",
+        title: "Please create an account",
+        description: "You need to sign up before upgrading your plan",
         variant: "destructive"
       });
       return;
@@ -233,17 +234,16 @@ const Payment = () => {
     if (profile?.plan && profile.plan !== 'free' && planId !== profile.plan && !isExpired) {
       if (profile?.plan === 'premium' && planId === 'pro') {
         toast({
-          title: "Downgrade Not Allowed",
-          description: "You cannot downgrade while your plan is active. Please contact support.",
+          title: "Downgrade not available",
+          description: "Active Premium plans cannot be downgraded. Please contact support for assistance",
           variant: "destructive"
         });
         return;
       }
 
       toast({
-        title: "Plan Change Restricted",
-        description: "You can only change plans after your current plan expires on " +
-          (profile?.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString() : 'N/A'),
+        title: "Plan change not allowed yet",
+        description: `You can change your plan after ${profile?.plan_expires_at ? new Date(profile.plan_expires_at).toLocaleDateString() : 'your current plan expires'}`,
         variant: "destructive"
       });
       return;
@@ -257,11 +257,13 @@ const Payment = () => {
       setSelectedPlan(planId as 'pro' | 'premium');
       setShowPaymentGateway(true);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unable to start payment process. Please try again";
       toast({
-        title: "Error",
-        description: "Failed to initiate payment. Please try again.",
+        title: "Payment setup failed",
+        description: errorMessage,
         variant: "destructive"
       });
+      navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=subscription`);
     }
   };
 
