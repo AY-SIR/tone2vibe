@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import { Upload, FileText, AlertCircle, CheckCircle, Zap} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { UploadLimitService } from "@/services/uploadLimitService";
 import { OCRService } from "@/services/ocrService";
 
@@ -28,7 +28,6 @@ export default function ModernStepOne({
   initialText = "",
 }: ModernStepOneProps) {
   const { profile } = useAuth();
-  const { toast } = useToast();
   const [inputMethod, setInputMethod] = useState<"text" | "file">("text");
   const [manualText, setManualText] = useState(initialText);
   const [extractedText, setExtractedText] = useState(initialText);
@@ -129,7 +128,7 @@ export default function ModernStepOne({
 
     const validation = UploadLimitService.validateFileSize(file, profile?.plan || 'free');
     if (!validation.valid) {
-      toast({ title: "File Too Large", description: validation.error, variant: "destructive" });
+      toast.error("File Too Large", { description: validation.error });
       return;
     }
 
@@ -144,18 +143,15 @@ export default function ModernStepOne({
         setManualText(text); // Also update manual text
         onTextExtracted(text);
         onWordCountUpdate(wordCount);
-        toast({
-          title: "Text Extracted Successfully",
-          description: `Extracted ${wordCount} words from your file.`,
+        toast.success("Text Extracted Successfully", {
+          description: `Extracted ${wordCount} words from your file.`
         });
       } else {
         throw new Error("No text could be extracted from the file.");
       }
     } catch (error) {
-      toast({
-        title: "Extraction Failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred.",
-        variant: "destructive"
+      toast.error("Extraction Failed", {
+        description: error instanceof Error ? error.message : "An unknown error occurred."
       });
       setExtractedText("");
       setManualText("");
@@ -163,7 +159,7 @@ export default function ModernStepOne({
       setIsProcessing(false);
       onProcessingEnd();
     }
-  }, [profile?.plan, onTextExtracted, onWordCountUpdate, onProcessingStart, onProcessingEnd, toast]);
+  }, [profile?.plan, onTextExtracted, onWordCountUpdate, onProcessingStart, onProcessingEnd]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -181,10 +177,8 @@ export default function ModernStepOne({
   const handleManualTextSubmit = () => {
     const trimmedText = manualText.trim();
     if (!trimmedText) {
-      toast({
-        title: "No Text Entered",
-        description: "Please enter some text to continue.",
-        variant: "destructive"
+      toast.error("No Text Entered", {
+        description: "Please enter some text to continue."
       });
       return false;
     }

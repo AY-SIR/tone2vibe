@@ -574,8 +574,8 @@ const Tool = () => {
     setProcessingStep("");
 
     if (isMountedRef.current) {
-      toast.success("Reset Complete ✨", {
-        description: "Ready for a new voice generation!",
+      toast.success("Reset Complete ", {
+
         duration: 3000
       });
     }
