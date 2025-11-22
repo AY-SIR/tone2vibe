@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
+const SAMPLE_MP3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
 // Sanitize input text (sample - limited length)
 const sanitizeText = (text: string): string => {
   if (typeof text !== "string") return "";
@@ -143,26 +145,11 @@ Deno.serve(async (req) => {
       return createErrorResponse(corsHeaders, "Invalid voice ID format", 400);
     }
 
-    // Logging for debugging / monitoring
-    console.log("Sample generation request:", {
+    // Logging for monitoring
+    console.log("Sample generation completed:", {
       user_id: user.id,
-      provided_word_count: providedWordCount,
-      voice_type: body.voice_settings.voice_type,
-      voice_id: body.voice_settings.voice_id,
-      language: body.language,
-      is_sample: !!body.is_sample
+      word_count: providedWordCount
     });
-
-    console.log("Voice settings:", JSON.stringify(body.voice_settings, null, 2));
-
-    // Mock sample audio (replace with real TTS when ready)
-    const SAMPLE_MP3_URL =
-      "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-
-    // No deduction for samples
-    console.log(
-      `Sample generation completed for user ${user.id} - ${providedWordCount} words (No deduction)`
-    );
 
     return new Response(
       JSON.stringify({
