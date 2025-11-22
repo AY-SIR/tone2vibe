@@ -6,6 +6,8 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import html2pdf from "html2pdf.js";
 
+const USE_SERVER_SIDE_PDF = false; // Toggle between server-side and client-side PDF generation
+
 interface InvoiceDownloadProps {
   invoiceId: string;
   invoiceNumber: string;
@@ -88,6 +90,111 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
     }
   };
 
+  const handleDownloadServerSide = async (invoiceNumber: string, pdfUrl: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error("Please log in to download invoices");
+      }
+
+      const response = await supabase.functions.invoke("generate-pdf-invoice", {
+        body: { invoice_path: pdfUrl },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to generate PDF");
+      }
+
+      // If fallback to client-side
+      if (response.data?.fallback) {
+        return handleDownloadClientSide(invoiceNumber, response.data.html);
+      }
+
+      // Download the PDF blob
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `invoice-${invoiceNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success!",
+        description: "Invoice downloaded successfully.",
+      });
+    } catch (error) {
+      console.error("Server-side PDF generation failed:", error);
+      toast({
+        title: "Trying Alternative Method",
+        description: "Switching to client-side PDF generation...",
+      });
+      // Fallback to client-side
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) {
+        const { data: invoice } = await supabase
+          .from("invoices")
+          .select("pdf_url")
+          .eq("invoice_number", invoiceNumber)
+          .eq("user_id", authData.user.id)
+          .single();
+        
+        if (invoice?.pdf_url) {
+          const { data: fileData } = await supabase.storage
+            .from("invoices")
+            .download(invoice.pdf_url);
+          
+          if (fileData) {
+            const html = await fileData.text();
+            return handleDownloadClientSide(invoiceNumber, html);
+          }
+        }
+      }
+      throw error;
+    }
+  };
+
+  const handleDownloadClientSide = async (invoiceNumber: string, htmlContent?: string) => {
+    try {
+      let html = htmlContent;
+      
+      if (!html) {
+        const { htmlContent: fetchedHTML } = await fetchInvoice();
+        html = fetchedHTML;
+      }
+
+      // Create a temporary container
+      const element = document.createElement('div');
+      element.innerHTML = html;
+
+      // Configure html2pdf options
+      const opt = {
+        margin: 0,
+        filename: `Invoice-${invoiceNumber}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+      };
+
+      // Generate and download PDF
+      await html2pdf().set(opt).from(element).save();
+
+      toast({
+        title: "Success!",
+        description: "Invoice downloaded successfully.",
+      });
+    } catch (error) {
+      console.error("Error downloading invoice:", error);
+      throw error;
+    }
+  };
+
   const handleDownload = async () => {
     try {
       toast({
@@ -95,21 +202,30 @@ export const InvoiceDownload = ({ invoiceId, invoiceNumber }: InvoiceDownloadPro
         description: "Converting invoice to PDF..."
       });
 
-      const { htmlContent, invoiceNumber: fetchedInvoiceNumber } = await fetchInvoice();
+      const { invoiceNumber: fetchedInvoiceNumber } = await fetchInvoice();
 
-      // Convert HTML to PDF using html2pdf.js
-      const element = document.createElement('div');
-      element.innerHTML = htmlContent;
-      
-      const opt = {
-        margin: 0,
-        filename: `Invoice-${fetchedInvoiceNumber}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-      };
+      // Get the PDF URL from the database
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData?.user) {
+        throw new Error("Please log in to download invoices");
+      }
 
-      await html2pdf().set(opt).from(element).save();
+      const { data: invoice } = await supabase
+        .from("invoices")
+        .select("pdf_url")
+        .eq("invoice_number", fetchedInvoiceNumber)
+        .eq("user_id", authData.user.id)
+        .single();
+
+      if (!invoice?.pdf_url) {
+        throw new Error("Invoice file not found");
+      }
+
+      if (USE_SERVER_SIDE_PDF) {
+        await handleDownloadServerSide(fetchedInvoiceNumber, invoice.pdf_url);
+      } else {
+        await handleDownloadClientSide(fetchedInvoiceNumber);
+      }
 
       toast({
         title: "Download Complete",

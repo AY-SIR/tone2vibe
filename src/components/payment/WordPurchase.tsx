@@ -120,6 +120,8 @@ export function WordPurchase() {
       }
 
       if (!location?.isIndian) {
+        // Track location failure
+        await markPaymentFailed("LOCATION_CHECK_FAILED", "Service only available in India", "words");
         toast({
           title: "Service Unavailable",
           description: "This service is only available in India.",
@@ -208,10 +210,14 @@ export function WordPurchase() {
           }
         );
       } else {
+        // Track payment initialization failure
+        await markPaymentFailed("PAYMENT_INIT_FAILED", result.message || "Failed to initialize payment", "words");
         throw new Error(result.message || "Failed to initialize payment");
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Something went wrong";
+      // Track general payment error if not already tracked
+      await markPaymentFailed("PAYMENT_ERROR", errorMessage, "words");
       toast({
         title: "Payment Error",
         description: errorMessage,
