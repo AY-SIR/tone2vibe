@@ -142,14 +142,15 @@ Deno.serve(async (req)=>{
       discountType = "fixed";
       discount = coupon.discount_amount;
     }
+
     // ✅ CRITICAL: Ensure discount never exceeds the amount
     discount = Math.min(discount, numericAmount);
-    console.log("Coupon validation result:", {
-      code,
-      discount,
-      discountType,
-      originalAmount: numericAmount
-    });
+
+    const finalAmount = Math.max(0, numericAmount - discount);
+
+    // Log for monitoring
+    console.log("Coupon validated:", { code, discount, final_amount: finalAmount });
+
     return new Response(JSON.stringify({
       isValid: true,
       valid: true,
