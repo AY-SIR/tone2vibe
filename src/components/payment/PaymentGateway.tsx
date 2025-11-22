@@ -15,6 +15,7 @@ import { Crown, Star, Zap, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { CouponInput } from "@/components/payment/couponInput";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface PaymentGatewayProps {
   selectedPlan: "pro" | "premium";
@@ -127,10 +128,19 @@ export function PaymentGateway({
 
   const handlePayment = async () => {
     if (!confirmPayment) {
+      toast({
+        title: "Confirmation Required",
+        description: "Please confirm the payment before proceeding.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (finalAmount > 0) {
+      toast({
+        title: "Opening Payment Gateway",
+        description: "Redirecting to secure payment...",
+      });
       onPayment(selectedPlan);
       return;
     }
@@ -140,14 +150,28 @@ export function PaymentGateway({
     try {
       if (finalAmount === 0) {
         if (!couponValidation.isValid || !couponValidation.code) {
+          toast({
+            title: "Invalid Coupon",
+            description: "Please apply a valid coupon code for free activation.",
+            variant: "destructive",
+          });
           setIsActivating(false);
           return;
         }
+        toast({
+          title: "Activating Plan",
+          description: `Setting up your ${planDetails[selectedPlan].name} plan...`,
+        });
         await handleFreeActivation();
       } else {
         onPayment(selectedPlan);
       }
     } catch (error) {
+      toast({
+        title: "Activation Failed",
+        description: error instanceof Error ? error.message : "Could not activate plan.",
+        variant: "destructive",
+      });
       setIsActivating(false);
     }
   };
@@ -182,6 +206,11 @@ export function PaymentGateway({
       }
 
       await refreshProfile();
+
+      toast({
+        title: "Plan Activated Successfully!",
+        description: `Your ${planDetails[selectedPlan].name} plan is now active.`,
+      });
 
       navigate(
         `/payment-success?plan=${selectedPlan}&amount=0&type=subscription&coupon=${couponValidation.code}&invoice=${result.invoice_number || ''}`,

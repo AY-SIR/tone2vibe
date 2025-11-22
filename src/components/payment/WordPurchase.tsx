@@ -13,6 +13,7 @@ import { RazorpayService } from "@/services/razorpay";
 import { CouponInput } from "@/components/payment/couponInput";
 import { CouponService, type CouponValidation } from "@/services/couponService";
 import { WordService } from "@/services/wordService";
+import { toast } from "@/hooks/use-toast";
 
 export function WordPurchase() {
   const { user, profile } = useAuth();
@@ -59,20 +60,48 @@ export function WordPurchase() {
 
   const handlePurchase = () => {
     if (!user || !profile) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to purchase words.",
+        variant: "destructive",
+      });
       navigate("/login");
       return;
     }
 
     if (!canPurchaseWords()) {
+      toast({
+        title: "Upgrade Required",
+        description: "Please upgrade to Pro or Premium to purchase words.",
+        variant: "destructive",
+      });
       navigate("/payment");
       return;
     }
 
-    if (wordsAmount < 1000) return;
+    if (wordsAmount < 1000) {
+      toast({
+        title: "Invalid Amount",
+        description: "Minimum purchase is 1,000 words.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const maxAvailable = getMaxPurchaseLimit();
-    if (wordsAmount > maxAvailable) return;
+    if (wordsAmount > maxAvailable) {
+      toast({
+        title: "Limit Exceeded",
+        description: `Maximum available: ${maxAvailable.toLocaleString()} words.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
+    toast({
+      title: "Preparing Purchase",
+      description: `Setting up payment for ${wordsAmount.toLocaleString()} words...`,
+    });
     setShowPaymentGateway(true);
   };
 
@@ -80,23 +109,47 @@ export function WordPurchase() {
     setLoading(true);
 
     try {
+      toast({
+        title: "Validating Location",
+        description: "Checking service availability...",
+      });
+
       let location = LocationCacheService.getCachedLocation();
       if (!location) {
         location = await LocationCacheService.getLocation();
       }
 
       if (!location?.isIndian) {
+        toast({
+          title: "Service Unavailable",
+          description: "This service is only available in India.",
+          variant: "destructive",
+        });
         navigate(`/payment-failed?reason=${encodeURIComponent("This service is only available in India")}&type=words`);
         return;
       }
 
       if (finalAmount === 0) {
         if (!couponValidation.isValid || !couponValidation.code) {
+          toast({
+            title: "Invalid Coupon",
+            description: "Please apply a valid coupon code.",
+            variant: "destructive",
+          });
           return;
         }
+        toast({
+          title: "Processing Free Purchase",
+          description: "Activating your free words...",
+        });
         await handleFreeWordPurchase();
         return;
       }
+
+      toast({
+        title: "Opening Payment Gateway",
+        description: "Redirecting to secure payment...",
+      });
 
       const result = await RazorpayService.createWordPayment(
         wordsAmount,
@@ -116,6 +169,11 @@ export function WordPurchase() {
           user!.phone || "",
           `${wordsAmount} Words Purchase`,
           async (razorpayResponse: any) => {
+            toast({
+              title: "Verifying Payment",
+              description: "Please wait while we confirm your payment...",
+            });
+
             const verifyResponse = await RazorpayService.verifyPayment(
               razorpayResponse.razorpay_order_id,
               razorpayResponse.razorpay_payment_id,
@@ -123,14 +181,28 @@ export function WordPurchase() {
             );
 
             if (verifyResponse.success) {
+              toast({
+                title: "Payment Successful!",
+                description: `${wordsAmount.toLocaleString()} words added to your account.`,
+              });
               navigate(`/payment-success?words=${wordsAmount}&type=word_purchase&invoice=${verifyResponse.invoice_number || ''}`);
             } else {
+              toast({
+                title: "Payment Verification Failed",
+                description: verifyResponse.message || "Could not verify payment.",
+                variant: "destructive",
+              });
               await markPaymentFailed(razorpayResponse.razorpay_order_id, verifyResponse.message || "Verification failed", "words");
               navigate(`/payment-failed?reason=${encodeURIComponent(verifyResponse.message || "Verification failed")}&type=words`);
             }
           },
           async (error: any) => {
             const errorMessage = error.message || error.description || "Payment was cancelled";
+            toast({
+              title: "Payment Failed",
+              description: errorMessage,
+              variant: "destructive",
+            });
             await markPaymentFailed(result.order_id!, errorMessage, "words");
             navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
           }
@@ -140,6 +212,11 @@ export function WordPurchase() {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Something went wrong";
+      toast({
+        title: "Payment Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
       navigate(`/payment-failed?reason=${encodeURIComponent(errorMessage)}&type=words`);
     } finally {
       setLoading(false);
