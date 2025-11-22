@@ -110,7 +110,7 @@ export function PaymentGateway({
     return `Subscribe for ${pricing.symbol}${finalAmount}`;
   };
 
-  const markPaymentFailed = async (orderId: string, reason: string) => {
+  const markPaymentFailed = async (orderId: string, reason: string, type: string = "subscription") => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const session = sessionData?.session;
@@ -118,7 +118,7 @@ export function PaymentGateway({
       if (!session?.access_token) return;
 
       await supabase.functions.invoke("mark-payment-failed", {
-        body: { order_id: orderId, reason, type: "subscription" },
+        body: { order_id: orderId, reason, type },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
     } catch (error) {
@@ -196,12 +196,16 @@ export function PaymentGateway({
       });
 
       if (activateRes.error) {
+        // Track activation failure
+        await markPaymentFailed("FREE_ACTIVATION_FAILED", activateRes.error.message || 'Failed to activate plan', "subscription");
         throw new Error(activateRes.error.message || 'Failed to activate plan');
       }
 
       const result = activateRes.data;
 
       if (!result?.success) {
+        // Track activation failure
+        await markPaymentFailed("FREE_ACTIVATION_FAILED", result?.error || 'Plan activation failed', "subscription");
         throw new Error(result?.error || 'Plan activation failed');
       }
 
