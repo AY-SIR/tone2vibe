@@ -27,8 +27,10 @@ import Cookies from "@/pages/Cookies";
 import NotFound from "@/pages/NotFound";
 import Profile from "@/pages/Profile";
 import Offline from "@/pages/Offline";
+import Maintenance from "@/pages/Maintenance";
 import { EmailConfirmation } from "@/pages/EmailConfirmation";
 import { ResetPassword } from "@/pages/ResetPassword";
+import { supabase } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +47,45 @@ function AppContent() {
   const { planExpiryActive, loading: authLoading } = useAuth();
   const { isOffline, statusChecked } = useOfflineDetection();
   const [cookieConsent, setCookieConsent] = useState<string | null>(null);
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState<boolean | null>(null);
+
+  // Check maintenance status
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const { data } = await supabase
+          .from("maintenance")
+          .select("is_enabled")
+          .single();
+        
+        setIsMaintenanceMode(data?.is_enabled ?? false);
+      } catch {
+        setIsMaintenanceMode(false);
+      }
+    };
+
+    checkMaintenance();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel("maintenance-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "maintenance",
+        },
+        (payload) => {
+          setIsMaintenanceMode(payload.new.is_enabled);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Load cookie consent from localStorage
   useEffect(() => {
@@ -62,6 +103,11 @@ function AppContent() {
     document.addEventListener("contextmenu", handleContextMenu);
     return () => document.removeEventListener("contextmenu", handleContextMenu);
   }, []);
+
+  // Show maintenance page if maintenance mode is enabled
+  if (isMaintenanceMode === true) {
+    return <Maintenance />;
+  }
 
   // Show offline page if user is offline
   if (statusChecked && isOffline) {
